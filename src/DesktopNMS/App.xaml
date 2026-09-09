@@ -16,6 +16,7 @@
             <converters:AlertStateToOpacityConverter x:Key="StateToOpacity" />
             <converters:DeviceStateToBrushConverter x:Key="DeviceStateToBrush" />
             <converters:MarkdownToFlowDocumentConverter x:Key="MarkdownToFlowDocument" />
+            <converters:GaugeArcConverter x:Key="GaugeArc" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

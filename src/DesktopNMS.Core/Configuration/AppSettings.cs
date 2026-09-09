@@ -435,6 +435,14 @@ public sealed class DashboardWidget
     /// <summary>For a "Sensors" widget: which sensors it shows. Unused by other widget types.</summary>
     public List<PinnedSensor> Sensors { get; set; } = new();
 
+    /// <summary>For an "Alerts" widget: which severities to show. Unused by other widget types.</summary>
+    public bool AlertsShowCritical { get; set; } = true;
+
+    public bool AlertsShowWarning { get; set; } = true;
+
+    /// <summary>For an "Alerts" widget: whether acknowledged alerts count towards the two severities above.</summary>
+    public bool AlertsIncludeAcknowledged { get; set; }
+
     public DashboardWidget Clone() => new()
     {
         Id = Id,
@@ -445,6 +453,9 @@ public sealed class DashboardWidget
         Width = Width,
         Height = Height,
         Sensors = Sensors.Select(s => s.Clone()).ToList(),
+        AlertsShowCritical = AlertsShowCritical,
+        AlertsShowWarning = AlertsShowWarning,
+        AlertsIncludeAcknowledged = AlertsIncludeAcknowledged,
     };
 
     /// <summary>Clamps anything a hand-edited settings file could have made nonsensical.</summary>

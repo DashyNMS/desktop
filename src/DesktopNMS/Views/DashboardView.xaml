@@ -208,6 +208,192 @@
             </Grid>
         </DataTemplate>
 
+        <!-- ======================== Alerts widget body ======================== -->
+        <!-- A compact feed of alerts fed by the app-wide alert monitor - see
+             AlertsWidgetViewModel. The severity/acknowledged chips are always
+             visible (a viewing preference, not a structural edit), unlike the
+             Sensors widget's "manage" controls which only appear while editing. -->
+        <DataTemplate DataType="{x:Type vm:AlertsWidgetViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
+                    <StackPanel Orientation="Horizontal">
+                        <ToggleButton Content="Critical"
+                                      Style="{StaticResource ChipToggleStyle}"
+                                      Tag="{StaticResource CriticalBrush}"
+                                      IsChecked="{Binding ShowCritical}" />
+                        <ToggleButton Content="Warning"
+                                      Style="{StaticResource ChipToggleStyle}"
+                                      Tag="{StaticResource WarningBrush}"
+                                      IsChecked="{Binding ShowWarning}" />
+                        <ToggleButton Content="Acknowledged"
+                                      Style="{StaticResource ChipToggleStyle}"
+                                      IsChecked="{Binding IncludeAcknowledged}" />
+                    </StackPanel>
+                </Border>
+
+                <Grid Grid.Row="1">
+                    <DataGrid x:Name="AlertsGrid"
+                              ItemsSource="{Binding Alerts}"
+                              Visibility="{Binding HasAlerts, Converter={StaticResource BoolToVisibility}}"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column">
+                        <DataGrid.Columns>
+
+                            <DataGridTemplateColumn Header="Status" Width="90" SortMemberPath="Severity">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0">
+                                            <Ellipse Width="9"
+                                                     Height="9"
+                                                     Margin="0,0,6,0"
+                                                     VerticalAlignment="Center"
+                                                     Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                            <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Device" Width="140" Binding="{Binding DeviceName}" />
+                            <DataGridTextColumn Header="Alert" Width="*" Binding="{Binding RuleName}" />
+                            <DataGridTextColumn Header="Age" Width="70" Binding="{Binding AgeText}" />
+
+                        </DataGrid.Columns>
+
+                        <DataGrid.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource Self}}">
+                                <MenuItem Header="Open alert in LibreNMS"
+                                          Command="{Binding ElementName=AlertsGrid, Path=DataContext.OpenAlertCommand}"
+                                          CommandParameter="{Binding}" />
+                                <MenuItem Header="Open device in LibreNMS"
+                                          Command="{Binding ElementName=AlertsGrid, Path=DataContext.OpenDeviceCommand}"
+                                          CommandParameter="{Binding}" />
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                    </DataGrid>
+
+                    <TextBlock Text="No matching alerts."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding HasAlerts, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                               Style="{StaticResource SubtleTextStyle}" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ======================== Alerts gauge widget body ======================== -->
+        <!-- Three ring gauges - unacknowledged critical, unacknowledged
+             warning, and acknowledged (any severity) - each a share of all
+             active alerts, drawn with GaugeArcConverter inside a fixed
+             100x100 local space that a Viewbox scales to whatever room the
+             widget has. -->
+        <DataTemplate DataType="{x:Type vm:AlertsGaugeWidgetViewModel}">
+            <Grid Margin="16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Viewbox Width="80" Height="80">
+                            <Grid Width="100" Height="100">
+                                <Ellipse Width="80"
+                                         Height="80"
+                                         Margin="10"
+                                         Stroke="{StaticResource BorderBrush}"
+                                         StrokeThickness="10" />
+                                <Path Data="{Binding CriticalFraction, Converter={StaticResource GaugeArc}}"
+                                      Stroke="{StaticResource CriticalBrush}"
+                                      StrokeThickness="10"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round" />
+                                <TextBlock Text="{Binding CriticalCount}"
+                                           FontSize="26"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Viewbox>
+                        <TextBlock Text="Critical" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Viewbox Width="80" Height="80">
+                            <Grid Width="100" Height="100">
+                                <Ellipse Width="80"
+                                         Height="80"
+                                         Margin="10"
+                                         Stroke="{StaticResource BorderBrush}"
+                                         StrokeThickness="10" />
+                                <Path Data="{Binding WarningFraction, Converter={StaticResource GaugeArc}}"
+                                      Stroke="{StaticResource WarningBrush}"
+                                      StrokeThickness="10"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round" />
+                                <TextBlock Text="{Binding WarningCount}"
+                                           FontSize="26"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Viewbox>
+                        <TextBlock Text="Warning" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Viewbox Width="80" Height="80">
+                            <Grid Width="100" Height="100">
+                                <Ellipse Width="80"
+                                         Height="80"
+                                         Margin="10"
+                                         Stroke="{StaticResource BorderBrush}"
+                                         StrokeThickness="10" />
+                                <Path Data="{Binding AcknowledgedFraction, Converter={StaticResource GaugeArc}}"
+                                      Stroke="{StaticResource AccentBrush}"
+                                      StrokeThickness="10"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round" />
+                                <TextBlock Text="{Binding AcknowledgedCount}"
+                                           FontSize="26"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Viewbox>
+                        <TextBlock Text="Acknowledged" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Grid.Row="1"
+                           Text="No active alerts"
+                           HorizontalAlignment="Center"
+                           Margin="0,12,0,0"
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding HasNoActiveAlerts, Converter={StaticResource BoolToVisibility}}" />
+
+                <TextBlock Grid.Row="1"
+                           HorizontalAlignment="Center"
+                           Margin="0,12,0,0"
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding HasNoActiveAlerts, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                    <Run Text="{Binding TotalActive, Mode=OneWay}" /><Run Text=" active alert(s)" />
+                </TextBlock>
+            </Grid>
+        </DataTemplate>
+
         <!-- ======================== Widget chrome ======================== -->
         <!-- Shared by every widget type: title bar (drag handle + rename box +
              remove button, the last two only while editing), body, and a
@@ -352,12 +538,51 @@
                 Padding="18,12">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <ToggleButton Content="Edit layout" Style="{StaticResource ChipToggleStyle}" IsChecked="{Binding IsEditMode}" />
-                <Button Content="Add sensor widget"
+
+                <!-- Single entry point for every widget type; the list of
+                     choices grows in one place (this menu) rather than as an
+                     ever-widening row of "Add X widget" buttons. -->
+                <Button Content="Add widget"
                         Style="{StaticResource PrimaryButtonStyle}"
                         Padding="12,6"
                         Margin="10,0,0,0"
-                        Command="{Binding AddSensorWidgetCommand}"
-                        Visibility="{Binding IsEditMode, Converter={StaticResource BoolToVisibility}}" />
+                        Click="OnAddWidgetClick"
+                        Visibility="{Binding IsEditMode, Converter={StaticResource BoolToVisibility}}">
+                    <Button.ContextMenu>
+                        <ContextMenu Placement="Bottom">
+                            <MenuItem Command="{Binding AddSensorWidgetCommand}">
+                                <MenuItem.Header>
+                                    <StackPanel Margin="0,2">
+                                        <TextBlock Text="Sensors" FontWeight="SemiBold" />
+                                        <TextBlock Text="Track specific dBm, signal, temperature or fan speed readings"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11" />
+                                    </StackPanel>
+                                </MenuItem.Header>
+                            </MenuItem>
+                            <MenuItem Command="{Binding AddAlertsWidgetCommand}">
+                                <MenuItem.Header>
+                                    <StackPanel Margin="0,2">
+                                        <TextBlock Text="Alerts" FontWeight="SemiBold" />
+                                        <TextBlock Text="A live feed of active alerts"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11" />
+                                    </StackPanel>
+                                </MenuItem.Header>
+                            </MenuItem>
+                            <MenuItem Command="{Binding AddAlertsGaugeWidgetCommand}">
+                                <MenuItem.Header>
+                                    <StackPanel Margin="0,2">
+                                        <TextBlock Text="Alerts gauge" FontWeight="SemiBold" />
+                                        <TextBlock Text="Critical and warning counts at a glance"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11" />
+                                    </StackPanel>
+                                </MenuItem.Header>
+                            </MenuItem>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
             </StackPanel>
         </Border>
 

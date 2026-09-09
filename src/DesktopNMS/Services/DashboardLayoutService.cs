@@ -33,6 +33,9 @@ public interface IDashboardLayoutService
     void AddSensor(string widgetId, Sensor sensor, string deviceName);
 
     void RemoveSensor(string widgetId, int sensorId);
+
+    /// <summary>Sets which severities an Alerts widget shows and whether acknowledged alerts count.</summary>
+    void SetAlertsFilter(string widgetId, bool showCritical, bool showWarning, bool includeAcknowledged);
 }
 
 public sealed class DashboardLayoutService : IDashboardLayoutService
@@ -190,6 +193,28 @@ public sealed class DashboardLayoutService : IDashboardLayoutService
             return;
         }
 
+        _settings.Save();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetAlertsFilter(string widgetId, bool showCritical, bool showWarning, bool includeAcknowledged)
+    {
+        var widget = Find(widgetId);
+        if (widget is null)
+        {
+            return;
+        }
+
+        if (widget.AlertsShowCritical == showCritical
+            && widget.AlertsShowWarning == showWarning
+            && widget.AlertsIncludeAcknowledged == includeAcknowledged)
+        {
+            return;
+        }
+
+        widget.AlertsShowCritical = showCritical;
+        widget.AlertsShowWarning = showWarning;
+        widget.AlertsIncludeAcknowledged = includeAcknowledged;
         _settings.Save();
         Changed?.Invoke(this, EventArgs.Empty);
     }

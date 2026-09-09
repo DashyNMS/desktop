@@ -21,6 +21,17 @@ public partial class DashboardView : UserControl
         InitializeComponent();
     }
 
+    /// <summary>"Add widget" opens its picker menu on a left click, not just the usual right click.</summary>
+    private void OnAddWidgetClick(object sender, RoutedEventArgs e)
+    {
+        var button = (Button)sender;
+        if (button.ContextMenu is { } menu)
+        {
+            menu.PlacementTarget = button;
+            menu.IsOpen = true;
+        }
+    }
+
     /// <summary>
     /// Dragging a widget's header moves it freely, clamped to the canvas edges
     /// and stopped by neighbouring widgets (with <see cref="DashboardWidget.Spacing"/>

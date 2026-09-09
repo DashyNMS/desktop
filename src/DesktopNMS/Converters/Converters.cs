@@ -104,3 +104,53 @@ public sealed class AlertStateToOpacityConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => Binding.DoNothing;
 }
+
+/// <summary>
+/// Turns a 0-1 fraction into a clockwise ring-gauge arc starting at 12
+/// o'clock, in a fixed 100x100 local coordinate space (the Path is expected
+/// to sit inside a Viewbox so it scales to whatever size the widget gives it).
+/// A fraction of 0 renders nothing; fractions are clamped just short of a
+/// full turn so the start and end points of the arc never coincide, which
+/// would otherwise make WPF drop the segment.
+/// </summary>
+public sealed class GaugeArcConverter : IValueConverter
+{
+    private const double CenterX = 50;
+    private const double CenterY = 50;
+    private const double Radius = 40;
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var fraction = value is double d ? Math.Clamp(d, 0, 0.9999) : 0.0;
+
+        if (fraction <= 0)
+        {
+            return Geometry.Empty;
+        }
+
+        const double startAngle = -90;
+        var sweepAngle = fraction * 360;
+
+        var start = PointOnCircle(startAngle);
+        var end = PointOnCircle(startAngle + sweepAngle);
+
+        var geometry = new StreamGeometry();
+        using (var context = geometry.Open())
+        {
+            context.BeginFigure(start, false, false);
+            context.ArcTo(end, new Size(Radius, Radius), 0, sweepAngle > 180, SweepDirection.Clockwise, true, false);
+        }
+
+        geometry.Freeze();
+        return geometry;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+
+    private static Point PointOnCircle(double angleDegrees)
+    {
+        var radians = angleDegrees * Math.PI / 180;
+        return new Point(CenterX + (Radius * Math.Cos(radians)), CenterY + (Radius * Math.Sin(radians)));
+    }
+}
