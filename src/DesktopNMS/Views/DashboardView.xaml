@@ -1,15 +1,443 @@
 <UserControl x:Class="DesktopNMS.Views.DashboardView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
              mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:DashboardViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100">
 
+    <UserControl.Resources>
+
+        <!-- ======================== Sensor widget body ======================== -->
+        <!-- Resolved automatically wherever a widget's content is presented via a
+             plain ContentControl, based on the bound view model's runtime type. -->
+        <DataTemplate DataType="{x:Type vm:SensorWidgetViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Toolbar: only shown once the widget's own edit icon is on.
+                     Swaps between "manage sensors" (Add sensor button) and the
+                     picker's search box, mirroring IsPickerOpen. -->
+                <Border Grid.Row="0"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="8,6"
+                        Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="Manage sensors"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Margin="4,0,0,0"
+                                   Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+
+                        <Button Grid.Column="1"
+                                Content="Add sensor"
+                                Padding="8,4"
+                                Command="{Binding TogglePickerCommand}"
+                                Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding PickerSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                                 ToolTip="Search by device or sensor"
+                                 Margin="0,0,8,0"
+                                 Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}}" />
+
+                        <Button Grid.Column="1"
+                                ToolTip="Back"
+                                Style="{StaticResource IconButtonStyle}"
+                                Command="{Binding TogglePickerCommand}"
+                                Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- Body: a plain read-only list normally; once editing, either
+                     the current sensors (each removable) or the "Add sensor"
+                     picker, whichever IsPickerOpen selects. -->
+                <Grid Grid.Row="1">
+
+                    <!-- Viewing (not editing): plain, uncluttered sensor readout. -->
+                    <Grid Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                        <DataGrid x:Name="SensorGrid"
+                                  ItemsSource="{Binding Sensors}"
+                                  Visibility="{Binding HasSensors, Converter={StaticResource BoolToVisibility}}"
+                                  IsReadOnly="True"
+                                  HeadersVisibility="Column">
+                            <DataGrid.Columns>
+
+                                <DataGridTemplateColumn Header="Status" Width="90" SortMemberPath="Severity">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="8,0">
+                                                <Ellipse Width="9"
+                                                         Height="9"
+                                                         Margin="0,0,6,0"
+                                                         VerticalAlignment="Center"
+                                                         Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <DataGridTextColumn Header="Device" Width="140" Binding="{Binding DeviceName}" />
+                                <DataGridTextColumn Header="Sensor" Width="*" Binding="{Binding Description}" />
+                                <DataGridTextColumn Header="Value" Width="90" Binding="{Binding ValueText}" />
+
+                            </DataGrid.Columns>
+
+                            <DataGrid.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="Open device in LibreNMS"
+                                              Command="{Binding ElementName=SensorGrid, Path=DataContext.OpenDeviceCommand}"
+                                              CommandParameter="{Binding}" />
+                                </ContextMenu>
+                            </DataGrid.ContextMenu>
+                        </DataGrid>
+
+                        <TextBlock Text="Nothing added yet. Click the pencil icon above to add sensors."
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="240"
+                                   TextAlignment="Center"
+                                   IsHitTestVisible="False"
+                                   Visibility="{Binding HasSensors, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                                   Style="{StaticResource SubtleTextStyle}" />
+                    </Grid>
+
+                    <!-- Editing, sensor list: same sensors, each with a Remove button. -->
+                    <Grid Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}}">
+                        <Grid Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                            <ListBox ItemsSource="{Binding Sensors}"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     Visibility="{Binding HasSensors, Converter={StaticResource BoolToVisibility}}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="4,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding Description}" Style="{StaticResource SubtleTextStyle}" />
+                                            </StackPanel>
+
+                                            <Button Grid.Column="1"
+                                                    ToolTip="Remove from widget"
+                                                    Style="{StaticResource IconButtonStyle}"
+                                                    VerticalAlignment="Center"
+                                                    Command="{Binding DataContext.RemoveSensorCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}">
+                                                <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" />
+                                            </Button>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <TextBlock Text="Nothing added yet. Click &quot;Add sensor&quot; above to get started."
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="240"
+                                       TextAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Visibility="{Binding HasSensors, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                                       Style="{StaticResource SubtleTextStyle}" />
+                        </Grid>
+
+                        <!-- Editing, picker: candidates not yet on this widget, each with an Add button. -->
+                        <Grid Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}}">
+                            <ListBox ItemsSource="{Binding PickerResults}"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     Visibility="{Binding HasPickerResults, Converter={StaticResource BoolToVisibility}}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="4,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding Description}" Style="{StaticResource SubtleTextStyle}" />
+                                            </StackPanel>
+
+                                            <Button Grid.Column="1"
+                                                    Content="Add"
+                                                    Padding="8,4"
+                                                    VerticalAlignment="Center"
+                                                    Command="{Binding DataContext.AddSensorCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <TextBlock Text="No matching sensors. Sensors must be visible on the Health tab to show up here."
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="240"
+                                       TextAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Visibility="{Binding HasPickerResults, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                                       Style="{StaticResource SubtleTextStyle}" />
+                        </Grid>
+                    </Grid>
+
+                </Grid>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ======================== Widget chrome ======================== -->
+        <!-- Shared by every widget type: title bar (drag handle + rename box +
+             remove button, the last two only while editing), body, and a
+             resize grip in edit mode. Position/size are committed once a drag
+             finishes (see DashboardView.xaml.cs), not on every pixel. -->
+        <DataTemplate x:Key="WidgetTemplate" DataType="{x:Type vm:DashboardWidgetViewModel}">
+            <Border Width="{Binding Width}"
+                    Height="{Binding Height}"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Header: a Thumb fills the row so any blank area drags the
+                         widget; the rename box/remove button sit on top and take
+                         mouse priority where they overlap it. Auto-height with
+                         generous padding, rather than a fixed pixel height, so
+                         the rename box always has room and never clips. -->
+                    <Grid Grid.Row="0" MinHeight="44">
+                        <Thumb Background="Transparent"
+                               Cursor="SizeAll"
+                               DragDelta="OnHeaderDragDelta"
+                               DragCompleted="OnHeaderDragCompleted"
+                               Visibility="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVisibility}}">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <Border Background="{TemplateBinding Background}" />
+                                </ControlTemplate>
+                            </Thumb.Template>
+                        </Thumb>
+
+                        <Grid Margin="12,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding Title}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding Title, UpdateSourceTrigger=LostFocus}"
+                                     VerticalAlignment="Center"
+                                     MinHeight="30"
+                                     Margin="0,0,8,0"
+                                     Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}}" />
+
+                            <!-- Per-widget edit toggle: always available, independent of
+                                 "Edit layout". Renaming and removing this widget only
+                                 become possible once it is switched on; the icon and
+                                 tooltip swap to Save once it is, so clicking it again
+                                 reads as "done", not "undo the edit". -->
+                            <Button Grid.Column="1"
+                                    Command="{Binding ToggleEditCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+                                        <Setter Property="ToolTip" Value="Edit widget" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsEditingWidget}" Value="True">
+                                                <Setter Property="ToolTip" Value="Save" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="&#xE70F;" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsEditingWidget}" Value="True">
+                                                    <Setter Property="Text" Value="&#xE74E;" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Button>
+
+                            <Button Grid.Column="2"
+                                    ToolTip="Delete widget"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Command="{Binding RemoveCommand}"
+                                    Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                            </Button>
+                        </Grid>
+                    </Grid>
+
+                    <Border Grid.Row="1"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,1,0,0">
+                        <ContentControl Content="{Binding}" Focusable="False" />
+                    </Border>
+
+                    <!-- Resize grip, bottom-right corner. -->
+                    <Thumb Grid.Row="1"
+                           Width="16"
+                           Height="16"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Bottom"
+                           Cursor="SizeNWSE"
+                           DragDelta="OnResizeDragDelta"
+                           DragCompleted="OnResizeDragCompleted"
+                           Visibility="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVisibility}}">
+                        <Thumb.Template>
+                            <ControlTemplate TargetType="Thumb">
+                                <Path Data="M 14,2 L 14,14 L 2,14"
+                                      Stroke="{StaticResource TextSecondaryBrush}"
+                                      StrokeThickness="2" />
+                            </ControlTemplate>
+                        </Thumb.Template>
+                    </Thumb>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+    </UserControl.Resources>
+
     <Grid Background="{StaticResource BackgroundBrush}">
-        <TextBlock Text="Dashboard - coming soon"
-                   Style="{StaticResource SubtleTextStyle}"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center" />
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ======================== Toolbar ======================== -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,12">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <ToggleButton Content="Edit layout" Style="{StaticResource ChipToggleStyle}" IsChecked="{Binding IsEditMode}" />
+                <Button Content="Add sensor widget"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Padding="12,6"
+                        Margin="10,0,0,0"
+                        Command="{Binding AddSensorWidgetCommand}"
+                        Visibility="{Binding IsEditMode, Converter={StaticResource BoolToVisibility}}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1"
+                Background="#33DA3633"
+                BorderBrush="{StaticResource CriticalBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,10"
+                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Widget canvas ======================== -->
+        <!-- The Canvas is sized to exactly fill the ScrollViewer's own
+             viewport (not some arbitrary large fixed size), so a widget can
+             always be dragged flush to every edge - X/Y of 0 is the actual
+             top-left corner the user sees, not a spot buried under padding. -->
+        <Grid Grid.Row="2" Margin="12">
+            <ScrollViewer x:Name="CanvasScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="WidgetsHost" ItemsSource="{Binding Widgets}" ItemTemplate="{StaticResource WidgetTemplate}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas MinWidth="{Binding ActualWidth, ElementName=CanvasScroll}"
+                                    MinHeight="{Binding ActualHeight, ElementName=CanvasScroll}" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="Canvas.Left" Value="{Binding X}" />
+                            <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <TextBlock Text="Nothing here yet. Turn on &quot;Edit layout&quot; and add a sensor widget to get started."
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Widgets.Count}" Value="0">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Grid>
+
+        <!-- ======================== Status bar ======================== -->
+        <Border Grid.Row="3"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="18,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock Text="Refreshing..."
+                               Style="{StaticResource SubtleTextStyle}"
+                               Margin="0,0,10,0"
+                               Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource SubtleTextStyle}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBlock Text="{Binding LastUpdatedText, StringFormat=updated {0}}"
+                               Style="{StaticResource SubtleTextStyle}"
+                               Margin="0,0,14,0" />
+                    <TextBlock Text="{Binding NextRefreshText, StringFormat=next in {0}}" Style="{StaticResource SubtleTextStyle}" />
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

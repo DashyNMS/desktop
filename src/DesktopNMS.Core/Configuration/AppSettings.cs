@@ -92,6 +92,9 @@ public sealed class AppSettings
     /// <summary>Warning/critical bands applied to fan-speed sensors on the Health tab.</summary>
     public BandThresholdSettings FanSpeedThresholds { get; set; } = BandThresholdSettings.FanSpeedDefaults();
 
+    /// <summary>Widgets laid out on the Dashboard tab (position, size, title, type, and - for a Sensors widget - which sensors it shows).</summary>
+    public List<DashboardWidget> DashboardWidgets { get; set; } = new();
+
     public WindowPlacement? Window { get; set; }
 
     public AppSettings Clone() => new()
@@ -116,6 +119,7 @@ public sealed class AppSettings
         SignalThresholds = SignalThresholds.Clone(),
         TemperatureThresholds = TemperatureThresholds.Clone(),
         FanSpeedThresholds = FanSpeedThresholds.Clone(),
+        DashboardWidgets = DashboardWidgets.Select(w => w.Clone()).ToList(),
         Window = Window?.Clone(),
     };
 
@@ -129,6 +133,7 @@ public sealed class AppSettings
 
         Notifications ??= new NotificationSettings();
         Filter ??= new AlertFilterSettings();
+        DashboardWidgets ??= new List<DashboardWidget>();
         DbmThresholds ??= new DbmThresholdSettings();
         SignalThresholds ??= new SignalThresholdSettings();
         TemperatureThresholds ??= BandThresholdSettings.TemperatureDefaults();
@@ -138,6 +143,11 @@ public sealed class AppSettings
         SignalThresholds.Normalise();
         TemperatureThresholds.Normalise(BandThresholdSettings.TemperatureDefaults());
         FanSpeedThresholds.Normalise(BandThresholdSettings.FanSpeedDefaults());
+
+        foreach (var widget in DashboardWidgets)
+        {
+            widget.Normalise();
+        }
     }
 }
 
@@ -361,6 +371,118 @@ public sealed class BandThresholdSettings : IThresholdEvaluator
 
         return AlertSeverity.Ok;
     }
+}
+
+/// <summary>
+/// A sensor added to a Sensors dashboard widget. Identified by <see cref="SensorId"/>
+/// (stable and unique across the whole LibreNMS instance); the rest is a
+/// cached label so the widget has something to show even before the next
+/// live fetch confirms the sensor still exists.
+/// </summary>
+public sealed class PinnedSensor
+{
+    public int SensorId { get; set; }
+
+    public int DeviceId { get; set; }
+
+    /// <summary>e.g. "dbm", "signal", "temperature", "fanspeed" - decides which thresholds apply.</summary>
+    public string SensorClass { get; set; } = string.Empty;
+
+    public string? DeviceName { get; set; }
+
+    public string? Description { get; set; }
+
+    public PinnedSensor Clone() => new()
+    {
+        SensorId = SensorId,
+        DeviceId = DeviceId,
+        SensorClass = SensorClass,
+        DeviceName = DeviceName,
+        Description = Description,
+    };
+}
+
+/// <summary>
+/// A widget placed on the Dashboard tab's free-form canvas: its type, title,
+/// and where the user dragged/resized it to. Identified by <see cref="Id"/>
+/// so it survives being moved or renamed.
+/// </summary>
+public sealed class DashboardWidget
+{
+    public const double DefaultWidth = 380;
+    public const double DefaultHeight = 280;
+    public const double MinWidth = 240;
+
+    /// <summary>Minimum gap kept between widgets - dragging/resizing/placement all respect it.</summary>
+    public const double Spacing = 12;
+    public const double MinHeight = 160;
+
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>e.g. "Sensors" - which kind of widget content to render.</summary>
+    public string WidgetType { get; set; } = "Sensors";
+
+    public string Title { get; set; } = "Widget";
+
+    public double X { get; set; }
+
+    public double Y { get; set; }
+
+    public double Width { get; set; } = DefaultWidth;
+
+    public double Height { get; set; } = DefaultHeight;
+
+    /// <summary>For a "Sensors" widget: which sensors it shows. Unused by other widget types.</summary>
+    public List<PinnedSensor> Sensors { get; set; } = new();
+
+    public DashboardWidget Clone() => new()
+    {
+        Id = Id,
+        WidgetType = WidgetType,
+        Title = Title,
+        X = X,
+        Y = Y,
+        Width = Width,
+        Height = Height,
+        Sensors = Sensors.Select(s => s.Clone()).ToList(),
+    };
+
+    /// <summary>Clamps anything a hand-edited settings file could have made nonsensical.</summary>
+    public void Normalise()
+    {
+        if (string.IsNullOrWhiteSpace(Id)) Id = Guid.NewGuid().ToString("N");
+        if (string.IsNullOrWhiteSpace(Title)) Title = "Widget";
+        if (X < 0) X = 0;
+        if (Y < 0) Y = 0;
+        if (Width < MinWidth) Width = MinWidth;
+        if (Height < MinHeight) Height = MinHeight;
+        Sensors ??= new List<PinnedSensor>();
+    }
+}
+
+/// <summary>
+/// Maps a sensor's LibreNMS class to the Warning/Critical thresholds and unit
+/// that apply to it. The single place both the Health tab and the Dashboard's
+/// pinned-sensor widget go to classify a reading, so adding a sensor class to
+/// one automatically covers the other.
+/// </summary>
+public static class SensorCategoryRegistry
+{
+    public sealed record Entry(Func<AppSettings, IThresholdEvaluator> Thresholds, string UnitSuffix, string DisplayName);
+
+    private static readonly Dictionary<string, Entry> ByClass = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["dbm"] = new Entry(s => s.DbmThresholds, " dBm", "dBm"),
+        ["signal"] = new Entry(s => s.SignalThresholds, string.Empty, "Signal"),
+        ["temperature"] = new Entry(s => s.TemperatureThresholds, " °C", "Temperature"),
+        ["fanspeed"] = new Entry(s => s.FanSpeedThresholds, " RPM", "Fan speed"),
+    };
+
+    /// <summary>All sensor classes the app understands, in display order.</summary>
+    public static IReadOnlyList<string> KnownClasses { get; } = new[] { "dbm", "signal", "temperature", "fanspeed" };
+
+    public static Entry? Resolve(string? sensorClass)
+        => sensorClass is not null && ByClass.TryGetValue(sensorClass, out var entry) ? entry : null;
 }
 
 /// <summary>How long a Windows toast stays on screen.</summary>

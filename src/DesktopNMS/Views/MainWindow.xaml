@@ -99,13 +99,15 @@
 
         <!-- ======================== Content ======================== -->
         <Grid Grid.Row="1">
-            <views:DashboardView Visibility="{Binding IsDashboardTabSelected, Converter={StaticResource BoolToVisibility}}" />
-
             <!-- Visibility is bound on this Grid, against the inherited
                  MainViewModel DataContext; DevicesView's own DataContext is
                  overridden below it to DeviceList. A binding on the same
                  element that redefines DataContext resolves against the new
                  one, so the two must live on different elements. -->
+            <Grid Visibility="{Binding IsDashboardTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:DashboardView x:Name="DashboardViewControl" DataContext="{Binding Dashboard}" />
+            </Grid>
+
             <Grid Visibility="{Binding IsDevicesTabSelected, Converter={StaticResource BoolToVisibility}}">
                 <views:DevicesView x:Name="DevicesViewControl" DataContext="{Binding DeviceList}" />
             </Grid>

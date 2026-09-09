@@ -29,6 +29,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly IWindowService _windows;
     private readonly DeviceListViewModel _deviceList;
     private readonly HealthViewModel _health;
+    private readonly DashboardViewModel _dashboard;
     private readonly ISelfActionTracker _selfActions;
     private readonly ILogger<MainViewModel> _logger;
     private readonly Dispatcher _dispatcher;
@@ -62,6 +63,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IWindowService windows,
         DeviceListViewModel deviceList,
         HealthViewModel health,
+        DashboardViewModel dashboard,
         ISelfActionTracker selfActions,
         ILogger<MainViewModel> logger)
     {
@@ -74,6 +76,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _windows = windows;
         _deviceList = deviceList;
         _health = health;
+        _dashboard = dashboard;
         _selfActions = selfActions;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
@@ -170,6 +173,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>The sensor health list, for the Health tab's content to bind to.</summary>
     public HealthViewModel Health => _health;
 
+    /// <summary>The dashboard widgets, for the Dashboard tab's content to bind to.</summary>
+    public DashboardViewModel Dashboard => _dashboard;
+
     public MainTab SelectedTab
     {
         get => _selectedTab;
@@ -190,6 +196,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 else if (value == MainTab.Health)
                 {
                     _health.OnShown();
+                }
+                else if (value == MainTab.Dashboard)
+                {
+                    _dashboard.OnShown();
                 }
             }
         }
@@ -444,6 +454,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         else if (SelectedTab == MainTab.Health)
         {
             _health.OnShown();
+        }
+        else if (SelectedTab == MainTab.Dashboard)
+        {
+            _dashboard.OnShown();
         }
     }
 
@@ -879,6 +893,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 break;
 
             case MainTab.Dashboard:
+                if (_dashboard.RefreshCommand.CanExecute(null))
+                {
+                    _dashboard.RefreshCommand.Execute(null);
+                }
+
+                break;
+
             default:
                 break;
         }

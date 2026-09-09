@@ -172,10 +172,12 @@ public partial class App : Application
         services.AddSingleton<WindowService>();
         services.AddSingleton<IWindowService>(sp => sp.GetRequiredService<WindowService>());
         services.AddSingleton<ISelfActionTracker, SelfActionTracker>();
+        services.AddSingleton<IDashboardLayoutService, DashboardLayoutService>();
 
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<DeviceListViewModel>();
         services.AddSingleton<HealthViewModel>();
+        services.AddSingleton<DashboardViewModel>();
         services.AddTransient<ConnectionViewModel>();
         services.AddTransient<SettingsViewModel>();
 

@@ -26,6 +26,9 @@ public sealed class SensorItemViewModel : ObservableObject
         _severity = thresholds.Evaluate(sensor.Current);
     }
 
+    /// <summary>The underlying reading, for code (e.g. pinning) that needs the raw sensor fields.</summary>
+    public Sensor Model => _sensor;
+
     public int SensorId => _sensor.SensorId;
 
     public int DeviceId => _sensor.DeviceId;

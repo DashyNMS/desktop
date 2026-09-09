@@ -875,10 +875,11 @@ public sealed class SettingsViewModel : ObservableObject
     {
         _startup.SetEnabled(_draft.StartWithWindows);
 
-        // Keep the window placement and filter chips the running app has, rather
-        // than the copies taken when this dialog opened.
+        // Keep the window placement, filter chips and dashboard layout the
+        // running app has, rather than the copies taken when this dialog opened.
         _draft.Window = _store.Current.Window;
         _draft.Filter = _store.Current.Filter;
+        _draft.DashboardWidgets = _store.Current.DashboardWidgets;
 
         _store.Replace(_draft);
         RequestClose?.Invoke(this, true);
