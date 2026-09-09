@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -41,6 +42,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
     private DateTimeOffset? _lastUpdated;
     private bool _hasLoadedOnce;
     private HealthCategory _selectedCategory = HealthCategory.Dbm;
+    private readonly AutoRefreshTimer _autoRefresh;
 
     public HealthViewModel(
         ILibreNmsClient client,
@@ -69,6 +71,14 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         SelectTemperatureCategoryCommand = new RelayCommand(() => SelectedCategory = HealthCategory.Temperature);
         SelectFanSpeedCategoryCommand = new RelayCommand(() => SelectedCategory = HealthCategory.FanSpeed);
 
+        _autoRefresh = new AutoRefreshTimer(() => _settings.Current.PollIntervalSeconds, () => _ = RefreshAsync());
+        _autoRefresh.RemainingChanged += (_, _) => OnPropertyChanged(nameof(NextRefreshText));
+
+        Dbm.PropertyChanged += OnCategoryPropertyChanged;
+        Signal.PropertyChanged += OnCategoryPropertyChanged;
+        Temperature.PropertyChanged += OnCategoryPropertyChanged;
+        FanSpeed.PropertyChanged += OnCategoryPropertyChanged;
+
         _settings.Changed += OnSettingsChanged;
     }
 
@@ -81,6 +91,9 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
     public SensorCategoryViewModel FanSpeed { get; }
 
     public AsyncRelayCommand RefreshCommand { get; }
+
+    /// <summary>A short "45s" / "2:05" countdown to the next automatic refresh.</summary>
+    public string NextRefreshText => _autoRefresh.RemainingText;
 
     /// <summary>Clears the filters on whichever category sub-tab is currently showing.</summary>
     public RelayCommand ClearFiltersCommand { get; }
@@ -104,9 +117,13 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsSignalCategorySelected));
                 OnPropertyChanged(nameof(IsTemperatureCategorySelected));
                 OnPropertyChanged(nameof(IsFanSpeedCategorySelected));
+                OnPropertyChanged(nameof(VisibleCount));
             }
         }
     }
+
+    /// <summary>How many rows the currently showing category's filters leave visible.</summary>
+    public int VisibleCount => CurrentCategory.VisibleCount;
 
     public bool IsDbmCategorySelected => SelectedCategory == HealthCategory.Dbm;
 
@@ -164,7 +181,10 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
 
     // --------------------------------------------------------------- lifetime
 
-    /// <summary>Called each time the tab is shown; loads once, then leaves it to manual refresh.</summary>
+    /// <summary>
+    /// Called each time the tab is shown; loads once, then keeps refreshing
+    /// automatically on the polling interval from Settings (same as Alerts).
+    /// </summary>
     public void OnShown()
     {
         if (_hasLoadedOnce)
@@ -173,6 +193,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         }
 
         _ = RefreshAsync();
+        _autoRefresh.Start();
     }
 
     private async Task RefreshAsync()
@@ -248,6 +269,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         finally
         {
             IsBusy = false;
+            _autoRefresh.Reset();
         }
     }
 
@@ -259,8 +281,22 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         FanSpeed.ApplyThresholds(settings);
     }
 
+    /// <summary>Forwards the currently-selected category's VisibleCount so the shared status bar can show it.</summary>
+    private void OnCategoryPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SensorCategoryViewModel.VisibleCount) && ReferenceEquals(sender, CurrentCategory))
+        {
+            OnPropertyChanged(nameof(VisibleCount));
+        }
+    }
+
     public void Dispose()
     {
+        _autoRefresh.Dispose();
+        Dbm.PropertyChanged -= OnCategoryPropertyChanged;
+        Signal.PropertyChanged -= OnCategoryPropertyChanged;
+        Temperature.PropertyChanged -= OnCategoryPropertyChanged;
+        FanSpeed.PropertyChanged -= OnCategoryPropertyChanged;
         _settings.Changed -= OnSettingsChanged;
         _loadCts?.Cancel();
         _loadCts?.Dispose();

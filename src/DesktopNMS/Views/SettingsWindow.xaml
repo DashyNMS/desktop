@@ -89,6 +89,10 @@
                                        TextAlignment="Right"
                                        Margin="12,0,0,0" />
                         </Grid>
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Text="Also used for the Devices and Health tabs, once each has been opened at least once - both show a countdown to their next refresh." />
 
                         <TextBlock Text="Request timeout" Style="{StaticResource SectionHeaderStyle}" />
                         <Grid>

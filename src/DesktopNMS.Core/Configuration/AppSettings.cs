@@ -30,7 +30,11 @@ public sealed class AppSettings
     /// <summary>Per-request HTTP timeout.</summary>
     public int TimeoutSeconds { get; set; } = 30;
 
-    /// <summary>How often to poll for alerts, in seconds.</summary>
+    /// <summary>
+    /// How often to refresh, in seconds. Alerts polls continuously in the
+    /// background at this interval; Devices and Health use it too, but only
+    /// once each has been shown at least once (see AutoRefreshTimer).
+    /// </summary>
     public int PollIntervalSeconds { get; set; } = 60;
 
     /// <summary>Keep the API token on this machine (DPAPI-encrypted) so sign-in is not needed each launch.</summary>
@@ -512,15 +516,9 @@ public sealed class AlertFilterSettings
 
     public bool ShowWarning { get; set; } = true;
 
-    public bool ShowOk { get; set; } = true;
-
     public bool ShowUnknownSeverity { get; set; } = true;
 
-    public bool ShowActive { get; set; } = true;
-
     public bool ShowAcknowledged { get; set; } = true;
-
-    public bool ShowRecovered { get; set; }
 
     public string? SearchText { get; set; }
 
@@ -528,11 +526,8 @@ public sealed class AlertFilterSettings
     {
         ShowCritical = ShowCritical,
         ShowWarning = ShowWarning,
-        ShowOk = ShowOk,
         ShowUnknownSeverity = ShowUnknownSeverity,
-        ShowActive = ShowActive,
         ShowAcknowledged = ShowAcknowledged,
-        ShowRecovered = ShowRecovered,
         SearchText = SearchText,
     };
 }

@@ -52,62 +52,16 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- ======================== Mini header: counts ======================== -->
+        <!-- ======================== Counts/filters + search ======================== -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="18,12">
-            <StackPanel Orientation="Horizontal">
-                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding CriticalCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                        <TextBlock Text="critical" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Border>
-
-                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="9" Height="9" Fill="{StaticResource WarningBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding WarningCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                        <TextBlock Text="warning" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Border>
-
-                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding AcknowledgedCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                        <TextBlock Text="acknowledged" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Border>
-            </StackPanel>
-        </Border>
-
-        <!-- ======================== Error banner ======================== -->
-        <Border Grid.Row="1"
-                Background="#33DA3633"
-                BorderBrush="{StaticResource CriticalBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="18,10"
-                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
-            <TextBlock Text="{Binding ErrorMessage}"
-                       Foreground="{StaticResource TextPrimaryBrush}"
-                       TextWrapping="Wrap" />
-        </Border>
-
-        <!-- ======================== Filters ======================== -->
-        <Border Grid.Row="2"
-                Background="{StaticResource BackgroundBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="18,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -120,36 +74,34 @@
                                VerticalAlignment="Center"
                                Margin="0,0,10,0" />
 
-                    <ToggleButton Content="Critical"
-                                  IsChecked="{Binding ShowCritical}"
-                                  Style="{StaticResource ChipToggleStyle}"
-                                  Tag="{StaticResource CriticalBrush}" />
-                    <ToggleButton Content="Warning"
-                                  IsChecked="{Binding ShowWarning}"
-                                  Style="{StaticResource ChipToggleStyle}"
-                                  Tag="{StaticResource WarningBrush}" />
-                    <ToggleButton Content="OK"
-                                  IsChecked="{Binding ShowOk}"
-                                  Style="{StaticResource ChipToggleStyle}"
-                                  Tag="{StaticResource OkBrush}" />
+                    <ToggleButton IsChecked="{Binding ShowCritical}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide critical" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding CriticalCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="critical" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton IsChecked="{Binding ShowWarning}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide warning" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource WarningBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding WarningCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="warning" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
 
                     <Rectangle Style="{StaticResource ToolBarSeparatorStyle}" Height="20" />
 
-                    <TextBlock Text="State"
-                               Style="{StaticResource SubtleTextStyle}"
-                               VerticalAlignment="Center"
-                               Margin="4,0,10,0" />
-
-                    <ToggleButton Content="Active"
-                                  IsChecked="{Binding ShowActive}"
-                                  Style="{StaticResource ChipToggleStyle}" />
-                    <ToggleButton Content="Acknowledged"
-                                  IsChecked="{Binding ShowAcknowledged}"
-                                  Style="{StaticResource ChipToggleStyle}" />
-                    <ToggleButton Content="Recovered"
-                                  IsChecked="{Binding ShowRecovered}"
-                                  Style="{StaticResource ChipToggleStyle}"
-                                  ToolTip="Also fetches cleared alerts from the server" />
+                    <!-- Active alerts always show; this adds acknowledged ones
+                         alongside them. There is no "active" or "recovered"
+                         chip: active is always the baseline, and recovered
+                         alerts are not shown here at all. -->
+                    <ToggleButton IsChecked="{Binding ShowAcknowledged}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Also show acknowledged (active always shows)">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding AcknowledgedCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="acknowledged" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
                 </WrapPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -165,8 +117,20 @@
             </Grid>
         </Border>
 
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1"
+                Background="#33DA3633"
+                BorderBrush="{StaticResource CriticalBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,10"
+                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       TextWrapping="Wrap" />
+        </Border>
+
         <!-- ======================== Content ======================== -->
-        <Grid Grid.Row="3">
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="420" />
                 <ColumnDefinition Width="Auto" />
@@ -547,7 +511,7 @@
         </Grid>
 
         <!-- ======================== Status bar ======================== -->
-        <Border Grid.Row="4"
+        <Border Grid.Row="3"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0"

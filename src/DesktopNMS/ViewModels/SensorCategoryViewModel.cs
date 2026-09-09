@@ -120,6 +120,9 @@ public sealed class SensorCategoryViewModel : ObservableObject
 
     public int OkCount => Sensors.Count(s => s.Severity == AlertSeverity.Ok);
 
+    /// <summary>Readings at or beyond a configured sentinel - "no data" rather than a real value.</summary>
+    public int UnknownCount => Sensors.Count(s => s.Severity == AlertSeverity.Unknown);
+
     public int TotalCount => Sensors.Count;
 
     public int VisibleCount => SensorsView.Cast<object>().Count();
@@ -251,6 +254,7 @@ public sealed class SensorCategoryViewModel : ObservableObject
         OnPropertyChanged(nameof(CriticalCount));
         OnPropertyChanged(nameof(WarningCount));
         OnPropertyChanged(nameof(OkCount));
+        OnPropertyChanged(nameof(UnknownCount));
         OnPropertyChanged(nameof(TotalCount));
         OnPropertyChanged(nameof(VisibleCount));
         OnPropertyChanged(nameof(HasSensorsButNoneVisible));

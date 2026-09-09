@@ -343,6 +343,44 @@
         </Setter>
     </Style>
 
+    <!-- ==================== Count badge (ToggleButton) ================== -->
+
+    <!-- A count badge that doubles as its own filter toggle: clicking "3
+         critical" both shows the count and hides/shows critical rows, so a
+         status bar needs no separate filter control alongside it. Checked
+         (shown) is full-strength; unchecked (filtered out) dims the badge
+         rather than hiding it, so the count stays visible either way. -->
+    <Style x:Key="CountBadgeToggleStyle" TargetType="ToggleButton">
+        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Padding" Value="14,7" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ====================== Filter chips (ToggleButton) ============== -->
 
     <Style x:Key="ChipToggleStyle" TargetType="ToggleButton">

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Data;
+using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
@@ -57,6 +58,8 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     private bool _showDisabled = true;
     private bool _showMaintenance = true;
 
+    private readonly AutoRefreshTimer _autoRefresh;
+
     public DeviceListViewModel(
         ILibreNmsClient client,
         ISessionService session,
@@ -79,6 +82,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         ShowAlertsCommand = new RelayCommand(ShowAlertsForSelected, () => SelectedDevice is not null);
         ClearFiltersCommand = new RelayCommand(ClearFilters);
 
+        _autoRefresh = new AutoRefreshTimer(() => _settings.Current.PollIntervalSeconds, () => _ = RefreshAsync());
+        _autoRefresh.RemainingChanged += (_, _) => OnPropertyChanged(nameof(NextRefreshText));
+
         _settings.Changed += OnSettingsChanged;
     }
 
@@ -93,6 +99,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     public RelayCommand ShowAlertsCommand { get; }
 
     public RelayCommand ClearFiltersCommand { get; }
+
+    /// <summary>A short "45s" / "2:05" countdown to the next automatic refresh.</summary>
+    public string NextRefreshText => _autoRefresh.RemainingText;
 
     // -------------------------------------------------------------- filtering
 
@@ -187,13 +196,19 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     public int MaintenanceCount => Devices.Count(d => d.State == DeviceState.Maintenance);
 
+    /// <summary>Covers both Disabled and Ignored, same as the <see cref="ShowDisabled"/> filter.</summary>
+    public int DisabledCount => Devices.Count(d => d.State is DeviceState.Disabled or DeviceState.Ignored);
+
     public int TotalCount => Devices.Count;
 
     public int VisibleCount => DevicesView.Cast<object>().Count();
 
     // --------------------------------------------------------------- lifetime
 
-    /// <summary>Called each time the window is shown; loads once, then leaves it to manual refresh.</summary>
+    /// <summary>
+    /// Called each time the tab is shown; loads once, then keeps refreshing
+    /// automatically on the polling interval from Settings (same as Alerts).
+    /// </summary>
     public void OnShown()
     {
         if (_hasLoadedOnce)
@@ -202,6 +217,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         }
 
         _ = RefreshAsync();
+        _autoRefresh.Start();
     }
 
     private async Task RefreshAsync()
@@ -260,6 +276,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         finally
         {
             IsBusy = false;
+            _autoRefresh.Reset();
         }
     }
 
@@ -459,6 +476,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(UpCount));
         OnPropertyChanged(nameof(DownCount));
         OnPropertyChanged(nameof(MaintenanceCount));
+        OnPropertyChanged(nameof(DisabledCount));
         OnPropertyChanged(nameof(TotalCount));
         OnPropertyChanged(nameof(VisibleCount));
 
@@ -470,6 +488,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _autoRefresh.Dispose();
         _settings.Changed -= OnSettingsChanged;
         _loadCts?.Cancel();
         _loadCts?.Dispose();

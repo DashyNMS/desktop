@@ -16,35 +16,58 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- ======================== Mini header: counts ======================== -->
+        <!-- ======================== Counts + search + filter ======================== -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="18,12">
-            <StackPanel Orientation="Horizontal">
-                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                        <TextBlock Text="up" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Border>
-                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                        <TextBlock Text="down" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Border>
-                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="9" Height="9" Fill="{StaticResource MaintenanceBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding MaintenanceCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                        <TextBlock Text="in maintenance" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Border>
-            </StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <ToggleButton IsChecked="{Binding ShowUp}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide up" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="up" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton IsChecked="{Binding ShowDown}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide down" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="down" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton IsChecked="{Binding ShowMaintenance}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide maintenance" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource MaintenanceBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding MaintenanceCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="in maintenance" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton IsChecked="{Binding ShowDisabled}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide disabled / ignored">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding DisabledCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="disabled / ignored" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox x:Name="SearchBox"
+                             Width="240"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                             ToolTip="Filter by name, IP, OS, hardware, location or device id"
+                             Margin="0,0,8,0" />
+                    <Button Content="Clear" Command="{Binding ClearFiltersCommand}" Padding="10,7" />
+                </StackPanel>
+            </Grid>
         </Border>
 
         <!-- ======================== Error banner ======================== -->
@@ -57,55 +80,8 @@
             <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" />
         </Border>
 
-        <!-- ======================== Filters + content ======================== -->
+        <!-- ======================== Content ======================== -->
         <Grid Grid.Row="2">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-
-            <Border Grid.Row="0"
-                    Background="{StaticResource BackgroundBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="0,0,0,1"
-                    Padding="18,10">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <WrapPanel Grid.Column="0" VerticalAlignment="Center">
-                        <ToggleButton Content="Up"
-                                      IsChecked="{Binding ShowUp}"
-                                      Style="{StaticResource ChipToggleStyle}"
-                                      Tag="{StaticResource OkBrush}" />
-                        <ToggleButton Content="Down"
-                                      IsChecked="{Binding ShowDown}"
-                                      Style="{StaticResource ChipToggleStyle}"
-                                      Tag="{StaticResource CriticalBrush}" />
-                        <ToggleButton Content="Maintenance"
-                                      IsChecked="{Binding ShowMaintenance}"
-                                      Style="{StaticResource ChipToggleStyle}"
-                                      Tag="{StaticResource MaintenanceBrush}" />
-                        <ToggleButton Content="Disabled / ignored"
-                                      IsChecked="{Binding ShowDisabled}"
-                                      Style="{StaticResource ChipToggleStyle}"
-                                      Tag="{StaticResource TextSecondaryBrush}" />
-                    </WrapPanel>
-
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBox x:Name="SearchBox"
-                                 Width="240"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                                 ToolTip="Filter by name, IP, OS, hardware, location or device id"
-                                 Margin="0,0,8,0" />
-                        <Button Content="Clear" Command="{Binding ClearFiltersCommand}" Padding="10,7" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" MinWidth="420" />
                     <ColumnDefinition Width="Auto" />
@@ -264,7 +240,6 @@
                         </Border>
                     </Grid>
                 </Border>
-            </Grid>
         </Grid>
 
         <!-- ======================== Status bar ======================== -->
@@ -291,7 +266,10 @@
                     <TextBlock Text="{Binding VisibleCount, StringFormat={}{0} shown}"
                                Style="{StaticResource SubtleTextStyle}"
                                Margin="0,0,14,0" />
-                    <TextBlock Text="{Binding LastUpdatedText, StringFormat=updated {0}}" Style="{StaticResource SubtleTextStyle}" />
+                    <TextBlock Text="{Binding LastUpdatedText, StringFormat=updated {0}}"
+                               Style="{StaticResource SubtleTextStyle}"
+                               Margin="0,0,14,0" />
+                    <TextBlock Text="{Binding NextRefreshText, StringFormat=next in {0}}" Style="{StaticResource SubtleTextStyle}" />
                 </StackPanel>
             </Grid>
         </Border>

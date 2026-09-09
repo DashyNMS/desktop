@@ -11,11 +11,10 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- ======================== Mini header: counts ======================== -->
+        <!-- ======================== Counts + search ======================== -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
@@ -28,66 +27,35 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
+                    <ToggleButton IsChecked="{Binding ShowCritical}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide critical" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding CriticalCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
                             <TextBlock Text="critical" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                         </StackPanel>
-                    </Border>
-                    <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
+                    </ToggleButton>
+                    <ToggleButton IsChecked="{Binding ShowWarning}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide warning" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource WarningBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding WarningCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
                             <TextBlock Text="warning" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                         </StackPanel>
-                    </Border>
-                    <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7">
+                    </ToggleButton>
+                    <ToggleButton IsChecked="{Binding ShowOk}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide ok" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding OkCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
                             <TextBlock Text="ok" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                         </StackPanel>
-                    </Border>
+                    </ToggleButton>
+                    <ToggleButton IsChecked="{Binding ShowUnknown}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide no data">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding UnknownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="no data" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
                 </StackPanel>
-
-                <TextBlock Grid.Column="1"
-                           Text="{Binding VisibleCount, StringFormat={}{0} shown}"
-                           Style="{StaticResource SubtleTextStyle}"
-                           VerticalAlignment="Center" />
-            </Grid>
-        </Border>
-
-        <!-- ======================== Filters ======================== -->
-        <Border Grid.Row="1"
-                Background="{StaticResource BackgroundBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="18,10">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <WrapPanel Grid.Column="0" VerticalAlignment="Center">
-                    <ToggleButton Content="Critical"
-                                  IsChecked="{Binding ShowCritical}"
-                                  Style="{StaticResource ChipToggleStyle}"
-                                  Tag="{StaticResource CriticalBrush}" />
-                    <ToggleButton Content="Warning"
-                                  IsChecked="{Binding ShowWarning}"
-                                  Style="{StaticResource ChipToggleStyle}"
-                                  Tag="{StaticResource WarningBrush}" />
-                    <ToggleButton Content="OK"
-                                  IsChecked="{Binding ShowOk}"
-                                  Style="{StaticResource ChipToggleStyle}"
-                                  Tag="{StaticResource OkBrush}" />
-                    <ToggleButton Content="No data"
-                                  IsChecked="{Binding ShowUnknown}"
-                                  Style="{StaticResource ChipToggleStyle}"
-                                  Tag="{StaticResource TextSecondaryBrush}" />
-                </WrapPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBox x:Name="SearchBox"
@@ -101,7 +69,7 @@
         </Border>
 
         <!-- ======================== Grid ======================== -->
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="1">
             <DataGrid ItemsSource="{Binding SensorsView}"
                       SelectedItem="{Binding SelectedSensor}">
                 <DataGrid.Columns>

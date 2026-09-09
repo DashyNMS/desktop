@@ -204,11 +204,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private bool _showCritical = true;
     private bool _showWarning = true;
-    private bool _showOk = true;
     private bool _showUnknownSeverity = true;
-    private bool _showActive = true;
     private bool _showAcknowledged = true;
-    private bool _showRecovered;
 
     public bool ShowCritical
     {
@@ -222,54 +219,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set { if (SetProperty(ref _showWarning, value)) OnFilterChanged(); }
     }
 
-    public bool ShowOk
-    {
-        get => _showOk;
-        set { if (SetProperty(ref _showOk, value)) OnFilterChanged(); }
-    }
-
     public bool ShowUnknownSeverity
     {
         get => _showUnknownSeverity;
         set { if (SetProperty(ref _showUnknownSeverity, value)) OnFilterChanged(); }
     }
 
-    public bool ShowActive
-    {
-        get => _showActive;
-        set { if (SetProperty(ref _showActive, value)) OnFilterChanged(); }
-    }
-
+    /// <summary>
+    /// Active alerts always show; this adds acknowledged ones alongside them.
+    /// Recovered alerts never show here regardless - there is no chip for them.
+    /// </summary>
     public bool ShowAcknowledged
     {
         get => _showAcknowledged;
         set { if (SetProperty(ref _showAcknowledged, value)) OnFilterChanged(); }
-    }
-
-    /// <summary>
-    /// Recovered alerts are not fetched by default because the server keeps one
-    /// row per rule and device for ever. Turning the chip on turns the fetch on
-    /// too, otherwise the filter would silently do nothing.
-    /// </summary>
-    public bool ShowRecovered
-    {
-        get => _showRecovered;
-        set
-        {
-            if (!SetProperty(ref _showRecovered, value))
-            {
-                return;
-            }
-
-            if (value && !_settings.Current.IncludeRecoveredAlerts)
-            {
-                _settings.Current.IncludeRecoveredAlerts = true;
-                _settings.Save();
-                RequestRefresh();
-            }
-
-            OnFilterChanged();
-        }
     }
 
     public string SearchText
@@ -503,8 +466,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Clears the severity/state filters and searches for the given device, so
-    /// every alert against it is visible regardless of its current state.
-    /// Used by the device view's "Show alerts" action.
+    /// every active or acknowledged alert against it is visible. Used by the
+    /// device view's "Show alerts" action.
     /// </summary>
     public void ShowAlertsForDevice(string deviceSearchTerm)
     {
@@ -513,11 +476,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         ShowCritical = true;
         ShowWarning = true;
-        ShowOk = true;
         ShowUnknownSeverity = true;
-        ShowActive = true;
         ShowAcknowledged = true;
-        ShowRecovered = true;
         SearchText = deviceSearchTerm;
 
         _suppressFilterPersistence = false;
@@ -942,9 +902,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         ShowCritical = true;
         ShowWarning = true;
-        ShowOk = true;
         ShowUnknownSeverity = true;
-        ShowActive = true;
         ShowAcknowledged = true;
         SearchText = string.Empty;
 
@@ -1010,7 +968,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             AlertSeverity.Critical => ShowCritical,
             AlertSeverity.Warning => ShowWarning,
-            AlertSeverity.Ok => ShowOk,
+            // Ok and Unknown severities have no chip of their own - both are
+            // rare enough that they always show, gated only by this one
+            // hidden flag (which is always true) rather than a dedicated one each.
             _ => ShowUnknownSeverity,
         };
 
@@ -1022,8 +982,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var stateAllowed = alert.State switch
         {
             AlertState.Acknowledged => ShowAcknowledged,
-            AlertState.Recovered => ShowRecovered,
-            _ => ShowActive,
+            // Recovered alerts are never shown in the quick filter; Active has
+            // no chip of its own since it is always the baseline.
+            AlertState.Recovered => false,
+            _ => true,
         };
 
         if (!stateAllowed)
@@ -1054,11 +1016,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         _showCritical = filter.ShowCritical;
         _showWarning = filter.ShowWarning;
-        _showOk = filter.ShowOk;
         _showUnknownSeverity = filter.ShowUnknownSeverity;
-        _showActive = filter.ShowActive;
         _showAcknowledged = filter.ShowAcknowledged;
-        _showRecovered = filter.ShowRecovered && _settings.Current.IncludeRecoveredAlerts;
         _searchText = filter.SearchText ?? string.Empty;
 
         _suppressFilterPersistence = false;
@@ -1070,11 +1029,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         filter.ShowCritical = ShowCritical;
         filter.ShowWarning = ShowWarning;
-        filter.ShowOk = ShowOk;
         filter.ShowUnknownSeverity = ShowUnknownSeverity;
-        filter.ShowActive = ShowActive;
         filter.ShowAcknowledged = ShowAcknowledged;
-        filter.ShowRecovered = ShowRecovered;
         filter.SearchText = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText;
 
         _settings.Save();
