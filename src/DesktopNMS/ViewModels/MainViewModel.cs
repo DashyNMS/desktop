@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Data;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
@@ -30,6 +31,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly DeviceListViewModel _deviceList;
     private readonly HealthViewModel _health;
     private readonly DashboardViewModel _dashboard;
+    private readonly IServerBrandingService _branding;
     private readonly ISelfActionTracker _selfActions;
     private readonly ILogger<MainViewModel> _logger;
     private readonly Dispatcher _dispatcher;
@@ -64,6 +66,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         DeviceListViewModel deviceList,
         HealthViewModel health,
         DashboardViewModel dashboard,
+        IServerBrandingService branding,
         ISelfActionTracker selfActions,
         ILogger<MainViewModel> logger)
     {
@@ -77,9 +80,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _deviceList = deviceList;
         _health = health;
         _dashboard = dashboard;
+        _branding = branding;
         _selfActions = selfActions;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
+
+        _branding.Changed += OnBrandingChanged;
 
         Alerts = new ObservableCollection<AlertItemViewModel>();
         AlertsView = CollectionViewSource.GetDefaultView(Alerts);
@@ -175,6 +181,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The dashboard widgets, for the Dashboard tab's content to bind to.</summary>
     public DashboardViewModel Dashboard => _dashboard;
+
+    /// <summary>The connected server's favicon, shown next to the tabs. Null until it loads, or if there isn't one.</summary>
+    public BitmapImage? ServerLogo => _branding.Logo;
+
+    private void OnBrandingChanged(object? sender, EventArgs e) => OnPropertyChanged(nameof(ServerLogo));
 
     public MainTab SelectedTab
     {
@@ -1115,6 +1126,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _monitor.Polled -= OnPolled;
         _monitor.PollStarted -= OnPollStarted;
         _session.StateChanged -= OnSessionStateChanged;
+        _branding.Changed -= OnBrandingChanged;
 
         _detailCts?.Cancel();
         _detailCts?.Dispose();

@@ -42,11 +42,27 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0"
+                <!-- The connected server's own logo/favicon, if it has one - a
+                     small per-server touch distinct from the app's own
+                     icon/title. Height-constrained rather than a fixed square,
+                     since a custom logo is typically wider than tall; Stretch
+                     defaults to Uniform so it scales without distortion.
+                     Hidden entirely rather than showing a broken-image glyph
+                     when there isn't one or it hasn't loaded yet. -->
+                <Image Grid.Column="0"
+                       Source="{Binding ServerLogo}"
+                       Height="28"
+                       MaxWidth="140"
+                       Margin="0,0,10,0"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding ServerLogo, Converter={StaticResource NullToVisibility}}" />
+
+                <Border Grid.Column="1"
                         Style="{StaticResource NavTabTrackStyle}"
                         VerticalAlignment="Center"
                         Margin="0,12,0,12">
@@ -70,7 +86,7 @@
                     </StackPanel>
                 </Border>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,12,0,12">
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,12,0,12">
                     <!-- The glyph sits in an explicit TextBlock with its
                          FontFamily set as a local value: the app's global
                          implicit TextBlock style (Segoe UI) would otherwise
