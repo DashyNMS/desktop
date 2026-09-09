@@ -49,6 +49,7 @@ public sealed class AlertNotificationService : IAlertNotificationService
     private readonly ISettingsStore _settings;
     private readonly ISessionService _session;
     private readonly IDeviceCache _devices;
+    private readonly ISelfActionTracker _selfActions;
     private readonly ILogger<AlertNotificationService> _logger;
     private readonly ITrayNotifier _trayFallback;
 
@@ -58,12 +59,14 @@ public sealed class AlertNotificationService : IAlertNotificationService
         ISettingsStore settings,
         ISessionService session,
         IDeviceCache devices,
+        ISelfActionTracker selfActions,
         ITrayNotifier trayFallback,
         ILogger<AlertNotificationService> logger)
     {
         _settings = settings;
         _session = session;
         _devices = devices;
+        _selfActions = selfActions;
         _trayFallback = trayFallback;
         _logger = logger;
     }
@@ -194,6 +197,14 @@ public sealed class AlertNotificationService : IAlertNotificationService
 
     private bool ShouldNotify(AlertChange change, NotificationSettings settings)
     {
+        // Acknowledging or returning an alert to active from within this app
+        // must not toast you about your own action.
+        if (change.Kind is AlertChangeKind.Acknowledged or AlertChangeKind.Unacknowledged
+            && _selfActions.WasSelfInitiated(change.Alert.Id, change.Kind))
+        {
+            return false;
+        }
+
         var severity = change.Alert.Severity;
 
         if (settings.IsInQuietHours(DateTime.Now, severity))

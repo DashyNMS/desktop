@@ -29,6 +29,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly IWindowService _windows;
     private readonly DeviceListViewModel _deviceList;
     private readonly HealthViewModel _health;
+    private readonly ISelfActionTracker _selfActions;
     private readonly ILogger<MainViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, AlertItemViewModel> _index = new();
@@ -61,6 +62,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IWindowService windows,
         DeviceListViewModel deviceList,
         HealthViewModel health,
+        ISelfActionTracker selfActions,
         ILogger<MainViewModel> logger)
     {
         _client = client;
@@ -72,6 +74,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _windows = windows;
         _deviceList = deviceList;
         _health = health;
+        _selfActions = selfActions;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -516,6 +519,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         try
         {
             await _client.Alerts.AcknowledgeAsync(item.Id, "Acknowledged from DashyNMS", untilClear: true).ConfigureAwait(true);
+            _selfActions.Record(item.Id, AlertChangeKind.Acknowledged);
             StatusMessage = $"Acknowledged alert #{item.Id}.";
             _logger.LogInformation("Acknowledged alert {AlertId}", item.Id);
             RequestRefresh();
@@ -728,23 +732,28 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 string.IsNullOrWhiteSpace(AcknowledgeNote) ? "Acknowledged from DashyNMS" : AcknowledgeNote.Trim(),
                 untilClear: true),
             successCountVerb: "Acknowledged",
+            selfActionKind: AlertChangeKind.Acknowledged,
             onAllSucceeded: () => AcknowledgeNote = string.Empty);
 
     private Task UnacknowledgeSelectedAsync()
         => RunBulkAsync(
             "Could not unacknowledge",
             item => _client.Alerts.UnmuteAsync(item.Id, "Unacknowledged from DashyNMS"),
-            successCountVerb: "Returned to active");
+            successCountVerb: "Returned to active",
+            selfActionKind: AlertChangeKind.Unacknowledged);
 
     /// <summary>
     /// Applies <paramref name="action"/> to every selected alert concurrently.
     /// One alert failing does not stop the others; failures are reported
-    /// together once everything has finished.
+    /// together once everything has finished. Every alert that succeeds is
+    /// recorded against <paramref name="selfActionKind"/> so the poll that
+    /// picks up the change does not also raise a toast about it.
     /// </summary>
     private async Task RunBulkAsync(
         string failureTitle,
         Func<AlertItemViewModel, Task> action,
         string successCountVerb,
+        AlertChangeKind selfActionKind,
         Action? onAllSucceeded = null)
     {
         if (!_session.IsConnected || SelectedAlerts.Count == 0)
@@ -773,6 +782,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             try
             {
                 await action(item).ConfigureAwait(true);
+                _selfActions.Record(item.Id, selfActionKind);
             }
             catch (LibreNmsApiException ex)
             {

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using DesktopNMS.Core;
+using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
@@ -170,6 +171,7 @@ public partial class App : Application
         services.AddSingleton<IUpdateCheckService, UpdateCheckService>();
         services.AddSingleton<WindowService>();
         services.AddSingleton<IWindowService>(sp => sp.GetRequiredService<WindowService>());
+        services.AddSingleton<ISelfActionTracker, SelfActionTracker>();
 
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<DeviceListViewModel>();
