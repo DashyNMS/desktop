@@ -1,0 +1,121 @@
+<Window x:Class="DesktopNMS.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        xmlns:views="clr-namespace:DesktopNMS.Views"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+        Title="DashyNMS"
+        Height="720"
+        Width="1180"
+        MinHeight="480"
+        MinWidth="900"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Background="{StaticResource BackgroundBrush}"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding RefreshCurrentTabCommand}" />
+        <KeyBinding Key="A" Modifiers="Control" Command="{Binding AcknowledgeCommand}" />
+        <KeyBinding Key="L" Modifiers="Control" Command="{Binding ClearCurrentTabFiltersCommand}" />
+    </Window.InputBindings>
+
+    <Window.CommandBindings>
+        <!-- Ctrl+F puts the caret in whichever tab's search box is showing. -->
+        <CommandBinding Command="Find" Executed="OnFindExecuted" />
+    </Window.CommandBindings>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ======================== Shell header: tabs + actions ======================== -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Style="{StaticResource NavTabTrackStyle}"
+                        VerticalAlignment="Center"
+                        Margin="0,12,0,12">
+                    <StackPanel Orientation="Horizontal">
+                        <ToggleButton Content="Dashboard"
+                                      Style="{StaticResource NavTabButtonStyle}"
+                                      IsChecked="{Binding IsDashboardTabSelected, Mode=OneWay}"
+                                      Command="{Binding SelectDashboardTabCommand}" />
+                        <ToggleButton Content="Devices"
+                                      Style="{StaticResource NavTabButtonStyle}"
+                                      IsChecked="{Binding IsDevicesTabSelected, Mode=OneWay}"
+                                      Command="{Binding SelectDevicesTabCommand}" />
+                        <ToggleButton Content="Health"
+                                      Style="{StaticResource NavTabButtonStyle}"
+                                      IsChecked="{Binding IsHealthTabSelected, Mode=OneWay}"
+                                      Command="{Binding SelectHealthTabCommand}" />
+                        <ToggleButton Content="Alerts"
+                                      Style="{StaticResource NavTabButtonStyle}"
+                                      IsChecked="{Binding IsAlertsTabSelected, Mode=OneWay}"
+                                      Command="{Binding SelectAlertsTabCommand}" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,12,0,12">
+                    <!-- The glyph sits in an explicit TextBlock with its
+                         FontFamily set as a local value: the app's global
+                         implicit TextBlock style (Segoe UI) would otherwise
+                         win over the icon font inherited from the button,
+                         since a style setter beats an inherited value. -->
+                    <Button Command="{Binding RefreshCurrentTabCommand}"
+                            Style="{StaticResource PrimaryIconButtonStyle}"
+                            ToolTip="Refresh now (F5)"
+                            Margin="0,0,8,0">
+                        <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                    </Button>
+                    <Button Command="{Binding SettingsCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Settings"
+                            Margin="0,0,8,0">
+                        <TextBlock Text="&#xE713;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                    </Button>
+                    <Button Command="{Binding SignOutCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Sign out">
+                        <TextBlock Text="&#xE7E8;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Content ======================== -->
+        <Grid Grid.Row="1">
+            <views:DashboardView Visibility="{Binding IsDashboardTabSelected, Converter={StaticResource BoolToVisibility}}" />
+
+            <!-- Visibility is bound on this Grid, against the inherited
+                 MainViewModel DataContext; DevicesView's own DataContext is
+                 overridden below it to DeviceList. A binding on the same
+                 element that redefines DataContext resolves against the new
+                 one, so the two must live on different elements. -->
+            <Grid Visibility="{Binding IsDevicesTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:DevicesView x:Name="DevicesViewControl" DataContext="{Binding DeviceList}" />
+            </Grid>
+
+            <Grid Visibility="{Binding IsHealthTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:HealthView x:Name="HealthViewControl" DataContext="{Binding Health}" />
+            </Grid>
+
+            <views:AlertsView x:Name="AlertsViewControl"
+                               Visibility="{Binding IsAlertsTabSelected, Converter={StaticResource BoolToVisibility}}" />
+        </Grid>
+    </Grid>
+</Window>

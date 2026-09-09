@@ -1,0 +1,299 @@
+<UserControl x:Class="DesktopNMS.Views.DevicesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:DeviceListViewModel}"
+             d:DesignHeight="600" d:DesignWidth="1100">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ======================== Mini header: counts ======================== -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,12">
+            <StackPanel Orientation="Horizontal">
+                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                        <TextBlock Text="up" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                        <TextBlock Text="down" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="9" Height="9" Fill="{StaticResource MaintenanceBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding MaintenanceCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                        <TextBlock Text="in maintenance" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1"
+                Background="#33DA3633"
+                BorderBrush="{StaticResource CriticalBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,10"
+                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Filters + content ======================== -->
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0"
+                    Background="{StaticResource BackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="18,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <WrapPanel Grid.Column="0" VerticalAlignment="Center">
+                        <ToggleButton Content="Up"
+                                      IsChecked="{Binding ShowUp}"
+                                      Style="{StaticResource ChipToggleStyle}"
+                                      Tag="{StaticResource OkBrush}" />
+                        <ToggleButton Content="Down"
+                                      IsChecked="{Binding ShowDown}"
+                                      Style="{StaticResource ChipToggleStyle}"
+                                      Tag="{StaticResource CriticalBrush}" />
+                        <ToggleButton Content="Maintenance"
+                                      IsChecked="{Binding ShowMaintenance}"
+                                      Style="{StaticResource ChipToggleStyle}"
+                                      Tag="{StaticResource MaintenanceBrush}" />
+                        <ToggleButton Content="Disabled / ignored"
+                                      IsChecked="{Binding ShowDisabled}"
+                                      Style="{StaticResource ChipToggleStyle}"
+                                      Tag="{StaticResource TextSecondaryBrush}" />
+                    </WrapPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBox x:Name="SearchBox"
+                                 Width="240"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                                 ToolTip="Filter by name, IP, OS, hardware, location or device id"
+                                 Margin="0,0,8,0" />
+                        <Button Content="Clear" Command="{Binding ClearFiltersCommand}" Padding="10,7" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="420" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="320" MinWidth="260" />
+                </Grid.ColumnDefinitions>
+
+                <DataGrid Grid.Column="0"
+                          ItemsSource="{Binding DevicesView}"
+                          SelectedItem="{Binding SelectedDevice}"
+                          MouseDoubleClick="OnGridDoubleClick">
+                    <DataGrid.Columns>
+
+                        <DataGridTemplateColumn Header="State" Width="90" SortMemberPath="State">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="10,0">
+                                        <Ellipse Width="9"
+                                                 Height="9"
+                                                 Margin="0,0,8,0"
+                                                 VerticalAlignment="Center"
+                                                 Fill="{Binding State, Converter={StaticResource DeviceStateToBrush}}" />
+                                        <TextBlock Text="{Binding StateText}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTemplateColumn Header="Device" Width="220" SortMemberPath="Name">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="10,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding AlternateName}"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Visibility="{Binding HasAlternateName, Converter={StaticResource BoolToVisibility}}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTextColumn Header="IP" Width="130" Binding="{Binding Ip}" />
+                        <DataGridTextColumn Header="OS" Width="110" Binding="{Binding Os}" />
+                        <DataGridTextColumn Header="Hardware" Width="*" Binding="{Binding Hardware}" />
+                        <DataGridTextColumn Header="Location" Width="140" Binding="{Binding Location}" />
+                        <DataGridTextColumn Header="Uptime" Width="100" Binding="{Binding UptimeText}" />
+
+                    </DataGrid.Columns>
+
+                    <DataGrid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Show alerts for this device" Command="{Binding ShowAlertsCommand}" />
+                            <MenuItem Header="Open device in LibreNMS" Command="{Binding OpenDeviceCommand}" />
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
+                </DataGrid>
+
+                <TextBlock Grid.Column="0"
+                           Text="Nothing matches the current filters."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding VisibleCount}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}" />
+
+                <!-- ==================== Detail pane ==================== -->
+                <Border Grid.Column="2"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1,0,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Grid.RowSpan="2"
+                                   Text="Select a device to see its detail."
+                                   Style="{StaticResource SubtleTextStyle}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   Margin="24"
+                                   Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+
+                        <ScrollViewer Grid.Row="0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel Margin="18" DataContext="{Binding SelectedDevice}">
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <Ellipse Width="9"
+                                             Height="9"
+                                             Margin="0,0,8,0"
+                                             VerticalAlignment="Center"
+                                             Fill="{Binding State, Converter={StaticResource DeviceStateToBrush}}" />
+                                    <TextBlock Text="{Binding StateText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource HeadingTextStyle}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding AlternateName}"
+                                           Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding HasAlternateName, Converter={StaticResource BoolToVisibility}}" />
+
+                                <TextBlock Text="IP address" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBlock Text="{Binding Ip}" />
+
+                                <TextBlock Text="Operating system" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBlock Text="{Binding Os}" TextWrapping="Wrap" />
+
+                                <TextBlock Text="Hardware" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBlock Text="{Binding Hardware}" TextWrapping="Wrap" />
+
+                                <TextBlock Text="Type" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBlock Text="{Binding Type}" TextWrapping="Wrap" />
+
+                                <TextBlock Text="Location" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBlock Text="{Binding Location}" TextWrapping="Wrap" />
+
+                                <TextBlock Text="Uptime" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBlock Text="{Binding UptimeText}" />
+
+                                <TextBlock Text="Device id" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBlock Text="{Binding DeviceId}" Style="{StaticResource SubtleTextStyle}" />
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <Border Grid.Row="1"
+                                Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="0,1,0,0"
+                                Padding="18,14"
+                                Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <Button Content="Show alerts for this device"
+                                        Command="{Binding ShowAlertsCommand}"
+                                        Style="{StaticResource PrimaryButtonStyle}"
+                                        Margin="0,0,0,8" />
+                                <Button Content="Open in LibreNMS"
+                                        Command="{Binding OpenDeviceCommand}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- ======================== Status bar ======================== -->
+        <Border Grid.Row="3"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="18,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock Text="Refreshing..."
+                               Style="{StaticResource SubtleTextStyle}"
+                               Margin="0,0,10,0"
+                               Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource SubtleTextStyle}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBlock Text="{Binding VisibleCount, StringFormat={}{0} shown}"
+                               Style="{StaticResource SubtleTextStyle}"
+                               Margin="0,0,14,0" />
+                    <TextBlock Text="{Binding LastUpdatedText, StringFormat=updated {0}}" Style="{StaticResource SubtleTextStyle}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

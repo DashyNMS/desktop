@@ -1,0 +1,411 @@
+<Window x:Class="DesktopNMS.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel}"
+        Title="DashyNMS settings"
+        Width="760"
+        Height="640"
+        MinWidth="640"
+        MinHeight="440"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Background="{StaticResource BackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ======================== Sidebar ======================== -->
+            <Border Grid.Column="0"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,1,0">
+                <StackPanel Margin="10,16">
+                    <ToggleButton Content="Polling"
+                                  Style="{StaticResource SettingsNavItemStyle}"
+                                  IsChecked="{Binding IsPollingSectionSelected, Mode=OneWay}"
+                                  Command="{Binding SelectPollingSectionCommand}" />
+                    <ToggleButton Content="Alert display"
+                                  Style="{StaticResource SettingsNavItemStyle}"
+                                  IsChecked="{Binding IsAlertDisplaySectionSelected, Mode=OneWay}"
+                                  Command="{Binding SelectAlertDisplaySectionCommand}" />
+                    <ToggleButton Content="Health thresholds"
+                                  Style="{StaticResource SettingsNavItemStyle}"
+                                  IsChecked="{Binding IsHealthThresholdsSectionSelected, Mode=OneWay}"
+                                  Command="{Binding SelectHealthThresholdsSectionCommand}" />
+                    <ToggleButton Content="Notifications"
+                                  Style="{StaticResource SettingsNavItemStyle}"
+                                  IsChecked="{Binding IsNotificationsSectionSelected, Mode=OneWay}"
+                                  Command="{Binding SelectNotificationsSectionCommand}" />
+                    <ToggleButton Content="Window and start-up"
+                                  Style="{StaticResource SettingsNavItemStyle}"
+                                  IsChecked="{Binding IsWindowSectionSelected, Mode=OneWay}"
+                                  Command="{Binding SelectWindowSectionCommand}" />
+                    <ToggleButton Content="About"
+                                  Style="{StaticResource SettingsNavItemStyle}"
+                                  IsChecked="{Binding IsAboutSectionSelected, Mode=OneWay}"
+                                  Command="{Binding SelectAboutSectionCommand}" />
+                </StackPanel>
+            </Border>
+
+            <!-- ======================== Content ======================== -->
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="28,24">
+                <Grid>
+
+                    <!-- ==================== Polling ==================== -->
+                    <StackPanel Visibility="{Binding IsPollingSectionSelected, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Polling" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
+
+                        <TextBlock Text="Refresh interval" Style="{StaticResource SectionHeaderStyle}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Slider Grid.Column="0"
+                                    Minimum="15"
+                                    Maximum="600"
+                                    TickFrequency="15"
+                                    IsSnapToTickEnabled="True"
+                                    VerticalAlignment="Center"
+                                    Value="{Binding PollIntervalSeconds}" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding PollIntervalSeconds, StringFormat={}{0} s}"
+                                       Style="{StaticResource SubtleTextStyle}"
+                                       VerticalAlignment="Center"
+                                       MinWidth="52"
+                                       TextAlignment="Right"
+                                       Margin="12,0,0,0" />
+                        </Grid>
+
+                        <TextBlock Text="Request timeout" Style="{StaticResource SectionHeaderStyle}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Slider Grid.Column="0"
+                                    Minimum="5"
+                                    Maximum="120"
+                                    TickFrequency="5"
+                                    IsSnapToTickEnabled="True"
+                                    VerticalAlignment="Center"
+                                    Value="{Binding TimeoutSeconds}" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding TimeoutSeconds, StringFormat={}{0} s}"
+                                       Style="{StaticResource SubtleTextStyle}"
+                                       VerticalAlignment="Center"
+                                       MinWidth="52"
+                                       TextAlignment="Right"
+                                       Margin="12,0,0,0" />
+                        </Grid>
+
+                        <CheckBox Content="Also fetch recovered alerts"
+                                  IsChecked="{Binding IncludeRecoveredAlerts}"
+                                  Margin="0,14,0,0" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Text="LibreNMS keeps a row for every rule and device that has ever fired, so this can return a lot of history." />
+
+                        <CheckBox Content="The LibreNMS server stores timestamps in UTC"
+                                  IsChecked="{Binding ServerTimestampsAreUtc}"
+                                  Margin="0,10,0,0" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Text="Leave this off unless alert ages look wrong by a fixed number of hours." />
+
+                        <CheckBox Content="Allow an untrusted or self-signed certificate"
+                                  IsChecked="{Binding AllowUntrustedCertificate}"
+                                  Margin="0,10,0,0" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Text="Takes effect the next time you sign in." />
+                    </StackPanel>
+
+                    <!-- ==================== Alert display ==================== -->
+                    <StackPanel Visibility="{Binding IsAlertDisplaySectionSelected, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Alert display" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
+
+                        <TextBlock Text="Name devices by" Style="{StaticResource SectionHeaderStyle}" />
+                        <ComboBox ItemsSource="{Binding DeviceNameOptions}"
+                                  SelectedItem="{Binding DeviceName}"
+                                  DisplayMemberPath="Label" />
+                        <TextBlock Text="{Binding DeviceName.Description}"
+                                   Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Text="The name not chosen here is shown underneath it, so you always have both." />
+
+                        <CheckBox Content="Show what triggered the selected alert"
+                                  IsChecked="{Binding LoadAlertFaults}"
+                                  Margin="0,14,0,0" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Text="Fetches the rows the alert rule matched, with their measured values. Costs one extra request each time you select an alert." />
+                    </StackPanel>
+
+                    <!-- ==================== Health thresholds ==================== -->
+                    <StackPanel Visibility="{Binding IsHealthThresholdsSectionSelected, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Health thresholds" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,4" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14"
+                                   Text="Each sensor type on the Health tab has its own band of Warning/Critical colours. Expand a sensor type below to see or change them." />
+
+                        <!-- Each sensor type the Health tab understands gets its
+                             own Expander; a future type (temperature, voltage, ...)
+                             is a new sibling here, not a new page. -->
+                        <Expander Header="dBm sensors" Style="{StaticResource AccordionExpanderStyle}" IsExpanded="False">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,6"
+                                           Text="Optical power (dBm) sensors on the Health tab are coloured against these bands. A weak signal is too negative; an unplugged port usually reads back near zero or positive instead." />
+
+                                <TextBlock Text="Warning at or below (dBm)" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding DbmWarningThreshold, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Critical at or below (dBm)" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding DbmCriticalThreshold, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Treat as no signal at or above (dBm)" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding DbmIgnoreAtOrAbove, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Treat as no signal at or below (dBm)" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding DbmIgnoreAtOrBelow, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Some hardware reports a fixed sentinel value, high or low, for an unplugged port instead of a real reading. Sensors at or beyond either sentinel are shown as &quot;no signal&quot; rather than critical." />
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+
+                    <!-- ==================== Notifications ==================== -->
+                    <StackPanel Visibility="{Binding IsNotificationsSectionSelected, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Notifications" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
+
+                        <CheckBox Content="Show Windows notifications"
+                                  IsChecked="{Binding NotificationsEnabled}" />
+
+                        <!-- Critical -->
+                        <TextBlock Text="Critical" Style="{StaticResource SectionHeaderStyle}" />
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                IsEnabled="{Binding NotificationsEnabled}">
+                            <StackPanel>
+                                <CheckBox Content="Notify for critical alerts" IsChecked="{Binding CriticalEnabled}" />
+                                <ComboBox ItemsSource="{Binding PersistenceOptions}"
+                                          SelectedItem="{Binding CriticalPersistence}"
+                                          DisplayMemberPath="Label"
+                                          IsEnabled="{Binding CriticalEnabled}"
+                                          Margin="0,10,0,0" />
+                                <TextBlock Text="{Binding CriticalPersistence.Description}"
+                                           Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0" />
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                    <CheckBox Content="Play a sound"
+                                              IsChecked="{Binding CriticalPlaySound}"
+                                              IsEnabled="{Binding CriticalEnabled}"
+                                              VerticalAlignment="Center" />
+                                    <Button Content="Preview"
+                                            Command="{Binding PreviewCriticalCommand}"
+                                            Padding="10,4"
+                                            Margin="16,0,0,0" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Warning -->
+                        <TextBlock Text="Warning" Style="{StaticResource SectionHeaderStyle}" />
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                IsEnabled="{Binding NotificationsEnabled}">
+                            <StackPanel>
+                                <CheckBox Content="Notify for warning alerts" IsChecked="{Binding WarningEnabled}" />
+                                <ComboBox ItemsSource="{Binding PersistenceOptions}"
+                                          SelectedItem="{Binding WarningPersistence}"
+                                          DisplayMemberPath="Label"
+                                          IsEnabled="{Binding WarningEnabled}"
+                                          Margin="0,10,0,0" />
+                                <TextBlock Text="{Binding WarningPersistence.Description}"
+                                           Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0" />
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                    <CheckBox Content="Play a sound"
+                                              IsChecked="{Binding WarningPlaySound}"
+                                              IsEnabled="{Binding WarningEnabled}"
+                                              VerticalAlignment="Center" />
+                                    <Button Content="Preview"
+                                            Command="{Binding PreviewWarningCommand}"
+                                            Padding="10,4"
+                                            Margin="16,0,0,0" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Other events -->
+                        <TextBlock Text="Other events" Style="{StaticResource SectionHeaderStyle}" />
+                        <StackPanel IsEnabled="{Binding NotificationsEnabled}">
+                            <CheckBox Content="Notify when an alert recovers" IsChecked="{Binding NotifyOnRecovery}" />
+                            <CheckBox Content="Notify when an alert is acknowledged" IsChecked="{Binding NotifyOnAcknowledge}" />
+                            <CheckBox Content="Stay quiet about alerts that were already open at start-up"
+                                      IsChecked="{Binding SuppressOnFirstPoll}" />
+
+                            <TextBlock Text="Collapse into one summary above" Style="{StaticResource SectionHeaderStyle}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Slider Grid.Column="0"
+                                        Minimum="1"
+                                        Maximum="25"
+                                        TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        VerticalAlignment="Center"
+                                        Value="{Binding MaxToastsPerPoll}" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding MaxToastsPerPoll, StringFormat={}{0} toasts}"
+                                           Style="{StaticResource SubtleTextStyle}"
+                                           VerticalAlignment="Center"
+                                           MinWidth="76"
+                                           TextAlignment="Right"
+                                           Margin="12,0,0,0" />
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Quiet hours -->
+                        <TextBlock Text="Quiet hours" Style="{StaticResource SectionHeaderStyle}" />
+                        <StackPanel IsEnabled="{Binding NotificationsEnabled}">
+                            <CheckBox Content="Suppress notifications overnight" IsChecked="{Binding QuietHoursEnabled}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0" IsEnabled="{Binding QuietHoursEnabled}">
+                                <TextBlock Text="From" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox Width="80"
+                                          ItemsSource="{Binding Hours}"
+                                          SelectedItem="{Binding QuietHoursStartHour}" />
+                                <TextBlock Text="to" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="12,0,8,0" />
+                                <ComboBox Width="80"
+                                          ItemsSource="{Binding Hours}"
+                                          SelectedItem="{Binding QuietHoursEndHour}" />
+                                <TextBlock Text="(24 hour clock, local time)"
+                                           Style="{StaticResource SubtleTextStyle}"
+                                           VerticalAlignment="Center"
+                                           Margin="12,0,0,0" />
+                            </StackPanel>
+                            <CheckBox Content="Still notify for critical alerts during quiet hours"
+                                      IsChecked="{Binding QuietHoursAllowCritical}"
+                                      IsEnabled="{Binding QuietHoursEnabled}"
+                                      Margin="0,10,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- ==================== Window ==================== -->
+                    <StackPanel Visibility="{Binding IsWindowSectionSelected, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Window and start-up" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
+                        <CheckBox Content="Closing the window keeps DashyNMS running in the notification area"
+                                  IsChecked="{Binding MinimiseToTrayOnClose}" />
+                        <CheckBox Content="Start hidden in the notification area"
+                                  IsChecked="{Binding StartMinimised}" />
+                        <CheckBox Content="Start DashyNMS when I sign in to Windows"
+                                  IsChecked="{Binding StartWithWindows}" />
+
+                        <TextBlock Text="Tab to show at startup" Style="{StaticResource SectionHeaderStyle}" />
+                        <ComboBox ItemsSource="{Binding StartupTabOptions}"
+                                  SelectedItem="{Binding SelectedStartupTab}"
+                                  DisplayMemberPath="Label" />
+                    </StackPanel>
+
+                    <!-- ==================== About ==================== -->
+                    <StackPanel Visibility="{Binding IsAboutSectionSelected, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="About" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,4" />
+                        <TextBlock Text="{Binding CurrentVersionText}" Style="{StaticResource SubtleTextStyle}" Margin="0,0,0,14" />
+
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding UpdateStatusText}"
+                                               VerticalAlignment="Center"
+                                               TextWrapping="Wrap" />
+                                    <Button Grid.Column="1"
+                                            Content="Check now"
+                                            Command="{Binding CheckForUpdatesCommand}"
+                                            Padding="10,6"
+                                            Margin="12,0,0,0" />
+                                </Grid>
+                                <Button Content="View on GitHub"
+                                        Command="{Binding ViewLatestReleaseCommand}"
+                                        HorizontalAlignment="Left"
+                                        Padding="10,6"
+                                        Margin="0,10,0,0"
+                                        Visibility="{Binding IsNewerVersionAvailable, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="What's new" Style="{StaticResource SectionHeaderStyle}" />
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Visibility="{Binding HasLatestRelease, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding LatestReleaseTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                                    <TextBlock Text="{Binding LatestReleaseNotes}"
+                                               Style="{StaticResource SubtleTextStyle}"
+                                               TextWrapping="Wrap" />
+                                </ScrollViewer>
+                            </StackPanel>
+                        </Border>
+
+                        <Button Content="View all releases on GitHub"
+                                Command="{Binding ViewReleasesPageCommand}"
+                                HorizontalAlignment="Left"
+                                Padding="10,6"
+                                Margin="0,14,0,0" />
+                    </StackPanel>
+
+                </Grid>
+            </ScrollViewer>
+        </Grid>
+
+        <Border Grid.Row="1"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="24,14">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Cancel" IsCancel="True" Margin="0,0,8,0" />
+                <Button Content="Save"
+                        Command="{Binding SaveCommand}"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        IsDefault="True" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

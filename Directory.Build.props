@@ -1,0 +1,15 @@
+<Project>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <Product>DashyNMS</Product>
+    <Company>DashyNMS</Company>
+    <Version>0.2.0</Version>
+    <NeutralLanguage>en-GB</NeutralLanguage>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+</Project>

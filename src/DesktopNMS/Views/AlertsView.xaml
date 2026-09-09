@@ -1,0 +1,579 @@
+<UserControl x:Class="DesktopNMS.Views.AlertsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+             d:DesignHeight="600" d:DesignWidth="1100">
+
+    <UserControl.Resources>
+        <!-- One name/value line of a fault row. Columns the rule tests are
+             picked out in the accent colour so the reason stands out from the
+             surrounding context. -->
+        <DataTemplate x:Key="FaultFieldTemplate">
+            <Grid Margin="0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="{Binding Name}"
+                           Style="{StaticResource SubtleTextStyle}"
+                           TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center"
+                           ToolTip="{Binding Name}" />
+
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Value}"
+                           FontFamily="Consolas, Cascadia Mono, Courier New"
+                           TextAlignment="Right"
+                           VerticalAlignment="Center"
+                           Margin="12,0,0,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsTrigger}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ======================== Mini header: counts ======================== -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,12">
+            <StackPanel Orientation="Horizontal">
+                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding CriticalCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                        <TextBlock Text="critical" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="9" Height="9" Fill="{StaticResource WarningBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding WarningCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                        <TextBlock Text="warning" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding AcknowledgedCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                        <TextBlock Text="acknowledged" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1"
+                Background="#33DA3633"
+                BorderBrush="{StaticResource CriticalBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,10"
+                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Filters ======================== -->
+        <Border Grid.Row="2"
+                Background="{StaticResource BackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <WrapPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="Severity"
+                               Style="{StaticResource SubtleTextStyle}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0" />
+
+                    <ToggleButton Content="Critical"
+                                  IsChecked="{Binding ShowCritical}"
+                                  Style="{StaticResource ChipToggleStyle}"
+                                  Tag="{StaticResource CriticalBrush}" />
+                    <ToggleButton Content="Warning"
+                                  IsChecked="{Binding ShowWarning}"
+                                  Style="{StaticResource ChipToggleStyle}"
+                                  Tag="{StaticResource WarningBrush}" />
+                    <ToggleButton Content="OK"
+                                  IsChecked="{Binding ShowOk}"
+                                  Style="{StaticResource ChipToggleStyle}"
+                                  Tag="{StaticResource OkBrush}" />
+
+                    <Rectangle Style="{StaticResource ToolBarSeparatorStyle}" Height="20" />
+
+                    <TextBlock Text="State"
+                               Style="{StaticResource SubtleTextStyle}"
+                               VerticalAlignment="Center"
+                               Margin="4,0,10,0" />
+
+                    <ToggleButton Content="Active"
+                                  IsChecked="{Binding ShowActive}"
+                                  Style="{StaticResource ChipToggleStyle}" />
+                    <ToggleButton Content="Acknowledged"
+                                  IsChecked="{Binding ShowAcknowledged}"
+                                  Style="{StaticResource ChipToggleStyle}" />
+                    <ToggleButton Content="Recovered"
+                                  IsChecked="{Binding ShowRecovered}"
+                                  Style="{StaticResource ChipToggleStyle}"
+                                  ToolTip="Also fetches cleared alerts from the server" />
+                </WrapPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox x:Name="SearchBox"
+                             Width="240"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                             ToolTip="Filter by host, rule, note or alert id"
+                             Margin="0,0,8,0" />
+                    <Button Content="Clear"
+                            Command="{Binding ClearFiltersCommand}"
+                            Padding="10,7" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Content ======================== -->
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="420" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="360" MinWidth="280" />
+            </Grid.ColumnDefinitions>
+
+            <DataGrid x:Name="AlertGrid"
+                      Grid.Column="0"
+                      ItemsSource="{Binding AlertsView}"
+                      SelectedItem="{Binding SelectedAlert}"
+                      SelectionMode="Extended"
+                      SelectionChanged="OnGridSelectionChanged"
+                      MouseDoubleClick="OnGridDoubleClick">
+                <DataGrid.Columns>
+
+                    <DataGridTemplateColumn Header="Severity" Width="120" SortMemberPath="Severity">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="10,0"
+                                            Opacity="{Binding State, Converter={StaticResource StateToOpacity}}">
+                                    <Border Width="4"
+                                            Height="18"
+                                            CornerRadius="2"
+                                            Margin="0,0,9,0"
+                                            Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                    <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Device" Width="220" SortMemberPath="DeviceName">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="10,0"
+                                            VerticalAlignment="Center"
+                                            Opacity="{Binding State, Converter={StaticResource StateToOpacity}}"
+                                            ToolTip="{Binding AlternateDeviceName, TargetNullValue={x:Null}}">
+                                    <TextBlock Text="{Binding DeviceName}"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding AlternateDeviceName}"
+                                               Style="{StaticResource SubtleTextStyle}"
+                                               FontSize="11"
+                                               TextTrimming="CharacterEllipsis"
+                                               Visibility="{Binding HasAlternateDeviceName, Converter={StaticResource BoolToVisibility}}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Alert" Width="*" SortMemberPath="RuleName">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding RuleName}"
+                                           Margin="10,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding RuleName}"
+                                           Opacity="{Binding State, Converter={StaticResource StateToOpacity}}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="State" Width="130" SortMemberPath="State">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding StateText}"
+                                           Margin="10,0"
+                                           Style="{StaticResource SubtleTextStyle}"
+                                           VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Age" Width="90" SortMemberPath="LocalTimestamp">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding AgeText}"
+                                           Margin="10,0"
+                                           Style="{StaticResource SubtleTextStyle}"
+                                           ToolTip="{Binding TimestampText}"
+                                           VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                </DataGrid.Columns>
+
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Acknowledge" Command="{Binding AcknowledgeCommand}" />
+                        <MenuItem Header="Return to active" Command="{Binding UnacknowledgeCommand}" />
+                        <Separator />
+                        <MenuItem Header="Open alert in LibreNMS" Command="{Binding OpenAlertCommand}" />
+                        <MenuItem Header="Open device in LibreNMS" Command="{Binding OpenDeviceCommand}" />
+                        <MenuItem Header="Open procedure" Command="{Binding OpenProcedureCommand}" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+            </DataGrid>
+
+            <!-- Empty state -->
+            <TextBlock Grid.Column="0"
+                       Text="Nothing matches the current filters."
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding VisibleCount}" Value="0">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <GridSplitter Grid.Column="1"
+                          Width="4"
+                          HorizontalAlignment="Stretch"
+                          Background="{StaticResource BorderBrush}" />
+
+            <!-- ==================== Detail pane ==================== -->
+            <Border Grid.Column="2"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Grid.RowSpan="2"
+                               Text="Select an alert to see its detail."
+                               Style="{StaticResource SubtleTextStyle}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Margin="24"
+                               Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+
+                    <!-- Multi-select: a summary instead of one alert's detail. -->
+                    <StackPanel Grid.Row="0"
+                                Margin="18"
+                                Visibility="{Binding HasMultipleSelection, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding SelectedCount, StringFormat={}{0} alerts selected}"
+                                   Style="{StaticResource HeadingTextStyle}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding SelectionSummary}"
+                                   Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0" />
+                        <TextBlock Text="Acknowledge or return them to active together below. Per-alert detail needs a single selection."
+                                   Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,14,0,0" />
+                    </StackPanel>
+
+                    <!-- DataContext is set on the inner StackPanel, not on the
+                         ScrollViewer: bindings on the element that redefines
+                         DataContext resolve against the new one, so Visibility
+                         would look for HasSelection on the alert and fail. -->
+                    <ScrollViewer Grid.Row="0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding IsSingleSelection, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel Margin="18" DataContext="{Binding SelectedAlert}">
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <Border Width="4"
+                                        Height="18"
+                                        CornerRadius="2"
+                                        Margin="0,0,9,0"
+                                        Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                <TextBlock Text="{Binding SeverityText}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock Text=" - " Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding StateText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding DeviceName}"
+                                       Style="{StaticResource HeadingTextStyle}"
+                                       TextWrapping="Wrap" />
+
+                            <TextBlock Text="{Binding AlternateDeviceName}"
+                                       Style="{StaticResource SubtleTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Visibility="{Binding HasAlternateDeviceName, Converter={StaticResource BoolToVisibility}}" />
+
+                            <TextBlock Text="{Binding RuleName}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0" />
+
+                            <TextBlock Text="Raised" Style="{StaticResource SectionHeaderStyle}" />
+                            <TextBlock Text="{Binding TimestampText}" />
+                            <TextBlock Text="{Binding AgeText}" Style="{StaticResource SubtleTextStyle}" />
+
+                            <!-- ============ What actually tripped the rule ============ -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Triggered by" Style="{StaticResource SectionHeaderStyle}" />
+                                <ToggleButton Grid.Column="1"
+                                              Content="All values"
+                                              VerticalAlignment="Bottom"
+                                              Margin="0,0,0,4"
+                                              Style="{StaticResource ChipToggleStyle}"
+                                              ToolTip="Show every column of the matched row, not just the ones the rule tests"
+                                              IsChecked="{Binding DataContext.ShowAllFaultFields, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                              Visibility="{Binding HasFaults, Converter={StaticResource BoolToVisibility}}" />
+                            </Grid>
+
+                            <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,6"
+                                       Text="The rule definition could not be read, so every measured value is shown."
+                                       Visibility="{Binding ShowUnknownConditionNote, Converter={StaticResource BoolToVisibility}}" />
+
+                            <TextBlock Text="Loading detail..."
+                                       Style="{StaticResource SubtleTextStyle}"
+                                       Visibility="{Binding IsLoadingDetail, Converter={StaticResource BoolToVisibility}}" />
+
+                            <TextBlock Text="LibreNMS has no fault detail recorded for this alert."
+                                       Style="{StaticResource SubtleTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Visibility="{Binding ShowNoFaultsMessage, Converter={StaticResource BoolToVisibility}}" />
+
+                            <StackPanel Visibility="{Binding HasDetailError, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="{Binding DetailError}"
+                                           Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap" />
+                                <Button Content="Try again"
+                                        HorizontalAlignment="Left"
+                                        Padding="10,4"
+                                        Margin="0,8,0,0"
+                                        Command="{Binding DataContext.ReloadDetailCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                            </StackPanel>
+
+                            <ItemsControl ItemsSource="{Binding Faults}" Margin="0,2,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="6"
+                                                Padding="12,10"
+                                                Margin="0,0,0,8">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Title}"
+                                                           FontWeight="SemiBold"
+                                                           TextWrapping="Wrap" />
+
+                                                <!-- The columns the rule tests -->
+                                                <ItemsControl ItemsSource="{Binding PrimaryFields}"
+                                                              ItemTemplate="{StaticResource FaultFieldTemplate}"
+                                                              Margin="0,6,0,0" />
+
+                                                <!-- The rest of the matched row, behind the All values toggle -->
+                                                <ItemsControl ItemsSource="{Binding SecondaryFields}"
+                                                              ItemTemplate="{StaticResource FaultFieldTemplate}"
+                                                              Margin="0,6,0,0">
+                                                    <ItemsControl.Style>
+                                                        <Style TargetType="ItemsControl">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding HasSecondaryFields}" Value="True" />
+                                                                        <Condition Binding="{Binding DataContext.ShowAllFaultFields, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                                                                    </MultiDataTrigger.Conditions>
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </MultiDataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </ItemsControl.Style>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="New since the last check"
+                                       Style="{StaticResource SectionHeaderStyle}"
+                                       Visibility="{Binding HasAddedFaults, Converter={StaticResource BoolToVisibility}}" />
+                            <ItemsControl ItemsSource="{Binding AddedFaults}"
+                                          Visibility="{Binding HasAddedFaults, Converter={StaticResource BoolToVisibility}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Title}"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,2" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Cleared since the last check"
+                                       Style="{StaticResource SectionHeaderStyle}"
+                                       Visibility="{Binding HasResolvedFaults, Converter={StaticResource BoolToVisibility}}" />
+                            <ItemsControl ItemsSource="{Binding ResolvedFaults}"
+                                          Visibility="{Binding HasResolvedFaults, Converter={StaticResource BoolToVisibility}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Title}"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,2" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Note"
+                                       Style="{StaticResource SectionHeaderStyle}"
+                                       Visibility="{Binding HasNote, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock Text="{Binding Note}"
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource SubtleTextStyle}"
+                                       Visibility="{Binding HasNote, Converter={StaticResource BoolToVisibility}}" />
+
+                            <TextBlock Text="Rule notes"
+                                       Style="{StaticResource SectionHeaderStyle}"
+                                       Visibility="{Binding HasRuleNotes, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock Text="{Binding RuleNotes}"
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource SubtleTextStyle}"
+                                       Visibility="{Binding HasRuleNotes, Converter={StaticResource BoolToVisibility}}" />
+
+                            <TextBlock Text="Alert id" Style="{StaticResource SectionHeaderStyle}" />
+                            <TextBlock Text="{Binding Id}" Style="{StaticResource SubtleTextStyle}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Actions pinned to the bottom of the pane -->
+                    <Border Grid.Row="1"
+                            Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,1,0,0"
+                            Padding="18,14"
+                            Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBox Text="{Binding AcknowledgeNote, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Optional note recorded against the acknowledgement"
+                                     Margin="0,0,0,8" />
+
+                            <UniformGrid Columns="2" Margin="0,0,0,8">
+                                <Button Content="{Binding AcknowledgeButtonLabel}"
+                                        Command="{Binding AcknowledgeCommand}"
+                                        Style="{StaticResource PrimaryButtonStyle}"
+                                        Margin="0,0,4,0" />
+                                <Button Content="{Binding UnacknowledgeButtonLabel}"
+                                        Command="{Binding UnacknowledgeCommand}"
+                                        Margin="4,0,0,0" />
+                            </UniformGrid>
+
+                            <StackPanel Visibility="{Binding IsSingleSelection, Converter={StaticResource BoolToVisibility}}">
+                                <UniformGrid Columns="2">
+                                    <Button Content="Open alert"
+                                            Command="{Binding OpenAlertCommand}"
+                                            Margin="0,0,4,0" />
+                                    <Button Content="Open device"
+                                            Command="{Binding OpenDeviceCommand}"
+                                            Margin="4,0,0,0" />
+                                </UniformGrid>
+
+                                <Button Content="Open procedure"
+                                        Command="{Binding OpenProcedureCommand}"
+                                        Margin="0,8,0,0"
+                                        Visibility="{Binding SelectedAlert.HasProcedure, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ======================== Status bar ======================== -->
+        <Border Grid.Row="4"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="18,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock Text="Refreshing..."
+                               Style="{StaticResource SubtleTextStyle}"
+                               Margin="0,0,10,0"
+                               Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource SubtleTextStyle}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBlock Text="{Binding VisibleCount, StringFormat={}{0} shown}"
+                               Style="{StaticResource SubtleTextStyle}"
+                               Margin="0,0,14,0" />
+                    <TextBlock Text="{Binding LastUpdatedText, StringFormat=updated {0}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
