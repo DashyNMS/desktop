@@ -1,11 +1,7 @@
 using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Data;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
@@ -15,30 +11,36 @@ using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.ViewModels;
 
-/// <summary>View model behind the Health tab: sensor readings against configurable thresholds.</summary>
+/// <summary>Which sub-tab of the Health tab is showing.</summary>
+public enum HealthCategory
+{
+    Dbm,
+    Signal,
+    Temperature,
+    FanSpeed,
+}
+
+/// <summary>
+/// View model behind the Health tab. Fetches every sensor across the fleet in
+/// one call (there is no server-side filter, see <see cref="ISensorsApi"/>)
+/// and hands each category (dBm, signal, temperature, fan speed) its slice of
+/// the results - one API call regardless of how many categories exist.
+/// </summary>
 public sealed class HealthViewModel : ObservableObject, IDisposable
 {
     private readonly ILibreNmsClient _client;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
     private readonly IDeviceCache _devices;
-    private readonly IWindowService _windows;
     private readonly ILogger<HealthViewModel> _logger;
-    private readonly Dictionary<int, SensorItemViewModel> _index = new();
 
     private CancellationTokenSource? _loadCts;
-    private SensorItemViewModel? _selectedSensor;
     private string _statusMessage = "Not loaded yet.";
     private string? _errorMessage;
     private bool _isBusy;
     private DateTimeOffset? _lastUpdated;
-    private string _searchText = string.Empty;
     private bool _hasLoadedOnce;
-
-    private bool _showCritical = true;
-    private bool _showWarning = true;
-    private bool _showOk = true;
-    private bool _showUnknown = true;
+    private HealthCategory _selectedCategory = HealthCategory.Dbm;
 
     public HealthViewModel(
         ILibreNmsClient client,
@@ -52,79 +54,77 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         _session = session;
         _settings = settings;
         _devices = devices;
-        _windows = windows;
         _logger = logger;
 
-        Sensors = new ObservableCollection<SensorItemViewModel>();
-        SensorsView = CollectionViewSource.GetDefaultView(Sensors);
-        SensorsView.Filter = FilterSensor;
+        Dbm = new SensorCategoryViewModel(windows, s => s.DbmThresholds, " dBm", "No dBm sensors found.");
+        Signal = new SensorCategoryViewModel(windows, s => s.SignalThresholds, string.Empty, "No signal sensors found.");
+        Temperature = new SensorCategoryViewModel(windows, s => s.TemperatureThresholds, " °C", "No temperature sensors found.");
+        FanSpeed = new SensorCategoryViewModel(windows, s => s.FanSpeedThresholds, " RPM", "No fan speed sensors found.");
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => _session.IsConnected && !IsBusy);
-        OpenDeviceCommand = new RelayCommand(OpenSelectedDevice, () => SelectedSensor?.DeviceUrl is not null);
-        ClearFiltersCommand = new RelayCommand(ClearFilters);
+        ClearFiltersCommand = new RelayCommand(() => CurrentCategory.ClearFiltersCommand.Execute(null));
+
+        SelectDbmCategoryCommand = new RelayCommand(() => SelectedCategory = HealthCategory.Dbm);
+        SelectSignalCategoryCommand = new RelayCommand(() => SelectedCategory = HealthCategory.Signal);
+        SelectTemperatureCategoryCommand = new RelayCommand(() => SelectedCategory = HealthCategory.Temperature);
+        SelectFanSpeedCategoryCommand = new RelayCommand(() => SelectedCategory = HealthCategory.FanSpeed);
 
         _settings.Changed += OnSettingsChanged;
     }
 
-    public ObservableCollection<SensorItemViewModel> Sensors { get; }
+    public SensorCategoryViewModel Dbm { get; }
 
-    public ICollectionView SensorsView { get; }
+    public SensorCategoryViewModel Signal { get; }
+
+    public SensorCategoryViewModel Temperature { get; }
+
+    public SensorCategoryViewModel FanSpeed { get; }
 
     public AsyncRelayCommand RefreshCommand { get; }
 
-    public RelayCommand OpenDeviceCommand { get; }
-
+    /// <summary>Clears the filters on whichever category sub-tab is currently showing.</summary>
     public RelayCommand ClearFiltersCommand { get; }
 
-    // -------------------------------------------------------------- filtering
+    public RelayCommand SelectDbmCategoryCommand { get; }
 
-    public bool ShowCritical
+    public RelayCommand SelectSignalCategoryCommand { get; }
+
+    public RelayCommand SelectTemperatureCategoryCommand { get; }
+
+    public RelayCommand SelectFanSpeedCategoryCommand { get; }
+
+    public HealthCategory SelectedCategory
     {
-        get => _showCritical;
-        set { if (SetProperty(ref _showCritical, value)) OnFilterChanged(); }
-    }
-
-    public bool ShowWarning
-    {
-        get => _showWarning;
-        set { if (SetProperty(ref _showWarning, value)) OnFilterChanged(); }
-    }
-
-    public bool ShowOk
-    {
-        get => _showOk;
-        set { if (SetProperty(ref _showOk, value)) OnFilterChanged(); }
-    }
-
-    /// <summary>Readings at or above the "ignore" sentinel - typically an unplugged port.</summary>
-    public bool ShowUnknown
-    {
-        get => _showUnknown;
-        set { if (SetProperty(ref _showUnknown, value)) OnFilterChanged(); }
-    }
-
-    public string SearchText
-    {
-        get => _searchText;
-        set { if (SetProperty(ref _searchText, value)) OnFilterChanged(); }
-    }
-
-    // ------------------------------------------------------------------ state
-
-    public SensorItemViewModel? SelectedSensor
-    {
-        get => _selectedSensor;
+        get => _selectedCategory;
         set
         {
-            if (SetProperty(ref _selectedSensor, value))
+            if (SetProperty(ref _selectedCategory, value))
             {
-                OnPropertyChanged(nameof(HasSelection));
-                OpenDeviceCommand.RaiseCanExecuteChanged();
+                OnPropertyChanged(nameof(IsDbmCategorySelected));
+                OnPropertyChanged(nameof(IsSignalCategorySelected));
+                OnPropertyChanged(nameof(IsTemperatureCategorySelected));
+                OnPropertyChanged(nameof(IsFanSpeedCategorySelected));
             }
         }
     }
 
-    public bool HasSelection => SelectedSensor is not null;
+    public bool IsDbmCategorySelected => SelectedCategory == HealthCategory.Dbm;
+
+    public bool IsSignalCategorySelected => SelectedCategory == HealthCategory.Signal;
+
+    public bool IsTemperatureCategorySelected => SelectedCategory == HealthCategory.Temperature;
+
+    public bool IsFanSpeedCategorySelected => SelectedCategory == HealthCategory.FanSpeed;
+
+    private SensorCategoryViewModel CurrentCategory => SelectedCategory switch
+    {
+        HealthCategory.Signal => Signal,
+        HealthCategory.Temperature => Temperature,
+        HealthCategory.FanSpeed => FanSpeed,
+        _ => Dbm,
+    };
+
+    // ------------------------------------------------------------------ state
 
     public string StatusMessage
     {
@@ -162,16 +162,6 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         ? "never"
         : _lastUpdated.Value.LocalDateTime.ToString("HH:mm:ss");
 
-    public int CriticalCount => Sensors.Count(s => s.Severity == AlertSeverity.Critical);
-
-    public int WarningCount => Sensors.Count(s => s.Severity == AlertSeverity.Warning);
-
-    public int OkCount => Sensors.Count(s => s.Severity == AlertSeverity.Ok);
-
-    public int TotalCount => Sensors.Count;
-
-    public int VisibleCount => SensorsView.Cast<object>().Count();
-
     // --------------------------------------------------------------- lifetime
 
     /// <summary>Called each time the tab is shown; loads once, then leaves it to manual refresh.</summary>
@@ -204,23 +194,39 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         try
         {
             var sensors = await _client.Sensors.ListAsync(token).ConfigureAwait(true);
-            var dbmSensors = sensors.Where(s => s.IsDbm).ToList();
 
-            await _devices.EnsureCurrentAsync(dbmSensors.Select(s => s.DeviceId), token).ConfigureAwait(true);
+            var dbmSensors = sensors.Where(s => s.HasClass("dbm")).ToList();
+            var signalSensors = sensors.Where(s => s.HasClass("signal")).ToList();
+            var temperatureSensors = sensors.Where(s => s.HasClass("temperature")).ToList();
+            var fanSpeedSensors = sensors.Where(s => s.HasClass("fanspeed")).ToList();
+
+            var relevantDeviceIds = dbmSensors
+                .Concat(signalSensors)
+                .Concat(temperatureSensors)
+                .Concat(fanSpeedSensors)
+                .Select(s => s.DeviceId)
+                .Distinct();
+
+            await _devices.EnsureCurrentAsync(relevantDeviceIds, token).ConfigureAwait(true);
 
             if (token.IsCancellationRequested)
             {
                 return;
             }
 
-            ApplySensors(dbmSensors);
+            var connection = _session.Connection;
+            var settings = _settings.Current;
+            string DeviceNameFor(int deviceId) => _devices.Get(deviceId)?.BestName ?? $"device {deviceId}";
+
+            Dbm.Apply(dbmSensors, DeviceNameFor, connection, settings);
+            Signal.Apply(signalSensors, DeviceNameFor, connection, settings);
+            Temperature.Apply(temperatureSensors, DeviceNameFor, connection, settings);
+            FanSpeed.Apply(fanSpeedSensors, DeviceNameFor, connection, settings);
 
             _hasLoadedOnce = true;
             _lastUpdated = DateTimeOffset.Now;
 
-            StatusMessage = TotalCount == 0
-                ? "No dBm sensors found."
-                : $"{CriticalCount} critical, {WarningCount} warning, {OkCount} ok, {TotalCount} total.";
+            StatusMessage = $"{Dbm.TotalCount} dBm, {Signal.TotalCount} signal, {Temperature.TotalCount} temperature, {FanSpeed.TotalCount} fan speed.";
             OnPropertyChanged(nameof(LastUpdatedText));
         }
         catch (OperationCanceledException)
@@ -245,134 +251,12 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void ApplySensors(IReadOnlyList<Sensor> sensors)
-    {
-        var connection = _session.Connection;
-        var thresholds = _settings.Current.DbmThresholds;
-
-        var ordered = sensors
-            .OrderBy(s => DeviceNameFor(s.DeviceId), StringComparer.OrdinalIgnoreCase)
-            .ThenBy(s => s.Description, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var incoming = ordered.Select(s => s.SensorId).ToHashSet();
-
-        for (var i = Sensors.Count - 1; i >= 0; i--)
-        {
-            if (!incoming.Contains(Sensors[i].SensorId))
-            {
-                _index.Remove(Sensors[i].SensorId);
-                Sensors.RemoveAt(i);
-            }
-        }
-
-        for (var target = 0; target < ordered.Count; target++)
-        {
-            var sensor = ordered[target];
-            var deviceName = DeviceNameFor(sensor.DeviceId);
-
-            if (_index.TryGetValue(sensor.SensorId, out var existing))
-            {
-                existing.Update(sensor, deviceName, connection, thresholds);
-
-                var currentIndex = Sensors.IndexOf(existing);
-                if (currentIndex >= 0 && currentIndex != target && target < Sensors.Count)
-                {
-                    Sensors.Move(currentIndex, target);
-                }
-            }
-            else
-            {
-                var item = new SensorItemViewModel(sensor, deviceName, connection, thresholds);
-                _index[sensor.SensorId] = item;
-                Sensors.Insert(Math.Min(target, Sensors.Count), item);
-            }
-        }
-
-        RaiseCountsChanged();
-
-        if (SelectedSensor is not null && !_index.ContainsKey(SelectedSensor.SensorId))
-        {
-            SelectedSensor = null;
-        }
-    }
-
-    private string DeviceNameFor(int deviceId) => _devices.Get(deviceId)?.BestName ?? $"device {deviceId}";
-
-    // --------------------------------------------------------------- commands
-
-    private void OpenSelectedDevice()
-    {
-        if (SelectedSensor?.DeviceUrl is { } url)
-        {
-            _windows.OpenUrl(url);
-        }
-    }
-
-    private void ClearFilters()
-    {
-        ShowCritical = true;
-        ShowWarning = true;
-        ShowOk = true;
-        ShowUnknown = true;
-        SearchText = string.Empty;
-    }
-
-    // ---------------------------------------------------------------- helpers
-
-    private bool FilterSensor(object item)
-    {
-        if (item is not SensorItemViewModel sensor)
-        {
-            return false;
-        }
-
-        var severityAllowed = sensor.Severity switch
-        {
-            AlertSeverity.Critical => ShowCritical,
-            AlertSeverity.Warning => ShowWarning,
-            AlertSeverity.Ok => ShowOk,
-            _ => ShowUnknown,
-        };
-
-        if (!severityAllowed)
-        {
-            return false;
-        }
-
-        var term = SearchText;
-        return string.IsNullOrWhiteSpace(term) || sensor.Matches(term.Trim());
-    }
-
-    private void OnFilterChanged()
-    {
-        SensorsView.Refresh();
-        OnPropertyChanged(nameof(VisibleCount));
-    }
-
     private void OnSettingsChanged(object? sender, AppSettings settings)
     {
-        var thresholds = settings.DbmThresholds;
-
-        foreach (var sensor in Sensors)
-        {
-            sensor.ApplyThresholds(thresholds);
-        }
-
-        RaiseCountsChanged();
-    }
-
-    private void RaiseCountsChanged()
-    {
-        OnPropertyChanged(nameof(CriticalCount));
-        OnPropertyChanged(nameof(WarningCount));
-        OnPropertyChanged(nameof(OkCount));
-        OnPropertyChanged(nameof(TotalCount));
-        OnPropertyChanged(nameof(VisibleCount));
-
-        // A threshold change can move rows in or out of the current filter
-        // without the ObservableCollection itself changing.
-        SensorsView.Refresh();
+        Dbm.ApplyThresholds(settings);
+        Signal.ApplyThresholds(settings);
+        Temperature.ApplyThresholds(settings);
+        FanSpeed.ApplyThresholds(settings);
     }
 
     public void Dispose()

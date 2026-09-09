@@ -79,6 +79,15 @@ public sealed class AppSettings
     /// <summary>Warning/critical bands applied to dBm sensors on the Health tab.</summary>
     public DbmThresholdSettings DbmThresholds { get; set; } = new();
 
+    /// <summary>Warning/critical bands applied to "signal" sensors on the Health tab.</summary>
+    public SignalThresholdSettings SignalThresholds { get; set; } = new();
+
+    /// <summary>Warning/critical bands applied to temperature sensors on the Health tab.</summary>
+    public BandThresholdSettings TemperatureThresholds { get; set; } = BandThresholdSettings.TemperatureDefaults();
+
+    /// <summary>Warning/critical bands applied to fan-speed sensors on the Health tab.</summary>
+    public BandThresholdSettings FanSpeedThresholds { get; set; } = BandThresholdSettings.FanSpeedDefaults();
+
     public WindowPlacement? Window { get; set; }
 
     public AppSettings Clone() => new()
@@ -100,6 +109,9 @@ public sealed class AppSettings
         Notifications = Notifications.Clone(),
         Filter = Filter.Clone(),
         DbmThresholds = DbmThresholds.Clone(),
+        SignalThresholds = SignalThresholds.Clone(),
+        TemperatureThresholds = TemperatureThresholds.Clone(),
+        FanSpeedThresholds = FanSpeedThresholds.Clone(),
         Window = Window?.Clone(),
     };
 
@@ -114,9 +126,25 @@ public sealed class AppSettings
         Notifications ??= new NotificationSettings();
         Filter ??= new AlertFilterSettings();
         DbmThresholds ??= new DbmThresholdSettings();
+        SignalThresholds ??= new SignalThresholdSettings();
+        TemperatureThresholds ??= BandThresholdSettings.TemperatureDefaults();
+        FanSpeedThresholds ??= BandThresholdSettings.FanSpeedDefaults();
         Notifications.Normalise();
         DbmThresholds.Normalise();
+        SignalThresholds.Normalise();
+        TemperatureThresholds.Normalise(BandThresholdSettings.TemperatureDefaults());
+        FanSpeedThresholds.Normalise(BandThresholdSettings.FanSpeedDefaults());
     }
+}
+
+/// <summary>
+/// Classifies a sensor reading into a severity. Implemented by each Health
+/// tab category's threshold settings, so the sensor list can evaluate a row
+/// without knowing which shape of thresholds it is governed by.
+/// </summary>
+public interface IThresholdEvaluator
+{
+    AlertSeverity Evaluate(double value);
 }
 
 /// <summary>
@@ -124,7 +152,7 @@ public sealed class AppSettings
 /// readings run negative, so weaker signal means more negative: warning and
 /// critical sit below the healthy range, not above it.
 /// </summary>
-public sealed class DbmThresholdSettings
+public sealed class DbmThresholdSettings : IThresholdEvaluator
 {
     /// <summary>At or below this (and above <see cref="CriticalThreshold"/>) is a warning.</summary>
     public double WarningThreshold { get; set; } = -12.5;
@@ -179,6 +207,150 @@ public sealed class DbmThresholdSettings
         }
 
         if (value <= WarningThreshold)
+        {
+            return AlertSeverity.Warning;
+        }
+
+        return AlertSeverity.Ok;
+    }
+}
+
+/// <summary>
+/// The bands used to colour LibreNMS's generic "signal" class sensors on the
+/// Health tab. Same shape as <see cref="DbmThresholdSettings"/> (a weak
+/// signal is bad, and hardware can report a sentinel value at either extreme
+/// for "no signal"), kept as its own settings type since the two are
+/// configured, displayed and persisted independently.
+/// </summary>
+public sealed class SignalThresholdSettings : IThresholdEvaluator
+{
+    /// <summary>At or below this (and above <see cref="CriticalThreshold"/>) is a warning.</summary>
+    public double WarningThreshold { get; set; } = -70;
+
+    /// <summary>At or below this is critical (signal too weak).</summary>
+    public double CriticalThreshold { get; set; } = -80;
+
+    /// <summary>At or above this, the reading is treated as "no data" rather than flagged.</summary>
+    public double IgnoreAtOrAbove { get; set; } = 0;
+
+    /// <summary>At or below this, the reading is also treated as "no data".</summary>
+    public double IgnoreAtOrBelow { get; set; } = -100;
+
+    public SignalThresholdSettings Clone() => new()
+    {
+        WarningThreshold = WarningThreshold,
+        CriticalThreshold = CriticalThreshold,
+        IgnoreAtOrAbove = IgnoreAtOrAbove,
+        IgnoreAtOrBelow = IgnoreAtOrBelow,
+    };
+
+    /// <summary>Recovers a sane ordering if a hand-edited settings file breaks it.</summary>
+    public void Normalise()
+    {
+        if (CriticalThreshold > WarningThreshold || WarningThreshold >= IgnoreAtOrAbove || IgnoreAtOrBelow >= CriticalThreshold)
+        {
+            WarningThreshold = -70;
+            CriticalThreshold = -80;
+            IgnoreAtOrAbove = 0;
+            IgnoreAtOrBelow = -100;
+        }
+    }
+
+    public AlertSeverity Evaluate(double value)
+    {
+        if (value >= IgnoreAtOrAbove || value <= IgnoreAtOrBelow)
+        {
+            return AlertSeverity.Unknown;
+        }
+
+        if (value <= CriticalThreshold)
+        {
+            return AlertSeverity.Critical;
+        }
+
+        if (value <= WarningThreshold)
+        {
+            return AlertSeverity.Warning;
+        }
+
+        return AlertSeverity.Ok;
+    }
+}
+
+/// <summary>
+/// A symmetric band used where both a low and a high extreme are a fault -
+/// temperature and fan speed on the Health tab. Unlike
+/// <see cref="DbmThresholdSettings"/>, there is no "no data" sentinel: the
+/// healthy range simply sits between the two warning thresholds.
+/// </summary>
+public sealed class BandThresholdSettings : IThresholdEvaluator
+{
+    /// <summary>At or below this is critical (too low).</summary>
+    public double LowCritical { get; set; }
+
+    /// <summary>At or below this (and above <see cref="LowCritical"/>) is a warning.</summary>
+    public double LowWarning { get; set; }
+
+    /// <summary>At or above this (and below <see cref="HighCritical"/>) is a warning.</summary>
+    public double HighWarning { get; set; }
+
+    /// <summary>At or above this is critical (too high).</summary>
+    public double HighCritical { get; set; }
+
+    /// <summary>
+    /// Starting-point thresholds for temperature (degrees Celsius). Network
+    /// hardware varies a lot in what counts as hot, so these are a generic
+    /// guideline meant to be tuned in Settings, not a precise default.
+    /// </summary>
+    public static BandThresholdSettings TemperatureDefaults() => new()
+    {
+        LowCritical = -10,
+        LowWarning = 0,
+        HighWarning = 60,
+        HighCritical = 75,
+    };
+
+    /// <summary>
+    /// Starting-point thresholds for fan speed (RPM). Absolute RPM varies far
+    /// more by fan size than temperature does by device, so these defaults
+    /// are even more of a placeholder - tune them per fleet in Settings.
+    /// </summary>
+    public static BandThresholdSettings FanSpeedDefaults() => new()
+    {
+        LowCritical = 500,
+        LowWarning = 1000,
+        HighWarning = 20000,
+        HighCritical = 25000,
+    };
+
+    public BandThresholdSettings Clone() => new()
+    {
+        LowCritical = LowCritical,
+        LowWarning = LowWarning,
+        HighWarning = HighWarning,
+        HighCritical = HighCritical,
+    };
+
+    /// <summary>Recovers a sane ordering if a hand-edited settings file breaks it.</summary>
+    public void Normalise(BandThresholdSettings defaults)
+    {
+        if (!(LowCritical <= LowWarning && LowWarning <= HighWarning && HighWarning <= HighCritical))
+        {
+            LowCritical = defaults.LowCritical;
+            LowWarning = defaults.LowWarning;
+            HighWarning = defaults.HighWarning;
+            HighCritical = defaults.HighCritical;
+        }
+    }
+
+    public AlertSeverity Evaluate(double value)
+    {
+        if (value <= LowCritical || value >= HighCritical)
+        {
+            return AlertSeverity.Critical;
+        }
+
+        if (value <= LowWarning || value >= HighWarning)
         {
             return AlertSeverity.Warning;
         }

@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:views="clr-namespace:DesktopNMS.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:HealthViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100">
@@ -16,35 +17,32 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- ======================== Mini header: counts ======================== -->
+        <!-- ======================== Category sub-tabs ======================== -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="18,12">
-            <StackPanel Orientation="Horizontal">
-                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding CriticalCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                        <TextBlock Text="critical" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Border>
-                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="9" Height="9" Fill="{StaticResource WarningBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding WarningCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                        <TextBlock Text="warning" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Border>
-                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding OkCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                        <TextBlock Text="ok" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Border>
-            </StackPanel>
+            <Border Style="{StaticResource NavTabTrackStyle}" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal">
+                    <ToggleButton Content="dBm"
+                                  Style="{StaticResource NavTabButtonStyle}"
+                                  IsChecked="{Binding IsDbmCategorySelected, Mode=OneWay}"
+                                  Command="{Binding SelectDbmCategoryCommand}" />
+                    <ToggleButton Content="Signal"
+                                  Style="{StaticResource NavTabButtonStyle}"
+                                  IsChecked="{Binding IsSignalCategorySelected, Mode=OneWay}"
+                                  Command="{Binding SelectSignalCategoryCommand}" />
+                    <ToggleButton Content="Temperature"
+                                  Style="{StaticResource NavTabButtonStyle}"
+                                  IsChecked="{Binding IsTemperatureCategorySelected, Mode=OneWay}"
+                                  Command="{Binding SelectTemperatureCategoryCommand}" />
+                    <ToggleButton Content="Fan speed"
+                                  Style="{StaticResource NavTabButtonStyle}"
+                                  IsChecked="{Binding IsFanSpeedCategorySelected, Mode=OneWay}"
+                                  Command="{Binding SelectFanSpeedCategoryCommand}" />
+                </StackPanel>
+            </Border>
         </Border>
 
         <!-- ======================== Error banner ======================== -->
@@ -57,103 +55,25 @@
             <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" />
         </Border>
 
-        <!-- ======================== Filters + content ======================== -->
+        <!-- ======================== Category content ======================== -->
+        <!-- Visibility is bound on each outer Grid, against the inherited
+             HealthViewModel DataContext; the SensorCategoryView's own
+             DataContext is overridden below it to that category's view
+             model. A binding on the same element that redefines DataContext
+             resolves against the new one, so the two must live on different
+             elements (see MainWindow.xaml for the same pattern). -->
         <Grid Grid.Row="2">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-
-            <Border Grid.Row="0"
-                    Background="{StaticResource BackgroundBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="0,0,0,1"
-                    Padding="18,10">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <WrapPanel Grid.Column="0" VerticalAlignment="Center">
-                        <ToggleButton Content="Critical"
-                                      IsChecked="{Binding ShowCritical}"
-                                      Style="{StaticResource ChipToggleStyle}"
-                                      Tag="{StaticResource CriticalBrush}" />
-                        <ToggleButton Content="Warning"
-                                      IsChecked="{Binding ShowWarning}"
-                                      Style="{StaticResource ChipToggleStyle}"
-                                      Tag="{StaticResource WarningBrush}" />
-                        <ToggleButton Content="OK"
-                                      IsChecked="{Binding ShowOk}"
-                                      Style="{StaticResource ChipToggleStyle}"
-                                      Tag="{StaticResource OkBrush}" />
-                        <ToggleButton Content="No signal"
-                                      IsChecked="{Binding ShowUnknown}"
-                                      Style="{StaticResource ChipToggleStyle}"
-                                      Tag="{StaticResource TextSecondaryBrush}" />
-                    </WrapPanel>
-
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBox x:Name="SearchBox"
-                                 Width="240"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                                 ToolTip="Filter by device or sensor description"
-                                 Margin="0,0,8,0" />
-                        <Button Content="Clear" Command="{Binding ClearFiltersCommand}" Padding="10,7" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <Grid Grid.Row="1">
-                <DataGrid ItemsSource="{Binding SensorsView}"
-                          SelectedItem="{Binding SelectedSensor}">
-                    <DataGrid.Columns>
-
-                        <DataGridTemplateColumn Header="Status" Width="110" SortMemberPath="Severity">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" Margin="10,0">
-                                        <Ellipse Width="9"
-                                                 Height="9"
-                                                 Margin="0,0,8,0"
-                                                 VerticalAlignment="Center"
-                                                 Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
-                                        <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-
-                        <DataGridTextColumn Header="Device" Width="220" Binding="{Binding DeviceName}" />
-                        <DataGridTextColumn Header="Sensor" Width="*" Binding="{Binding Description}" />
-                        <DataGridTextColumn Header="Value" Width="110" Binding="{Binding ValueText}" />
-                        <DataGridTextColumn Header="Last update" Width="140" Binding="{Binding LastUpdateText}" />
-
-                    </DataGrid.Columns>
-
-                    <DataGrid.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Header="Open device in LibreNMS" Command="{Binding OpenDeviceCommand}" />
-                        </ContextMenu>
-                    </DataGrid.ContextMenu>
-                </DataGrid>
-
-                <TextBlock Text="Nothing matches the current filters."
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           IsHitTestVisible="False">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding VisibleCount}" Value="0">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+            <Grid Visibility="{Binding IsDbmCategorySelected, Converter={StaticResource BoolToVisibility}}">
+                <views:SensorCategoryView x:Name="DbmCategoryView" DataContext="{Binding Dbm}" />
+            </Grid>
+            <Grid Visibility="{Binding IsSignalCategorySelected, Converter={StaticResource BoolToVisibility}}">
+                <views:SensorCategoryView x:Name="SignalCategoryView" DataContext="{Binding Signal}" />
+            </Grid>
+            <Grid Visibility="{Binding IsTemperatureCategorySelected, Converter={StaticResource BoolToVisibility}}">
+                <views:SensorCategoryView x:Name="TemperatureCategoryView" DataContext="{Binding Temperature}" />
+            </Grid>
+            <Grid Visibility="{Binding IsFanSpeedCategorySelected, Converter={StaticResource BoolToVisibility}}">
+                <views:SensorCategoryView x:Name="FanSpeedCategoryView" DataContext="{Binding FanSpeed}" />
             </Grid>
         </Grid>
 
@@ -177,12 +97,9 @@
                     <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource SubtleTextStyle}" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <TextBlock Text="{Binding VisibleCount, StringFormat={}{0} shown}"
-                               Style="{StaticResource SubtleTextStyle}"
-                               Margin="0,0,14,0" />
-                    <TextBlock Text="{Binding LastUpdatedText, StringFormat=updated {0}}" Style="{StaticResource SubtleTextStyle}" />
-                </StackPanel>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding LastUpdatedText, StringFormat=updated {0}}"
+                           Style="{StaticResource SubtleTextStyle}" />
             </Grid>
         </Border>
     </Grid>

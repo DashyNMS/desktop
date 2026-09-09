@@ -168,9 +168,9 @@
                                    Text="Each sensor type on the Health tab has its own band of Warning/Critical colours. Expand a sensor type below to see or change them." />
 
                         <!-- Each sensor type the Health tab understands gets its
-                             own Expander; a future type (temperature, voltage, ...)
-                             is a new sibling here, not a new page. -->
-                        <Expander Header="dBm sensors" Style="{StaticResource AccordionExpanderStyle}" IsExpanded="False">
+                             own Expander; a future type is a new sibling here,
+                             not a new page. -->
+                        <Expander Header="dBm sensors" Style="{StaticResource AccordionExpanderStyle}" IsExpanded="False" Margin="0,0,0,8">
                             <StackPanel>
                                 <TextBlock Style="{StaticResource SubtleTextStyle}"
                                            TextWrapping="Wrap"
@@ -192,6 +192,69 @@
                                            TextWrapping="Wrap"
                                            Margin="0,6,0,0"
                                            Text="Some hardware reports a fixed sentinel value, high or low, for an unplugged port instead of a real reading. Sensors at or beyond either sentinel are shown as &quot;no signal&quot; rather than critical." />
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="Signal sensors" Style="{StaticResource AccordionExpanderStyle}" IsExpanded="False" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,6"
+                                           Text="LibreNMS's generic &quot;signal&quot; sensors, coloured the same way as dBm: a weak signal is bad, and a sentinel at either extreme is treated as no data rather than flagged." />
+
+                                <TextBlock Text="Warning at or below" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding SignalWarningThreshold, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Critical at or below" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding SignalCriticalThreshold, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Treat as no data at or above" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding SignalIgnoreAtOrAbove, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Treat as no data at or below" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding SignalIgnoreAtOrBelow, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="Temperature sensors" Style="{StaticResource AccordionExpanderStyle}" IsExpanded="False" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,6"
+                                           Text="Both too hot and too cold are faults, so temperature uses a band rather than a single direction. These starting values are a generic guideline - hardware varies, so tune them for your fleet." />
+
+                                <TextBlock Text="Critical at or below (°C)" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding TemperatureLowCritical, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Warning at or below (°C)" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding TemperatureLowWarning, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Warning at or above (°C)" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding TemperatureHighWarning, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Critical at or above (°C)" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding TemperatureHighCritical, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="Fan speed sensors" Style="{StaticResource AccordionExpanderStyle}" IsExpanded="False">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,6"
+                                           Text="A stalled or slow fan is the usual failure, but an overspeeding fan can also indicate a fault, so this uses a band too. RPM varies enormously by fan size - these are placeholders to tune per fleet." />
+
+                                <TextBlock Text="Critical at or below (RPM)" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding FanSpeedLowCritical, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Warning at or below (RPM)" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding FanSpeedLowWarning, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Warning at or above (RPM)" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding FanSpeedHighWarning, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Critical at or above (RPM)" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding FanSpeedHighCritical, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                         </Expander>
                     </StackPanel>

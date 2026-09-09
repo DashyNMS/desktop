@@ -460,6 +460,89 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
+    public double SignalWarningThreshold
+    {
+        get => _draft.SignalThresholds.WarningThreshold;
+        set => SetThreshold(value, _draft.SignalThresholds.WarningThreshold, v => _draft.SignalThresholds.WarningThreshold = v);
+    }
+
+    public double SignalCriticalThreshold
+    {
+        get => _draft.SignalThresholds.CriticalThreshold;
+        set => SetThreshold(value, _draft.SignalThresholds.CriticalThreshold, v => _draft.SignalThresholds.CriticalThreshold = v);
+    }
+
+    public double SignalIgnoreAtOrAbove
+    {
+        get => _draft.SignalThresholds.IgnoreAtOrAbove;
+        set => SetThreshold(value, _draft.SignalThresholds.IgnoreAtOrAbove, v => _draft.SignalThresholds.IgnoreAtOrAbove = v);
+    }
+
+    public double SignalIgnoreAtOrBelow
+    {
+        get => _draft.SignalThresholds.IgnoreAtOrBelow;
+        set => SetThreshold(value, _draft.SignalThresholds.IgnoreAtOrBelow, v => _draft.SignalThresholds.IgnoreAtOrBelow = v);
+    }
+
+    public double TemperatureLowCritical
+    {
+        get => _draft.TemperatureThresholds.LowCritical;
+        set => SetThreshold(value, _draft.TemperatureThresholds.LowCritical, v => _draft.TemperatureThresholds.LowCritical = v);
+    }
+
+    public double TemperatureLowWarning
+    {
+        get => _draft.TemperatureThresholds.LowWarning;
+        set => SetThreshold(value, _draft.TemperatureThresholds.LowWarning, v => _draft.TemperatureThresholds.LowWarning = v);
+    }
+
+    public double TemperatureHighWarning
+    {
+        get => _draft.TemperatureThresholds.HighWarning;
+        set => SetThreshold(value, _draft.TemperatureThresholds.HighWarning, v => _draft.TemperatureThresholds.HighWarning = v);
+    }
+
+    public double TemperatureHighCritical
+    {
+        get => _draft.TemperatureThresholds.HighCritical;
+        set => SetThreshold(value, _draft.TemperatureThresholds.HighCritical, v => _draft.TemperatureThresholds.HighCritical = v);
+    }
+
+    public double FanSpeedLowCritical
+    {
+        get => _draft.FanSpeedThresholds.LowCritical;
+        set => SetThreshold(value, _draft.FanSpeedThresholds.LowCritical, v => _draft.FanSpeedThresholds.LowCritical = v);
+    }
+
+    public double FanSpeedLowWarning
+    {
+        get => _draft.FanSpeedThresholds.LowWarning;
+        set => SetThreshold(value, _draft.FanSpeedThresholds.LowWarning, v => _draft.FanSpeedThresholds.LowWarning = v);
+    }
+
+    public double FanSpeedHighWarning
+    {
+        get => _draft.FanSpeedThresholds.HighWarning;
+        set => SetThreshold(value, _draft.FanSpeedThresholds.HighWarning, v => _draft.FanSpeedThresholds.HighWarning = v);
+    }
+
+    public double FanSpeedHighCritical
+    {
+        get => _draft.FanSpeedThresholds.HighCritical;
+        set => SetThreshold(value, _draft.FanSpeedThresholds.HighCritical, v => _draft.FanSpeedThresholds.HighCritical = v);
+    }
+
+    private void SetThreshold(double value, double current, Action<double> setter, [System.Runtime.CompilerServices.CallerMemberName] string? propertyName = null)
+    {
+        if (current == value)
+        {
+            return;
+        }
+
+        setter(value);
+        OnPropertyChanged(propertyName);
+    }
+
     // --------------------------------------------------------------- window
 
     public bool MinimiseToTrayOnClose

@@ -43,5 +43,7 @@ public sealed class Sensor
     [JsonPropertyName("lastupdate")]
     public DateTime? LastUpdate { get; set; }
 
-    public bool IsDbm => string.Equals(SensorClass, "dbm", StringComparison.OrdinalIgnoreCase);
+    public bool HasClass(string sensorClass) => string.Equals(SensorClass, sensorClass, StringComparison.OrdinalIgnoreCase);
+
+    public bool IsDbm => HasClass("dbm");
 }

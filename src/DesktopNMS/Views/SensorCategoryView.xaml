@@ -1,0 +1,162 @@
+<UserControl x:Class="DesktopNMS.Views.SensorCategoryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:SensorCategoryViewModel}"
+             d:DesignHeight="500" d:DesignWidth="1100">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ======================== Mini header: counts ======================== -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding CriticalCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="critical" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource WarningBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding WarningCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="warning" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,7">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding OkCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="ok" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <TextBlock Grid.Column="1"
+                           Text="{Binding VisibleCount, StringFormat={}{0} shown}"
+                           Style="{StaticResource SubtleTextStyle}"
+                           VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <!-- ======================== Filters ======================== -->
+        <Border Grid.Row="1"
+                Background="{StaticResource BackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <WrapPanel Grid.Column="0" VerticalAlignment="Center">
+                    <ToggleButton Content="Critical"
+                                  IsChecked="{Binding ShowCritical}"
+                                  Style="{StaticResource ChipToggleStyle}"
+                                  Tag="{StaticResource CriticalBrush}" />
+                    <ToggleButton Content="Warning"
+                                  IsChecked="{Binding ShowWarning}"
+                                  Style="{StaticResource ChipToggleStyle}"
+                                  Tag="{StaticResource WarningBrush}" />
+                    <ToggleButton Content="OK"
+                                  IsChecked="{Binding ShowOk}"
+                                  Style="{StaticResource ChipToggleStyle}"
+                                  Tag="{StaticResource OkBrush}" />
+                    <ToggleButton Content="No data"
+                                  IsChecked="{Binding ShowUnknown}"
+                                  Style="{StaticResource ChipToggleStyle}"
+                                  Tag="{StaticResource TextSecondaryBrush}" />
+                </WrapPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox x:Name="SearchBox"
+                             Width="240"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                             ToolTip="Filter by device or sensor description"
+                             Margin="0,0,8,0" />
+                    <Button Content="Clear" Command="{Binding ClearFiltersCommand}" Padding="10,7" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Grid ======================== -->
+        <Grid Grid.Row="2">
+            <DataGrid ItemsSource="{Binding SensorsView}"
+                      SelectedItem="{Binding SelectedSensor}">
+                <DataGrid.Columns>
+
+                    <DataGridTemplateColumn Header="Status" Width="110" SortMemberPath="Severity">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="10,0">
+                                    <Ellipse Width="9"
+                                             Height="9"
+                                             Margin="0,0,8,0"
+                                             VerticalAlignment="Center"
+                                             Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                    <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="Device" Width="220" Binding="{Binding DeviceName}" />
+                    <DataGridTextColumn Header="Sensor" Width="*" Binding="{Binding Description}" />
+                    <DataGridTextColumn Header="Value" Width="110" Binding="{Binding ValueText}" />
+                    <DataGridTextColumn Header="Last update" Width="140" Binding="{Binding LastUpdateText}" />
+
+                </DataGrid.Columns>
+
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Open device in LibreNMS" Command="{Binding OpenDeviceCommand}" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+            </DataGrid>
+
+            <TextBlock Text="{Binding NoneFoundMessage}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding TotalCount}" Value="0">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <TextBlock Text="Nothing matches the current filters."
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False"
+                       Visibility="{Binding HasSensorsButNoneVisible, Converter={StaticResource BoolToVisibility}}"
+                       Style="{StaticResource SubtleTextStyle}" />
+        </Grid>
+    </Grid>
+</UserControl>

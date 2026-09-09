@@ -7,20 +7,23 @@ using DesktopNMS.Infrastructure;
 
 namespace DesktopNMS.ViewModels;
 
-/// <summary>One row in the Health tab's sensor list.</summary>
+/// <summary>One row in a Health tab category's sensor list.</summary>
 public sealed class SensorItemViewModel : ObservableObject
 {
+    private readonly string _unitSuffix;
+
     private Sensor _sensor;
     private string _deviceName;
     private LibreNmsConnection? _connection;
     private AlertSeverity _severity;
 
-    public SensorItemViewModel(Sensor sensor, string deviceName, LibreNmsConnection? connection, DbmThresholdSettings thresholds)
+    public SensorItemViewModel(Sensor sensor, string deviceName, LibreNmsConnection? connection, IThresholdEvaluator thresholds, string unitSuffix)
     {
         _sensor = sensor;
         _deviceName = deviceName;
         _connection = connection;
-        _severity = Evaluate(sensor, thresholds);
+        _unitSuffix = unitSuffix;
+        _severity = thresholds.Evaluate(sensor.Current);
     }
 
     public int SensorId => _sensor.SensorId;
@@ -33,11 +36,11 @@ public sealed class SensorItemViewModel : ObservableObject
 
     public double Value => _sensor.Current;
 
-    public string ValueText => _sensor.Current.ToString("0.###", CultureInfo.InvariantCulture) + " dBm";
+    public string ValueText => _sensor.Current.ToString("0.###", CultureInfo.InvariantCulture) + _unitSuffix;
 
     public AlertSeverity Severity => _severity;
 
-    public string SeverityText => Severity == AlertSeverity.Unknown ? "No signal" : Severity.ToDisplayString();
+    public string SeverityText => Severity == AlertSeverity.Unknown ? "No data" : Severity.ToDisplayString();
 
     public DateTime? LastUpdate => _sensor.LastUpdate;
 
@@ -57,7 +60,7 @@ public sealed class SensorItemViewModel : ObservableObject
         || SensorId.ToString(CultureInfo.InvariantCulture).Contains(term, StringComparison.Ordinal);
 
     /// <summary>Replaces the underlying reading in place so the selection survives a refresh.</summary>
-    public void Update(Sensor sensor, string deviceName, LibreNmsConnection? connection, DbmThresholdSettings thresholds)
+    public void Update(Sensor sensor, string deviceName, LibreNmsConnection? connection, IThresholdEvaluator thresholds)
     {
         _sensor = sensor;
         _deviceName = deviceName;
@@ -74,9 +77,9 @@ public sealed class SensorItemViewModel : ObservableObject
     }
 
     /// <summary>Re-evaluates severity only, e.g. after the thresholds changed in Settings.</summary>
-    public void ApplyThresholds(DbmThresholdSettings thresholds)
+    public void ApplyThresholds(IThresholdEvaluator thresholds)
     {
-        var severity = Evaluate(_sensor, thresholds);
+        var severity = thresholds.Evaluate(_sensor.Current);
         if (severity == _severity)
         {
             return;
@@ -86,7 +89,4 @@ public sealed class SensorItemViewModel : ObservableObject
         OnPropertyChanged(nameof(Severity));
         OnPropertyChanged(nameof(SeverityText));
     }
-
-    private static AlertSeverity Evaluate(Sensor sensor, DbmThresholdSettings thresholds)
-        => sensor.IsDbm ? thresholds.Evaluate(sensor.Current) : AlertSeverity.Unknown;
 }
