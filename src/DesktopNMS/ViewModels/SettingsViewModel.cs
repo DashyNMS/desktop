@@ -221,10 +221,6 @@ public sealed class SettingsViewModel : ObservableObject
 
     public bool HasLatestRelease => _latestRelease is not null;
 
-    public string? LatestReleaseTitle => _latestRelease is null
-        ? null
-        : string.IsNullOrWhiteSpace(_latestRelease.Name) ? _latestRelease.TagName : _latestRelease.Name;
-
     public string? LatestReleaseNotes => string.IsNullOrWhiteSpace(_latestRelease?.Body)
         ? "No release notes were provided for this version."
         : _latestRelease.Body;
@@ -246,7 +242,6 @@ public sealed class SettingsViewModel : ObservableObject
                 : "You're up to date.";
 
         OnPropertyChanged(nameof(HasLatestRelease));
-        OnPropertyChanged(nameof(LatestReleaseTitle));
         OnPropertyChanged(nameof(LatestReleaseNotes));
         ViewLatestReleaseCommand.RaiseCanExecuteChanged();
 

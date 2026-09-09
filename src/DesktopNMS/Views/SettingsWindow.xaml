@@ -373,14 +373,11 @@
                                 CornerRadius="6"
                                 Padding="14,12"
                                 Visibility="{Binding HasLatestRelease, Converter={StaticResource BoolToVisibility}}">
-                            <StackPanel>
-                                <TextBlock Text="{Binding LatestReleaseTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
-                                    <TextBlock Text="{Binding LatestReleaseNotes}"
-                                               Style="{StaticResource SubtleTextStyle}"
-                                               TextWrapping="Wrap" />
-                                </ScrollViewer>
-                            </StackPanel>
+                            <FlowDocumentScrollViewer Document="{Binding LatestReleaseNotes, Converter={StaticResource MarkdownToFlowDocument}}"
+                                                       MaxHeight="260"
+                                                       VerticalScrollBarVisibility="Auto"
+                                                       Background="Transparent"
+                                                       IsToolBarVisible="False" />
                         </Border>
 
                         <Button Content="View all releases on GitHub"
