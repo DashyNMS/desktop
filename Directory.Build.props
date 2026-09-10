@@ -7,7 +7,7 @@
     <InvariantGlobalization>false</InvariantGlobalization>
     <Product>DashyNMS</Product>
     <Company>DashyNMS</Company>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <NeutralLanguage>en-GB</NeutralLanguage>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>

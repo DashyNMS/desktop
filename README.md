@@ -14,6 +14,13 @@ the rest bolted on without rework.
 - **API token sign-in.** Address plus token, validated against `/api/v0/system`
   before the session is accepted. The token is stored with DPAPI, encrypted for
   your Windows account on this machine only, and can be turned off entirely.
+- **Dashboard with drag/resize widgets.** A snapped grid you lay out yourself:
+  Sensors (pinned dBm, signal, temperature or fan readings), Alerts (a live
+  filtered feed), Alerts gauge (critical/warning/acknowledged at a glance) and
+  Device status (up/down/maintenance/disabled counts). Dragging or resizing a
+  widget over another pushes it out of the way instead of blocking.
+- **Health tab.** Signal, temperature and fan speed sections across every
+  device, with configurable warning/critical thresholds.
 - **Alert list with filtering.** Filter chips for Critical / Warning / OK and for
   Active / Acknowledged / Recovered, plus a free-text search across host, rule,
   note and alert id. Your chip selection is remembered between runs.
@@ -22,6 +29,9 @@ the rest bolted on without rework.
   and a one-click jump to that device's alerts.
 - **Acknowledge from the app.** Acknowledge with an optional note, or return an
   acknowledged alert to active. Both go through the real LibreNMS endpoints.
+- **One shared poller per resource.** Sensors, devices and alerts are each
+  polled once on a common schedule and fanned out to whichever tabs are open,
+  rather than every tab polling independently.
 - **Windows notifications with configurable stickiness.** Per severity, choose
   between a normal toast that fades, one that stays on screen until dismissed,
   or one that stays with a looping alarm tone. Critical defaults to sticky,
@@ -30,6 +40,8 @@ the rest bolted on without rework.
   tray icon shows the worst outstanding severity and the count.
 - **Quiet hours, burst collapsing and start-up suppression** so it is usable on a
   machine you actually work on.
+- **Your connected server's own branding.** The shell header shows your
+  LibreNMS instance's own logo, if it has one, rather than a generic mark.
 
 ## Requirements
 
@@ -70,7 +82,7 @@ Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php)
 to `publish/` (see above):
 
 ```bash
-"C:/Users/<you>/AppData/Local/Programs/Inno Setup 6/ISCC.exe" /DAppVersion=0.2.0 installer/DashyNMS.iss
+"C:/Users/<you>/AppData/Local/Programs/Inno Setup 6/ISCC.exe" /DAppVersion=0.3.0 installer/DashyNMS.iss
 ```
 
 This produces `dist/DashyNMS-Setup-<version>.exe`. The installer runs
@@ -81,7 +93,7 @@ its state under the current Windows account — into
 checkboxes. For a silent install with the same defaults:
 
 ```bash
-dist/DashyNMS-Setup-0.2.0.exe /VERYSILENT /SUPPRESSMSGBOXES /TASKS=startmenuicon
+dist/DashyNMS-Setup-0.3.0.exe /VERYSILENT /SUPPRESSMSGBOXES /TASKS=startmenuicon
 ```
 
 Add `,desktopicon` to `/TASKS` to also create a desktop shortcut. Note that
@@ -187,8 +199,7 @@ buttons still work when the app is sitting in the tray.
 
 The obvious next slices, roughly in order of usefulness:
 
-1. Dashboard tab: an overview page (currently a placeholder).
-2. Alert history and per-rule drill-down (`/api/v0/rules`, already modelled).
-3. Ports and traffic graphs.
-4. Multiple LibreNMS instances in one window.
-5. Alert rule editing.
+1. Alert history and per-rule drill-down (`/api/v0/rules`, already modelled).
+2. Ports and traffic graphs.
+3. Multiple LibreNMS instances in one window.
+4. Alert rule editing.
