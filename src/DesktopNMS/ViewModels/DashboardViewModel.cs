@@ -16,12 +16,13 @@ namespace DesktopNMS.ViewModels;
 /// <summary>
 /// View model behind the Dashboard tab: a free-form canvas of widgets the user
 /// can add, drag, resize, rename and remove (see <see cref="Widgets"/> and
-/// <see cref="IsEditMode"/>). Three widget types exist: "Sensors", each
-/// showing whichever sensors were added to it specifically, "Alerts", and
-/// "AlertsGauge" - the last two fed by the app-wide <see cref="AlertMonitor"/>.
-/// Sensors widgets are fed by the shared <see cref="SensorMonitor"/> (also
-/// used by the Health tab), so having both open never costs two polls of the
-/// same data; none of the three widget types trigger a fetch of their own.
+/// <see cref="IsEditMode"/>). Widget types: "Sensors" (each showing whichever
+/// sensors were added to it specifically, fed by the shared
+/// <see cref="SensorMonitor"/> also used by the Health tab), "Alerts" and
+/// "AlertsGauge" (fed by the app-wide <see cref="AlertMonitor"/>), and
+/// "DeviceStatus" (fed by the shared <see cref="DeviceMonitor"/> also used by
+/// the Devices tab). None of them trigger a fetch of their own - having any
+/// combination open never costs more than one poll of each kind of data.
 /// </summary>
 public sealed class DashboardViewModel : ObservableObject, IDisposable
 {
@@ -32,6 +33,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     private readonly IWindowService _windows;
     private readonly IDashboardLayoutService _layout;
     private readonly AlertMonitor _alertMonitor;
+    private readonly DeviceMonitor _deviceMonitor;
     private readonly ILogger<DashboardViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<string, DashboardWidgetViewModel> _widgetIndex = new();
@@ -58,6 +60,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         IWindowService windows,
         IDashboardLayoutService layout,
         AlertMonitor alertMonitor,
+        DeviceMonitor deviceMonitor,
         ILogger<DashboardViewModel> logger)
     {
         _sensorMonitor = sensorMonitor;
@@ -67,6 +70,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         _windows = windows;
         _layout = layout;
         _alertMonitor = alertMonitor;
+        _deviceMonitor = deviceMonitor;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -89,6 +93,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         AddSensorWidgetCommand = new RelayCommand(() => _layout.AddWidget("Sensors", "Sensors"));
         AddAlertsWidgetCommand = new RelayCommand(() => _layout.AddWidget("Alerts", "Alerts"));
         AddAlertsGaugeWidgetCommand = new RelayCommand(() => _layout.AddWidget("AlertsGauge", "Alerts gauge"));
+        AddDeviceStatusWidgetCommand = new RelayCommand(() => _layout.AddWidget("DeviceStatus", "Device status"));
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
@@ -108,6 +113,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     public RelayCommand AddAlertsWidgetCommand { get; }
 
     public RelayCommand AddAlertsGaugeWidgetCommand { get; }
+
+    public RelayCommand AddDeviceStatusWidgetCommand { get; }
 
     /// <summary>True while the user is arranging the dashboard: widgets show drag/resize/remove handles.</summary>
     public bool IsEditMode
@@ -311,6 +318,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     {
         "Alerts" => new AlertsWidgetViewModel(_layout, model, _alertMonitor, _session, _settings, _devices, _windows),
         "AlertsGauge" => new AlertsGaugeWidgetViewModel(_layout, model, _alertMonitor),
+        "DeviceStatus" => new DeviceStatusWidgetViewModel(_layout, model, _deviceMonitor),
         // "Sensors" (and any future/unknown type, so a layout from a newer
         // version does not blow up) fall back to the Sensors widget.
         _ => new SensorWidgetViewModel(_layout, model, OpenDeviceCommand),

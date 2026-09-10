@@ -395,6 +395,135 @@
             </Grid>
         </DataTemplate>
 
+        <!-- ======================== Device status widget body ======================== -->
+        <!-- Four ring gauges - up, down, maintenance and disabled/ignored -
+             each a share of all devices, drawn the same way as the Alerts
+             gauge widget. -->
+        <DataTemplate DataType="{x:Type vm:DeviceStatusWidgetViewModel}">
+            <Grid Margin="16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Viewbox Width="70" Height="70">
+                            <Grid Width="100" Height="100">
+                                <Ellipse Width="80"
+                                         Height="80"
+                                         Margin="10"
+                                         Stroke="{StaticResource BorderBrush}"
+                                         StrokeThickness="10" />
+                                <Path Data="{Binding UpFraction, Converter={StaticResource GaugeArc}}"
+                                      Stroke="{StaticResource OkBrush}"
+                                      StrokeThickness="10"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round" />
+                                <TextBlock Text="{Binding UpCount}"
+                                           FontSize="22"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Viewbox>
+                        <TextBlock Text="Up" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Viewbox Width="70" Height="70">
+                            <Grid Width="100" Height="100">
+                                <Ellipse Width="80"
+                                         Height="80"
+                                         Margin="10"
+                                         Stroke="{StaticResource BorderBrush}"
+                                         StrokeThickness="10" />
+                                <Path Data="{Binding DownFraction, Converter={StaticResource GaugeArc}}"
+                                      Stroke="{StaticResource CriticalBrush}"
+                                      StrokeThickness="10"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round" />
+                                <TextBlock Text="{Binding DownCount}"
+                                           FontSize="22"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Viewbox>
+                        <TextBlock Text="Down" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Viewbox Width="70" Height="70">
+                            <Grid Width="100" Height="100">
+                                <Ellipse Width="80"
+                                         Height="80"
+                                         Margin="10"
+                                         Stroke="{StaticResource BorderBrush}"
+                                         StrokeThickness="10" />
+                                <Path Data="{Binding MaintenanceFraction, Converter={StaticResource GaugeArc}}"
+                                      Stroke="{StaticResource AccentBrush}"
+                                      StrokeThickness="10"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round" />
+                                <TextBlock Text="{Binding MaintenanceCount}"
+                                           FontSize="22"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Viewbox>
+                        <TextBlock Text="Maintenance" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="3" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Viewbox Width="70" Height="70">
+                            <Grid Width="100" Height="100">
+                                <Ellipse Width="80"
+                                         Height="80"
+                                         Margin="10"
+                                         Stroke="{StaticResource BorderBrush}"
+                                         StrokeThickness="10" />
+                                <Path Data="{Binding DisabledFraction, Converter={StaticResource GaugeArc}}"
+                                      Stroke="{StaticResource TextSecondaryBrush}"
+                                      StrokeThickness="10"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round" />
+                                <TextBlock Text="{Binding DisabledCount}"
+                                           FontSize="22"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Viewbox>
+                        <TextBlock Text="Disabled" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Grid.Row="1"
+                           Text="No devices."
+                           HorizontalAlignment="Center"
+                           Margin="0,12,0,0"
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding HasNoDevices, Converter={StaticResource BoolToVisibility}}" />
+
+                <TextBlock Grid.Row="1"
+                           HorizontalAlignment="Center"
+                           Margin="0,12,0,0"
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding HasNoDevices, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                    <Run Text="{Binding TotalCount, Mode=OneWay}" /><Run Text=" device(s) total" />
+                </TextBlock>
+            </Grid>
+        </DataTemplate>
+
         <!-- ======================== Widget chrome ======================== -->
         <!-- Shared by every widget type: title bar (drag handle + rename box +
              remove button, the last two only while editing), body, and a
@@ -576,6 +705,16 @@
                                     <StackPanel Margin="0,2">
                                         <TextBlock Text="Alerts gauge" FontWeight="SemiBold" />
                                         <TextBlock Text="Critical and warning counts at a glance"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11" />
+                                    </StackPanel>
+                                </MenuItem.Header>
+                            </MenuItem>
+                            <MenuItem Command="{Binding AddDeviceStatusWidgetCommand}">
+                                <MenuItem.Header>
+                                    <StackPanel Margin="0,2">
+                                        <TextBlock Text="Device status" FontWeight="SemiBold" />
+                                        <TextBlock Text="Up, down, maintenance and disabled counts at a glance"
                                                    Style="{StaticResource SubtleTextStyle}"
                                                    FontSize="11" />
                                     </StackPanel>

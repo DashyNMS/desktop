@@ -3,11 +3,9 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Threading;
-using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
@@ -17,12 +15,12 @@ using Microsoft.Extensions.Logging;
 namespace DesktopNMS.ViewModels;
 
 /// <summary>
-/// View model behind the device list window. The device list itself comes
-/// from the shared <see cref="DeviceMonitor"/> (also used by Alerts/Health/
-/// Dashboard's own on-demand device-name lookups via <see cref="IDeviceCache"/>),
-/// so this tab being open never costs its own extra poll of the same data.
-/// Per-device maintenance-window checks (see <see cref="RefreshMaintenanceStatusAsync"/>)
-/// are a separate concern with no bulk endpoint, so they stay local to this view model.
+/// View model behind the device list window. The device list, and its
+/// per-device maintenance-window status, both come from the shared
+/// <see cref="DeviceMonitor"/> (also used by Alerts/Health/Dashboard's own
+/// on-demand device-name lookups via <see cref="IDeviceCache"/>, and by the
+/// Dashboard's "device status" widget), so this tab being open never costs
+/// its own extra poll or maintenance scan of the same data.
 /// </summary>
 public sealed class DeviceListViewModel : ObservableObject, IDisposable
 {
@@ -30,35 +28,15 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
-    private readonly ILibreNmsClient _client;
     private readonly ILogger<DeviceListViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, DeviceItemViewModel> _index = new();
 
-    /// <summary>
-    /// LibreNMS's versioned API has no bulk "which devices are in
-    /// maintenance" call, only GET /devices/{id}/maintenance - one device at a
-    /// time (see <see cref="IDevicesApi.IsUnderMaintenanceAsync"/>). Checking a
-    /// fleet of hundreds of devices therefore means hundreds of requests. This
-    /// caps how many run at once so a refresh does not look like a burst
-    /// against the LibreNMS server.
-    /// </summary>
-    private const int MaxConcurrentMaintenanceChecks = 16;
-
-    /// <summary>
-    /// Maintenance windows do not change second to second, so a trigger-happy
-    /// Refresh click within this window reuses the last scan instead of paying
-    /// for hundreds of requests again.
-    /// </summary>
-    private static readonly TimeSpan MinimumMaintenanceRescanInterval = TimeSpan.FromSeconds(60);
-
-    private CancellationTokenSource? _maintenanceCts;
     private DeviceItemViewModel? _selectedDevice;
     private string _statusMessage = "Not loaded yet.";
     private string? _errorMessage;
     private bool _isBusy;
     private DateTimeOffset? _lastUpdated;
-    private DateTimeOffset? _maintenanceLastScanned;
     private string _searchText = string.Empty;
     private bool _hasLoadedOnce;
 
@@ -74,14 +52,12 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         ISessionService session,
         ISettingsStore settings,
         IWindowService windows,
-        ILibreNmsClient client,
         ILogger<DeviceListViewModel> logger)
     {
         _deviceMonitor = deviceMonitor;
         _session = session;
         _settings = settings;
         _windows = windows;
-        _client = client;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -264,12 +240,10 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
         ErrorMessage = null;
 
-        ApplyDevices(result.Devices);
+        ApplyDevices(result.Devices, result.DeviceIdsUnderMaintenance);
 
         _hasLoadedOnce = true;
         _lastUpdated = result.CompletedAt;
-
-        _ = RefreshMaintenanceStatusAsync();
 
         StatusMessage = MaintenanceCount > 0
             ? $"{UpCount} up, {DownCount} down, {MaintenanceCount} in maintenance, {TotalCount} total."
@@ -277,7 +251,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(LastUpdatedText));
     }
 
-    private void ApplyDevices(IReadOnlyList<Device> devices)
+    private void ApplyDevices(IReadOnlyList<Device> devices, IReadOnlySet<int> maintenanceIds)
     {
         var nameStyle = _settings.Current.DeviceNameStyle;
         var connection = _session.Connection;
@@ -304,6 +278,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             if (_index.TryGetValue(device.DeviceId, out var existing))
             {
                 existing.Update(device, nameStyle, connection);
+                existing.IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId);
 
                 var currentIndex = Devices.IndexOf(existing);
                 if (currentIndex >= 0 && currentIndex != target && target < Devices.Count)
@@ -313,7 +288,10 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             }
             else
             {
-                var item = new DeviceItemViewModel(device, nameStyle, connection);
+                var item = new DeviceItemViewModel(device, nameStyle, connection)
+                {
+                    IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId),
+                };
                 _index[device.DeviceId] = item;
                 Devices.Insert(Math.Min(target, Devices.Count), item);
             }
@@ -324,78 +302,6 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         if (SelectedDevice is not null && !_index.ContainsKey(SelectedDevice.DeviceId))
         {
             SelectedDevice = null;
-        }
-    }
-
-    /// <summary>
-    /// Checks every currently-loaded device for an active maintenance window,
-    /// bounded to <see cref="MaxConcurrentMaintenanceChecks"/> requests at
-    /// once. Skips the scan if the last one finished too recently to be worth
-    /// repeating. A single device's check failing is logged and treated as
-    /// "not in maintenance" rather than losing the whole scan.
-    /// </summary>
-    private async Task RefreshMaintenanceStatusAsync()
-    {
-        if (_maintenanceLastScanned is { } last && DateTimeOffset.UtcNow - last < MinimumMaintenanceRescanInterval)
-        {
-            return;
-        }
-
-        var items = Devices.ToList();
-        if (items.Count == 0)
-        {
-            return;
-        }
-
-        _maintenanceCts?.Cancel();
-        _maintenanceCts?.Dispose();
-        var cts = new CancellationTokenSource();
-        _maintenanceCts = cts;
-        var cancellationToken = cts.Token;
-
-        using var gate = new SemaphoreSlim(MaxConcurrentMaintenanceChecks);
-        var failures = 0;
-
-        await Task.WhenAll(items.Select(async item =>
-        {
-            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                var isUnderMaintenance = await _client.Devices
-                    .IsUnderMaintenanceAsync(item.DeviceId, cancellationToken)
-                    .ConfigureAwait(true);
-
-                item.IsUnderMaintenance = isUnderMaintenance;
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                // Superseded by a newer refresh; leave the flag as it was.
-            }
-            catch (Exception ex)
-            {
-                Interlocked.Increment(ref failures);
-                _logger.LogDebug(ex, "Could not check maintenance status for device {DeviceId}", item.DeviceId);
-            }
-            finally
-            {
-                gate.Release();
-            }
-        })).ConfigureAwait(true);
-
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
-
-        _maintenanceLastScanned = DateTimeOffset.UtcNow;
-        RaiseCountsChanged();
-
-        if (failures > 0)
-        {
-            _logger.LogWarning(
-                "Maintenance status could not be checked for {Failures} of {Total} device(s)",
-                failures,
-                items.Count);
         }
     }
 
@@ -495,7 +401,5 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         _settings.Changed -= OnSettingsChanged;
         _deviceMonitor.PollStarted -= OnPollStarted;
         _deviceMonitor.Polled -= OnPolled;
-        _maintenanceCts?.Cancel();
-        _maintenanceCts?.Dispose();
     }
 }

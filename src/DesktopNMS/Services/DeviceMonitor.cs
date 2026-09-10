@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DesktopNMS.Core.Api;
@@ -16,9 +18,20 @@ public sealed class DevicePollResult
 
     public required IReadOnlyList<Device> Devices { get; init; }
 
+    /// <summary>
+    /// Ids of devices currently in a maintenance window. LibreNMS has no bulk
+    /// endpoint for this (see <see cref="IDevicesApi.IsUnderMaintenanceAsync"/>),
+    /// so it is scanned separately from the device list itself and throttled
+    /// independently - see <see cref="DeviceMonitor"/> - meaning it can lag
+    /// the rest of this result by up to that throttle window.
+    /// </summary>
+    public IReadOnlySet<int> DeviceIdsUnderMaintenance { get; init; } = ImmutableEmptySet;
+
     public required DateTimeOffset CompletedAt { get; init; }
 
     public string? ErrorMessage { get; init; }
+
+    private static readonly IReadOnlySet<int> ImmutableEmptySet = new HashSet<int>();
 
     public static DevicePollResult Failed(string message) => new()
     {
@@ -30,16 +43,36 @@ public sealed class DevicePollResult
 }
 
 /// <summary>
-/// Polls the full device list (<c>/devices</c>) on a timer for the Devices
-/// tab, lazily started the same way as <see cref="SensorMonitor"/> - only
-/// once the tab has actually been shown, so a user who never opens it pays
-/// nothing extra. Every successful poll also feeds <see cref="IDeviceCache"/>
-/// directly, so Alerts/Health/Dashboard's own on-demand device lookups see
-/// fresh data for free instead of running their own separate fetch while the
-/// Devices tab happens to be open.
+/// Polls the full device list (<c>/devices</c>) on a timer, lazily started
+/// the same way as <see cref="SensorMonitor"/> - only once something needs
+/// it (the Devices tab, or a "device status" dashboard widget) - so a user
+/// who never opens either pays nothing extra. Every successful poll also
+/// feeds <see cref="IDeviceCache"/> directly, so Alerts/Health/Dashboard's
+/// own on-demand device lookups see fresh data for free instead of running
+/// their own separate fetch while this is already running. Also runs the
+/// per-device maintenance-window scan (see <see cref="DevicePollResult.DeviceIdsUnderMaintenance"/>)
+/// that used to live in the Devices tab's own view model, so every consumer
+/// of this monitor shares that one scan too instead of each running it.
 /// </summary>
 public sealed class DeviceMonitor : IDisposable
 {
+    /// <summary>
+    /// LibreNMS's versioned API has no bulk "which devices are in
+    /// maintenance" call, only GET /devices/{id}/maintenance - one device at a
+    /// time (see <see cref="IDevicesApi.IsUnderMaintenanceAsync"/>). Checking a
+    /// fleet of hundreds of devices therefore means hundreds of requests. This
+    /// caps how many run at once so a poll does not look like a burst against
+    /// the LibreNMS server.
+    /// </summary>
+    private const int MaxConcurrentMaintenanceChecks = 16;
+
+    /// <summary>
+    /// Maintenance windows do not change second to second, so a poll landing
+    /// within this long of the last scan reuses it rather than paying for
+    /// hundreds of requests again every single cycle.
+    /// </summary>
+    private static readonly TimeSpan MinimumMaintenanceRescanInterval = TimeSpan.FromSeconds(60);
+
     private readonly ILibreNmsClient _client;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
@@ -53,6 +86,8 @@ public sealed class DeviceMonitor : IDisposable
     private CancellationTokenSource? _cts;
     private Task? _loop;
     private bool _disposed;
+    private HashSet<int> _maintenanceIds = new();
+    private DateTimeOffset? _lastMaintenanceScan;
 
     public DeviceMonitor(
         ILibreNmsClient client,
@@ -165,12 +200,15 @@ public sealed class DeviceMonitor : IDisposable
 
             _devices.UpdateFrom(devices);
 
+            var maintenanceIds = await RefreshMaintenanceIdsAsync(devices, cancellationToken).ConfigureAwait(false);
+
             _logger.LogDebug("Polled {Count} devices", devices.Count);
 
             Polled?.Invoke(this, new DevicePollResult
             {
                 Succeeded = true,
                 Devices = devices,
+                DeviceIdsUnderMaintenance = maintenanceIds,
                 CompletedAt = DateTimeOffset.Now,
             });
         }
@@ -192,6 +230,75 @@ public sealed class DeviceMonitor : IDisposable
         {
             _pollGate.Release();
         }
+    }
+
+    /// <summary>
+    /// Scans every device for an active maintenance window, bounded to
+    /// <see cref="MaxConcurrentMaintenanceChecks"/> requests at once, unless
+    /// the last scan is still fresh enough to reuse. A single device's check
+    /// failing is logged and treated as "not in maintenance" rather than
+    /// losing the whole scan.
+    /// </summary>
+    private async Task<IReadOnlySet<int>> RefreshMaintenanceIdsAsync(IReadOnlyList<Device> devices, CancellationToken cancellationToken)
+    {
+        if (devices.Count == 0)
+        {
+            _maintenanceIds = new HashSet<int>();
+            return _maintenanceIds;
+        }
+
+        if (_lastMaintenanceScan is { } last && DateTimeOffset.UtcNow - last < MinimumMaintenanceRescanInterval)
+        {
+            return _maintenanceIds;
+        }
+
+        var found = new ConcurrentBag<int>();
+        var failures = 0;
+
+        using var gate = new SemaphoreSlim(MaxConcurrentMaintenanceChecks);
+
+        await Task.WhenAll(devices.Select(async device =>
+        {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (await _client.Devices.IsUnderMaintenanceAsync(device.DeviceId, cancellationToken).ConfigureAwait(false))
+                {
+                    found.Add(device.DeviceId);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Superseded by a newer poll; leave the previous scan as it was.
+            }
+            catch (Exception ex)
+            {
+                Interlocked.Increment(ref failures);
+                _logger.LogDebug(ex, "Could not check maintenance status for device {DeviceId}", device.DeviceId);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        })).ConfigureAwait(false);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return _maintenanceIds;
+        }
+
+        _maintenanceIds = found.ToHashSet();
+        _lastMaintenanceScan = DateTimeOffset.UtcNow;
+
+        if (failures > 0)
+        {
+            _logger.LogWarning(
+                "Maintenance status could not be checked for {Failures} of {Total} device(s)",
+                failures,
+                devices.Count);
+        }
+
+        return _maintenanceIds;
     }
 
     public void Dispose()
