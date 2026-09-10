@@ -295,7 +295,7 @@
              100x100 local space that a Viewbox scales to whatever room the
              widget has. -->
         <DataTemplate DataType="{x:Type vm:AlertsGaugeWidgetViewModel}">
-            <Grid Margin="16">
+            <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
@@ -400,7 +400,7 @@
              each a share of all devices, drawn the same way as the Alerts
              gauge widget. -->
         <DataTemplate DataType="{x:Type vm:DeviceStatusWidgetViewModel}">
-            <Grid Margin="16">
+            <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
@@ -530,8 +530,8 @@
              resize grip in edit mode. Position/size are committed once a drag
              finishes (see DashboardView.xaml.cs), not on every pixel. -->
         <DataTemplate x:Key="WidgetTemplate" DataType="{x:Type vm:DashboardWidgetViewModel}">
-            <Border Width="{Binding Width}"
-                    Height="{Binding Height}"
+            <Border Width="{Binding ColumnSpan, Converter={StaticResource GridUnitToPixels}}"
+                    Height="{Binding RowSpan, Converter={StaticResource GridUnitToPixels}}"
                     Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1"
@@ -550,6 +550,7 @@
                     <Grid Grid.Row="0" MinHeight="44">
                         <Thumb Background="Transparent"
                                Cursor="SizeAll"
+                               DragStarted="OnHeaderDragStarted"
                                DragDelta="OnHeaderDragDelta"
                                DragCompleted="OnHeaderDragCompleted"
                                Visibility="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVisibility}}">
@@ -624,7 +625,8 @@
 
                     <Border Grid.Row="1"
                             BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="0,1,0,0">
+                            BorderThickness="0,1,0,0"
+                            Padding="8">
                         <ContentControl Content="{Binding}" Focusable="False" />
                     </Border>
 
@@ -635,6 +637,7 @@
                            HorizontalAlignment="Right"
                            VerticalAlignment="Bottom"
                            Cursor="SizeNWSE"
+                           DragStarted="OnResizeDragStarted"
                            DragDelta="OnResizeDragDelta"
                            DragCompleted="OnResizeDragCompleted"
                            Visibility="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVisibility}}">
@@ -665,7 +668,7 @@
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="18,12">
+                Padding="18,8">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <ToggleButton Content="Edit layout" Style="{StaticResource ChipToggleStyle}" IsChecked="{Binding IsEditMode}" />
 
@@ -749,14 +752,13 @@
                 <ItemsControl x:Name="WidgetsHost" ItemsSource="{Binding Widgets}" ItemTemplate="{StaticResource WidgetTemplate}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <Canvas MinWidth="{Binding ActualWidth, ElementName=CanvasScroll}"
-                                    MinHeight="{Binding ActualHeight, ElementName=CanvasScroll}" />
+                            <Canvas x:Name="WidgetsCanvas" />
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemContainerStyle>
                         <Style TargetType="ContentPresenter">
-                            <Setter Property="Canvas.Left" Value="{Binding X}" />
-                            <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                            <Setter Property="Canvas.Left" Value="{Binding Column, Converter={StaticResource GridUnitToPixels}}" />
+                            <Setter Property="Canvas.Top" Value="{Binding Row, Converter={StaticResource GridUnitToPixels}}" />
                         </Style>
                     </ItemsControl.ItemContainerStyle>
                 </ItemsControl>

@@ -191,11 +191,13 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Called by the view whenever the canvas's actual rendered size is known
-    /// or changes (initial load, window resize, or the app moving to a
-    /// different-sized display) so the layout can be rescaled to fit.
+    /// Persists every widget's current grid position/span in one shot. Called
+    /// by the view once a drag or resize gesture ends - a single commit
+    /// covers both the widget that moved and anything it displaced along the
+    /// way, since live reflow already updated all of their view models.
     /// </summary>
-    public void NotifyViewportSize(double width, double height) => _layout.EnsureFitsViewport(width, height);
+    public void CommitLayout()
+        => _layout.CommitLayout(Widgets.Select(w => (w.Id, w.Column, w.Row, w.ColumnSpan, w.RowSpan)));
 
     private void OnPollStarted(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() => IsBusy = true);
 

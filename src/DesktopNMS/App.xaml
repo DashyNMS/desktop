@@ -17,6 +17,7 @@
             <converters:DeviceStateToBrushConverter x:Key="DeviceStateToBrush" />
             <converters:MarkdownToFlowDocumentConverter x:Key="MarkdownToFlowDocument" />
             <converters:GaugeArcConverter x:Key="GaugeArc" />
+            <converters:GridUnitToPixelsConverter x:Key="GridUnitToPixels" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

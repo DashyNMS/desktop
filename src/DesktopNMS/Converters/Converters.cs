@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 
 namespace DesktopNMS.Converters;
@@ -153,4 +154,14 @@ public sealed class GaugeArcConverter : IValueConverter
         var radians = angleDegrees * Math.PI / 180;
         return new Point(CenterX + (Radius * Math.Cos(radians)), CenterY + (Radius * Math.Sin(radians)));
     }
+}
+
+/// <summary>Scales an integer dashboard grid unit (column/row/span) up to pixels by <see cref="DashboardWidget.CellSize"/>.</summary>
+public sealed class GridUnitToPixelsConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is int units ? units * DashboardWidget.CellSize : 0.0;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
 }

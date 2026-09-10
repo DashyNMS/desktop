@@ -92,20 +92,8 @@ public sealed class AppSettings
     /// <summary>Warning/critical bands applied to fan-speed sensors on the Health tab.</summary>
     public BandThresholdSettings FanSpeedThresholds { get; set; } = BandThresholdSettings.FanSpeedDefaults();
 
-    /// <summary>Widgets laid out on the Dashboard tab (position, size, title, type, and - for a Sensors widget - which sensors it shows).</summary>
+    /// <summary>Widgets laid out on the Dashboard tab (grid position/span, title, type, and - for a Sensors widget - which sensors it shows).</summary>
     public List<DashboardWidget> DashboardWidgets { get; set; } = new();
-
-    /// <summary>
-    /// The Dashboard canvas size <see cref="DashboardWidgets"/>' coordinates
-    /// were last laid out against. Zero means "never established" - e.g. a
-    /// fresh install, or settings from before this existed. Compared against
-    /// the canvas's actual current size each time the tab is shown, so moving
-    /// to a smaller display proportionally shrinks the whole layout instead of
-    /// leaving widgets stranded off-screen.
-    /// </summary>
-    public double DashboardCanvasWidth { get; set; }
-
-    public double DashboardCanvasHeight { get; set; }
 
     public WindowPlacement? Window { get; set; }
 
@@ -132,8 +120,6 @@ public sealed class AppSettings
         TemperatureThresholds = TemperatureThresholds.Clone(),
         FanSpeedThresholds = FanSpeedThresholds.Clone(),
         DashboardWidgets = DashboardWidgets.Select(w => w.Clone()).ToList(),
-        DashboardCanvasWidth = DashboardCanvasWidth,
-        DashboardCanvasHeight = DashboardCanvasHeight,
         Window = Window?.Clone(),
     };
 
@@ -144,8 +130,6 @@ public sealed class AppSettings
         if (TimeoutSeconds > 300) TimeoutSeconds = 300;
         if (PollIntervalSeconds < 15) PollIntervalSeconds = 15;
         if (PollIntervalSeconds > 3600) PollIntervalSeconds = 3600;
-        if (DashboardCanvasWidth < 0) DashboardCanvasWidth = 0;
-        if (DashboardCanvasHeight < 0) DashboardCanvasHeight = 0;
 
         Notifications ??= new NotificationSettings();
         Filter ??= new AlertFilterSettings();
@@ -425,13 +409,18 @@ public sealed class PinnedSensor
 /// </summary>
 public sealed class DashboardWidget
 {
-    public const double DefaultWidth = 380;
-    public const double DefaultHeight = 280;
-    public const double MinWidth = 240;
+    /// <summary>
+    /// Pixels per grid cell (both axes - cells are square). Fixed rather than
+    /// computed from the viewport, so a widget's Column/Row/span are already
+    /// resolution-independent: the same layout just reveals more or fewer
+    /// cells on a bigger or smaller display, with no rescaling needed.
+    /// </summary>
+    public const double CellSize = 40;
 
-    /// <summary>Minimum gap kept between widgets - dragging/resizing/placement all respect it.</summary>
-    public const double Spacing = 12;
-    public const double MinHeight = 160;
+    public const int DefaultColumnSpan = 10;
+    public const int DefaultRowSpan = 7;
+    public const int MinColumnSpan = 6;
+    public const int MinRowSpan = 4;
 
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
@@ -440,13 +429,15 @@ public sealed class DashboardWidget
 
     public string Title { get; set; } = "Widget";
 
-    public double X { get; set; }
+    /// <summary>0-based grid column the widget's left edge sits at.</summary>
+    public int Column { get; set; }
 
-    public double Y { get; set; }
+    /// <summary>0-based grid row the widget's top edge sits at.</summary>
+    public int Row { get; set; }
 
-    public double Width { get; set; } = DefaultWidth;
+    public int ColumnSpan { get; set; } = DefaultColumnSpan;
 
-    public double Height { get; set; } = DefaultHeight;
+    public int RowSpan { get; set; } = DefaultRowSpan;
 
     /// <summary>For a "Sensors" widget: which sensors it shows. Unused by other widget types.</summary>
     public List<PinnedSensor> Sensors { get; set; } = new();
@@ -464,10 +455,10 @@ public sealed class DashboardWidget
         Id = Id,
         WidgetType = WidgetType,
         Title = Title,
-        X = X,
-        Y = Y,
-        Width = Width,
-        Height = Height,
+        Column = Column,
+        Row = Row,
+        ColumnSpan = ColumnSpan,
+        RowSpan = RowSpan,
         Sensors = Sensors.Select(s => s.Clone()).ToList(),
         AlertsShowCritical = AlertsShowCritical,
         AlertsShowWarning = AlertsShowWarning,
@@ -479,10 +470,10 @@ public sealed class DashboardWidget
     {
         if (string.IsNullOrWhiteSpace(Id)) Id = Guid.NewGuid().ToString("N");
         if (string.IsNullOrWhiteSpace(Title)) Title = "Widget";
-        if (X < 0) X = 0;
-        if (Y < 0) Y = 0;
-        if (Width < MinWidth) Width = MinWidth;
-        if (Height < MinHeight) Height = MinHeight;
+        if (Column < 0) Column = 0;
+        if (Row < 0) Row = 0;
+        if (ColumnSpan < MinColumnSpan) ColumnSpan = MinColumnSpan;
+        if (RowSpan < MinRowSpan) RowSpan = MinRowSpan;
         Sensors ??= new List<PinnedSensor>();
     }
 }

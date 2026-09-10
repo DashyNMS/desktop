@@ -5,22 +5,26 @@ using DesktopNMS.Services;
 namespace DesktopNMS.ViewModels;
 
 /// <summary>
-/// A widget placed on the Dashboard's free-form canvas. Holds the chrome
-/// everything shares - title, position, size, remove, and a per-widget
-/// "editing" state (see <see cref="IsEditingWidget"/>) - while a subclass
-/// supplies the type-specific content (e.g. <see cref="SensorWidgetViewModel"/>).
-/// Position/size change locally as the user drags/resizes (see
-/// <see cref="CommitPosition"/>/<see cref="CommitSize"/>); the title commits
-/// immediately since it is edited via a text box rather than a drag.
+/// A widget placed on the Dashboard's grid. Holds the chrome everything
+/// shares - title, grid position/span, remove, and a per-widget "editing"
+/// state (see <see cref="IsEditingWidget"/>) - while a subclass supplies the
+/// type-specific content (e.g. <see cref="SensorWidgetViewModel"/>).
+/// <see cref="Column"/>/<see cref="Row"/>/<see cref="ColumnSpan"/>/
+/// <see cref="RowSpan"/> change locally while the user drags/resizes, live
+/// reflowing other widgets out of the way; the view commits the whole
+/// affected set in one shot once the gesture ends (see
+/// <see cref="DashboardViewModel.CommitLayout"/>), since a drag can move more
+/// than just this one widget. The title commits immediately since it is
+/// edited via a text box rather than a drag.
 /// </summary>
 public abstract class DashboardWidgetViewModel : ObservableObject
 {
     private readonly IDashboardLayoutService _layout;
     private string _title;
-    private double _x;
-    private double _y;
-    private double _width;
-    private double _height;
+    private int _column;
+    private int _row;
+    private int _columnSpan;
+    private int _rowSpan;
     private bool _isEditingWidget;
 
     protected DashboardWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model)
@@ -28,10 +32,10 @@ public abstract class DashboardWidgetViewModel : ObservableObject
         _layout = layout;
         Id = model.Id;
         _title = model.Title;
-        _x = model.X;
-        _y = model.Y;
-        _width = model.Width;
-        _height = model.Height;
+        _column = model.Column;
+        _row = model.Row;
+        _columnSpan = model.ColumnSpan;
+        _rowSpan = model.RowSpan;
 
         RemoveCommand = new RelayCommand(() => _layout.RemoveWidget(Id));
         ToggleEditCommand = new RelayCommand(() => IsEditingWidget = !IsEditingWidget);
@@ -54,30 +58,32 @@ public abstract class DashboardWidgetViewModel : ObservableObject
         }
     }
 
-    /// <summary>Canvas.Left. Updated live while dragging; see <see cref="CommitPosition"/>.</summary>
-    public double X
+    /// <summary>0-based grid column of the widget's left edge. Updated live while dragging.</summary>
+    public int Column
     {
-        get => _x;
-        set => SetProperty(ref _x, value);
+        get => _column;
+        set => SetProperty(ref _column, value);
     }
 
-    /// <summary>Canvas.Top. Updated live while dragging; see <see cref="CommitPosition"/>.</summary>
-    public double Y
+    /// <summary>0-based grid row of the widget's top edge. Updated live while dragging.</summary>
+    public int Row
     {
-        get => _y;
-        set => SetProperty(ref _y, value);
+        get => _row;
+        set => SetProperty(ref _row, value);
     }
 
-    public double Width
+    /// <summary>Width in grid cells. Updated live while resizing.</summary>
+    public int ColumnSpan
     {
-        get => _width;
-        set => SetProperty(ref _width, value);
+        get => _columnSpan;
+        set => SetProperty(ref _columnSpan, value);
     }
 
-    public double Height
+    /// <summary>Height in grid cells. Updated live while resizing.</summary>
+    public int RowSpan
     {
-        get => _height;
-        set => SetProperty(ref _height, value);
+        get => _rowSpan;
+        set => SetProperty(ref _rowSpan, value);
     }
 
     public RelayCommand RemoveCommand { get; }
@@ -106,19 +112,13 @@ public abstract class DashboardWidgetViewModel : ObservableObject
     {
     }
 
-    /// <summary>Persists the current position. Call once a drag finishes, not on every delta.</summary>
-    public void CommitPosition() => _layout.Move(Id, X, Y);
-
-    /// <summary>Persists the current size. Call once a resize finishes, not on every delta.</summary>
-    public void CommitSize() => _layout.Resize(Id, Width, Height);
-
     /// <summary>Refreshes the local copies from the layout's model, e.g. after an external change.</summary>
     public virtual void SyncFrom(DashboardWidget model)
     {
         Title = model.Title;
-        X = model.X;
-        Y = model.Y;
-        Width = model.Width;
-        Height = model.Height;
+        Column = model.Column;
+        Row = model.Row;
+        ColumnSpan = model.ColumnSpan;
+        RowSpan = model.RowSpan;
     }
 }
