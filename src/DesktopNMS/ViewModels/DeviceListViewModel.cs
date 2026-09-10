@@ -16,14 +16,23 @@ using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.ViewModels;
 
-/// <summary>View model behind the device list window.</summary>
+/// <summary>
+/// View model behind the device list window. The device list itself comes
+/// from the shared <see cref="DeviceMonitor"/> (also used by Alerts/Health/
+/// Dashboard's own on-demand device-name lookups via <see cref="IDeviceCache"/>),
+/// so this tab being open never costs its own extra poll of the same data.
+/// Per-device maintenance-window checks (see <see cref="RefreshMaintenanceStatusAsync"/>)
+/// are a separate concern with no bulk endpoint, so they stay local to this view model.
+/// </summary>
 public sealed class DeviceListViewModel : ObservableObject, IDisposable
 {
-    private readonly ILibreNmsClient _client;
+    private readonly DeviceMonitor _deviceMonitor;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
+    private readonly ILibreNmsClient _client;
     private readonly ILogger<DeviceListViewModel> _logger;
+    private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, DeviceItemViewModel> _index = new();
 
     /// <summary>
@@ -43,7 +52,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// </summary>
     private static readonly TimeSpan MinimumMaintenanceRescanInterval = TimeSpan.FromSeconds(60);
 
-    private CancellationTokenSource? _loadCts;
+    private CancellationTokenSource? _maintenanceCts;
     private DeviceItemViewModel? _selectedDevice;
     private string _statusMessage = "Not loaded yet.";
     private string? _errorMessage;
@@ -61,31 +70,40 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     private readonly AutoRefreshTimer _autoRefresh;
 
     public DeviceListViewModel(
-        ILibreNmsClient client,
+        DeviceMonitor deviceMonitor,
         ISessionService session,
         ISettingsStore settings,
         IWindowService windows,
+        ILibreNmsClient client,
         ILogger<DeviceListViewModel> logger)
     {
-        _client = client;
+        _deviceMonitor = deviceMonitor;
         _session = session;
         _settings = settings;
         _windows = windows;
+        _client = client;
         _logger = logger;
+        _dispatcher = Dispatcher.CurrentDispatcher;
 
         Devices = new ObservableCollection<DeviceItemViewModel>();
         DevicesView = CollectionViewSource.GetDefaultView(Devices);
         DevicesView.Filter = FilterDevice;
 
-        RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => _session.IsConnected && !IsBusy);
+        RefreshCommand = new AsyncRelayCommand(() =>
+        {
+            _deviceMonitor.RequestRefresh();
+            return Task.CompletedTask;
+        }, () => _session.IsConnected && !IsBusy);
+
         OpenDeviceCommand = new RelayCommand(OpenSelectedDevice, () => SelectedDevice?.DeviceUrl is not null);
         ShowAlertsCommand = new RelayCommand(ShowAlertsForSelected, () => SelectedDevice is not null);
         ClearFiltersCommand = new RelayCommand(ClearFilters);
 
-        _autoRefresh = new AutoRefreshTimer(() => _settings.Current.PollIntervalSeconds, () => _ = RefreshAsync());
-        _autoRefresh.RemainingChanged += (_, _) => OnPropertyChanged(nameof(NextRefreshText));
+        _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
         _settings.Changed += OnSettingsChanged;
+        _deviceMonitor.PollStarted += OnPollStarted;
+        _deviceMonitor.Polled += OnPolled;
     }
 
     public ObservableCollection<DeviceItemViewModel> Devices { get; }
@@ -101,7 +119,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     public RelayCommand ClearFiltersCommand { get; }
 
     /// <summary>A short "45s" / "2:05" countdown to the next automatic refresh.</summary>
-    public string NextRefreshText => _autoRefresh.RemainingText;
+    public string NextRefreshText => PollAlignment.FormatRemaining(_deviceMonitor.SecondsUntilNextPoll());
 
     // -------------------------------------------------------------- filtering
 
@@ -206,78 +224,57 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     // --------------------------------------------------------------- lifetime
 
     /// <summary>
-    /// Called each time the tab is shown; loads once, then keeps refreshing
-    /// automatically on the polling interval from Settings (same as Alerts).
+    /// Called each time the tab is shown; starts the shared device monitor if
+    /// nothing else has already, and asks it to poll right away so this tab is
+    /// not left empty until the next scheduled tick.
     /// </summary>
     public void OnShown()
     {
+        _deviceMonitor.Start();
+
+        // Always started, never gated on _hasLoadedOnce - see the matching
+        // comment in HealthViewModel: a poll can mark this one loaded before
+        // it is ever shown, which would otherwise skip starting the countdown
+        // and leave it frozen between polls.
+        _autoRefresh.Start();
+
         if (_hasLoadedOnce)
         {
             return;
         }
 
-        _ = RefreshAsync();
-        _autoRefresh.Start();
+        _deviceMonitor.RequestRefresh();
     }
 
-    private async Task RefreshAsync()
+    private void OnPollStarted(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() => IsBusy = true);
+
+    private void OnPolled(object? sender, DevicePollResult result) => _dispatcher.InvokeAsync(() => ApplyPollResult(result));
+
+    private void ApplyPollResult(DevicePollResult result)
     {
-        if (!_session.IsConnected)
+        IsBusy = false;
+        OnPropertyChanged(nameof(NextRefreshText));
+
+        if (!result.Succeeded)
         {
-            StatusMessage = "Not connected.";
+            ErrorMessage = result.ErrorMessage;
+            StatusMessage = "Last refresh failed.";
             return;
         }
 
-        _loadCts?.Cancel();
-        _loadCts?.Dispose();
-        _loadCts = new CancellationTokenSource();
-        var token = _loadCts.Token;
-
-        IsBusy = true;
         ErrorMessage = null;
 
-        try
-        {
-            var devices = await _client.Devices.ListAsync(token).ConfigureAwait(true);
+        ApplyDevices(result.Devices);
 
-            if (token.IsCancellationRequested)
-            {
-                return;
-            }
+        _hasLoadedOnce = true;
+        _lastUpdated = result.CompletedAt;
 
-            ApplyDevices(devices);
+        _ = RefreshMaintenanceStatusAsync();
 
-            _hasLoadedOnce = true;
-            _lastUpdated = DateTimeOffset.Now;
-
-            await RefreshMaintenanceStatusAsync(token).ConfigureAwait(true);
-
-            StatusMessage = MaintenanceCount > 0
-                ? $"{UpCount} up, {DownCount} down, {MaintenanceCount} in maintenance, {TotalCount} total."
-                : $"{UpCount} up, {DownCount} down, {TotalCount} total.";
-            OnPropertyChanged(nameof(LastUpdatedText));
-        }
-        catch (OperationCanceledException)
-        {
-            // Superseded by a newer refresh.
-        }
-        catch (LibreNmsApiException ex)
-        {
-            _logger.LogWarning(ex, "Could not load the device list");
-            ErrorMessage = ex.ToUserMessage();
-            StatusMessage = "Last refresh failed.";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Could not load the device list");
-            ErrorMessage = ex.Message;
-            StatusMessage = "Last refresh failed.";
-        }
-        finally
-        {
-            IsBusy = false;
-            _autoRefresh.Reset();
-        }
+        StatusMessage = MaintenanceCount > 0
+            ? $"{UpCount} up, {DownCount} down, {MaintenanceCount} in maintenance, {TotalCount} total."
+            : $"{UpCount} up, {DownCount} down, {TotalCount} total.";
+        OnPropertyChanged(nameof(LastUpdatedText));
     }
 
     private void ApplyDevices(IReadOnlyList<Device> devices)
@@ -337,7 +334,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// repeating. A single device's check failing is logged and treated as
     /// "not in maintenance" rather than losing the whole scan.
     /// </summary>
-    private async Task RefreshMaintenanceStatusAsync(CancellationToken cancellationToken)
+    private async Task RefreshMaintenanceStatusAsync()
     {
         if (_maintenanceLastScanned is { } last && DateTimeOffset.UtcNow - last < MinimumMaintenanceRescanInterval)
         {
@@ -349,6 +346,12 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         {
             return;
         }
+
+        _maintenanceCts?.Cancel();
+        _maintenanceCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _maintenanceCts = cts;
+        var cancellationToken = cts.Token;
 
         using var gate = new SemaphoreSlim(MaxConcurrentMaintenanceChecks);
         var failures = 0;
@@ -490,7 +493,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     {
         _autoRefresh.Dispose();
         _settings.Changed -= OnSettingsChanged;
-        _loadCts?.Cancel();
-        _loadCts?.Dispose();
+        _deviceMonitor.PollStarted -= OnPollStarted;
+        _deviceMonitor.Polled -= OnPolled;
+        _maintenanceCts?.Cancel();
+        _maintenanceCts?.Dispose();
     }
 }

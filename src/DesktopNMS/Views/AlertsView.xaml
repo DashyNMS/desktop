@@ -535,7 +535,9 @@
                                Style="{StaticResource SubtleTextStyle}"
                                Margin="0,0,14,0" />
                     <TextBlock Text="{Binding LastUpdatedText, StringFormat=updated {0}}"
-                               Style="{StaticResource SubtleTextStyle}" />
+                               Style="{StaticResource SubtleTextStyle}"
+                               Margin="0,0,14,0" />
+                    <TextBlock Text="{Binding NextRefreshText, StringFormat=next in {0}}" Style="{StaticResource SubtleTextStyle}" />
                 </StackPanel>
             </Grid>
         </Border>

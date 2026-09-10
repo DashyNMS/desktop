@@ -93,6 +93,24 @@ public sealed class AlertMonitor : IDisposable
 
     public DateTimeOffset? LastSuccessfulPoll { get; private set; }
 
+    /// <summary>
+    /// When this monitor's loop began. Since it starts immediately on sign-in
+    /// (before any tab has been opened), <see cref="SensorMonitor"/> and
+    /// <see cref="DeviceMonitor"/> - both started lazily, whenever their own
+    /// tab first shows - align their own recurring tick to this timestamp, so
+    /// every tab's countdown reaches zero and refreshes at the same moment
+    /// instead of drifting apart based on when each tab happened to open.
+    /// </summary>
+    public DateTimeOffset? StartedAt { get; private set; }
+
+    /// <summary>
+    /// Whole seconds until this monitor's next tick, for the Alerts tab's own
+    /// countdown display. Always recomputed fresh from wall-clock time - see
+    /// <see cref="PollAlignment"/> - so it stays in step with the Health/
+    /// Devices/Dashboard tabs' countdowns, all aligned to this same schedule.
+    /// </summary>
+    public int SecondsUntilNextPoll() => PollAlignment.GetSecondsRemaining(StartedAt, _settings.Current.PollIntervalSeconds);
+
     public void Start()
     {
         if (IsRunning)
@@ -100,6 +118,7 @@ public sealed class AlertMonitor : IDisposable
             return;
         }
 
+        StartedAt = DateTimeOffset.UtcNow;
         _previousStates = new Dictionary<int, int>(_notificationState.Load());
         _hasCompletedFirstPoll = false;
 

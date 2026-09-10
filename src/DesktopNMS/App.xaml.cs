@@ -163,6 +163,8 @@ public partial class App : Application
         services.AddSingleton<IDeviceCache, DeviceCache>();
         services.AddSingleton<IAlertRuleCache, AlertRuleCache>();
         services.AddSingleton<AlertMonitor>();
+        services.AddSingleton<SensorMonitor>();
+        services.AddSingleton<DeviceMonitor>();
         services.AddSingleton<TrayIconService>();
         services.AddSingleton<ITrayNotifier>(sp => sp.GetRequiredService<TrayIconService>());
         services.AddSingleton<AlertNotificationService>();

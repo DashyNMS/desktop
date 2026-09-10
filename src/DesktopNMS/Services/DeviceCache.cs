@@ -34,6 +34,13 @@ public interface IDeviceCache
 
     /// <summary>Forces a refresh on the next <see cref="EnsureCurrentAsync"/> call.</summary>
     void Invalidate();
+
+    /// <summary>
+    /// Replaces the cached map with a fetch obtained elsewhere (see
+    /// <see cref="DeviceMonitor"/>), so consumers that only need occasional
+    /// device-name lookups can benefit from it without fetching again themselves.
+    /// </summary>
+    void UpdateFrom(IReadOnlyList<Device> devices);
 }
 
 public sealed class DeviceCache : IDeviceCache
@@ -69,6 +76,19 @@ public sealed class DeviceCache : IDeviceCache
     }
 
     public void Invalidate() => _lastRefresh = DateTimeOffset.MinValue;
+
+    public void UpdateFrom(IReadOnlyList<Device> devices)
+    {
+        var map = new Dictionary<int, Device>(devices.Count);
+        foreach (var device in devices)
+        {
+            map[device.DeviceId] = device;
+        }
+
+        _devices = map;
+        _lastRefresh = DateTimeOffset.UtcNow;
+        IsLoaded = true;
+    }
 
     public async Task EnsureCurrentAsync(IEnumerable<int> requiredDeviceIds, CancellationToken cancellationToken = default)
     {

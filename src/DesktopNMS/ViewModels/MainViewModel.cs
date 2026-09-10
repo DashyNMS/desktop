@@ -37,6 +37,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, AlertItemViewModel> _index = new();
     private readonly DispatcherTimer _ageTimer;
+    private readonly AutoRefreshTimer _refreshCountdown;
 
     private AlertItemViewModel? _selectedAlert;
     private readonly List<AlertItemViewModel> _selectedAlerts = new();
@@ -128,6 +129,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         };
         _ageTimer.Tick += (_, _) => RefreshAges();
         _ageTimer.Start();
+
+        // Always ticking (not gated behind a connection), same as the tab
+        // itself always being visible; before a connection exists this just
+        // shows a static default until AlertMonitor.StartedAt is set.
+        _refreshCountdown = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
+        _refreshCountdown.Start();
 
         UpdateConnectionState();
     }
@@ -435,6 +442,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ? "never"
         : _lastUpdated.Value.LocalDateTime.ToString("HH:mm:ss");
 
+    /// <summary>A short "45s" / "2:05" countdown to the next automatic refresh, aligned with every other tab's.</summary>
+    public string NextRefreshText => PollAlignment.FormatRemaining(_monitor.SecondsUntilNextPoll());
+
     // ----------------------------------------------------------------- counts
 
     public int CriticalCount => Alerts.Count(a => a.Severity == AlertSeverity.Critical && a.State == AlertState.Active);
@@ -595,6 +605,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             : $"{CriticalCount} critical, {WarningCount} warning, {AcknowledgedCount} acknowledged.";
 
         OnPropertyChanged(nameof(LastUpdatedText));
+        OnPropertyChanged(nameof(NextRefreshText));
     }
 
     private void ApplyAlerts(IReadOnlyList<Alert> alerts)
@@ -1123,6 +1134,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _ageTimer.Stop();
+        _refreshCountdown.Dispose();
         _monitor.Polled -= OnPolled;
         _monitor.PollStarted -= OnPollStarted;
         _session.StateChanged -= OnSessionStateChanged;

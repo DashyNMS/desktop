@@ -4,86 +4,35 @@ using System.Windows.Threading;
 namespace DesktopNMS.Infrastructure;
 
 /// <summary>
-/// Counts down to a tab's next automatic refresh and invokes it when due,
-/// re-reading the interval each time so a Settings change takes effect on the
-/// next cycle. Used by tabs (Devices, Health) that otherwise only load once
-/// when first shown, so they keep polling in the background afterwards the
-/// same way the Alerts tab already does.
+/// Ticks once a second so a consumer can refresh a live countdown display
+/// (e.g. a tab's "NextRefreshText"). Deliberately holds no countdown state of
+/// its own - it is purely a "please recompute your display now" nudge. An
+/// earlier version tracked its own remaining-seconds counter, seeded and
+/// periodically resynced from each poll; keeping two independent sources of
+/// truth (a local counter here, and the shared monitor's actual aligned
+/// schedule - see <see cref="DesktopNMS.Services.PollAlignment"/>) meant they
+/// could drift out of step with each other, and with whatever other tab was
+/// showing the same countdown. A consumer should instead compute its display
+/// text fresh from the real schedule every time this ticks.
 /// </summary>
 public sealed class AutoRefreshTimer : IDisposable
 {
     private readonly DispatcherTimer _timer;
-    private readonly Func<int> _intervalSecondsProvider;
-    private readonly Action _onDue;
 
-    public AutoRefreshTimer(Func<int> intervalSecondsProvider, Action onDue)
+    public AutoRefreshTimer(Action onTick)
     {
-        _intervalSecondsProvider = intervalSecondsProvider;
-        _onDue = onDue;
-
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _timer.Tick += OnTick;
-    }
-
-    /// <summary>Raised every second while running, and whenever <see cref="Reset"/> changes the target.</summary>
-    public event EventHandler? RemainingChanged;
-
-    public int SecondsRemaining { get; private set; }
-
-    /// <summary>A short "45s" / "2:05" form for a status bar.</summary>
-    public string RemainingText
-    {
-        get
-        {
-            if (SecondsRemaining <= 0)
-            {
-                return "due";
-            }
-
-            var span = TimeSpan.FromSeconds(SecondsRemaining);
-            return span.TotalMinutes >= 1
-                ? $"{(int)span.TotalMinutes}:{span.Seconds:00}"
-                : $"{SecondsRemaining}s";
-        }
+        _timer.Tick += (_, _) => onTick();
     }
 
     /// <summary>Starts ticking, if not already running. Safe to call repeatedly.</summary>
     public void Start()
     {
-        if (_timer.IsEnabled)
+        if (!_timer.IsEnabled)
         {
-            return;
-        }
-
-        Reset();
-        _timer.Start();
-    }
-
-    /// <summary>Restarts the countdown from a full interval, e.g. after a manual refresh completes.</summary>
-    public void Reset()
-    {
-        SecondsRemaining = Math.Max(1, _intervalSecondsProvider());
-        RemainingChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void OnTick(object? sender, EventArgs e)
-    {
-        SecondsRemaining--;
-
-        if (SecondsRemaining <= 0)
-        {
-            Reset();
-            _onDue();
-        }
-        else
-        {
-            RemainingChanged?.Invoke(this, EventArgs.Empty);
+            _timer.Start();
         }
     }
 
-    public void Dispose()
-    {
-        _timer.Stop();
-        _timer.Tick -= OnTick;
-    }
+    public void Dispose() => _timer.Stop();
 }

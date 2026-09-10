@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
@@ -16,16 +16,16 @@ namespace DesktopNMS.ViewModels;
 /// <summary>
 /// View model behind the Dashboard tab: a free-form canvas of widgets the user
 /// can add, drag, resize, rename and remove (see <see cref="Widgets"/> and
-/// <see cref="IsEditMode"/>). Two widget types exist: "Sensors", each showing
-/// whichever sensors were added to it specifically, and "Alerts", a compact
-/// feed of active alerts fed by the app-wide <see cref="AlertMonitor"/>. One
-/// fetch here covers every sensor widget, refreshed the same way as Health
-/// (initial load on first view, then on the polling interval); Alerts widgets
-/// need no fetch of their own, since they just listen to that shared monitor.
+/// <see cref="IsEditMode"/>). Three widget types exist: "Sensors", each
+/// showing whichever sensors were added to it specifically, "Alerts", and
+/// "AlertsGauge" - the last two fed by the app-wide <see cref="AlertMonitor"/>.
+/// Sensors widgets are fed by the shared <see cref="SensorMonitor"/> (also
+/// used by the Health tab), so having both open never costs two polls of the
+/// same data; none of the three widget types trigger a fetch of their own.
 /// </summary>
 public sealed class DashboardViewModel : ObservableObject, IDisposable
 {
-    private readonly ILibreNmsClient _client;
+    private readonly SensorMonitor _sensorMonitor;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
     private readonly IDeviceCache _devices;
@@ -33,10 +33,10 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     private readonly IDashboardLayoutService _layout;
     private readonly AlertMonitor _alertMonitor;
     private readonly ILogger<DashboardViewModel> _logger;
+    private readonly Dispatcher _dispatcher;
     private readonly Dictionary<string, DashboardWidgetViewModel> _widgetIndex = new();
     private readonly AutoRefreshTimer _autoRefresh;
 
-    private CancellationTokenSource? _loadCts;
     private string _statusMessage = "Not loaded yet.";
     private string? _errorMessage;
     private bool _isBusy;
@@ -51,7 +51,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     private Func<int, string> _lastDeviceNameFor = id => $"device {id}";
 
     public DashboardViewModel(
-        ILibreNmsClient client,
+        SensorMonitor sensorMonitor,
         ISessionService session,
         ISettingsStore settings,
         IDeviceCache devices,
@@ -60,7 +60,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         AlertMonitor alertMonitor,
         ILogger<DashboardViewModel> logger)
     {
-        _client = client;
+        _sensorMonitor = sensorMonitor;
         _session = session;
         _settings = settings;
         _devices = devices;
@@ -68,10 +68,16 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         _layout = layout;
         _alertMonitor = alertMonitor;
         _logger = logger;
+        _dispatcher = Dispatcher.CurrentDispatcher;
 
         Widgets = new ObservableCollection<DashboardWidgetViewModel>();
 
-        RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => _session.IsConnected && !IsBusy);
+        RefreshCommand = new AsyncRelayCommand(() =>
+        {
+            _sensorMonitor.RequestRefresh();
+            return Task.CompletedTask;
+        }, () => _session.IsConnected && !IsBusy);
+
         OpenDeviceCommand = new RelayCommand(parameter =>
         {
             if (parameter is SensorItemViewModel { DeviceUrl: { } url })
@@ -84,13 +90,14 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         AddAlertsWidgetCommand = new RelayCommand(() => _layout.AddWidget("Alerts", "Alerts"));
         AddAlertsGaugeWidgetCommand = new RelayCommand(() => _layout.AddWidget("AlertsGauge", "Alerts gauge"));
 
-        _autoRefresh = new AutoRefreshTimer(() => _settings.Current.PollIntervalSeconds, () => _ = RefreshAsync());
-        _autoRefresh.RemainingChanged += (_, _) => OnPropertyChanged(nameof(NextRefreshText));
+        _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
         SyncWidgets();
 
         _settings.Changed += OnSettingsChanged;
         _layout.Changed += OnLayoutChanged;
+        _sensorMonitor.PollStarted += OnPollStarted;
+        _sensorMonitor.Polled += OnPolled;
     }
 
     /// <summary>The widgets on the canvas, in the order they were created.</summary>
@@ -115,7 +122,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     public RelayCommand OpenDeviceCommand { get; }
 
     /// <summary>A short "45s" / "2:05" countdown to the next automatic refresh.</summary>
-    public string NextRefreshText => _autoRefresh.RemainingText;
+    public string NextRefreshText => PollAlignment.FormatRemaining(_sensorMonitor.SecondsUntilNextPoll());
 
     public string StatusMessage
     {
@@ -154,27 +161,45 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         : _lastUpdated.Value.LocalDateTime.ToString("HH:mm:ss");
 
     /// <summary>
-    /// Called each time the tab is shown; loads once, then keeps refreshing
-    /// automatically on the polling interval from Settings (same as Health).
+    /// Called each time the tab is shown; starts the shared sensor monitor if
+    /// nothing else has already (e.g. the Health tab), and asks it to poll
+    /// right away so this tab is not left empty until the next scheduled tick.
     /// </summary>
     public void OnShown()
     {
+        _sensorMonitor.Start();
+
+        // Always started, never gated on _hasLoadedOnce - see the matching
+        // comment in HealthViewModel: a poll triggered by another tab can mark
+        // this one loaded before it is ever shown, which would otherwise skip
+        // starting the countdown and leave it frozen between polls.
+        _autoRefresh.Start();
+
         if (_hasLoadedOnce)
         {
             return;
         }
 
-        _ = RefreshAsync();
-        _autoRefresh.Start();
+        _sensorMonitor.RequestRefresh();
     }
 
-    private async Task RefreshAsync()
+    private void OnPollStarted(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() => IsBusy = true);
+
+    private void OnPolled(object? sender, SensorPollResult result) => _dispatcher.InvokeAsync(() => ApplyPollResult(result));
+
+    private void ApplyPollResult(SensorPollResult result)
     {
-        if (!_session.IsConnected)
+        IsBusy = false;
+        OnPropertyChanged(nameof(NextRefreshText));
+
+        if (!result.Succeeded)
         {
-            StatusMessage = "Not connected.";
+            ErrorMessage = result.ErrorMessage;
+            StatusMessage = "Last refresh failed.";
             return;
         }
+
+        ErrorMessage = null;
 
         if (Widgets.Count == 0)
         {
@@ -183,9 +208,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // Alerts widgets need no fetch of their own - they listen to the
-        // app-wide AlertMonitor directly - so there is nothing to do here
-        // unless at least one Sensors widget exists.
+        // Alerts/AlertsGauge widgets need no data from here - they listen to
+        // the app-wide AlertMonitor directly.
         var sensorWidgets = Widgets.OfType<SensorWidgetViewModel>().ToList();
         if (sensorWidgets.Count == 0)
         {
@@ -194,67 +218,26 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _loadCts?.Cancel();
-        _loadCts?.Dispose();
-        _loadCts = new CancellationTokenSource();
-        var token = _loadCts.Token;
+        // Only classes the app understands thresholds for - see SensorCategoryRegistry.
+        var supported = result.Sensors.Where(s => SensorCategoryRegistry.Resolve(s.SensorClass) is not null).ToList();
 
-        IsBusy = true;
-        ErrorMessage = null;
+        var connection = _session.Connection;
+        var settings = _settings.Current;
+        string DeviceNameFor(int deviceId) => _devices.Get(deviceId)?.BestName ?? $"device {deviceId}";
 
-        try
+        foreach (var widget in sensorWidgets)
         {
-            var sensors = await _client.Sensors.ListAsync(token).ConfigureAwait(true);
-
-            // Only classes the app understands thresholds for - see SensorCategoryRegistry.
-            var supported = sensors.Where(s => SensorCategoryRegistry.Resolve(s.SensorClass) is not null).ToList();
-
-            await _devices.EnsureCurrentAsync(supported.Select(s => s.DeviceId).Distinct(), token).ConfigureAwait(true);
-
-            if (token.IsCancellationRequested)
-            {
-                return;
-            }
-
-            var connection = _session.Connection;
-            var settings = _settings.Current;
-            string DeviceNameFor(int deviceId) => _devices.Get(deviceId)?.BestName ?? $"device {deviceId}";
-
-            foreach (var widget in sensorWidgets)
-            {
-                widget.ApplyFleet(supported, DeviceNameFor, connection, settings);
-            }
-
-            _lastFleet = supported;
-            _lastDeviceNameFor = DeviceNameFor;
-            _hasLoadedOnce = true;
-            _lastUpdated = DateTimeOffset.Now;
-
-            var shown = sensorWidgets.Sum(w => w.Sensors.Count);
-            StatusMessage = $"{shown} sensor(s) across {sensorWidgets.Count} widget(s).";
-            OnPropertyChanged(nameof(LastUpdatedText));
+            widget.ApplyFleet(supported, DeviceNameFor, connection, settings);
         }
-        catch (OperationCanceledException)
-        {
-            // Superseded by a newer refresh.
-        }
-        catch (LibreNmsApiException ex)
-        {
-            _logger.LogWarning(ex, "Could not load dashboard sensors");
-            ErrorMessage = ex.ToUserMessage();
-            StatusMessage = "Last refresh failed.";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Could not load dashboard sensors");
-            ErrorMessage = ex.Message;
-            StatusMessage = "Last refresh failed.";
-        }
-        finally
-        {
-            IsBusy = false;
-            _autoRefresh.Reset();
-        }
+
+        _lastFleet = supported;
+        _lastDeviceNameFor = DeviceNameFor;
+        _hasLoadedOnce = true;
+        _lastUpdated = result.CompletedAt;
+
+        var shown = sensorWidgets.Sum(w => w.Sensors.Count);
+        StatusMessage = $"{shown} sensor(s) across {sensorWidgets.Count} widget(s).";
+        OnPropertyChanged(nameof(LastUpdatedText));
     }
 
     private void OnSettingsChanged(object? sender, AppSettings settings)
@@ -331,13 +314,12 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         _autoRefresh.Dispose();
         _settings.Changed -= OnSettingsChanged;
         _layout.Changed -= OnLayoutChanged;
+        _sensorMonitor.PollStarted -= OnPollStarted;
+        _sensorMonitor.Polled -= OnPolled;
 
         foreach (var widget in Widgets)
         {
             (widget as IDisposable)?.Dispose();
         }
-
-        _loadCts?.Cancel();
-        _loadCts?.Dispose();
     }
 }

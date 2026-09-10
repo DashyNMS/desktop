@@ -1,14 +1,12 @@
 using System;
 using System.ComponentModel;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using DesktopNMS.Core.Api;
+using System.Windows.Threading;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
-using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.ViewModels;
 
@@ -22,20 +20,20 @@ public enum HealthCategory
 }
 
 /// <summary>
-/// View model behind the Health tab. Fetches every sensor across the fleet in
-/// one call (there is no server-side filter, see <see cref="ISensorsApi"/>)
-/// and hands each category (dBm, signal, temperature, fan speed) its slice of
-/// the results - one API call regardless of how many categories exist.
+/// View model behind the Health tab. Every sensor across the fleet comes from
+/// the shared <see cref="SensorMonitor"/> (also used by the Dashboard's
+/// Sensors widgets), so this tab being open never costs its own extra poll;
+/// each category (dBm, signal, temperature, fan speed) gets its slice of
+/// whatever the monitor last fetched.
 /// </summary>
 public sealed class HealthViewModel : ObservableObject, IDisposable
 {
-    private readonly ILibreNmsClient _client;
+    private readonly SensorMonitor _sensorMonitor;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
     private readonly IDeviceCache _devices;
-    private readonly ILogger<HealthViewModel> _logger;
+    private readonly Dispatcher _dispatcher;
 
-    private CancellationTokenSource? _loadCts;
     private string _statusMessage = "Not loaded yet.";
     private string? _errorMessage;
     private bool _isBusy;
@@ -45,25 +43,29 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
     private readonly AutoRefreshTimer _autoRefresh;
 
     public HealthViewModel(
-        ILibreNmsClient client,
+        SensorMonitor sensorMonitor,
         ISessionService session,
         ISettingsStore settings,
         IDeviceCache devices,
-        IWindowService windows,
-        ILogger<HealthViewModel> logger)
+        IWindowService windows)
     {
-        _client = client;
+        _sensorMonitor = sensorMonitor;
         _session = session;
         _settings = settings;
         _devices = devices;
-        _logger = logger;
+        _dispatcher = Dispatcher.CurrentDispatcher;
 
         Dbm = new SensorCategoryViewModel(windows, s => s.DbmThresholds, " dBm", "No dBm sensors found.");
         Signal = new SensorCategoryViewModel(windows, s => s.SignalThresholds, string.Empty, "No signal sensors found.");
         Temperature = new SensorCategoryViewModel(windows, s => s.TemperatureThresholds, " °C", "No temperature sensors found.");
         FanSpeed = new SensorCategoryViewModel(windows, s => s.FanSpeedThresholds, " RPM", "No fan speed sensors found.");
 
-        RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => _session.IsConnected && !IsBusy);
+        RefreshCommand = new AsyncRelayCommand(() =>
+        {
+            _sensorMonitor.RequestRefresh();
+            return Task.CompletedTask;
+        }, () => _session.IsConnected && !IsBusy);
+
         ClearFiltersCommand = new RelayCommand(() => CurrentCategory.ClearFiltersCommand.Execute(null));
 
         SelectDbmCategoryCommand = new RelayCommand(() => SelectedCategory = HealthCategory.Dbm);
@@ -71,8 +73,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         SelectTemperatureCategoryCommand = new RelayCommand(() => SelectedCategory = HealthCategory.Temperature);
         SelectFanSpeedCategoryCommand = new RelayCommand(() => SelectedCategory = HealthCategory.FanSpeed);
 
-        _autoRefresh = new AutoRefreshTimer(() => _settings.Current.PollIntervalSeconds, () => _ = RefreshAsync());
-        _autoRefresh.RemainingChanged += (_, _) => OnPropertyChanged(nameof(NextRefreshText));
+        _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
         Dbm.PropertyChanged += OnCategoryPropertyChanged;
         Signal.PropertyChanged += OnCategoryPropertyChanged;
@@ -80,6 +81,8 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         FanSpeed.PropertyChanged += OnCategoryPropertyChanged;
 
         _settings.Changed += OnSettingsChanged;
+        _sensorMonitor.PollStarted += OnPollStarted;
+        _sensorMonitor.Polled += OnPolled;
     }
 
     public SensorCategoryViewModel Dbm { get; }
@@ -93,7 +96,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
     public AsyncRelayCommand RefreshCommand { get; }
 
     /// <summary>A short "45s" / "2:05" countdown to the next automatic refresh.</summary>
-    public string NextRefreshText => _autoRefresh.RemainingText;
+    public string NextRefreshText => PollAlignment.FormatRemaining(_sensorMonitor.SecondsUntilNextPoll());
 
     /// <summary>Clears the filters on whichever category sub-tab is currently showing.</summary>
     public RelayCommand ClearFiltersCommand { get; }
@@ -182,95 +185,66 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
     // --------------------------------------------------------------- lifetime
 
     /// <summary>
-    /// Called each time the tab is shown; loads once, then keeps refreshing
-    /// automatically on the polling interval from Settings (same as Alerts).
+    /// Called each time the tab is shown; starts the shared sensor monitor if
+    /// nothing else has already (e.g. the Dashboard), and asks it to poll
+    /// right away so this tab is not left empty until the next scheduled tick.
     /// </summary>
     public void OnShown()
     {
+        _sensorMonitor.Start();
+
+        // Always started, never gated on _hasLoadedOnce: this view model
+        // subscribes to the shared monitor from its constructor, so a poll
+        // triggered by another tab can already have marked it loaded before
+        // this tab is ever shown - which previously skipped starting the
+        // countdown entirely, leaving it frozen between polls.
+        _autoRefresh.Start();
+
         if (_hasLoadedOnce)
         {
             return;
         }
 
-        _ = RefreshAsync();
-        _autoRefresh.Start();
+        _sensorMonitor.RequestRefresh();
     }
 
-    private async Task RefreshAsync()
+    private void OnPollStarted(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() => IsBusy = true);
+
+    private void OnPolled(object? sender, SensorPollResult result) => _dispatcher.InvokeAsync(() => ApplyPollResult(result));
+
+    private void ApplyPollResult(SensorPollResult result)
     {
-        if (!_session.IsConnected)
+        IsBusy = false;
+        OnPropertyChanged(nameof(NextRefreshText));
+
+        if (!result.Succeeded)
         {
-            StatusMessage = "Not connected.";
+            ErrorMessage = result.ErrorMessage;
+            StatusMessage = "Last refresh failed.";
             return;
         }
 
-        _loadCts?.Cancel();
-        _loadCts?.Dispose();
-        _loadCts = new CancellationTokenSource();
-        var token = _loadCts.Token;
-
-        IsBusy = true;
         ErrorMessage = null;
 
-        try
-        {
-            var sensors = await _client.Sensors.ListAsync(token).ConfigureAwait(true);
+        var dbmSensors = result.Sensors.Where(s => s.HasClass("dbm")).ToList();
+        var signalSensors = result.Sensors.Where(s => s.HasClass("signal")).ToList();
+        var temperatureSensors = result.Sensors.Where(s => s.HasClass("temperature")).ToList();
+        var fanSpeedSensors = result.Sensors.Where(s => s.HasClass("fanspeed")).ToList();
 
-            var dbmSensors = sensors.Where(s => s.HasClass("dbm")).ToList();
-            var signalSensors = sensors.Where(s => s.HasClass("signal")).ToList();
-            var temperatureSensors = sensors.Where(s => s.HasClass("temperature")).ToList();
-            var fanSpeedSensors = sensors.Where(s => s.HasClass("fanspeed")).ToList();
+        var connection = _session.Connection;
+        var settings = _settings.Current;
+        string DeviceNameFor(int deviceId) => _devices.Get(deviceId)?.BestName ?? $"device {deviceId}";
 
-            var relevantDeviceIds = dbmSensors
-                .Concat(signalSensors)
-                .Concat(temperatureSensors)
-                .Concat(fanSpeedSensors)
-                .Select(s => s.DeviceId)
-                .Distinct();
+        Dbm.Apply(dbmSensors, DeviceNameFor, connection, settings);
+        Signal.Apply(signalSensors, DeviceNameFor, connection, settings);
+        Temperature.Apply(temperatureSensors, DeviceNameFor, connection, settings);
+        FanSpeed.Apply(fanSpeedSensors, DeviceNameFor, connection, settings);
 
-            await _devices.EnsureCurrentAsync(relevantDeviceIds, token).ConfigureAwait(true);
+        _hasLoadedOnce = true;
+        _lastUpdated = result.CompletedAt;
 
-            if (token.IsCancellationRequested)
-            {
-                return;
-            }
-
-            var connection = _session.Connection;
-            var settings = _settings.Current;
-            string DeviceNameFor(int deviceId) => _devices.Get(deviceId)?.BestName ?? $"device {deviceId}";
-
-            Dbm.Apply(dbmSensors, DeviceNameFor, connection, settings);
-            Signal.Apply(signalSensors, DeviceNameFor, connection, settings);
-            Temperature.Apply(temperatureSensors, DeviceNameFor, connection, settings);
-            FanSpeed.Apply(fanSpeedSensors, DeviceNameFor, connection, settings);
-
-            _hasLoadedOnce = true;
-            _lastUpdated = DateTimeOffset.Now;
-
-            StatusMessage = $"{Dbm.TotalCount} dBm, {Signal.TotalCount} signal, {Temperature.TotalCount} temperature, {FanSpeed.TotalCount} fan speed.";
-            OnPropertyChanged(nameof(LastUpdatedText));
-        }
-        catch (OperationCanceledException)
-        {
-            // Superseded by a newer refresh.
-        }
-        catch (LibreNmsApiException ex)
-        {
-            _logger.LogWarning(ex, "Could not load sensor health");
-            ErrorMessage = ex.ToUserMessage();
-            StatusMessage = "Last refresh failed.";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Could not load sensor health");
-            ErrorMessage = ex.Message;
-            StatusMessage = "Last refresh failed.";
-        }
-        finally
-        {
-            IsBusy = false;
-            _autoRefresh.Reset();
-        }
+        StatusMessage = $"{Dbm.TotalCount} dBm, {Signal.TotalCount} signal, {Temperature.TotalCount} temperature, {FanSpeed.TotalCount} fan speed.";
+        OnPropertyChanged(nameof(LastUpdatedText));
     }
 
     private void OnSettingsChanged(object? sender, AppSettings settings)
@@ -298,7 +272,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         Temperature.PropertyChanged -= OnCategoryPropertyChanged;
         FanSpeed.PropertyChanged -= OnCategoryPropertyChanged;
         _settings.Changed -= OnSettingsChanged;
-        _loadCts?.Cancel();
-        _loadCts?.Dispose();
+        _sensorMonitor.PollStarted -= OnPollStarted;
+        _sensorMonitor.Polled -= OnPolled;
     }
 }
