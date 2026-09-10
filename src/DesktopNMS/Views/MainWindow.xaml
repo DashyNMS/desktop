@@ -93,7 +93,7 @@
                          win over the icon font inherited from the button,
                          since a style setter beats an inherited value. -->
                     <Button Command="{Binding RefreshCurrentTabCommand}"
-                            Style="{StaticResource PrimaryIconButtonStyle}"
+                            Style="{StaticResource IconButtonStyle}"
                             ToolTip="Refresh now (F5)"
                             Margin="0,0,8,0">
                         <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
