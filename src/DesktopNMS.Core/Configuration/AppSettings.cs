@@ -95,6 +95,18 @@ public sealed class AppSettings
     /// <summary>Widgets laid out on the Dashboard tab (position, size, title, type, and - for a Sensors widget - which sensors it shows).</summary>
     public List<DashboardWidget> DashboardWidgets { get; set; } = new();
 
+    /// <summary>
+    /// The Dashboard canvas size <see cref="DashboardWidgets"/>' coordinates
+    /// were last laid out against. Zero means "never established" - e.g. a
+    /// fresh install, or settings from before this existed. Compared against
+    /// the canvas's actual current size each time the tab is shown, so moving
+    /// to a smaller display proportionally shrinks the whole layout instead of
+    /// leaving widgets stranded off-screen.
+    /// </summary>
+    public double DashboardCanvasWidth { get; set; }
+
+    public double DashboardCanvasHeight { get; set; }
+
     public WindowPlacement? Window { get; set; }
 
     public AppSettings Clone() => new()
@@ -120,6 +132,8 @@ public sealed class AppSettings
         TemperatureThresholds = TemperatureThresholds.Clone(),
         FanSpeedThresholds = FanSpeedThresholds.Clone(),
         DashboardWidgets = DashboardWidgets.Select(w => w.Clone()).ToList(),
+        DashboardCanvasWidth = DashboardCanvasWidth,
+        DashboardCanvasHeight = DashboardCanvasHeight,
         Window = Window?.Clone(),
     };
 
@@ -130,6 +144,8 @@ public sealed class AppSettings
         if (TimeoutSeconds > 300) TimeoutSeconds = 300;
         if (PollIntervalSeconds < 15) PollIntervalSeconds = 15;
         if (PollIntervalSeconds > 3600) PollIntervalSeconds = 3600;
+        if (DashboardCanvasWidth < 0) DashboardCanvasWidth = 0;
+        if (DashboardCanvasHeight < 0) DashboardCanvasHeight = 0;
 
         Notifications ??= new NotificationSettings();
         Filter ??= new AlertFilterSettings();

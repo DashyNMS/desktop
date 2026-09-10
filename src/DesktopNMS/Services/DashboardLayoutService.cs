@@ -36,10 +36,24 @@ public interface IDashboardLayoutService
 
     /// <summary>Sets which severities an Alerts widget shows and whether acknowledged alerts count.</summary>
     void SetAlertsFilter(string widgetId, bool showCritical, bool showWarning, bool includeAcknowledged);
+
+    /// <summary>
+    /// Reconciles the layout with the canvas's actual current size - see
+    /// <see cref="DashboardLayoutService.EnsureFitsViewport"/>. Call whenever
+    /// the Dashboard tab's canvas is shown or resized (e.g. the app moved to
+    /// a different, differently-sized display).
+    /// </summary>
+    void EnsureFitsViewport(double viewportWidth, double viewportHeight);
 }
 
 public sealed class DashboardLayoutService : IDashboardLayoutService
 {
+    /// <summary>Below this, a reported size is treated as a transient layout artefact, not a real viewport.</summary>
+    private const double MinPlausibleDimension = 100;
+
+    /// <summary>How far a viewport ratio can drift from 1.0 before it counts as a real resize worth rescaling for.</summary>
+    private const double ScaleTolerance = 0.02;
+
     private readonly ISettingsStore _settings;
 
     public DashboardLayoutService(ISettingsStore settings)
@@ -215,6 +229,80 @@ public sealed class DashboardLayoutService : IDashboardLayoutService
         widget.AlertsShowCritical = showCritical;
         widget.AlertsShowWarning = showWarning;
         widget.AlertsIncludeAcknowledged = includeAcknowledged;
+        _settings.Save();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Compares the canvas's actual size against the size the widgets were
+    /// last laid out against (<see cref="AppSettings.DashboardCanvasWidth"/>/
+    /// <see cref="AppSettings.DashboardCanvasHeight"/>). A meaningful
+    /// difference (e.g. the app moved to a smaller monitor) proportionally
+    /// rescales every widget's position and size so the whole layout still
+    /// fits, using a single uniform factor (the smaller of the width/height
+    /// ratios) so nothing overflows either dimension. Regardless of whether a
+    /// rescale ran, anything still (or newly) outside the canvas afterwards -
+    /// including widgets stranded from before this existed - is clamped back
+    /// into view.
+    /// </summary>
+    public void EnsureFitsViewport(double viewportWidth, double viewportHeight)
+    {
+        if (viewportWidth < MinPlausibleDimension || viewportHeight < MinPlausibleDimension)
+        {
+            // A transient 0x0 (or near it) mid-layout reading - never a real viewport.
+            return;
+        }
+
+        var settings = _settings.Current;
+        var widgets = settings.DashboardWidgets;
+        var referenceWidth = settings.DashboardCanvasWidth;
+        var referenceHeight = settings.DashboardCanvasHeight;
+        var hasReference = referenceWidth > 0 && referenceHeight > 0;
+        var changed = !hasReference;
+
+        if (hasReference && widgets.Count > 0)
+        {
+            var widthRatio = viewportWidth / referenceWidth;
+            var heightRatio = viewportHeight / referenceHeight;
+
+            if (Math.Abs(widthRatio - 1) > ScaleTolerance || Math.Abs(heightRatio - 1) > ScaleTolerance)
+            {
+                var scale = Math.Min(widthRatio, heightRatio);
+
+                foreach (var widget in widgets)
+                {
+                    widget.X *= scale;
+                    widget.Y *= scale;
+                    widget.Width = Math.Max(DashboardWidget.MinWidth, widget.Width * scale);
+                    widget.Height = Math.Max(DashboardWidget.MinHeight, widget.Height * scale);
+                }
+
+                changed = true;
+            }
+        }
+
+        foreach (var widget in widgets)
+        {
+            var maxX = Math.Max(0, viewportWidth - widget.Width);
+            var maxY = Math.Max(0, viewportHeight - widget.Height);
+            var clampedX = Math.Clamp(widget.X, 0, maxX);
+            var clampedY = Math.Clamp(widget.Y, 0, maxY);
+
+            if (Math.Abs(clampedX - widget.X) > 0.5 || Math.Abs(clampedY - widget.Y) > 0.5)
+            {
+                widget.X = clampedX;
+                widget.Y = clampedY;
+                changed = true;
+            }
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        settings.DashboardCanvasWidth = viewportWidth;
+        settings.DashboardCanvasHeight = viewportHeight;
         _settings.Save();
         Changed?.Invoke(this, EventArgs.Empty);
     }

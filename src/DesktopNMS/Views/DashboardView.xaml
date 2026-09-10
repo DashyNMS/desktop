@@ -6,7 +6,8 @@
              xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:DashboardViewModel}"
-             d:DesignHeight="600" d:DesignWidth="1100">
+             d:DesignHeight="600" d:DesignWidth="1100"
+             Loaded="OnLoaded">
 
     <UserControl.Resources>
 
@@ -602,7 +603,10 @@
              always be dragged flush to every edge - X/Y of 0 is the actual
              top-left corner the user sees, not a spot buried under padding. -->
         <Grid Grid.Row="2" Margin="12">
-            <ScrollViewer x:Name="CanvasScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer x:Name="CanvasScroll"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto"
+                          SizeChanged="OnCanvasSizeChanged">
                 <ItemsControl x:Name="WidgetsHost" ItemsSource="{Binding Widgets}" ItemTemplate="{StaticResource WidgetTemplate}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>

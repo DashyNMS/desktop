@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Threading;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.ViewModels;
 
@@ -16,9 +17,40 @@ public partial class DashboardView : UserControl
     /// <summary>Widgets snap to this many pixels once a drag/resize ends, so edges line up.</summary>
     private const double GridSize = 20;
 
+    /// <summary>
+    /// Resizing fires many SizeChanged events in quick succession; only acting
+    /// once they stop avoids rescaling (and saving) mid-drag of the window
+    /// border, and avoids treating each intermediate size as its own resize.
+    /// </summary>
+    private readonly DispatcherTimer _viewportResizeDebounce;
+
     public DashboardView()
     {
         InitializeComponent();
+
+        _viewportResizeDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+        _viewportResizeDebounce.Tick += (_, _) =>
+        {
+            _viewportResizeDebounce.Stop();
+            ReportViewportSize();
+        };
+    }
+
+    /// <summary>Reports the canvas's current size once the view has laid out, so a layout from a different display is fitted to this one immediately.</summary>
+    private void OnLoaded(object sender, RoutedEventArgs e) => ReportViewportSize();
+
+    private void OnCanvasSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        _viewportResizeDebounce.Stop();
+        _viewportResizeDebounce.Start();
+    }
+
+    private void ReportViewportSize()
+    {
+        if (DataContext is DashboardViewModel viewModel && CanvasScroll.ActualWidth > 0 && CanvasScroll.ActualHeight > 0)
+        {
+            viewModel.NotifyViewportSize(CanvasScroll.ActualWidth, CanvasScroll.ActualHeight);
+        }
     }
 
     /// <summary>"Add widget" opens its picker menu on a left click, not just the usual right click.</summary>

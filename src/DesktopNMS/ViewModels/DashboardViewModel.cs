@@ -183,6 +183,13 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         _sensorMonitor.RequestRefresh();
     }
 
+    /// <summary>
+    /// Called by the view whenever the canvas's actual rendered size is known
+    /// or changes (initial load, window resize, or the app moving to a
+    /// different-sized display) so the layout can be rescaled to fit.
+    /// </summary>
+    public void NotifyViewportSize(double width, double height) => _layout.EnsureFitsViewport(width, height);
+
     private void OnPollStarted(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() => IsBusy = true);
 
     private void OnPolled(object? sender, SensorPollResult result) => _dispatcher.InvokeAsync(() => ApplyPollResult(result));
