@@ -25,6 +25,13 @@ public interface IWindowService
     /// </summary>
     void ShowAlertsForDevice(string deviceSearchTerm);
 
+    /// <summary>
+    /// Shows a device's detail window, non-modal. Reuses and activates the
+    /// existing window if this device's is already open, rather than opening
+    /// a second one.
+    /// </summary>
+    void ShowDeviceDetail(int deviceId);
+
     /// <summary>Shows the settings dialog. Returns true if the user saved.</summary>
     bool ShowSettingsDialog();
 

@@ -134,8 +134,8 @@
 
                     <DataGrid.ContextMenu>
                         <ContextMenu>
+                            <MenuItem Header="Open device" Command="{Binding ShowDeviceDetailCommand}" />
                             <MenuItem Header="Show alerts for this device" Command="{Binding ShowAlertsCommand}" />
-                            <MenuItem Header="Open device in LibreNMS" Command="{Binding OpenDeviceCommand}" />
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                 </DataGrid>
@@ -230,12 +230,12 @@
                                 Padding="18,14"
                                 Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel>
-                                <Button Content="Show alerts for this device"
-                                        Command="{Binding ShowAlertsCommand}"
+                                <Button Content="Open device"
+                                        Command="{Binding ShowDeviceDetailCommand}"
                                         Style="{StaticResource PrimaryButtonStyle}"
                                         Margin="0,0,0,8" />
-                                <Button Content="Open in LibreNMS"
-                                        Command="{Binding OpenDeviceCommand}" />
+                                <Button Content="Show alerts for this device"
+                                        Command="{Binding ShowAlertsCommand}" />
                             </StackPanel>
                         </Border>
                     </Grid>

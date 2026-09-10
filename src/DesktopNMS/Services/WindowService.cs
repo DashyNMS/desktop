@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Windows;
+using DesktopNMS.Core.Api;
+using DesktopNMS.Core.Configuration;
 using DesktopNMS.ViewModels;
 using DesktopNMS.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,6 +16,7 @@ public sealed class WindowService : IWindowService
 {
     private readonly IServiceProvider _services;
     private readonly ILogger<WindowService> _logger;
+    private readonly Dictionary<int, DeviceView> _openDeviceWindows = new();
 
     private MainWindow? _mainWindow;
 
@@ -60,6 +64,42 @@ public sealed class WindowService : IWindowService
     {
         _services.GetRequiredService<MainViewModel>().ShowAlertsForDevice(deviceSearchTerm);
         ShowMain();
+    }
+
+    public void ShowDeviceDetail(int deviceId)
+    {
+        if (_openDeviceWindows.TryGetValue(deviceId, out var existing))
+        {
+            existing.Activate();
+            return;
+        }
+
+        var viewModel = new DeviceDetailViewModel(
+            deviceId,
+            _services.GetRequiredService<DeviceMonitor>(),
+            _services.GetRequiredService<SensorMonitor>(),
+            _services.GetRequiredService<IDeviceCache>(),
+            _services.GetRequiredService<ILibreNmsClient>(),
+            _services.GetRequiredService<ISessionService>(),
+            _services.GetRequiredService<ISettingsStore>(),
+            this,
+            _services.GetRequiredService<ILogger<DeviceDetailViewModel>>());
+
+        var window = new DeviceView(viewModel);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        window.Closed += (_, _) =>
+        {
+            _openDeviceWindows.Remove(deviceId);
+            viewModel.Dispose();
+        };
+
+        _openDeviceWindows[deviceId] = window;
+        window.Show();
     }
 
     public bool ShowSettingsDialog()

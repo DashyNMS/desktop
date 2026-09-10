@@ -1,6 +1,5 @@
 using System;
 using System.Globalization;
-using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
@@ -12,14 +11,12 @@ public sealed class DeviceItemViewModel : ObservableObject
 {
     private Device _device;
     private DeviceNameStyle _nameStyle;
-    private LibreNmsConnection? _connection;
     private bool _isUnderMaintenance;
 
-    public DeviceItemViewModel(Device device, DeviceNameStyle nameStyle, LibreNmsConnection? connection)
+    public DeviceItemViewModel(Device device, DeviceNameStyle nameStyle)
     {
         _device = device;
         _nameStyle = nameStyle;
-        _connection = connection;
     }
 
     public int DeviceId => _device.DeviceId;
@@ -74,8 +71,6 @@ public sealed class DeviceItemViewModel : ObservableObject
 
     public string UptimeText => _device.State == DeviceState.Up ? FormatUptime(_device.Uptime) : "-";
 
-    public Uri? DeviceUrl => _connection?.DeviceUrl(DeviceId);
-
     /// <summary>Everything a search box should match against.</summary>
     public bool Matches(string term) =>
         Name.Contains(term, StringComparison.OrdinalIgnoreCase)
@@ -88,11 +83,10 @@ public sealed class DeviceItemViewModel : ObservableObject
         || DeviceId.ToString(CultureInfo.InvariantCulture).Contains(term, StringComparison.Ordinal);
 
     /// <summary>Replaces the underlying device in place so the selection survives a refresh.</summary>
-    public void Update(Device device, DeviceNameStyle nameStyle, LibreNmsConnection? connection)
+    public void Update(Device device, DeviceNameStyle nameStyle)
     {
         _device = device;
         _nameStyle = nameStyle;
-        _connection = connection;
         RaiseAllChanged();
     }
 
@@ -142,6 +136,5 @@ public sealed class DeviceItemViewModel : ObservableObject
         OnPropertyChanged(nameof(Location));
         OnPropertyChanged(nameof(Type));
         OnPropertyChanged(nameof(UptimeText));
-        OnPropertyChanged(nameof(DeviceUrl));
     }
 }

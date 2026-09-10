@@ -71,7 +71,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             return Task.CompletedTask;
         }, () => _session.IsConnected && !IsBusy);
 
-        OpenDeviceCommand = new RelayCommand(OpenSelectedDevice, () => SelectedDevice?.DeviceUrl is not null);
+        ShowDeviceDetailCommand = new RelayCommand(ShowSelectedDeviceDetail, () => SelectedDevice is not null);
         ShowAlertsCommand = new RelayCommand(ShowAlertsForSelected, () => SelectedDevice is not null);
         ClearFiltersCommand = new RelayCommand(ClearFilters);
 
@@ -88,7 +88,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     public AsyncRelayCommand RefreshCommand { get; }
 
-    public RelayCommand OpenDeviceCommand { get; }
+    public RelayCommand ShowDeviceDetailCommand { get; }
 
     public RelayCommand ShowAlertsCommand { get; }
 
@@ -140,7 +140,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _selectedDevice, value))
             {
                 OnPropertyChanged(nameof(HasSelection));
-                OpenDeviceCommand.RaiseCanExecuteChanged();
+                ShowDeviceDetailCommand.RaiseCanExecuteChanged();
                 ShowAlertsCommand.RaiseCanExecuteChanged();
             }
         }
@@ -254,7 +254,6 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     private void ApplyDevices(IReadOnlyList<Device> devices, IReadOnlySet<int> maintenanceIds)
     {
         var nameStyle = _settings.Current.DeviceNameStyle;
-        var connection = _session.Connection;
 
         var ordered = devices
             .OrderBy(d => nameStyle.Resolve(d, d.Hostname), StringComparer.OrdinalIgnoreCase)
@@ -277,7 +276,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
             if (_index.TryGetValue(device.DeviceId, out var existing))
             {
-                existing.Update(device, nameStyle, connection);
+                existing.Update(device, nameStyle);
                 existing.IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId);
 
                 var currentIndex = Devices.IndexOf(existing);
@@ -288,7 +287,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             }
             else
             {
-                var item = new DeviceItemViewModel(device, nameStyle, connection)
+                var item = new DeviceItemViewModel(device, nameStyle)
                 {
                     IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId),
                 };
@@ -307,11 +306,11 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     // --------------------------------------------------------------- commands
 
-    private void OpenSelectedDevice()
+    private void ShowSelectedDeviceDetail()
     {
-        if (SelectedDevice?.DeviceUrl is { } url)
+        if (SelectedDevice is { } device)
         {
-            _windows.OpenUrl(url);
+            _windows.ShowDeviceDetail(device.DeviceId);
         }
     }
 

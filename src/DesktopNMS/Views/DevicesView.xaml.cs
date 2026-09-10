@@ -20,9 +20,9 @@ public partial class DevicesView : UserControl
 
     private void OnGridDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (DataContext is DeviceListViewModel viewModel && viewModel.OpenDeviceCommand.CanExecute(null))
+        if (DataContext is DeviceListViewModel viewModel && viewModel.ShowDeviceDetailCommand.CanExecute(null))
         {
-            viewModel.OpenDeviceCommand.Execute(null);
+            viewModel.ShowDeviceDetailCommand.Execute(null);
         }
     }
 }
