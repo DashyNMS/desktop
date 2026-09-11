@@ -18,6 +18,8 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
         Rules = new AlertRulesApi(transport);
         Devices = new DevicesApi(transport);
         Sensors = new SensorsApi(transport);
+        Ports = new PortsApi(transport);
+        Links = new LinksApi(transport);
         Logs = new LogsApi(transport);
         System = new SystemApi(transport);
     }
@@ -29,6 +31,10 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
     public IDevicesApi Devices { get; }
 
     public ISensorsApi Sensors { get; }
+
+    public IPortsApi Ports { get; }
+
+    public ILinksApi Links { get; }
 
     public ILogsApi Logs { get; }
 

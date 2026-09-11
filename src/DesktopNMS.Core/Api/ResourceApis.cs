@@ -113,6 +113,45 @@ internal sealed class SensorsApi : ISensorsApi
         => _transport.GetCollectionAsync<Sensor>("resources/sensors", "sensors", cancellationToken);
 }
 
+/// <summary>Implementation of <see cref="ILinksApi"/>.</summary>
+internal sealed class LinksApi : ILinksApi
+{
+    private readonly ILibreNmsTransport _transport;
+
+    public LinksApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<NetworkLink>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/links";
+        return _transport.GetCollectionAsync<NetworkLink>(url, "links", cancellationToken);
+    }
+}
+
+/// <summary>Implementation of <see cref="IPortsApi"/>.</summary>
+internal sealed class PortsApi : IPortsApi
+{
+    /// <summary>
+    /// Without an explicit "columns" query parameter, LibreNMS's ports-for-device
+    /// endpoint returns only ifName per port - confirmed by inspecting the raw
+    /// response, not documented behaviour worth relying on from memory alone.
+    /// Everything the Ports tab shows has to be asked for by name.
+    /// </summary>
+    private const string Columns =
+        "port_id,device_id,ifIndex,ifName,ifDescr,ifAlias,ifType,ifSpeed,ifDuplex,ifMtu," +
+        "ifPhysAddress,ifOperStatus,ifAdminStatus,ifInOctets_rate,ifOutOctets_rate," +
+        "ifInErrors_delta,ifOutErrors_delta,ignore,disabled,deleted";
+
+    private readonly ILibreNmsTransport _transport;
+
+    public PortsApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<Port>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/ports?columns=" + Columns;
+        return _transport.GetCollectionAsync<Port>(url, "ports", cancellationToken);
+    }
+}
+
 /// <summary>Implementation of <see cref="ISystemApi"/>.</summary>
 internal sealed class SystemApi : ISystemApi
 {

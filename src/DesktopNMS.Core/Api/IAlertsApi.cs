@@ -75,3 +75,24 @@ public interface ISensorsApi
     /// </summary>
     Task<IReadOnlyList<Sensor>> ListAsync(CancellationToken cancellationToken = default);
 }
+
+/// <summary>Layer-2 neighbour discovery endpoints.</summary>
+public interface ILinksApi
+{
+    /// <summary>
+    /// GET /api/v0/devices/{id}/links. The neighbours LibreNMS has discovered
+    /// (via LLDP/CDP/FDP/etc.) attached to this device's ports.
+    /// </summary>
+    Task<IReadOnlyList<NetworkLink>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Port (network interface) endpoints.</summary>
+public interface IPortsApi
+{
+    /// <summary>
+    /// GET /api/v0/devices/{id}/ports. Unlike sensors, LibreNMS has no
+    /// fleet-wide ports endpoint - only per device - so this is fetched on
+    /// demand by whatever needs one device's interfaces, not by a shared poller.
+    /// </summary>
+    Task<IReadOnlyList<Port>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
+}

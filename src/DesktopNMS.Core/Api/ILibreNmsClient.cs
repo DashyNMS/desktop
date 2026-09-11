@@ -20,6 +20,10 @@ public interface ILibreNmsClient
 
     ISensorsApi Sensors { get; }
 
+    IPortsApi Ports { get; }
+
+    ILinksApi Links { get; }
+
     ILogsApi Logs { get; }
 
     ISystemApi System { get; }
