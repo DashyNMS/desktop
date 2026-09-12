@@ -319,34 +319,86 @@
             <!-- ==================== Sensors ==================== -->
             <Grid Margin="24"
                   Visibility="{Binding IsSensorsSelected, Converter={StaticResource BoolToVisibility}}">
-                <DataGrid ItemsSource="{Binding Sensors}"
-                          Visibility="{Binding HasSensors, Converter={StaticResource BoolToVisibility}}"
-                          IsReadOnly="True"
-                          HeadersVisibility="Column">
-                    <DataGrid.Columns>
+                <!-- A card per group rather than a grouped DataGrid: this list
+                     needs no sorting or selection, and an ItemsControl lays
+                     its rows out at full width without fighting DataGrid's
+                     grouping internals. -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              Visibility="{Binding HasSensors, Converter={StaticResource BoolToVisibility}}">
+                    <ItemsControl ItemsSource="{Binding SensorGroups}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource SurfaceBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Margin="0,0,0,12">
+                                    <StackPanel>
 
-                        <DataGridTemplateColumn Header="Status" Width="90" SortMemberPath="Severity">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" Margin="8,0">
-                                        <Ellipse Width="9"
-                                                 Height="9"
-                                                 Margin="0,0,6,0"
-                                                 VerticalAlignment="Center"
-                                                 Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
-                                        <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
+                                        <Border BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="0,0,0,1"
+                                                Padding="14,10">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Ellipse Width="9"
+                                                         Height="9"
+                                                         Margin="0,0,8,0"
+                                                         VerticalAlignment="Center"
+                                                         Fill="{Binding WorstSeverity, Converter={StaticResource SeverityToBrush}}" />
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding Count, StringFormat=({0})}"
+                                                           Style="{StaticResource SubtleTextStyle}"
+                                                           Margin="6,0,0,0"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <ItemsControl ItemsSource="{Binding Sensors}" Margin="0,4,0,6">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="14,6">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="100" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="120" />
+                                                            <ColumnDefinition Width="150" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Ellipse Width="9"
+                                                                     Height="9"
+                                                                     Margin="0,0,6,0"
+                                                                     VerticalAlignment="Center"
+                                                                     Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                            <TextBlock Text="{Binding SeverityText}"
+                                                                       Style="{StaticResource SubtleTextStyle}"
+                                                                       VerticalAlignment="Center" />
+                                                        </StackPanel>
+
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding RowLabel}"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis" />
+
+                                                        <TextBlock Grid.Column="2"
+                                                                   Text="{Binding ValueText}"
+                                                                   FontWeight="SemiBold"
+                                                                   VerticalAlignment="Center" />
+
+                                                        <TextBlock Grid.Column="3"
+                                                                   Text="{Binding LastUpdateText}"
+                                                                   Style="{StaticResource SubtleTextStyle}"
+                                                                   VerticalAlignment="Center" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
                                     </StackPanel>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-
-                        <DataGridTextColumn Header="Class" Width="110" Binding="{Binding Model.SensorClass}" />
-                        <DataGridTextColumn Header="Sensor" Width="*" Binding="{Binding Description}" />
-                        <DataGridTextColumn Header="Value" Width="100" Binding="{Binding ValueText}" />
-                        <DataGridTextColumn Header="Updated" Width="140" Binding="{Binding LastUpdateText}" />
-
-                    </DataGrid.Columns>
-                </DataGrid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
 
                 <TextBlock Text="No sensors reported for this device."
                            HorizontalAlignment="Center"

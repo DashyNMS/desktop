@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DesktopNMS.Core.Models;
@@ -42,6 +43,9 @@ public sealed class Sensor
 
     [JsonPropertyName("lastupdate")]
     public DateTime? LastUpdate { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? AdditionalData { get; set; }
 
     public bool HasClass(string sensorClass) => string.Equals(SensorClass, sensorClass, StringComparison.OrdinalIgnoreCase);
 

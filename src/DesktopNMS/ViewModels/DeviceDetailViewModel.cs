@@ -81,6 +81,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         Sensors = new ObservableCollection<SensorItemViewModel>();
+        SensorGroups = new ObservableCollection<SensorGroupViewModel>();
         AlertHistory = new ObservableCollection<AlertLogItemViewModel>();
         ActiveAlerts = new ObservableCollection<ActiveAlertItemViewModel>();
         Ports = new ObservableCollection<PortItemViewModel>();
@@ -127,6 +128,17 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     }
 
     public ObservableCollection<SensorItemViewModel> Sensors { get; }
+
+    /// <summary>
+    /// The same sensors, bucketed for display by
+    /// <see cref="SensorItemViewModel.GroupKey"/> - e.g. every reading for
+    /// one transceiver, or a PSU's voltage/current/power that all share a
+    /// name - so related readings read as one thing instead of scattered
+    /// rows. Built explicitly rather than via an ICollectionView's grouping:
+    /// a grouped DataGrid does not lay its rows out at full width without a
+    /// fight, and this list needs no sorting or selection to justify one.
+    /// </summary>
+    public ObservableCollection<SensorGroupViewModel> SensorGroups { get; }
 
     public ObservableCollection<AlertLogItemViewModel> AlertHistory { get; }
 
@@ -397,10 +409,72 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             }
         }
 
+        RebuildSensorGroupsIfChanged();
+
         OnPropertyChanged(nameof(HasSensors));
         OnPropertyChanged(nameof(SensorWarningCount));
         OnPropertyChanged(nameof(SensorCriticalCount));
         OnPropertyChanged(nameof(SensorAlertSummaryText));
+    }
+
+    /// <summary>
+    /// Rebuilds <see cref="SensorGroups"/>, but only when the grouping
+    /// actually differs from what is already on screen. Which sensors a
+    /// device has barely ever changes, so the common case - every poll - is a
+    /// no-op, and the rows keep their view models and update their values in
+    /// place rather than the whole list being torn down and rebuilt (which
+    /// would lose the scroll position every 30 seconds).
+    /// </summary>
+    private void RebuildSensorGroupsIfChanged()
+    {
+        var grouped = Sensors
+            .GroupBy(s => s.GroupKey, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new SensorGroupViewModel(
+                g.Key,
+                g.OrderBy(s => s.Description, StringComparer.OrdinalIgnoreCase).ToList()))
+            .ToList();
+
+        if (MatchesCurrentGroups(grouped))
+        {
+            return;
+        }
+
+        SensorGroups.Clear();
+        foreach (var group in grouped)
+        {
+            SensorGroups.Add(group);
+        }
+    }
+
+    private bool MatchesCurrentGroups(IReadOnlyList<SensorGroupViewModel> candidate)
+    {
+        if (candidate.Count != SensorGroups.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < candidate.Count; i++)
+        {
+            var left = candidate[i];
+            var right = SensorGroups[i];
+
+            if (!string.Equals(left.Name, right.Name, StringComparison.OrdinalIgnoreCase)
+                || left.Sensors.Count != right.Sensors.Count)
+            {
+                return false;
+            }
+
+            for (var j = 0; j < left.Sensors.Count; j++)
+            {
+                if (left.Sensors[j].SensorId != right.Sensors[j].SensorId)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -632,6 +706,27 @@ file static class IfTypeDisplay
 
     public static string Resolve(string? ifType) =>
         string.IsNullOrWhiteSpace(ifType) ? "-" : Names.GetValueOrDefault(ifType, ifType);
+}
+
+/// <summary>One group of related sensor readings on a device's Sensors tab.</summary>
+public sealed class SensorGroupViewModel
+{
+    public SensorGroupViewModel(string name, IReadOnlyList<SensorItemViewModel> sensors)
+    {
+        Name = name;
+        Sensors = sensors;
+    }
+
+    public string Name { get; }
+
+    public IReadOnlyList<SensorItemViewModel> Sensors { get; }
+
+    public int Count => Sensors.Count;
+
+    /// <summary>The worst severity in the group, so a header says at a glance whether anything inside needs attention.</summary>
+    public AlertSeverity WorstSeverity => Sensors.Count == 0
+        ? AlertSeverity.Unknown
+        : Sensors.OrderByDescending(s => s.Severity.SortRank()).First().Severity;
 }
 
 /// <summary>One row in a device's Ports tab - one network interface.</summary>
