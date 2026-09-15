@@ -115,6 +115,25 @@ public interface IPortsApi
     Task<IReadOnlyList<DeviceIpAddress>> ListIpAddressesAsync(int deviceId, CancellationToken cancellationToken = default);
 }
 
+/// <summary>MAC address forwarding table (FDB) endpoints.</summary>
+public interface IFdbApi
+{
+    /// <summary>GET /api/v0/devices/{id}/fdb. Every MAC address the switch has learned, and which port/VLAN it was seen on.</summary>
+    Task<IReadOnlyList<FdbEntry>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>ARP table endpoints.</summary>
+public interface IArpApi
+{
+    /// <summary>
+    /// GET /api/v0/resources/ip/arp/all?device={id}. Every IPv4-to-MAC
+    /// mapping the device has resolved. Unlike most per-device endpoints,
+    /// this one lives under /resources rather than /devices/{id} - LibreNMS's
+    /// own API groups ARP by IP/network/MAC query first, device second.
+    /// </summary>
+    Task<IReadOnlyList<ArpEntry>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
+}
+
 /// <summary>
 /// CPU/memory/disk endpoints. LibreNMS keeps these in separate tables from
 /// <see cref="Sensor"/> and has no fleet-wide listing for them either - like

@@ -21,6 +21,8 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
         Ports = new PortsApi(transport);
         Links = new LinksApi(transport);
         Health = new DeviceHealthApi(transport);
+        Fdb = new FdbApi(transport);
+        Arp = new ArpApi(transport);
         Logs = new LogsApi(transport);
         System = new SystemApi(transport);
     }
@@ -38,6 +40,10 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
     public ILinksApi Links { get; }
 
     public IDeviceHealthApi Health { get; }
+
+    public IFdbApi Fdb { get; }
+
+    public IArpApi Arp { get; }
 
     public ILogsApi Logs { get; }
 

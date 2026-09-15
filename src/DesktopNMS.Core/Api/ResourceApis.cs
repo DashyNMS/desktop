@@ -171,6 +171,34 @@ internal sealed class PortsApi : IPortsApi
     }
 }
 
+/// <summary>Implementation of <see cref="IFdbApi"/>.</summary>
+internal sealed class FdbApi : IFdbApi
+{
+    private readonly ILibreNmsTransport _transport;
+
+    public FdbApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<FdbEntry>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/fdb";
+        return _transport.GetCollectionAsync<FdbEntry>(url, "ports_fdb", cancellationToken);
+    }
+}
+
+/// <summary>Implementation of <see cref="IArpApi"/>.</summary>
+internal sealed class ArpApi : IArpApi
+{
+    private readonly ILibreNmsTransport _transport;
+
+    public ArpApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<ArpEntry>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "resources/ip/arp/all?device=" + deviceId.ToString(CultureInfo.InvariantCulture);
+        return _transport.GetCollectionAsync<ArpEntry>(url, "arp", cancellationToken);
+    }
+}
+
 /// <summary>Implementation of <see cref="IDeviceHealthApi"/>.</summary>
 internal sealed class DeviceHealthApi : IDeviceHealthApi
 {

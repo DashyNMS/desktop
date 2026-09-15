@@ -149,12 +149,24 @@
                         <TextBlock Text="NETWORK"
                                    Style="{StaticResource SectionHeaderStyle}"
                                    Margin="14,16,0,6"
-                                   Visibility="{Binding HasPorts, Converter={StaticResource BoolToVisibility}}" />
+                                   Visibility="{Binding HasNetworkSection, Converter={StaticResource BoolToVisibility}}" />
                         <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsPortsSelected, Mode=OneWay}"
                                       Command="{Binding SelectPortsCommand}"
                                       Visibility="{Binding HasPorts, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="{Binding Ports.Count, Mode=OneWay, StringFormat=Ports ({0})}" />
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsFdbSelected, Mode=OneWay}"
+                                      Command="{Binding SelectFdbCommand}"
+                                      Visibility="{Binding HasFdbEntries, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{Binding FdbEntries.Count, Mode=OneWay, StringFormat=FDB ({0})}" />
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsArpSelected, Mode=OneWay}"
+                                      Command="{Binding SelectArpCommand}"
+                                      Visibility="{Binding HasArpEntries, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{Binding ArpEntries.Count, Mode=OneWay, StringFormat=ARP ({0})}" />
                         </ToggleButton>
 
                         <TextBlock Text="ALERTS &amp; LOGS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
@@ -602,6 +614,83 @@
                            IsHitTestVisible="False"
                            Visibility="{Binding HasPorts, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
                            Style="{StaticResource SubtleTextStyle}" />
+            </Grid>
+
+            <!-- ==================== FDB ==================== -->
+            <Grid Margin="24"
+                  Visibility="{Binding IsFdbSelected, Converter={StaticResource BoolToVisibility}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBox Grid.Row="0"
+                         Text="{Binding FdbSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                         ToolTip="Search by MAC address, port or VLAN"
+                         Width="320"
+                         HorizontalAlignment="Left"
+                         Margin="0,0,0,10" />
+
+                <Grid Grid.Row="1">
+                    <DataGrid ItemsSource="{Binding FdbView}"
+                              Visibility="{Binding HasFdbEntries, Converter={StaticResource BoolToVisibility}}"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column">
+                        <DataGrid.Columns>
+
+                            <DataGridTextColumn Header="MAC address" Width="150" Binding="{Binding MacAddressText}" />
+                            <DataGridTextColumn Header="Port" Width="140" Binding="{Binding PortText}" />
+                            <DataGridTextColumn Header="VLAN" Width="80" Binding="{Binding VlanText}" />
+                            <DataGridTextColumn Header="Last seen" Width="150" Binding="{Binding UpdatedText}" />
+
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Text="No FDB entries reported for this device."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding HasFdbEntries, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                               Style="{StaticResource SubtleTextStyle}" />
+                </Grid>
+            </Grid>
+
+            <!-- ==================== ARP ==================== -->
+            <Grid Margin="24"
+                  Visibility="{Binding IsArpSelected, Converter={StaticResource BoolToVisibility}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBox Grid.Row="0"
+                         Text="{Binding ArpSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                         ToolTip="Search by IP address, MAC address or port"
+                         Width="320"
+                         HorizontalAlignment="Left"
+                         Margin="0,0,0,10" />
+
+                <Grid Grid.Row="1">
+                    <DataGrid ItemsSource="{Binding ArpView}"
+                              Visibility="{Binding HasArpEntries, Converter={StaticResource BoolToVisibility}}"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column">
+                        <DataGrid.Columns>
+
+                            <DataGridTextColumn Header="IP address" Width="160" Binding="{Binding Ipv4AddressText}" />
+                            <DataGridTextColumn Header="MAC address" Width="150" Binding="{Binding MacAddressText}" />
+                            <DataGridTextColumn Header="Port" Width="140" Binding="{Binding PortText}" />
+
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Text="No ARP entries reported for this device."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding HasArpEntries, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                               Style="{StaticResource SubtleTextStyle}" />
+                </Grid>
             </Grid>
 
             <!-- ==================== Resources ==================== -->

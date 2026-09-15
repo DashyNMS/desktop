@@ -24,6 +24,8 @@ public enum DeviceDetailSection
     Sensors,
     Ports,
     Resources,
+    Fdb,
+    Arp,
 
     /// <summary>Both this device's currently active alerts and its historical alert log - see <see cref="Views.DeviceView"/>.</summary>
     Alerts,
@@ -56,6 +58,19 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private readonly Dictionary<int, AlertRule?> _ruleCache = new();
     private readonly HashSet<int> _loadedEventLogIds = new();
 
+    /// <summary>
+    /// Port id -&gt; display name, populated whenever <see cref="Ports"/>
+    /// loads. The FDB/ARP tabs read this directly (not a copy) at display
+    /// time to show a friendly port name instead of a bare id - if either
+    /// loads before Ports does, the affected rows just show "Port {id}"
+    /// until whichever loads next, since nothing currently re-raises their
+    /// PropertyChanged after the fact. Good enough in practice: a user has
+    /// to actively navigate to one of those tabs before this could be
+    /// visible, by which point Ports (a single fast call) has essentially
+    /// always already resolved.
+    /// </summary>
+    private readonly Dictionary<int, string> _portNamesByPortId = new();
+
     private const int EventLogPageSize = 50;
     private const int MaxOutagesShown = 10;
     private const int AvailabilityTimelineDays = 30;
@@ -73,6 +88,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private string? _errorMessage;
     private DeviceDetailSection _selectedSection = DeviceDetailSection.Overview;
     private string _eventLogSearchText = string.Empty;
+    private string _fdbSearchText = string.Empty;
+    private string _arpSearchText = string.Empty;
 
     // Starts false, not true: until the first page has actually loaded and
     // said so, there is nothing confirmed to load more of. Defaulting this to
@@ -118,7 +135,15 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Storage = new ObservableCollection<StorageItemViewModel>();
         Outages = new ObservableCollection<OutageItemViewModel>();
         AvailabilityTimeline = new ObservableCollection<OutageDayViewModel>();
+        FdbEntries = new ObservableCollection<FdbItemViewModel>();
+        ArpEntries = new ObservableCollection<ArpItemViewModel>();
         EventLog = new ObservableCollection<EventLogItemViewModel>();
+
+        FdbView = CollectionViewSource.GetDefaultView(FdbEntries);
+        FdbView.Filter = FilterFdbEntry;
+
+        ArpView = CollectionViewSource.GetDefaultView(ArpEntries);
+        ArpView.Filter = FilterArpEntry;
 
         // Filter only - no grouping, so this does not run into the DataGrid
         // grouping/full-width fight the Sensors tab did.
@@ -133,6 +158,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectSensorsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Sensors);
         SelectPortsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Ports);
         SelectResourcesCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Resources);
+        SelectFdbCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Fdb);
+        SelectArpCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Arp);
         SelectAlertsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Alerts);
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
 
@@ -162,6 +189,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _ = LoadPortsAsync();
         _ = LoadResourcesAsync();
         _ = LoadAvailabilityAsync();
+        _ = LoadFdbAsync();
+        _ = LoadArpAsync();
         _ = LoadEventLogAsync();
     }
 
@@ -204,6 +233,16 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// </summary>
     public ObservableCollection<OutageDayViewModel> AvailabilityTimeline { get; }
 
+    public ObservableCollection<FdbItemViewModel> FdbEntries { get; }
+
+    /// <summary>The FDB, filtered by <see cref="FdbSearchText"/>. What the FDB tab actually binds to.</summary>
+    public ICollectionView FdbView { get; }
+
+    public ObservableCollection<ArpItemViewModel> ArpEntries { get; }
+
+    /// <summary>The ARP table, filtered by <see cref="ArpSearchText"/>. What the ARP tab actually binds to.</summary>
+    public ICollectionView ArpView { get; }
+
     public ObservableCollection<EventLogItemViewModel> EventLog { get; }
 
     /// <summary>The event log, filtered by <see cref="EventLogSearchText"/>. What the Event log tab actually binds to.</summary>
@@ -221,11 +260,41 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectResourcesCommand { get; }
 
+    public RelayCommand SelectFdbCommand { get; }
+
+    public RelayCommand SelectArpCommand { get; }
+
     public RelayCommand SelectAlertsCommand { get; }
 
     public RelayCommand SelectEventLogCommand { get; }
 
     public AsyncRelayCommand LoadMoreEventLogCommand { get; }
+
+    /// <summary>Free-text filter over the FDB's MAC address, port and VLAN.</summary>
+    public string FdbSearchText
+    {
+        get => _fdbSearchText;
+        set
+        {
+            if (SetProperty(ref _fdbSearchText, value))
+            {
+                FdbView.Refresh();
+            }
+        }
+    }
+
+    /// <summary>Free-text filter over the ARP table's IP, MAC address and port.</summary>
+    public string ArpSearchText
+    {
+        get => _arpSearchText;
+        set
+        {
+            if (SetProperty(ref _arpSearchText, value))
+            {
+                ArpView.Refresh();
+            }
+        }
+    }
 
     /// <summary>Free-text filter over the event log's message, type and username - applied client-side over whatever pages have been loaded so far.</summary>
     public string EventLogSearchText
@@ -281,6 +350,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsSensorsSelected));
                 OnPropertyChanged(nameof(IsPortsSelected));
                 OnPropertyChanged(nameof(IsResourcesSelected));
+                OnPropertyChanged(nameof(IsFdbSelected));
+                OnPropertyChanged(nameof(IsArpSelected));
                 OnPropertyChanged(nameof(IsAlertsSelected));
                 OnPropertyChanged(nameof(IsEventLogSelected));
             }
@@ -294,6 +365,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsPortsSelected => SelectedSection == DeviceDetailSection.Ports;
 
     public bool IsResourcesSelected => SelectedSection == DeviceDetailSection.Resources;
+
+    public bool IsFdbSelected => SelectedSection == DeviceDetailSection.Fdb;
+
+    public bool IsArpSelected => SelectedSection == DeviceDetailSection.Arp;
 
     public bool IsAlertsSelected => SelectedSection == DeviceDetailSection.Alerts;
 
@@ -364,6 +439,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// </summary>
     public bool HasPorts => Ports.Count > 0;
 
+    /// <summary>Whether the sidebar's "Network" group has anything to show at all - it should not appear as an empty header for a device with none of these.</summary>
+    public bool HasNetworkSection => HasPorts || HasFdbEntries || HasArpEntries;
+
     public int PortsUpCount => Ports.Count(p => p.IsUp);
 
     public int PortsDownCount => Ports.Count(p => !p.IsUp);
@@ -423,6 +501,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public string Availability1YearText => FormatPercent(_availability1Year);
 
     public bool HasOutages => Outages.Count > 0;
+
+    /// <summary>True once the MAC address table has actually been fetched and the device reports at least one entry - not every device is a switch.</summary>
+    public bool HasFdbEntries => FdbEntries.Count > 0;
+
+    /// <summary>True once the ARP table has actually been fetched and the device reports at least one entry - not every device does IP routing.</summary>
+    public bool HasArpEntries => ArpEntries.Count > 0;
 
     public bool HasActiveAlerts => ActiveAlerts.Count > 0;
 
@@ -755,14 +839,17 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 .ToDictionary(g => g.Key, g => (IReadOnlyList<DeviceIpAddress>)g.ToList());
 
             Ports.Clear();
+            _portNamesByPortId.Clear();
             foreach (var port in ports.OrderBy(p => p.IfIndex ?? int.MaxValue))
             {
                 linksByPort.TryGetValue(port.PortId, out var link);
                 addressesByPort.TryGetValue(port.PortId, out var addresses);
                 Ports.Add(new PortItemViewModel(port, link, addresses ?? Array.Empty<DeviceIpAddress>(), _windows));
+                _portNamesByPortId[port.PortId] = port.DisplayName;
             }
 
             OnPropertyChanged(nameof(HasPorts));
+            OnPropertyChanged(nameof(HasNetworkSection));
             OnPropertyChanged(nameof(PortsUpCount));
             OnPropertyChanged(nameof(PortsDownCount));
         }
@@ -815,6 +902,63 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             _logger.LogWarning(ex, "Could not load IP addresses for device {DeviceId}", _deviceId);
             return Array.Empty<DeviceIpAddress>();
+        }
+    }
+
+    /// <summary>
+    /// The MAC address table. Fetched independently, same as ports/resources,
+    /// so a problem here cannot take another tab down with it - most devices
+    /// (anything that is not a switch) report none of these at all, which is
+    /// not an error, just an empty result.
+    /// </summary>
+    private async Task LoadFdbAsync()
+    {
+        try
+        {
+            var entries = await _client.Fdb.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
+
+            FdbEntries.Clear();
+            foreach (var entry in entries.OrderBy(e => e.MacAddress, StringComparer.OrdinalIgnoreCase))
+            {
+                FdbEntries.Add(new FdbItemViewModel(entry, _portNamesByPortId));
+            }
+
+            OnPropertyChanged(nameof(HasFdbEntries));
+            OnPropertyChanged(nameof(HasNetworkSection));
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load the FDB for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load the FDB for device {DeviceId}", _deviceId);
+        }
+    }
+
+    /// <summary>The ARP table. Fetched independently - see <see cref="LoadFdbAsync"/>'s remarks, which apply equally here.</summary>
+    private async Task LoadArpAsync()
+    {
+        try
+        {
+            var entries = await _client.Arp.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
+
+            ArpEntries.Clear();
+            foreach (var entry in entries.OrderBy(e => e.Ipv4Address, StringComparer.OrdinalIgnoreCase))
+            {
+                ArpEntries.Add(new ArpItemViewModel(entry, _portNamesByPortId));
+            }
+
+            OnPropertyChanged(nameof(HasArpEntries));
+            OnPropertyChanged(nameof(HasNetworkSection));
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load the ARP table for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load the ARP table for device {DeviceId}", _deviceId);
         }
     }
 
@@ -1078,12 +1222,22 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             || entry.Username.Contains(term, StringComparison.OrdinalIgnoreCase);
     }
 
+    private bool FilterFdbEntry(object item) =>
+        item is FdbItemViewModel entry
+        && (string.IsNullOrWhiteSpace(FdbSearchText) || entry.Matches(FdbSearchText.Trim()));
+
+    private bool FilterArpEntry(object item) =>
+        item is ArpItemViewModel entry
+        && (string.IsNullOrWhiteSpace(ArpSearchText) || entry.Matches(ArpSearchText.Trim()));
+
     private Task RefreshAsync()
     {
         _deviceMonitor.RequestRefresh();
         _sensorMonitor.RequestRefresh();
         _alertMonitor.RequestRefresh();
-        return Task.WhenAll(LoadAlertHistoryAsync(), LoadPortsAsync(), LoadResourcesAsync(), LoadAvailabilityAsync(), LoadEventLogAsync());
+        return Task.WhenAll(
+            LoadAlertHistoryAsync(), LoadPortsAsync(), LoadResourcesAsync(), LoadAvailabilityAsync(),
+            LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync());
     }
 
     private void RaiseDeviceChanged()
@@ -1337,7 +1491,7 @@ public sealed class PortItemViewModel
     public bool HasDuplex => DuplexText is not null;
 
     /// <summary>Colon-separated, since SNMP hands this back as a bare hex string.</summary>
-    public string MacAddressText => FormatMacAddress(_port.IfPhysAddress);
+    public string MacAddressText => MacAddressFormat.Format(_port.IfPhysAddress);
 
     public string MtuText => _port.IfMtu is { } mtu && mtu > 0 ? mtu.ToString(CultureInfo.InvariantCulture) : "-";
 
@@ -1360,22 +1514,6 @@ public sealed class PortItemViewModel
 
     private static string Capitalise(string value) => value.Length == 0 ? value : char.ToUpperInvariant(value[0]) + value[1..];
 
-    private static string FormatMacAddress(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return "-";
-        }
-
-        var hex = raw.Replace(":", string.Empty).Replace("-", string.Empty).Replace(".", string.Empty);
-        if (hex.Length != 12 || !hex.All(Uri.IsHexDigit))
-        {
-            return raw;
-        }
-
-        return string.Join(":", Enumerable.Range(0, 6).Select(i => hex.Substring(i * 2, 2))).ToLowerInvariant();
-    }
-
     private static string FormatBitsPerSecond(long? bitsPerSecond)
     {
         if (bitsPerSecond is not { } bps || bps <= 0)
@@ -1395,6 +1533,64 @@ public sealed class PortItemViewModel
 
         return value.ToString(unit == 0 ? "0" : "0.#", CultureInfo.InvariantCulture) + " " + units[unit];
     }
+}
+
+/// <summary>One row in a device's FDB tab - one MAC address the switch has learned.</summary>
+public sealed class FdbItemViewModel
+{
+    private readonly FdbEntry _entry;
+    private readonly Dictionary<int, string> _portNamesByPortId;
+
+    public FdbItemViewModel(FdbEntry entry, Dictionary<int, string> portNamesByPortId)
+    {
+        _entry = entry;
+        _portNamesByPortId = portNamesByPortId;
+    }
+
+    public string MacAddressText => MacAddressFormat.Format(_entry.MacAddress);
+
+    /// <summary>The port's display name if <see cref="Ports"/> has resolved it yet, otherwise a bare id as a fallback - see <see cref="_portNamesByPortId"/>'s remarks on the DeviceDetailViewModel field it is a reference to.</summary>
+    public string PortText => _portNamesByPortId.TryGetValue(_entry.PortId, out var name)
+        ? name
+        : string.Create(CultureInfo.InvariantCulture, $"Port {_entry.PortId}");
+
+    public string VlanText => _entry.VlanId is { } vlan and > 0 ? vlan.ToString(CultureInfo.InvariantCulture) : "-";
+
+    public string UpdatedText => _entry.UpdatedAt is { } t
+        ? t.ToLocalTime().ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
+        : "-";
+
+    public bool Matches(string term) =>
+        MacAddressText.Contains(term, StringComparison.OrdinalIgnoreCase)
+        || PortText.Contains(term, StringComparison.OrdinalIgnoreCase)
+        || VlanText.Contains(term, StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>One row in a device's ARP tab - one IPv4-to-MAC mapping the device has resolved.</summary>
+public sealed class ArpItemViewModel
+{
+    private readonly ArpEntry _entry;
+    private readonly Dictionary<int, string> _portNamesByPortId;
+
+    public ArpItemViewModel(ArpEntry entry, Dictionary<int, string> portNamesByPortId)
+    {
+        _entry = entry;
+        _portNamesByPortId = portNamesByPortId;
+    }
+
+    public string Ipv4AddressText => string.IsNullOrWhiteSpace(_entry.Ipv4Address) ? "-" : _entry.Ipv4Address!;
+
+    public string MacAddressText => MacAddressFormat.Format(_entry.MacAddress);
+
+    /// <summary>See <see cref="FdbItemViewModel.PortText"/> - same lookup, same fallback.</summary>
+    public string PortText => _portNamesByPortId.TryGetValue(_entry.PortId, out var name)
+        ? name
+        : string.Create(CultureInfo.InvariantCulture, $"Port {_entry.PortId}");
+
+    public bool Matches(string term) =>
+        Ipv4AddressText.Contains(term, StringComparison.OrdinalIgnoreCase)
+        || MacAddressText.Contains(term, StringComparison.OrdinalIgnoreCase)
+        || PortText.Contains(term, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>One row in a device's currently active alerts, shown on the Overview tab.</summary>
@@ -1602,6 +1798,26 @@ public sealed class OutageDayViewModel
     public string TooltipText => HadOutage
         ? $"{Date:dd MMM}: down {DurationFormat.Format(TimeSpan.FromSeconds(DownSeconds))}"
         : $"{Date:dd MMM}: no downtime";
+}
+
+/// <summary>Colon-separated lowercase hex, since SNMP/LibreNMS hand this back as a bare 12-digit hex string.</summary>
+file static class MacAddressFormat
+{
+    public static string Format(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return "-";
+        }
+
+        var hex = raw.Replace(":", string.Empty).Replace("-", string.Empty).Replace(".", string.Empty);
+        if (hex.Length != 12 || !hex.All(Uri.IsHexDigit))
+        {
+            return raw;
+        }
+
+        return string.Join(":", Enumerable.Range(0, 6).Select(i => hex.Substring(i * 2, 2))).ToLowerInvariant();
+    }
 }
 
 file static class DurationFormat
