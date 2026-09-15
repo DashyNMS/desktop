@@ -33,6 +33,16 @@
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+
+    <!-- See Palette.Dark.xaml's remarks - overwritten alongside AccentBrush by AccentTheme.Apply. -->
+    <SolidColorBrush x:Key="AccentForegroundBrush" Color="White" />
+
+    <!-- Most server logos are light-on-transparent artwork that vanishes
+         against a light page background, so unlike the dark palette this
+         can't just match BackgroundColor - it uses the same grey as the tab
+         bar's own backdrop (SurfaceAltColor, see NavTabTrackStyle) instead. -->
+    <SolidColorBrush x:Key="LogoBackdropBrush" Color="{StaticResource SurfaceAltColor}" />
+
     <SolidColorBrush x:Key="CriticalBrush" Color="{StaticResource CriticalColor}" />
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
     <SolidColorBrush x:Key="OkBrush" Color="{StaticResource OkColor}" />

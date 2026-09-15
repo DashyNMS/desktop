@@ -41,6 +41,18 @@
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+
+    <!-- Overwritten alongside AccentBrush by AccentTheme.Apply, computed to
+         contrast with whatever accent colour is actually chosen - white
+         reads fine against this file's own default blue, so that is what
+         is declared here as the fallback before Apply first runs. -->
+    <SolidColorBrush x:Key="AccentForegroundBrush" Color="White" />
+
+    <!-- The connected server's own logo (see MainWindow.xaml) sits on this
+         backdrop. In Dark mode it just matches the page background, so the
+         logo appears to float on the shell header with no visible box. -->
+    <SolidColorBrush x:Key="LogoBackdropBrush" Color="{StaticResource BackgroundColor}" />
+
     <SolidColorBrush x:Key="CriticalBrush" Color="{StaticResource CriticalColor}" />
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
     <SolidColorBrush x:Key="OkBrush" Color="{StaticResource OkColor}" />

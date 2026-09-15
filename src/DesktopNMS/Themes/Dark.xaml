@@ -4,9 +4,9 @@
     <!--
       Every colour this file's styles use (BackgroundBrush, AccentBrush, ...)
       comes from whichever Palette.*.xaml is merged in ahead of this one - see
-      App.xaml.cs's ApplyTheme. This file holds no colour values of its own,
-      only the styles/templates built from them, so it never needs a light
-      counterpart.
+      App.xaml.cs's ApplyTheme. This file holds no theme-dependent colour
+      values of its own, only the styles/templates built from them, so it
+      never needs a light counterpart.
     -->
 
     <!-- ============================ Text =============================== -->
@@ -83,7 +83,7 @@
     <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
         <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
@@ -141,7 +141,7 @@
 
     <!-- Accent icon button: the primary action (Refresh). -->
     <Style x:Key="PrimaryIconButtonStyle" TargetType="Button" BasedOn="{StaticResource IconButtonBaseStyle}">
-        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
         <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
@@ -182,7 +182,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                             <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentBrush}" />
                         </Trigger>
@@ -222,7 +222,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                             <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentBrush}" />
                         </Trigger>

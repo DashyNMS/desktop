@@ -34,6 +34,26 @@ public static class AccentTheme
         }
 
         Application.Current.Resources["AccentBrush"] = new SolidColorBrush(color);
+
+        // A handful of styles (the primary button, a checked nav tab, ...)
+        // paint white text directly on top of this colour, which read fine
+        // against the original fixed blue but goes illegible against a dark
+        // accent someone actually picks (navy, near-black, dark green). This
+        // picks black or white to match, so it stays readable regardless.
+        Application.Current.Resources["AccentForegroundBrush"] = new SolidColorBrush(ContrastingForeground(color));
+    }
+
+    /// <summary>
+    /// Perceptive (ITU-R BT.601) luminance rather than a straight RGB
+    /// average - it weights green highest and blue lowest to match how the
+    /// eye actually perceives brightness, so e.g. a saturated blue is judged
+    /// darker than a saturated yellow of the same numeric magnitude, which a
+    /// naive average would get wrong.
+    /// </summary>
+    private static Color ContrastingForeground(Color background)
+    {
+        var luminance = ((0.299 * background.R) + (0.587 * background.G) + (0.114 * background.B)) / 255.0;
+        return luminance > 0.6 ? Colors.Black : Colors.White;
     }
 
     public static bool TryParseColor(string? hex, out Color color)

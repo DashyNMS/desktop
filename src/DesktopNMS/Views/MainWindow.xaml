@@ -49,18 +49,25 @@
 
                 <!-- The connected server's own logo/favicon, if it has one - a
                      small per-server touch distinct from the app's own
-                     icon/title. Height-constrained rather than a fixed square,
-                     since a custom logo is typically wider than tall; Stretch
-                     defaults to Uniform so it scales without distortion.
-                     Hidden entirely rather than showing a broken-image glyph
-                     when there isn't one or it hasn't loaded yet. -->
-                <Image Grid.Column="0"
-                       Source="{Binding ServerLogo}"
-                       Height="28"
-                       MaxWidth="140"
-                       Margin="0,0,10,0"
-                       VerticalAlignment="Center"
-                       Visibility="{Binding ServerLogo, Converter={StaticResource NullToVisibility}}" />
+                     icon/title. LogoBackdropBrush is theme-aware (see the
+                     palette files): it matches the page background in Dark
+                     mode so the logo appears to float with no visible box,
+                     and uses the tab bar's own grey in Light mode so
+                     light-on-transparent artwork stays visible. Hidden
+                     entirely rather than showing a broken-image glyph when
+                     there isn't one or it hasn't loaded yet. -->
+                <Border Grid.Column="0"
+                        Background="{StaticResource LogoBackdropBrush}"
+                        CornerRadius="6"
+                        Padding="12,8"
+                        Margin="0,0,10,0"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding ServerLogo, Converter={StaticResource NullToVisibility}}">
+                    <Image Source="{Binding ServerLogo}"
+                           Height="28"
+                           MaxWidth="140"
+                           Stretch="Uniform" />
+                </Border>
 
                 <Border Grid.Column="1"
                         Style="{StaticResource NavTabTrackStyle}"
