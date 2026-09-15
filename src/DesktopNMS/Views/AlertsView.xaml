@@ -38,7 +38,7 @@
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsTrigger}" Value="True">
-                                    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
                                     <Setter Property="FontWeight" Value="SemiBold" />
                                 </DataTrigger>
                             </Style.Triggers>

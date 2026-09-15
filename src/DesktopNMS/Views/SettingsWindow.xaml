@@ -53,6 +53,10 @@
                                   Style="{StaticResource SettingsNavItemStyle}"
                                   IsChecked="{Binding IsWindowSectionSelected, Mode=OneWay}"
                                   Command="{Binding SelectWindowSectionCommand}" />
+                    <ToggleButton Content="Appearance"
+                                  Style="{StaticResource SettingsNavItemStyle}"
+                                  IsChecked="{Binding IsAppearanceSectionSelected, Mode=OneWay}"
+                                  Command="{Binding SelectAppearanceSectionCommand}" />
                     <ToggleButton Content="About"
                                   Style="{StaticResource SettingsNavItemStyle}"
                                   IsChecked="{Binding IsAboutSectionSelected, Mode=OneWay}"
@@ -414,6 +418,86 @@
                         <ComboBox ItemsSource="{Binding StartupTabOptions}"
                                   SelectedItem="{Binding SelectedStartupTab}"
                                   DisplayMemberPath="Label" />
+                    </StackPanel>
+
+                    <!-- ==================== Appearance ==================== -->
+                    <StackPanel Visibility="{Binding IsAppearanceSectionSelected, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Appearance" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,4" />
+
+                        <TextBlock Text="Theme" Style="{StaticResource SectionHeaderStyle}" Margin="0,10,0,6" />
+                        <Border Style="{StaticResource NavTabTrackStyle}" HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <ToggleButton Content="Dark" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsDarkTheme}" />
+                                <ToggleButton Content="Light" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsLightTheme}" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0"
+                                   Text="Needs a restart to fully apply - unlike the accent colour below, changing this while DashyNMS is running does not repaint what's already open."
+                                   Visibility="{Binding ThemeChangeRequiresRestart, Converter={StaticResource BoolToVisibility}}" />
+
+                        <TextBlock Text="Accent colour" Style="{StaticResource SectionHeaderStyle}" Margin="0,20,0,6" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14"
+                                   Text="Used for buttons, selection highlights and links throughout the app. Doesn't affect the fixed Critical/Warning/Ok severity colours used for alerts and sensors." />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                <TextBlock Text="Red" Style="{StaticResource SectionHeaderStyle}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding AccentRed}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding AccentRed}" Width="36" TextAlignment="Right" VerticalAlignment="Center" Style="{StaticResource SubtleTextStyle}" />
+                                </Grid>
+
+                                <TextBlock Text="Green" Style="{StaticResource SectionHeaderStyle}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding AccentGreen}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding AccentGreen}" Width="36" TextAlignment="Right" VerticalAlignment="Center" Style="{StaticResource SubtleTextStyle}" />
+                                </Grid>
+
+                                <TextBlock Text="Blue" Style="{StaticResource SectionHeaderStyle}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding AccentBlue}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding AccentBlue}" Width="36" TextAlignment="Right" VerticalAlignment="Center" Style="{StaticResource SubtleTextStyle}" />
+                                </Grid>
+
+                                <TextBlock Text="Hex" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding AccentColorHex, UpdateSourceTrigger=PropertyChanged}" MaxLength="7" HorizontalAlignment="Left" Width="100" />
+                            </StackPanel>
+
+                            <Border Grid.Column="1"
+                                    Width="90"
+                                    Height="90"
+                                    CornerRadius="8"
+                                    Background="{Binding AccentPreviewBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    VerticalAlignment="Top" />
+                        </Grid>
+
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,14,0,0"
+                                   Text="Takes effect as soon as you save - no restart needed." />
                     </StackPanel>
 
                     <!-- ==================== About ==================== -->

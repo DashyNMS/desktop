@@ -65,6 +65,13 @@ public partial class App : Application
         var settings = _services.GetRequiredService<ISettingsStore>();
         settings.Load();
 
+        // Must run before any window (or anything else that applies a style)
+        // is constructed - see ApplyTheme's remarks.
+        ApplyTheme(settings.Current.Theme);
+
+        AccentTheme.Apply(settings.Current.AccentColor);
+        settings.Changed += (_, s) => AccentTheme.Apply(s.AccentColor);
+
         SetUpTray();
         SetUpNotifications();
 
@@ -142,6 +149,41 @@ public partial class App : Application
         {
             _logger?.LogDebug(ex, "Startup update check failed");
         }
+    }
+
+    // ---------------------------------------------------------------- theme
+
+    /// <summary>
+    /// Merges the chosen palette, then Dark.xaml's styles, into
+    /// Application.Resources - in that order, and both added here in code
+    /// rather than declared in App.xaml.
+    /// </summary>
+    /// <remarks>
+    /// Neither can be a static &lt;ResourceDictionary Source="..."/&gt; merge in
+    /// App.xaml: which palette to use depends on a setting that is only
+    /// known once <see cref="ISettingsStore"/> has loaded, which happens
+    /// inside <see cref="OnStartup"/> - after App.xaml's own
+    /// InitializeComponent has already run. If Dark.xaml were merged
+    /// statically there, its styles would already be parsed - and every
+    /// StaticResource reference inside them resolved, permanently, against
+    /// whatever existed at that moment - before this method ever got a
+    /// chance to add the right palette. Adding both here, in order, before
+    /// any window exists, means Dark.xaml's styles are parsed for the first
+    /// time only once the correct palette is already present.
+    /// </remarks>
+    private void ApplyTheme(AppTheme theme)
+    {
+        var paletteFile = theme == AppTheme.Light ? "Palette.Light.xaml" : "Palette.Dark.xaml";
+
+        Resources.MergedDictionaries.Add(new ResourceDictionary
+        {
+            Source = new Uri($"Themes/{paletteFile}", UriKind.Relative),
+        });
+
+        Resources.MergedDictionaries.Add(new ResourceDictionary
+        {
+            Source = new Uri("Themes/Dark.xaml", UriKind.Relative),
+        });
     }
 
     // ------------------------------------------------------------------- DI

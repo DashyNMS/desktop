@@ -3,12 +3,18 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:DesktopNMS.Converters"
              ShutdownMode="OnExplicitShutdown">
+    <!--
+      The theme (Themes/Palette.Dark.xaml or Palette.Light.xaml, then
+      Themes/Dark.xaml's styles) is merged in programmatically instead of
+      declared here - see App.xaml.cs's ApplyTheme. It has to be: which
+      palette to use depends on a setting only known once ISettingsStore has
+      loaded, and Dark.xaml's styles must not be parsed before that palette
+      is already present, or their StaticResource references into it would
+      resolve to nothing (WPF resolves StaticResource once, when the XAML
+      that declares it is first parsed - never again).
+    -->
     <Application.Resources>
         <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Themes/Dark.xaml" />
-            </ResourceDictionary.MergedDictionaries>
-
             <converters:SeverityToBrushConverter x:Key="SeverityToBrush" />
             <converters:BooleanToVisibilityConverter x:Key="BoolToVisibility" />
             <converters:StringToVisibilityConverter x:Key="StringToVisibility" />

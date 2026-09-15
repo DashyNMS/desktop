@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows.Media;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Updates;
@@ -18,6 +19,7 @@ public enum SettingsSection
     HealthThresholds,
     Notifications,
     Window,
+    Appearance,
     About,
 }
 
@@ -120,6 +122,7 @@ public sealed class SettingsViewModel : ObservableObject
         SelectHealthThresholdsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.HealthThresholds);
         SelectNotificationsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Notifications);
         SelectWindowSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Window);
+        SelectAppearanceSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Appearance);
         SelectAboutSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.About);
 
         CheckForUpdatesCommand = new AsyncRelayCommand(() => CheckForUpdatesAsync(notifyIfNewer: false));
@@ -154,6 +157,8 @@ public sealed class SettingsViewModel : ObservableObject
 
     public RelayCommand SelectWindowSectionCommand { get; }
 
+    public RelayCommand SelectAppearanceSectionCommand { get; }
+
     public RelayCommand SelectAboutSectionCommand { get; }
 
     public SettingsSection SelectedSection
@@ -168,6 +173,7 @@ public sealed class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsHealthThresholdsSectionSelected));
                 OnPropertyChanged(nameof(IsNotificationsSectionSelected));
                 OnPropertyChanged(nameof(IsWindowSectionSelected));
+                OnPropertyChanged(nameof(IsAppearanceSectionSelected));
                 OnPropertyChanged(nameof(IsAboutSectionSelected));
             }
         }
@@ -183,7 +189,108 @@ public sealed class SettingsViewModel : ObservableObject
 
     public bool IsWindowSectionSelected => SelectedSection == SettingsSection.Window;
 
+    public bool IsAppearanceSectionSelected => SelectedSection == SettingsSection.Appearance;
+
     public bool IsAboutSectionSelected => SelectedSection == SettingsSection.About;
+
+    // ------------------------------------------------------------- appearance
+
+    public bool IsDarkTheme
+    {
+        get => _draft.Theme == AppTheme.Dark;
+        set
+        {
+            if (value)
+            {
+                SetDraftTheme(AppTheme.Dark);
+            }
+        }
+    }
+
+    public bool IsLightTheme
+    {
+        get => _draft.Theme == AppTheme.Light;
+        set
+        {
+            if (value)
+            {
+                SetDraftTheme(AppTheme.Light);
+            }
+        }
+    }
+
+    /// <summary>Only true once the draft actually differs from what is running - so the notice does not show before anyone has touched anything.</summary>
+    public bool ThemeChangeRequiresRestart => _draft.Theme != _store.Current.Theme;
+
+    private void SetDraftTheme(AppTheme theme)
+    {
+        if (_draft.Theme == theme)
+        {
+            return;
+        }
+
+        _draft.Theme = theme;
+        OnPropertyChanged(nameof(IsDarkTheme));
+        OnPropertyChanged(nameof(IsLightTheme));
+        OnPropertyChanged(nameof(ThemeChangeRequiresRestart));
+    }
+
+    /// <summary>"#RRGGBB" - kept in sync with <see cref="AccentRed"/>/<see cref="AccentGreen"/>/<see cref="AccentBlue"/> and the live preview swatch.</summary>
+    public string AccentColorHex
+    {
+        get => _draft.AccentColor;
+        set
+        {
+            if (AccentTheme.TryParseColor(value, out var color))
+            {
+                SetDraftAccentColor(color);
+            }
+
+            // An unparsable in-progress value (e.g. "#3B") is left alone
+            // rather than reverted, so the text box does not fight someone
+            // mid-keystroke.
+        }
+    }
+
+    public byte AccentRed
+    {
+        get => CurrentAccentColor.R;
+        set => SetDraftAccentColor(Color.FromRgb(value, CurrentAccentColor.G, CurrentAccentColor.B));
+    }
+
+    public byte AccentGreen
+    {
+        get => CurrentAccentColor.G;
+        set => SetDraftAccentColor(Color.FromRgb(CurrentAccentColor.R, value, CurrentAccentColor.B));
+    }
+
+    public byte AccentBlue
+    {
+        get => CurrentAccentColor.B;
+        set => SetDraftAccentColor(Color.FromRgb(CurrentAccentColor.R, CurrentAccentColor.G, value));
+    }
+
+    /// <summary>A live swatch for the settings dialog itself - the rest of the app only repaints once Save applies the draft.</summary>
+    public Brush AccentPreviewBrush => new SolidColorBrush(CurrentAccentColor);
+
+    private Color CurrentAccentColor =>
+        AccentTheme.TryParseColor(_draft.AccentColor, out var color) ? color : Colors.DodgerBlue;
+
+    private void SetDraftAccentColor(Color color)
+    {
+        var hex = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        if (string.Equals(_draft.AccentColor, hex, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _draft.AccentColor = hex;
+        OnPropertyChanged(nameof(AccentColorHex));
+        OnPropertyChanged(nameof(AccentRed));
+        OnPropertyChanged(nameof(AccentGreen));
+        OnPropertyChanged(nameof(AccentBlue));
+        OnPropertyChanged(nameof(AccentPreviewBrush));
+    }
 
     // ------------------------------------------------------------------ about
 

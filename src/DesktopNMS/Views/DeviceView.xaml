@@ -35,7 +35,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -512,8 +512,8 @@
                                             <TextBlock Text="{Binding InRateText}" Foreground="{StaticResource OkBrush}" />
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#x2192; " Foreground="{StaticResource AccentBrush}" FontWeight="Bold" />
-                                            <TextBlock Text="{Binding OutRateText}" Foreground="{StaticResource AccentBrush}" />
+                                            <TextBlock Text="&#x2192; " Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" />
+                                            <TextBlock Text="{Binding OutRateText}" Foreground="{DynamicResource AccentBrush}" />
                                         </StackPanel>
                                     </StackPanel>
                                 </DataTemplate>

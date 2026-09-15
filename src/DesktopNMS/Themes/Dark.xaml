@@ -1,40 +1,13 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- ============================ Palette ============================= -->
-
-    <Color x:Key="BackgroundColor">#FF11141A</Color>
-    <Color x:Key="SurfaceColor">#FF171B23</Color>
-    <Color x:Key="SurfaceAltColor">#FF1E2430</Color>
-    <Color x:Key="SurfaceHoverColor">#FF262E3C</Color>
-    <Color x:Key="BorderColor">#FF2C3442</Color>
-    <Color x:Key="TextPrimaryColor">#FFE6EAF0</Color>
-    <Color x:Key="TextSecondaryColor">#FF98A2B3</Color>
-    <Color x:Key="AccentColor">#FF3B82F6</Color>
-    <Color x:Key="CriticalColor">#FFDA3633</Color>
-    <Color x:Key="WarningColor">#FFDB9A04</Color>
-    <Color x:Key="OkColor">#FF2EA043</Color>
-    <Color x:Key="MaintenanceColor">#FF4C9AFF</Color>
-
-    <!-- Deliberately low-contrast: a scroll bar should be findable without
-         competing with the content beside it. -->
-    <Color x:Key="ScrollBarThumbColor">#FF333C4C</Color>
-    <Color x:Key="ScrollBarThumbHoverColor">#FF4A5568</Color>
-
-    <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
-    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
-    <SolidColorBrush x:Key="SurfaceAltBrush" Color="{StaticResource SurfaceAltColor}" />
-    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="{StaticResource SurfaceHoverColor}" />
-    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
-    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
-    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
-    <SolidColorBrush x:Key="CriticalBrush" Color="{StaticResource CriticalColor}" />
-    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
-    <SolidColorBrush x:Key="OkBrush" Color="{StaticResource OkColor}" />
-    <SolidColorBrush x:Key="MaintenanceBrush" Color="{StaticResource MaintenanceColor}" />
-    <SolidColorBrush x:Key="ScrollBarThumbBrush" Color="{StaticResource ScrollBarThumbColor}" />
-    <SolidColorBrush x:Key="ScrollBarThumbHoverBrush" Color="{StaticResource ScrollBarThumbHoverColor}" />
+    <!--
+      Every colour this file's styles use (BackgroundBrush, AccentBrush, ...)
+      comes from whichever Palette.*.xaml is merged in ahead of this one - see
+      App.xaml.cs's ApplyTheme. This file holds no colour values of its own,
+      only the styles/templates built from them, so it never needs a light
+      counterpart.
+    -->
 
     <!-- ============================ Text =============================== -->
 
@@ -108,8 +81,8 @@
     <Style TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}" />
 
     <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
-        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
         <Setter Property="Foreground" Value="White" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
@@ -169,10 +142,10 @@
     <!-- Accent icon button: the primary action (Refresh). -->
     <Style x:Key="PrimaryIconButtonStyle" TargetType="Button" BasedOn="{StaticResource IconButtonBaseStyle}">
         <Setter Property="Foreground" Value="White" />
-        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
                 <Setter Property="Opacity" Value="0.88" />
             </Trigger>
         </Style.Triggers>
@@ -211,7 +184,7 @@
                         <Trigger Property="IsChecked" Value="True">
                             <Setter Property="Foreground" Value="White" />
                             <Setter Property="FontWeight" Value="SemiBold" />
-                            <Setter TargetName="Root" Property="Background" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentBrush}" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
@@ -251,7 +224,7 @@
                         <Trigger Property="IsChecked" Value="True">
                             <Setter Property="Foreground" Value="White" />
                             <Setter Property="FontWeight" Value="SemiBold" />
-                            <Setter TargetName="Root" Property="Background" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentBrush}" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
@@ -426,7 +399,7 @@
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
-                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -449,7 +422,7 @@
         <Setter Property="FontFamily" Value="Segoe UI" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="CaretBrush" Value="{StaticResource TextPrimaryBrush}" />
-        <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
@@ -464,7 +437,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Opacity" Value="0.5" />
@@ -498,7 +471,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -538,12 +511,12 @@
                     </StackPanel>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Box" Property="Background" Value="{StaticResource AccentBrush}" />
-                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Box" Property="Background" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                             <Setter TargetName="Tick" Property="Visibility" Value="Visible" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.5" />
@@ -577,7 +550,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

@@ -367,7 +367,7 @@
                                          Stroke="{StaticResource BorderBrush}"
                                          StrokeThickness="10" />
                                 <Path Data="{Binding AcknowledgedFraction, Converter={StaticResource GaugeArc}}"
-                                      Stroke="{StaticResource AccentBrush}"
+                                      Stroke="{StaticResource TextSecondaryBrush}"
                                       StrokeThickness="10"
                                       StrokeStartLineCap="Round"
                                       StrokeEndLineCap="Round" />
@@ -473,7 +473,7 @@
                                          Stroke="{StaticResource BorderBrush}"
                                          StrokeThickness="10" />
                                 <Path Data="{Binding MaintenanceFraction, Converter={StaticResource GaugeArc}}"
-                                      Stroke="{StaticResource AccentBrush}"
+                                      Stroke="{StaticResource MaintenanceBrush}"
                                       StrokeThickness="10"
                                       StrokeStartLineCap="Round"
                                       StrokeEndLineCap="Round" />

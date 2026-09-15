@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Windows;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Media;
@@ -17,10 +18,26 @@ namespace DesktopNMS.Converters;
 /// </summary>
 public sealed class MarkdownToFlowDocumentConverter : IValueConverter
 {
-    private static readonly Color TextPrimary = Color.FromRgb(0xE6, 0xEA, 0xF0);
-    private static readonly Color TextSecondary = Color.FromRgb(0x98, 0xA2, 0xB3);
-    private static readonly Color SurfaceAlt = Color.FromRgb(0x1E, 0x24, 0x30);
-    private static readonly Color Border = Color.FromRgb(0x2C, 0x34, 0x42);
+    /// <summary>
+    /// Resolved fresh from the active theme's resources on every call (never
+    /// cached) rather than hardcoded: this used to bake in copies of the old,
+    /// permanently-dark palette, so switching to the Light theme left it
+    /// rendering near-white text on a white page - unreadable.
+    /// </summary>
+    private readonly record struct Palette(Color TextPrimary, Color TextSecondary, Color SurfaceAlt, Color Border)
+    {
+        public static Palette FromCurrentTheme()
+        {
+            return new Palette(
+                Resolve("TextPrimaryBrush", Color.FromRgb(0xE6, 0xEA, 0xF0)),
+                Resolve("TextSecondaryBrush", Color.FromRgb(0x98, 0xA2, 0xB3)),
+                Resolve("SurfaceAltBrush", Color.FromRgb(0x1E, 0x24, 0x30)),
+                Resolve("BorderBrush", Color.FromRgb(0x2C, 0x34, 0x42)));
+        }
+
+        private static Color Resolve(string resourceKey, Color fallback) =>
+            Application.Current?.TryFindResource(resourceKey) is SolidColorBrush brush ? brush.Color : fallback;
+    }
 
     private static readonly Regex BoldPattern = new(@"\*\*(.+?)\*\*|__(.+?)__", RegexOptions.Compiled);
     private static readonly Regex ItalicPattern = new(@"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)|(?<!_)_(?!_)(.+?)(?<!_)_(?!_)", RegexOptions.Compiled);
@@ -28,17 +45,19 @@ public sealed class MarkdownToFlowDocumentConverter : IValueConverter
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
+        var palette = Palette.FromCurrentTheme();
+
         var document = new FlowDocument
         {
             FontFamily = new FontFamily("Segoe UI"),
             FontSize = 13,
-            Foreground = new SolidColorBrush(TextPrimary),
+            Foreground = new SolidColorBrush(palette.TextPrimary),
             PagePadding = new System.Windows.Thickness(0),
         };
 
         if (value is not string markdown || string.IsNullOrWhiteSpace(markdown))
         {
-            document.Blocks.Add(new Paragraph(new Run("No release notes were provided for this version.")) { Foreground = new SolidColorBrush(TextSecondary) });
+            document.Blocks.Add(new Paragraph(new Run("No release notes were provided for this version.")) { Foreground = new SolidColorBrush(palette.TextSecondary) });
             return document;
         }
 
@@ -59,7 +78,7 @@ public sealed class MarkdownToFlowDocumentConverter : IValueConverter
             {
                 document.Blocks.Add(new BlockUIContainer(new System.Windows.Controls.Border
                 {
-                    BorderBrush = new SolidColorBrush(Border),
+                    BorderBrush = new SolidColorBrush(palette.Border),
                     BorderThickness = new System.Windows.Thickness(0, 1, 0, 0),
                     Margin = new System.Windows.Thickness(0, 6, 0, 6),
                 }));
@@ -76,7 +95,7 @@ public sealed class MarkdownToFlowDocumentConverter : IValueConverter
                     FontWeight = System.Windows.FontWeights.SemiBold,
                     Margin = new System.Windows.Thickness(0, level == 1 ? 0 : 12, 0, 6),
                 };
-                AddInlines(paragraph.Inlines, headingMatch.Groups[2].Value);
+                AddInlines(paragraph.Inlines, headingMatch.Groups[2].Value, palette);
                 document.Blocks.Add(paragraph);
                 continue;
             }
@@ -89,20 +108,20 @@ public sealed class MarkdownToFlowDocumentConverter : IValueConverter
                 var text = bulletMatch.Success ? bulletMatch.Groups[1].Value : numberedMatch!.Groups[2].Value;
 
                 var paragraph = new Paragraph { Margin = new System.Windows.Thickness(18, 2, 0, 2) };
-                paragraph.Inlines.Add(new Run(marker + " ") { Foreground = new SolidColorBrush(TextSecondary) });
-                AddInlines(paragraph.Inlines, text);
+                paragraph.Inlines.Add(new Run(marker + " ") { Foreground = new SolidColorBrush(palette.TextSecondary) });
+                AddInlines(paragraph.Inlines, text, palette);
                 document.Blocks.Add(paragraph);
                 continue;
             }
 
             var plain = new Paragraph { Margin = new System.Windows.Thickness(0, 2, 0, 2) };
-            AddInlines(plain.Inlines, line);
+            AddInlines(plain.Inlines, line, palette);
             document.Blocks.Add(plain);
         }
 
         if (document.Blocks.Count == 0)
         {
-            document.Blocks.Add(new Paragraph(new Run("No release notes were provided for this version.")) { Foreground = new SolidColorBrush(TextSecondary) });
+            document.Blocks.Add(new Paragraph(new Run("No release notes were provided for this version.")) { Foreground = new SolidColorBrush(palette.TextSecondary) });
         }
 
         return document;
@@ -112,7 +131,7 @@ public sealed class MarkdownToFlowDocumentConverter : IValueConverter
         => Binding.DoNothing;
 
     /// <summary>Splits a line into bold/italic/code/plain runs, in the order they appear.</summary>
-    private static void AddInlines(InlineCollection inlines, string text)
+    private static void AddInlines(InlineCollection inlines, string text, Palette palette)
     {
         var position = 0;
 
@@ -153,7 +172,7 @@ public sealed class MarkdownToFlowDocumentConverter : IValueConverter
                 inlines.Add(new Run(code.Groups[1].Value)
                 {
                     FontFamily = new FontFamily("Consolas"),
-                    Background = new SolidColorBrush(SurfaceAlt),
+                    Background = new SolidColorBrush(palette.SurfaceAlt),
                 });
             }
 

@@ -16,6 +16,18 @@ public enum StartupTab
 }
 
 /// <summary>
+/// The base colour palette the app is styled from - see Themes/Palette.Dark.xaml
+/// and Themes/Palette.Light.xaml. Changing this needs a restart to take
+/// effect (unlike <see cref="AppSettings.AccentColor"/>, which applies live) -
+/// WPF resolves the styles built from it once, when they are first parsed.
+/// </summary>
+public enum AppTheme
+{
+    Dark,
+    Light,
+}
+
+/// <summary>
 /// Everything DesktopNMS persists between runs, apart from the API token which
 /// is encrypted separately by <see cref="Security.ITokenProtector"/>.
 /// </summary>
@@ -104,6 +116,16 @@ public sealed class AppSettings
     /// <summary>Widgets laid out on the Dashboard tab (grid position/span, title, type, and - for a Sensors widget - which sensors it shows).</summary>
     public List<DashboardWidget> DashboardWidgets { get; set; } = new();
 
+    /// <summary>
+    /// The accent colour used for buttons, selection highlights and links
+    /// throughout the app, as "#RRGGBB". Deliberately separate from the fixed
+    /// Critical/Warning/Ok severity colours, which never change.
+    /// </summary>
+    public string AccentColor { get; set; } = "#3B82F6";
+
+    /// <summary>The base colour palette - see <see cref="AppTheme"/>.</summary>
+    public AppTheme Theme { get; set; } = AppTheme.Dark;
+
     public WindowPlacement? Window { get; set; }
 
     public AppSettings Clone() => new()
@@ -130,6 +152,8 @@ public sealed class AppSettings
         FanSpeedThresholds = FanSpeedThresholds.Clone(),
         OverrideSensorLimitsWithAppThresholds = OverrideSensorLimitsWithAppThresholds,
         DashboardWidgets = DashboardWidgets.Select(w => w.Clone()).ToList(),
+        AccentColor = AccentColor,
+        Theme = Theme,
         Window = Window?.Clone(),
     };
 
