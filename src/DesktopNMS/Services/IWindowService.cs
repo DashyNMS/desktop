@@ -44,6 +44,9 @@ public interface IWindowService
     /// </summary>
     void ShowDevicesFilteredByLocation(string location);
 
+    /// <summary>Same as <see cref="ShowDevicesFilteredByLocation"/>, but isolating the Group facet instead - used by the device view's Device Groups section.</summary>
+    void ShowDevicesFilteredByGroup(string groupName);
+
     /// <summary>Shows the settings dialog. Returns true if the user saved.</summary>
     bool ShowSettingsDialog();
 

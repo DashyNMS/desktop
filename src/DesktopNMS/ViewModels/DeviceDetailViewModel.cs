@@ -164,6 +164,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Storage = new ObservableCollection<StorageItemViewModel>();
         Outages = new ObservableCollection<OutageItemViewModel>();
         AvailabilityTimeline = new ObservableCollection<OutageDayViewModel>();
+        DeviceGroups = new ObservableCollection<DeviceGroupItemViewModel>();
         VlanEntries = new ObservableCollection<VlanItemViewModel>();
         FdbEntries = new ObservableCollection<FdbItemViewModel>();
         ArpEntries = new ObservableCollection<ArpItemViewModel>();
@@ -227,6 +228,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _ = LoadPortsAsync();
         _ = LoadResourcesAsync();
         _ = LoadAvailabilityAsync();
+        _ = LoadDeviceGroupsAsync();
         _ = LoadVlansAsync();
         _ = LoadFdbAsync();
         _ = LoadArpAsync();
@@ -279,6 +281,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// same outage data as <see cref="Outages"/> rather than a second fetch.
     /// </summary>
     public ObservableCollection<OutageDayViewModel> AvailabilityTimeline { get; }
+
+    /// <summary>Every LibreNMS device group this device belongs to - most devices are in none.</summary>
+    public ObservableCollection<DeviceGroupItemViewModel> DeviceGroups { get; }
+
+    /// <summary>Whether the Overview's Device Groups card has anything to show at all - it should not appear for a device in no groups.</summary>
+    public bool HasDeviceGroups => DeviceGroups.Count > 0;
 
     public ObservableCollection<FdbItemViewModel> FdbEntries { get; }
 
@@ -1528,6 +1536,48 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Every LibreNMS device group this device belongs to. Fetched
+    /// independently, same as ports/resources, so a problem here cannot take
+    /// another section down with it - most devices are in no group at all,
+    /// which is not an error, just an empty result.
+    /// </summary>
+    private async Task LoadDeviceGroupsAsync()
+    {
+        try
+        {
+            var groups = await _client.DeviceGroups.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
+
+            DeviceGroups.Clear();
+            foreach (var group in groups.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                DeviceGroups.Add(new DeviceGroupItemViewModel(group, ShowDevicesForGroup));
+            }
+
+            OnPropertyChanged(nameof(HasDeviceGroups));
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load device groups for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load device groups for device {DeviceId}", _deviceId);
+        }
+    }
+
+    /// <summary>
+    /// Closes this window and jumps to the Devices tab isolated down to one
+    /// of this device's own groups, discarding whatever filters were already
+    /// set there - see <see cref="ShowDevicesForLocation"/>'s remarks, which
+    /// apply equally here.
+    /// </summary>
+    private void ShowDevicesForGroup(string groupName)
+    {
+        _windows.ShowDevicesFilteredByGroup(groupName);
+        _windows.CloseDeviceDetail(_deviceId);
+    }
+
     private static string FormatPercent(double? percent) =>
         percent is { } value ? value.ToString("0.##", CultureInfo.InvariantCulture) + "%" : "-";
 
@@ -1715,7 +1765,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _alertMonitor.RequestRefresh();
         return Task.WhenAll(
             LoadAlertHistoryAsync(), LoadPortsAsync(), LoadResourcesAsync(), LoadAvailabilityAsync(),
-            LoadVlansAsync(), LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync());
+            LoadDeviceGroupsAsync(), LoadVlansAsync(), LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync());
     }
 
     private void RaiseDeviceChanged()
@@ -2376,6 +2426,31 @@ public sealed class StorageItemViewModel
     public string DetailText => ResourceByteFormat.FormatUsedOfTotal(_volume.UsedBytes, _volume.TotalBytes);
 
     public AlertSeverity Severity => ResourceSeverity.Evaluate(_volume.UsagePercent, _volume.WarningPercent);
+}
+
+/// <summary>
+/// One row in the Overview's Device Groups card - one LibreNMS device group
+/// this device belongs to. Owns its own command (rather than the DeviceView
+/// reaching up to a shared one on DeviceDetailViewModel from inside an
+/// ItemsControl's DataTemplate) - same pattern as PortItemViewModel's
+/// OpenNeighborCommand.
+/// </summary>
+public sealed class DeviceGroupItemViewModel
+{
+    public DeviceGroupItemViewModel(DeviceGroup group, Action<string> onSelect)
+    {
+        Name = group.Name;
+        Description = string.IsNullOrWhiteSpace(group.Description) ? null : group.Description;
+        ShowDevicesForGroupCommand = new RelayCommand(() => onSelect(Name));
+    }
+
+    public string Name { get; }
+
+    /// <summary>The group's own free-text description, e.g. "Wuppertal Devices" for a group named "1044_Wuppertal" - shown as a tooltip, not every group has one.</summary>
+    public string? Description { get; }
+
+    /// <summary>Closes this window and jumps to the Devices tab isolated down to this one group - see DeviceDetailViewModel.ShowDevicesForGroup.</summary>
+    public RelayCommand ShowDevicesForGroupCommand { get; }
 }
 
 /// <summary>One row in a device's Overview "outages" list - a period the device was recorded down.</summary>

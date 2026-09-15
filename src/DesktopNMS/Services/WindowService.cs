@@ -118,6 +118,12 @@ public sealed class WindowService : IWindowService
         ShowDevicesTab();
     }
 
+    public void ShowDevicesFilteredByGroup(string groupName)
+    {
+        _services.GetRequiredService<DeviceListViewModel>().FilterByGroupOnly(groupName);
+        ShowDevicesTab();
+    }
+
     public bool ShowSettingsDialog()
     {
         var viewModel = _services.GetRequiredService<SettingsViewModel>();

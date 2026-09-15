@@ -256,6 +256,36 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Hidden entirely for a device in no groups (most
+                             of them) - see DeviceDetailViewModel.HasDeviceGroups.
+                             Each name is its own link: clicking closes this
+                             window and jumps to the Devices tab isolated down
+                             to that one group, same action as the Location
+                             link above. -->
+                        <Border Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="20"
+                                Margin="6,0"
+                                Visibility="{Binding HasDeviceGroups, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="Device groups" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,0" />
+                                <ItemsControl ItemsSource="{Binding DeviceGroups}" Margin="0,4,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock TextWrapping="Wrap" Cursor="Hand" Margin="0,2">
+                                                <Hyperlink Command="{Binding ShowDevicesForGroupCommand}"
+                                                           ToolTip="{Binding Description}">
+                                                    <Run Text="{Binding Name, Mode=OneWay}" />
+                                                </Hyperlink>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
                         <Border Background="{StaticResource SurfaceBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1"

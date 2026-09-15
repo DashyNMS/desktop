@@ -524,6 +524,26 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         OnFilterChanged();
     }
 
+    /// <summary>
+    /// Jumped to from a device's own Device Groups section (see
+    /// DeviceDetailViewModel's ShowDevicesForGroupCommand): same reasoning as
+    /// <see cref="FilterByLocationOnly"/>, but isolating the Group facet.
+    /// </summary>
+    public void FilterByGroupOnly(string groupName)
+    {
+        ShowUp = true;
+        ShowDown = true;
+        ShowDisabled = true;
+        ShowMaintenance = true;
+        SearchText = string.Empty;
+
+        TypeFilter.SetAllChecked(true, notify: false);
+        LocationFilter.SetAllChecked(true, notify: false);
+        GroupFilter.IsolateOne(groupName, notify: false);
+
+        OnFilterChanged();
+    }
+
     /// <summary>Shift-click on a status badge: show only that status, hiding the rest.</summary>
     public void IsolateState(DeviceState state)
     {

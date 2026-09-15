@@ -216,6 +216,12 @@ internal sealed class DeviceGroupsApi : IDeviceGroupsApi
     public Task<IReadOnlyList<DeviceGroup>> ListAsync(CancellationToken cancellationToken = default)
         => _transport.GetCollectionAsync<DeviceGroup>("devicegroups", "groups", cancellationToken);
 
+    public Task<IReadOnlyList<DeviceGroup>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/groups";
+        return _transport.GetCollectionAsync<DeviceGroup>(url, "groups", cancellationToken);
+    }
+
     public async Task<IReadOnlyDictionary<int, IReadOnlyList<string>>> GetMembershipByDeviceAsync(CancellationToken cancellationToken = default)
     {
         var groups = await ListAsync(cancellationToken).ConfigureAwait(false);

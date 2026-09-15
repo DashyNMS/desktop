@@ -155,12 +155,22 @@ public interface IDeviceGroupsApi
     Task<IReadOnlyList<DeviceGroup>> ListAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// GET /api/v0/devices/{id}/groups. Every device group this one specific
+    /// device belongs to - a device commonly belongs to more than one (e.g.
+    /// both a site group and a role group). Cheap (one call), so this is
+    /// what a single device's own view should use - see
+    /// <see cref="GetMembershipByDeviceAsync"/> for the fleet-wide case.
+    /// </summary>
+    Task<IReadOnlyList<DeviceGroup>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Every group's membership as one reverse index (device id -> the names
-    /// of every group it belongs to). LibreNMS has no endpoint that returns a
-    /// device's own group memberships or a bulk mapping, so this calls
-    /// GET /api/v0/devicegroups/{id} once per group (see <see cref="ListAsync"/>)
-    /// and merges the results - a device commonly belongs to more than one
-    /// group (e.g. both a site group and a role group).
+    /// of every group it belongs to), for filtering a whole device list at
+    /// once. There is no bulk fleet-wide "groups per device" endpoint (only
+    /// the single-device <see cref="ListForDeviceAsync"/>, too many calls to
+    /// use for every device in the fleet, and the group-centric
+    /// GET /api/v0/devicegroups/{id}, used here instead), so this calls that
+    /// once per group (see <see cref="ListAsync"/>) and merges the results.
     /// </summary>
     Task<IReadOnlyDictionary<int, IReadOnlyList<string>>> GetMembershipByDeviceAsync(CancellationToken cancellationToken = default);
 }

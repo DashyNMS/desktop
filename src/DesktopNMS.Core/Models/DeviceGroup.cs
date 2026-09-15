@@ -10,4 +10,7 @@ public sealed class DeviceGroup
 
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("desc")]
+    public string? Description { get; set; }
 }
