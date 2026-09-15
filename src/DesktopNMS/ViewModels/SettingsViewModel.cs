@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Media;
+using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Updates;
@@ -20,6 +21,7 @@ public enum SettingsSection
     Notifications,
     Window,
     Appearance,
+    Server,
     About,
 }
 
@@ -87,6 +89,8 @@ public sealed class SettingsViewModel : ObservableObject
     private readonly IAlertNotificationService _notifications;
     private readonly IUpdateCheckService _updates;
     private readonly IWindowService _windows;
+    private readonly ISessionService _session;
+    private readonly ILibreNmsClient _client;
     private readonly AppSettings _draft;
 
     private SettingsSection _selectedSection = SettingsSection.Polling;
@@ -94,19 +98,27 @@ public sealed class SettingsViewModel : ObservableObject
     private string _updateStatusText = "Checking for updates...";
     private GitHubRelease? _latestRelease;
     private bool _isNewerVersionAvailable;
+    private SystemInfo? _serverInfo;
+    private bool _isRefreshingServerInfo;
+    private string? _serverInfoStatusText;
 
     public SettingsViewModel(
         ISettingsStore store,
         IStartupRegistration startup,
         IAlertNotificationService notifications,
         IUpdateCheckService updates,
-        IWindowService windows)
+        IWindowService windows,
+        ISessionService session,
+        ILibreNmsClient client)
     {
         _store = store;
         _startup = startup;
         _notifications = notifications;
         _updates = updates;
         _windows = windows;
+        _session = session;
+        _client = client;
+        _serverInfo = session.ServerInfo;
         _draft = store.Current.Clone();
 
         // The registry is the source of truth for auto-start, not the settings file.
@@ -123,7 +135,10 @@ public sealed class SettingsViewModel : ObservableObject
         SelectNotificationsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Notifications);
         SelectWindowSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Window);
         SelectAppearanceSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Appearance);
+        SelectServerSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Server);
         SelectAboutSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.About);
+
+        RefreshServerInfoCommand = new AsyncRelayCommand(RefreshServerInfoAsync, () => !IsRefreshingServerInfo);
 
         CheckForUpdatesCommand = new AsyncRelayCommand(() => CheckForUpdatesAsync(notifyIfNewer: false));
         ViewLatestReleaseCommand = new RelayCommand(
@@ -159,6 +174,8 @@ public sealed class SettingsViewModel : ObservableObject
 
     public RelayCommand SelectAppearanceSectionCommand { get; }
 
+    public RelayCommand SelectServerSectionCommand { get; }
+
     public RelayCommand SelectAboutSectionCommand { get; }
 
     public SettingsSection SelectedSection
@@ -174,6 +191,7 @@ public sealed class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsNotificationsSectionSelected));
                 OnPropertyChanged(nameof(IsWindowSectionSelected));
                 OnPropertyChanged(nameof(IsAppearanceSectionSelected));
+                OnPropertyChanged(nameof(IsServerSectionSelected));
                 OnPropertyChanged(nameof(IsAboutSectionSelected));
             }
         }
@@ -190,6 +208,8 @@ public sealed class SettingsViewModel : ObservableObject
     public bool IsWindowSectionSelected => SelectedSection == SettingsSection.Window;
 
     public bool IsAppearanceSectionSelected => SelectedSection == SettingsSection.Appearance;
+
+    public bool IsServerSectionSelected => SelectedSection == SettingsSection.Server;
 
     public bool IsAboutSectionSelected => SelectedSection == SettingsSection.About;
 
@@ -307,6 +327,113 @@ public sealed class SettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
+
+    // ----------------------------------------------------------------- server
+
+    public AsyncRelayCommand RefreshServerInfoCommand { get; }
+
+    public string ServerUrlText => _session.Connection?.WebRoot.ToString() ?? "-";
+
+    /// <summary>
+    /// False only if the very first fetch (at sign-in) somehow never
+    /// completed - Settings can still be opened while signed out, and this
+    /// keeps the section from showing a wall of "-" in that case.
+    /// </summary>
+    public bool HasServerInfo => _serverInfo is not null;
+
+    public string ServerVersionText => Blank(_serverInfo?.LocalVersion);
+
+    public string ServerBranchText => Blank(_serverInfo?.LocalBranch);
+
+    /// <summary>Shortened to the first 10 characters, matching how GitHub and most git tooling abbreviate a commit SHA.</summary>
+    public string ServerCommitText
+    {
+        get
+        {
+            var sha = _serverInfo?.LocalCommit;
+            return string.IsNullOrWhiteSpace(sha) ? "-" : sha.Length > 10 ? sha[..10] : sha;
+        }
+    }
+
+    public string ServerDateText => Blank(_serverInfo?.LocalDate);
+
+    public string DatabaseVersionText => Blank(_serverInfo?.DatabaseVersion);
+
+    public string DatabaseSchemaText => Blank(_serverInfo?.DatabaseSchema);
+
+    public string PhpVersionText => Blank(_serverInfo?.PhpVersion);
+
+    public string PythonVersionText => Blank(_serverInfo?.PythonVersion);
+
+    public string RrdToolVersionText => Blank(_serverInfo?.RrdToolVersion);
+
+    public string NetSnmpVersionText => Blank(_serverInfo?.NetSnmpVersion);
+
+    public bool IsRefreshingServerInfo
+    {
+        get => _isRefreshingServerInfo;
+        private set
+        {
+            if (SetProperty(ref _isRefreshingServerInfo, value))
+            {
+                RefreshServerInfoCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>Only ever an error - a successful refresh just updates the fields above silently, matching how the rest of this dialog does not narrate its own successes.</summary>
+    public string? ServerInfoStatusText
+    {
+        get => _serverInfoStatusText;
+        private set => SetProperty(ref _serverInfoStatusText, value);
+    }
+
+    public bool HasServerInfoStatus => ServerInfoStatusText is not null;
+
+    /// <summary>
+    /// Settings resolves as a fresh instance every time the dialog opens
+    /// (see App.xaml.cs), so this section already shows whatever
+    /// ISessionService captured at sign-in without needing a live call of
+    /// its own - this exists for the case that matters: confirming a server
+    /// upgrade without having to close Settings, sign out, and back in.
+    /// </summary>
+    private async Task RefreshServerInfoAsync()
+    {
+        IsRefreshingServerInfo = true;
+        ServerInfoStatusText = null;
+
+        try
+        {
+            _serverInfo = await _client.System.GetAsync().ConfigureAwait(true);
+        }
+        catch (LibreNmsApiException ex)
+        {
+            ServerInfoStatusText = ex.ToUserMessage();
+        }
+        catch (Exception)
+        {
+            ServerInfoStatusText = "Could not refresh the server's info. Check your connection.";
+        }
+        finally
+        {
+            IsRefreshingServerInfo = false;
+        }
+
+        OnPropertyChanged(nameof(HasServerInfo));
+        OnPropertyChanged(nameof(ServerVersionText));
+        OnPropertyChanged(nameof(ServerBranchText));
+        OnPropertyChanged(nameof(ServerCommitText));
+        OnPropertyChanged(nameof(ServerDateText));
+        OnPropertyChanged(nameof(DatabaseVersionText));
+        OnPropertyChanged(nameof(DatabaseSchemaText));
+        OnPropertyChanged(nameof(PhpVersionText));
+        OnPropertyChanged(nameof(PythonVersionText));
+        OnPropertyChanged(nameof(RrdToolVersionText));
+        OnPropertyChanged(nameof(NetSnmpVersionText));
+        OnPropertyChanged(nameof(HasServerInfoStatus));
+    }
+
+    private static string Blank(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value!;
 
     // ------------------------------------------------------------------ about
 
