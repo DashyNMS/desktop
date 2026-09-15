@@ -138,6 +138,11 @@
                                   Command="{Binding SelectAlertHistoryCommand}">
                         <TextBlock Text="{Binding AlertHistory.Count, Mode=OneWay, StringFormat=Alert history ({0})}" />
                     </ToggleButton>
+                    <ToggleButton Style="{StaticResource NavTabButtonStyle}"
+                                  IsChecked="{Binding IsEventLogSelected, Mode=OneWay}"
+                                  Command="{Binding SelectEventLogCommand}">
+                        <TextBlock Text="{Binding EventLog.Count, Mode=OneWay, StringFormat=Event log ({0})}" />
+                    </ToggleButton>
                 </StackPanel>
             </Border>
         </Border>
@@ -592,6 +597,83 @@
                            IsHitTestVisible="False"
                            Visibility="{Binding HasAlertHistory, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
                            Style="{StaticResource SubtleTextStyle}" />
+            </Grid>
+
+            <!-- ==================== Event log ==================== -->
+            <Grid Margin="24"
+                  Visibility="{Binding IsEventLogSelected, Converter={StaticResource BoolToVisibility}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBox Grid.Row="0"
+                         Text="{Binding EventLogSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                         ToolTip="Search by message, type or user"
+                         Width="320"
+                         HorizontalAlignment="Left"
+                         Margin="0,0,0,10" />
+
+                <Grid Grid.Row="1">
+                    <!-- Loading more appends past the bottom rather than
+                         replacing the grid, so ScrollChanged is watched on
+                         this DataGrid itself (see DeviceView.xaml.cs) to fetch
+                         the next page automatically as it is scrolled into
+                         view - "Load more" below is the fallback for anyone
+                         who never scrolls that far. -->
+                    <DataGrid x:Name="EventLogGrid"
+                              ItemsSource="{Binding EventLogView}"
+                              Visibility="{Binding HasEventLog, Converter={StaticResource BoolToVisibility}}"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column">
+                        <DataGrid.Columns>
+
+                            <DataGridTextColumn Header="Type" Width="110" Binding="{Binding TypeText}" />
+                            <DataGridTextColumn Header="Message" Width="*" Binding="{Binding Message}" />
+                            <DataGridTextColumn Header="User" Width="110" Binding="{Binding Username}" />
+                            <DataGridTextColumn Header="Time" Width="150" Binding="{Binding TimeText}" />
+
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Text="No event log entries for this device."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding HasEventLog, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                               Style="{StaticResource SubtleTextStyle}" />
+                </Grid>
+
+                <StackPanel Grid.Row="2"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            Margin="0,10,0,0">
+                    <TextBlock Text="Loading more..."
+                               Style="{StaticResource SubtleTextStyle}"
+                               Visibility="{Binding IsLoadingMoreEventLog, Converter={StaticResource BoolToVisibility}}" />
+                    <Button Content="Load more"
+                            Command="{Binding LoadMoreEventLogCommand}"
+                            Padding="12,6">
+                        <Button.Style>
+                            <!-- BasedOn the app's own default: an override
+                                 with no BasedOn replaces the themed look
+                                 entirely, leaving bare OS button chrome. -->
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding HasMoreEventLog}" Value="True" />
+                                            <Condition Binding="{Binding IsLoadingMoreEventLog}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
             </Grid>
         </Grid>
 

@@ -235,4 +235,21 @@ internal sealed class LogsApi : ILogsApi
 
         return best;
     }
+
+    public Task<IReadOnlyList<EventLogEntry>> ListEventLogAsync(
+        int deviceId,
+        int limit = 50,
+        CancellationToken cancellationToken = default)
+    {
+        if (limit < 1)
+        {
+            limit = 1;
+        }
+
+        var url = string.Create(
+            CultureInfo.InvariantCulture,
+            $"logs/eventlog/{deviceId}?limit={limit}&sortorder=DESC");
+
+        return _transport.GetCollectionAsync<EventLogEntry>(url, "logs", cancellationToken);
+    }
 }

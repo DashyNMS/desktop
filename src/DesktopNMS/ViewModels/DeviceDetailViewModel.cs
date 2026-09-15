@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows.Data;
 using System.Windows.Threading;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
@@ -22,6 +24,7 @@ public enum DeviceDetailSection
     Sensors,
     Ports,
     AlertHistory,
+    EventLog,
 }
 
 /// <summary>
@@ -48,12 +51,27 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, SensorItemViewModel> _sensorIndex = new();
     private readonly Dictionary<int, AlertRule?> _ruleCache = new();
+    private readonly HashSet<int> _loadedEventLogIds = new();
+
+    private const int EventLogPageSize = 50;
+
+    private int _eventLogLimit = EventLogPageSize;
 
     private Device? _device;
     private bool _isUnderMaintenance;
     private bool _isBusy;
     private string? _errorMessage;
     private DeviceDetailSection _selectedSection = DeviceDetailSection.Overview;
+    private string _eventLogSearchText = string.Empty;
+
+    // Starts false, not true: until the first page has actually loaded and
+    // said so, there is nothing confirmed to load more of. Defaulting this to
+    // true let a "load more" fired before that first page finished (e.g. a
+    // ScrollChanged on the still-empty grid) race the initial load and see
+    // every entry as a duplicate, which read as "pagination is broken" and
+    // latched this false for good before the user ever got to scroll for real.
+    private bool _hasMoreEventLog;
+    private bool _isLoadingMoreEventLog;
 
     public DeviceDetailViewModel(
         int deviceId,
@@ -85,6 +103,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         AlertHistory = new ObservableCollection<AlertLogItemViewModel>();
         ActiveAlerts = new ObservableCollection<ActiveAlertItemViewModel>();
         Ports = new ObservableCollection<PortItemViewModel>();
+        EventLog = new ObservableCollection<EventLogItemViewModel>();
+
+        // Filter only - no grouping, so this does not run into the DataGrid
+        // grouping/full-width fight the Sensors tab did.
+        EventLogView = CollectionViewSource.GetDefaultView(EventLog);
+        EventLogView.Filter = FilterEventLogEntry;
 
         OpenInLibreNmsCommand = new RelayCommand(() =>
         {
@@ -102,6 +126,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectSensorsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Sensors);
         SelectPortsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Ports);
         SelectAlertHistoryCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.AlertHistory);
+        SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
+
+        LoadMoreEventLogCommand = new AsyncRelayCommand(LoadMoreEventLogAsync, () => HasMoreEventLog && !IsLoadingMoreEventLog);
 
         // Shows whatever is already cached instantly, rather than a blank
         // window until the next shared poll lands.
@@ -125,6 +152,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
         _ = LoadAlertHistoryAsync();
         _ = LoadPortsAsync();
+        _ = LoadEventLogAsync();
     }
 
     public ObservableCollection<SensorItemViewModel> Sensors { get; }
@@ -146,6 +174,11 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<PortItemViewModel> Ports { get; }
 
+    public ObservableCollection<EventLogItemViewModel> EventLog { get; }
+
+    /// <summary>The event log, filtered by <see cref="EventLogSearchText"/>. What the Event log tab actually binds to.</summary>
+    public ICollectionView EventLogView { get; }
+
     public RelayCommand OpenInLibreNmsCommand { get; }
 
     public RelayCommand ShowAlertsCommand { get; }
@@ -160,6 +193,53 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectAlertHistoryCommand { get; }
 
+    public RelayCommand SelectEventLogCommand { get; }
+
+    public AsyncRelayCommand LoadMoreEventLogCommand { get; }
+
+    /// <summary>Free-text filter over the event log's message, type and username - applied client-side over whatever pages have been loaded so far.</summary>
+    public string EventLogSearchText
+    {
+        get => _eventLogSearchText;
+        set
+        {
+            if (SetProperty(ref _eventLogSearchText, value))
+            {
+                EventLogView.Refresh();
+            }
+        }
+    }
+
+    /// <summary>
+    /// True while the last full page fetched actually contained new entries -
+    /// once a page comes back empty, or entirely duplicates what is already
+    /// loaded (a sign paging is not advancing - see <see cref="ILogsApi.ListEventLogAsync"/>),
+    /// this goes false and "load more" stops firing.
+    /// </summary>
+    public bool HasMoreEventLog
+    {
+        get => _hasMoreEventLog;
+        private set
+        {
+            if (SetProperty(ref _hasMoreEventLog, value))
+            {
+                LoadMoreEventLogCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsLoadingMoreEventLog
+    {
+        get => _isLoadingMoreEventLog;
+        private set
+        {
+            if (SetProperty(ref _isLoadingMoreEventLog, value))
+            {
+                LoadMoreEventLogCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
     public DeviceDetailSection SelectedSection
     {
         get => _selectedSection;
@@ -171,6 +251,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsSensorsSelected));
                 OnPropertyChanged(nameof(IsPortsSelected));
                 OnPropertyChanged(nameof(IsAlertHistorySelected));
+                OnPropertyChanged(nameof(IsEventLogSelected));
             }
         }
     }
@@ -182,6 +263,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsPortsSelected => SelectedSection == DeviceDetailSection.Ports;
 
     public bool IsAlertHistorySelected => SelectedSection == DeviceDetailSection.AlertHistory;
+
+    public bool IsEventLogSelected => SelectedSection == DeviceDetailSection.EventLog;
 
     // ------------------------------------------------------------------ device
 
@@ -240,6 +323,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     }
 
     public bool HasAlertHistory => AlertHistory.Count > 0;
+
+    public bool HasEventLog => EventLog.Count > 0;
 
     /// <summary>
     /// True once ports have actually been fetched and the device reports at
@@ -365,7 +450,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     private void ApplySensors(IReadOnlyList<Sensor> fleet)
     {
-        var settings = _settings.Current;
         var connection = _session.Connection;
         var deviceName = Name;
 
@@ -389,7 +473,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         for (var target = 0; target < mine.Count; target++)
         {
             var sensor = mine[target];
-            var (evaluator, unit) = ResolveThresholds(sensor.SensorClass, settings);
+            var evaluator = new SensorLimitThresholdEvaluator(sensor);
+            var unit = SensorUnitDisplay.Resolve(sensor.SensorClass);
 
             if (_sensorIndex.TryGetValue(sensor.SensorId, out var existing))
             {
@@ -475,19 +560,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
 
         return true;
-    }
-
-    /// <summary>
-    /// Unlike the Health tab and the Dashboard's Sensors widget, this shows
-    /// every sensor class LibreNMS reports for the device - not just the four
-    /// with configured thresholds - since the point here is a complete picture
-    /// of one device. Classes outside <see cref="SensorCategoryRegistry"/> just
-    /// show their raw value with no severity colouring.
-    /// </summary>
-    private static (IThresholdEvaluator Evaluator, string UnitSuffix) ResolveThresholds(string? sensorClass, AppSettings settings)
-    {
-        var entry = SensorCategoryRegistry.Resolve(sensorClass);
-        return entry is not null ? (entry.Thresholds(settings), entry.UnitSuffix) : (NoThresholds.Instance, string.Empty);
     }
 
     private async Task LoadAlertHistoryAsync()
@@ -624,12 +696,174 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// LibreNMS's general audit trail for the device (config changes, up/down
+    /// transitions, polling events, ...) - distinct from the alert log, which
+    /// is only what tripped an alert rule. Fetched independently, same as
+    /// ports/neighbours, so a problem here cannot take another tab down with it.
+    /// Always fetches from scratch at <see cref="EventLogPageSize"/> - see
+    /// <see cref="LoadMoreEventLogAsync"/> for how "load more" widens that.
+    /// </summary>
+    private async Task LoadEventLogAsync()
+    {
+        _eventLogLimit = EventLogPageSize;
+
+        try
+        {
+            var entries = await _client.Logs.ListEventLogAsync(_deviceId, _eventLogLimit).ConfigureAwait(true);
+            WarnIfFieldsLookWrong(entries);
+
+            EventLog.Clear();
+            _loadedEventLogIds.Clear();
+
+            foreach (var entry in entries)
+            {
+                EventLog.Add(new EventLogItemViewModel(entry));
+                _loadedEventLogIds.Add(entry.Id);
+            }
+
+            HasMoreEventLog = entries.Count >= _eventLogLimit;
+
+            // TEMPORARY: remove alongside the matching log in LoadMoreEventLogAsync
+            // once "load more" is confirmed working.
+            _logger.LogInformation(
+                "Event log first page for device {DeviceId}: {Count} entries, ids {MinId}-{MaxId}",
+                _deviceId, entries.Count,
+                entries.Count > 0 ? entries.Min(e => e.Id) : -1,
+                entries.Count > 0 ? entries.Max(e => e.Id) : -1);
+
+            OnPropertyChanged(nameof(HasEventLog));
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load event log for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load event log for device {DeviceId}", _deviceId);
+        }
+    }
+
+    /// <summary>
+    /// LibreNMS's eventlog endpoint has no working offset parameter - a
+    /// "start" query parameter was tried and confirmed (against a real
+    /// server, via logging) to have no effect, always returning the same top
+    /// entries regardless. "Load more" therefore re-issues the same query
+    /// with a bigger <see cref="_eventLogLimit"/> - the server always returns
+    /// the newest N, so a bigger N is the existing entries plus more older
+    /// ones tacked on the end - and only the new tail (by id, in case that
+    /// assumption ever breaks) is appended, so the grid does not visibly
+    /// rebuild from scratch.
+    /// </summary>
+    private async Task LoadMoreEventLogAsync()
+    {
+        IsLoadingMoreEventLog = true;
+        var newLimit = _eventLogLimit + EventLogPageSize;
+
+        // TEMPORARY: a snapshot from before this fetch touches anything, so
+        // the log below can show exactly what was already tracked versus
+        // what came back - remove alongside the other event log diagnostics
+        // once "load more" is confirmed working.
+        var previouslyTrackedCount = _loadedEventLogIds.Count;
+        var previouslyTrackedMin = _loadedEventLogIds.Count > 0 ? _loadedEventLogIds.Min() : -1;
+        var previouslyTrackedMax = _loadedEventLogIds.Count > 0 ? _loadedEventLogIds.Max() : -1;
+
+        try
+        {
+            var entries = await _client.Logs.ListEventLogAsync(_deviceId, newLimit).ConfigureAwait(true);
+
+            var added = 0;
+            foreach (var entry in entries)
+            {
+                if (_loadedEventLogIds.Add(entry.Id))
+                {
+                    EventLog.Add(new EventLogItemViewModel(entry));
+                    added++;
+                }
+            }
+
+            _logger.LogInformation(
+                "Event log widen for device {DeviceId}: requested limit={RequestedLimit}, got {ReturnedCount} back (ids {MinId}-{MaxId}), had {PrevCount} tracked (ids {PrevMin}-{PrevMax}), {Added} new",
+                _deviceId, newLimit, entries.Count,
+                entries.Count > 0 ? entries.Min(e => e.Id) : -1,
+                entries.Count > 0 ? entries.Max(e => e.Id) : -1,
+                previouslyTrackedCount, previouslyTrackedMin, previouslyTrackedMax,
+                added);
+
+            _eventLogLimit = newLimit;
+            HasMoreEventLog = added > 0 && entries.Count >= newLimit;
+            OnPropertyChanged(nameof(HasEventLog));
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load more event log entries for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
+            HasMoreEventLog = false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load more event log entries for device {DeviceId}", _deviceId);
+            HasMoreEventLog = false;
+        }
+        finally
+        {
+            IsLoadingMoreEventLog = false;
+        }
+    }
+
+    /// <summary>
+    /// The event log model's field names are a best guess at LibreNMS's
+    /// schema, unconfirmed against a real response - if the one field that
+    /// matters came back empty, log what the server actually sent so this can
+    /// be fixed from evidence rather than another guess.
+    /// </summary>
+    private void WarnIfFieldsLookWrong(IReadOnlyList<EventLogEntry> entries)
+    {
+        if (entries.Count == 0)
+        {
+            return;
+        }
+
+        var sample = entries[0];
+
+        // Id is confirmed wrong already (every entry maps to 0, breaking
+        // duplicate detection in LoadMoreEventLogAsync) - dumping the raw
+        // fields here shows the real primary key column name instead of
+        // guessing again. Remove once EventLogEntry.Id is fixed.
+        if (sample.Id == 0 || string.IsNullOrEmpty(sample.Message))
+        {
+            var extra = sample.AdditionalData is { Count: > 0 }
+                ? string.Join(", ", sample.AdditionalData.Select(kv => $"{kv.Key}={kv.Value}"))
+                : "(none)";
+            _logger.LogWarning(
+                "Event log entry for device {DeviceId} looks wrong (Id={Id}, Message={Message}) - field names may not match LibreNMS's schema: {Extra}",
+                _deviceId, sample.Id, sample.Message, extra);
+        }
+    }
+
+    private bool FilterEventLogEntry(object item)
+    {
+        if (item is not EventLogItemViewModel entry)
+        {
+            return false;
+        }
+
+        var term = EventLogSearchText;
+        if (string.IsNullOrWhiteSpace(term))
+        {
+            return true;
+        }
+
+        return entry.Message.Contains(term, StringComparison.OrdinalIgnoreCase)
+            || entry.TypeText.Contains(term, StringComparison.OrdinalIgnoreCase)
+            || entry.Username.Contains(term, StringComparison.OrdinalIgnoreCase);
+    }
+
     private Task RefreshAsync()
     {
         _deviceMonitor.RequestRefresh();
         _sensorMonitor.RequestRefresh();
         _alertMonitor.RequestRefresh();
-        return Task.WhenAll(LoadAlertHistoryAsync(), LoadPortsAsync());
+        return Task.WhenAll(LoadAlertHistoryAsync(), LoadPortsAsync(), LoadEventLogAsync());
     }
 
     private void RaiseDeviceChanged()
@@ -682,12 +916,81 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _alertMonitor.Polled -= OnAlertsPolled;
     }
 
-    private sealed class NoThresholds : IThresholdEvaluator
+    /// <summary>
+    /// Classifies a reading against the thresholds LibreNMS itself has
+    /// configured on that specific sensor (sensor_limit/_warn/_low/_low_warn),
+    /// rather than one of DashyNMS's own app-wide settings - unlike the Health
+    /// tab and the Dashboard's Sensors widget (which apply one threshold
+    /// consistently across every device for a class), a single-device view
+    /// should show what is actually configured on the device, and covers
+    /// every sensor class this way rather than only the four DashyNMS has its
+    /// own settings for.
+    /// </summary>
+    private sealed class SensorLimitThresholdEvaluator : IThresholdEvaluator
     {
-        public static readonly NoThresholds Instance = new();
+        private readonly Sensor _sensor;
 
-        public AlertSeverity Evaluate(double value) => AlertSeverity.Unknown;
+        public SensorLimitThresholdEvaluator(Sensor sensor) => _sensor = sensor;
+
+        public AlertSeverity Evaluate(double value)
+        {
+            if (_sensor.LimitLow is null && _sensor.LimitLowWarn is null
+                && _sensor.LimitHigh is null && _sensor.LimitHighWarn is null)
+            {
+                // Nothing configured on this sensor to judge it against -
+                // "Unknown" reads as neutral, not as if it were fine.
+                return AlertSeverity.Unknown;
+            }
+
+            if (_sensor.LimitLow is { } low && value <= low)
+            {
+                return AlertSeverity.Critical;
+            }
+
+            if (_sensor.LimitHigh is { } high && value >= high)
+            {
+                return AlertSeverity.Critical;
+            }
+
+            if (_sensor.LimitLowWarn is { } lowWarn && value <= lowWarn)
+            {
+                return AlertSeverity.Warning;
+            }
+
+            if (_sensor.LimitHighWarn is { } highWarn && value >= highWarn)
+            {
+                return AlertSeverity.Warning;
+            }
+
+            return AlertSeverity.Ok;
+        }
     }
+}
+
+/// <summary>
+/// Units for common LibreNMS sensor classes, since the API does not return a
+/// unit string - only classes worth labelling with confidence are included;
+/// anything else (state, count, runtime, ...) is left bare rather than guessed.
+/// </summary>
+file static class SensorUnitDisplay
+{
+    private static readonly Dictionary<string, string> Units = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["dbm"] = " dBm",
+        ["temperature"] = " °C",
+        ["fanspeed"] = " RPM",
+        ["voltage"] = " V",
+        ["current"] = " A",
+        ["power"] = " W",
+        ["frequency"] = " Hz",
+        ["humidity"] = "%",
+        ["storage"] = "%",
+        ["charge"] = "%",
+        ["load"] = "%",
+    };
+
+    public static string Resolve(string? sensorClass) =>
+        sensorClass is not null && Units.TryGetValue(sensorClass, out var unit) ? unit : string.Empty;
 }
 
 /// <summary>Common IANAifType values translated to what LibreNMS's own UI calls them, since the raw MIB enum name is not user-friendly.</summary>
@@ -727,6 +1030,24 @@ public sealed class SensorGroupViewModel
     public AlertSeverity WorstSeverity => Sensors.Count == 0
         ? AlertSeverity.Unknown
         : Sensors.OrderByDescending(s => s.Severity.SortRank()).First().Severity;
+}
+
+/// <summary>One row in a device's event log - a general audit entry, not necessarily tied to any alert.</summary>
+public sealed class EventLogItemViewModel
+{
+    private readonly EventLogEntry _entry;
+
+    public EventLogItemViewModel(EventLogEntry entry) => _entry = entry;
+
+    public string Message => string.IsNullOrWhiteSpace(_entry.Message) ? "-" : _entry.Message!;
+
+    public string TypeText => string.IsNullOrWhiteSpace(_entry.Type) ? "-" : _entry.Type!;
+
+    public string Username => string.IsNullOrWhiteSpace(_entry.Username) ? "-" : _entry.Username!;
+
+    public string TimeText => _entry.Timestamp is { } t
+        ? t.ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
+        : "-";
 }
 
 /// <summary>One row in a device's Ports tab - one network interface.</summary>
