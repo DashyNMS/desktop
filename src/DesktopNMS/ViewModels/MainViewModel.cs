@@ -56,6 +56,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>Cancels the in-flight fault lookup when the selection moves on.</summary>
     private CancellationTokenSource? _detailCts;
 
+    /// <summary>
+    /// DashyNMS's own icon, decoded once and reused for every window rather
+    /// than on every <see cref="HeaderLogo"/> access - it never changes, so
+    /// there is nothing to gain by re-decoding it.
+    /// </summary>
+    private static readonly Lazy<BitmapImage> AppIconLogo = new(() =>
+    {
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.UriSource = new Uri("pack://application:,,,/Assets/app.ico");
+        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+        bitmap.EndInit();
+        bitmap.Freeze();
+        return bitmap;
+    });
+
     public MainViewModel(
         ILibreNmsClient client,
         ISessionService session,
@@ -87,6 +103,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         _branding.Changed += OnBrandingChanged;
+        _settings.Changed += OnLogoSettingChanged;
 
         Alerts = new ObservableCollection<AlertItemViewModel>();
         AlertsView = CollectionViewSource.GetDefaultView(Alerts);
@@ -192,7 +209,28 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>The connected server's favicon, shown next to the tabs. Null until it loads, or if there isn't one.</summary>
     public BitmapImage? ServerLogo => _branding.Logo;
 
-    private void OnBrandingChanged(object? sender, EventArgs e) => OnPropertyChanged(nameof(ServerLogo));
+    /// <summary>
+    /// What the shell header's logo slot actually shows: the server's own
+    /// branding when <see cref="AppSettings.ShowServerLogo"/> is on and one
+    /// has loaded, DashyNMS's own icon otherwise - see that setting's
+    /// remarks for why someone would turn it off.
+    /// </summary>
+    public BitmapImage? HeaderLogo => _settings.Current.ShowServerLogo ? ServerLogo : AppIconLogo.Value;
+
+    public bool HasHeaderLogo => HeaderLogo is not null;
+
+    private void OnBrandingChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(ServerLogo));
+        OnPropertyChanged(nameof(HeaderLogo));
+        OnPropertyChanged(nameof(HasHeaderLogo));
+    }
+
+    private void OnLogoSettingChanged(object? sender, AppSettings settings)
+    {
+        OnPropertyChanged(nameof(HeaderLogo));
+        OnPropertyChanged(nameof(HasHeaderLogo));
+    }
 
     public MainTab SelectedTab
     {
@@ -1154,6 +1192,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _monitor.PollStarted -= OnPollStarted;
         _session.StateChanged -= OnSessionStateChanged;
         _branding.Changed -= OnBrandingChanged;
+        _settings.Changed -= OnLogoSettingChanged;
 
         _detailCts?.Cancel();
         _detailCts?.Dispose();

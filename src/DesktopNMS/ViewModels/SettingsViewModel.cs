@@ -292,6 +292,22 @@ public sealed class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(AccentPreviewBrush));
     }
 
+    /// <summary>Off shows DashyNMS's own icon in the shell header instead of the connected server's logo - see <see cref="AppSettings.ShowServerLogo"/>.</summary>
+    public bool ShowServerLogo
+    {
+        get => _draft.ShowServerLogo;
+        set
+        {
+            if (_draft.ShowServerLogo == value)
+            {
+                return;
+            }
+
+            _draft.ShowServerLogo = value;
+            OnPropertyChanged();
+        }
+    }
+
     // ------------------------------------------------------------------ about
 
     public AsyncRelayCommand CheckForUpdatesCommand { get; }

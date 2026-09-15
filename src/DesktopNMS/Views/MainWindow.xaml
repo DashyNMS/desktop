@@ -47,23 +47,26 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- The connected server's own logo/favicon, if it has one - a
-                     small per-server touch distinct from the app's own
-                     icon/title. LogoBackdropBrush is theme-aware (see the
-                     palette files): it matches the page background in Dark
-                     mode so the logo appears to float with no visible box,
-                     and uses the tab bar's own grey in Light mode so
-                     light-on-transparent artwork stays visible. Hidden
-                     entirely rather than showing a broken-image glyph when
-                     there isn't one or it hasn't loaded yet. -->
+                <!-- The connected server's own logo/favicon, if it has one and
+                     Settings > Appearance has it turned on - a small
+                     per-server touch distinct from the app's own icon/title.
+                     Falls back to DashyNMS's own icon (HeaderLogo - see
+                     MainViewModel) when that setting is off, or while a
+                     server logo has not loaded yet. LogoBackdropBrush is
+                     theme-aware (see the palette files): it matches the page
+                     background in Dark mode so the logo appears to float
+                     with no visible box, and uses the tab bar's own grey in
+                     Light mode so light-on-transparent artwork stays
+                     visible. Hidden entirely rather than showing a
+                     broken-image glyph when there is nothing to show at all. -->
                 <Border Grid.Column="0"
                         Background="{StaticResource LogoBackdropBrush}"
                         CornerRadius="6"
                         Padding="12,8"
                         Margin="0,0,10,0"
                         VerticalAlignment="Center"
-                        Visibility="{Binding ServerLogo, Converter={StaticResource NullToVisibility}}">
-                    <Image Source="{Binding ServerLogo}"
+                        Visibility="{Binding HasHeaderLogo, Converter={StaticResource BoolToVisibility}}">
+                    <Image Source="{Binding HeaderLogo}"
                            Height="28"
                            MaxWidth="140"
                            Stretch="Uniform" />

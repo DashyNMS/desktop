@@ -126,6 +126,14 @@ public sealed class AppSettings
     /// <summary>The base colour palette - see <see cref="AppTheme"/>.</summary>
     public AppTheme Theme { get; set; } = AppTheme.Dark;
 
+    /// <summary>
+    /// Show the connected server's own logo/favicon in the shell header when
+    /// it has one. Off shows DashyNMS's own icon instead - some servers'
+    /// branding does not suit every taste, or a shared/demo instance's mark
+    /// is not what someone wants to see every time they open the app.
+    /// </summary>
+    public bool ShowServerLogo { get; set; } = true;
+
     public WindowPlacement? Window { get; set; }
 
     public AppSettings Clone() => new()
@@ -154,6 +162,7 @@ public sealed class AppSettings
         DashboardWidgets = DashboardWidgets.Select(w => w.Clone()).ToList(),
         AccentColor = AccentColor,
         Theme = Theme,
+        ShowServerLogo = ShowServerLogo,
         Window = Window?.Clone(),
     };
 

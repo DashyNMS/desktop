@@ -498,6 +498,14 @@
                                    TextWrapping="Wrap"
                                    Margin="0,14,0,0"
                                    Text="Takes effect as soon as you save - no restart needed." />
+
+                        <TextBlock Text="Server logo" Style="{StaticResource SectionHeaderStyle}" Margin="0,20,0,6" />
+                        <CheckBox Content="Show the connected server's own logo in the header"
+                                  IsChecked="{Binding ShowServerLogo}" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Text="Off shows DashyNMS's own icon there instead - handy if a server's branding isn't to your taste, or you'd rather not see a shared/demo instance's mark every time you open the app." />
                     </StackPanel>
 
                     <!-- ==================== About ==================== -->
