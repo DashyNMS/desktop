@@ -23,6 +23,7 @@ public enum DeviceDetailSection
     Overview,
     Sensors,
     Ports,
+    Resources,
     AlertHistory,
     EventLog,
 }
@@ -103,6 +104,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         AlertHistory = new ObservableCollection<AlertLogItemViewModel>();
         ActiveAlerts = new ObservableCollection<ActiveAlertItemViewModel>();
         Ports = new ObservableCollection<PortItemViewModel>();
+        Processors = new ObservableCollection<ProcessorItemViewModel>();
+        Mempools = new ObservableCollection<MempoolItemViewModel>();
+        Storage = new ObservableCollection<StorageItemViewModel>();
         EventLog = new ObservableCollection<EventLogItemViewModel>();
 
         // Filter only - no grouping, so this does not run into the DataGrid
@@ -125,6 +129,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectOverviewCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Overview);
         SelectSensorsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Sensors);
         SelectPortsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Ports);
+        SelectResourcesCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Resources);
         SelectAlertHistoryCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.AlertHistory);
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
 
@@ -152,6 +157,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
         _ = LoadAlertHistoryAsync();
         _ = LoadPortsAsync();
+        _ = LoadResourcesAsync();
         _ = LoadEventLogAsync();
     }
 
@@ -174,6 +180,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<PortItemViewModel> Ports { get; }
 
+    public ObservableCollection<ProcessorItemViewModel> Processors { get; }
+
+    public ObservableCollection<MempoolItemViewModel> Mempools { get; }
+
+    public ObservableCollection<StorageItemViewModel> Storage { get; }
+
     public ObservableCollection<EventLogItemViewModel> EventLog { get; }
 
     /// <summary>The event log, filtered by <see cref="EventLogSearchText"/>. What the Event log tab actually binds to.</summary>
@@ -190,6 +202,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public RelayCommand SelectSensorsCommand { get; }
 
     public RelayCommand SelectPortsCommand { get; }
+
+    public RelayCommand SelectResourcesCommand { get; }
 
     public RelayCommand SelectAlertHistoryCommand { get; }
 
@@ -250,6 +264,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsOverviewSelected));
                 OnPropertyChanged(nameof(IsSensorsSelected));
                 OnPropertyChanged(nameof(IsPortsSelected));
+                OnPropertyChanged(nameof(IsResourcesSelected));
                 OnPropertyChanged(nameof(IsAlertHistorySelected));
                 OnPropertyChanged(nameof(IsEventLogSelected));
             }
@@ -261,6 +276,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsSensorsSelected => SelectedSection == DeviceDetailSection.Sensors;
 
     public bool IsPortsSelected => SelectedSection == DeviceDetailSection.Ports;
+
+    public bool IsResourcesSelected => SelectedSection == DeviceDetailSection.Resources;
 
     public bool IsAlertHistorySelected => SelectedSection == DeviceDetailSection.AlertHistory;
 
@@ -336,6 +353,49 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public int PortsUpCount => Ports.Count(p => p.IsUp);
 
     public int PortsDownCount => Ports.Count(p => !p.IsUp);
+
+    /// <summary>
+    /// True once CPU/memory/disk have actually been fetched and the device
+    /// reports at least one of them - like <see cref="HasPorts"/>, plenty of
+    /// devices (switches, PDUs, sensors-only appliances) expose none of these.
+    /// </summary>
+    public bool HasResources => Processors.Count > 0 || Mempools.Count > 0 || Storage.Count > 0;
+
+    public bool HasProcessors => Processors.Count > 0;
+
+    public bool HasMempools => Mempools.Count > 0;
+
+    public bool HasStorage => Storage.Count > 0;
+
+    /// <summary>Average usage across every CPU/core LibreNMS reports, or null when the device has none.</summary>
+    public double? CpuUsagePercent => Processors.Count > 0 ? Processors.Average(p => p.UsagePercent) : null;
+
+    /// <summary>
+    /// The pool named "Physical memory" if there is one (the common case on
+    /// Linux/UCD-SNMP hosts) - otherwise whichever pool is fullest, since an
+    /// arbitrary vendor's naming cannot be relied on and the fullest pool is
+    /// the one worth surfacing at a glance regardless.
+    /// </summary>
+    public double? MemoryUsagePercent => Mempools.Count == 0
+        ? null
+        : (Mempools.FirstOrDefault(m => m.Description.Contains("Physical", StringComparison.OrdinalIgnoreCase))
+            ?? Mempools.OrderByDescending(m => m.UsagePercent).First()).UsagePercent;
+
+    /// <summary>The fullest volume, since that is the one worth surfacing at a glance regardless of how many others are healthy.</summary>
+    public double? DiskUsagePercent => Storage.Count > 0 ? Storage.Max(s => s.UsagePercent) : null;
+
+    /// <summary>"24% CPU, 63% RAM, 92% disk" for the Overview card - only the metrics this device actually reports.</summary>
+    public string ResourceSummaryText
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (CpuUsagePercent is { } cpu) parts.Add($"{cpu:0}% CPU");
+            if (MemoryUsagePercent is { } memory) parts.Add($"{memory:0}% RAM");
+            if (DiskUsagePercent is { } disk) parts.Add($"{disk:0}% disk");
+            return string.Join(", ", parts);
+        }
+    }
 
     public bool HasActiveAlerts => ActiveAlerts.Count > 0;
 
@@ -705,6 +765,58 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// CPU/memory/disk usage. Fetched independently, same as ports/neighbours,
+    /// so a problem here cannot take another tab down with it - most devices
+    /// (switches, PDUs, anything SNMP-only) report none of these at all, which
+    /// is not an error, just an empty result.
+    /// </summary>
+    private async Task LoadResourcesAsync()
+    {
+        try
+        {
+            var processorsTask = _client.Health.ListProcessorsAsync(_deviceId);
+            var mempoolsTask = _client.Health.ListMempoolsAsync(_deviceId);
+            var storageTask = _client.Health.ListStorageAsync(_deviceId);
+            await Task.WhenAll(processorsTask, mempoolsTask, storageTask).ConfigureAwait(true);
+
+            Processors.Clear();
+            foreach (var processor in processorsTask.Result.OrderBy(p => p.Description, StringComparer.OrdinalIgnoreCase))
+            {
+                Processors.Add(new ProcessorItemViewModel(processor));
+            }
+
+            Mempools.Clear();
+            foreach (var mempool in mempoolsTask.Result.OrderBy(m => m.Description, StringComparer.OrdinalIgnoreCase))
+            {
+                Mempools.Add(new MempoolItemViewModel(mempool));
+            }
+
+            Storage.Clear();
+            foreach (var volume in storageTask.Result.OrderBy(s => s.Description, StringComparer.OrdinalIgnoreCase))
+            {
+                Storage.Add(new StorageItemViewModel(volume));
+            }
+
+            OnPropertyChanged(nameof(HasResources));
+            OnPropertyChanged(nameof(HasProcessors));
+            OnPropertyChanged(nameof(HasMempools));
+            OnPropertyChanged(nameof(HasStorage));
+            OnPropertyChanged(nameof(CpuUsagePercent));
+            OnPropertyChanged(nameof(MemoryUsagePercent));
+            OnPropertyChanged(nameof(DiskUsagePercent));
+            OnPropertyChanged(nameof(ResourceSummaryText));
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load resources for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load resources for device {DeviceId}", _deviceId);
+        }
+    }
+
+    /// <summary>
     /// LibreNMS's general audit trail for the device (config changes, up/down
     /// transitions, polling events, ...) - distinct from the alert log, which
     /// is only what tripped an alert rule. Fetched independently, same as
@@ -871,7 +983,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _deviceMonitor.RequestRefresh();
         _sensorMonitor.RequestRefresh();
         _alertMonitor.RequestRefresh();
-        return Task.WhenAll(LoadAlertHistoryAsync(), LoadPortsAsync(), LoadEventLogAsync());
+        return Task.WhenAll(LoadAlertHistoryAsync(), LoadPortsAsync(), LoadResourcesAsync(), LoadEventLogAsync());
     }
 
     private void RaiseDeviceChanged()
@@ -1277,4 +1389,116 @@ public sealed class AlertLogItemViewModel
     }
 
     public bool HasDetail => DetailText.Length > 0;
+}
+
+/// <summary>One row in a device's Resources tab - one CPU/core.</summary>
+public sealed class ProcessorItemViewModel
+{
+    private readonly ProcessorSensor _processor;
+
+    public ProcessorItemViewModel(ProcessorSensor processor) => _processor = processor;
+
+    public string Description => string.IsNullOrWhiteSpace(_processor.Description) ? "-" : _processor.Description!;
+
+    public double UsagePercent => _processor.UsagePercent ?? 0;
+
+    public string UsageText => _processor.UsagePercent is { } percent ? $"{percent:0.#}%" : "-";
+
+    public AlertSeverity Severity => ResourceSeverity.Evaluate(_processor.UsagePercent, _processor.WarningPercent);
+}
+
+/// <summary>One row in a device's Resources tab - one memory pool.</summary>
+public sealed class MempoolItemViewModel
+{
+    private readonly MempoolSensor _mempool;
+
+    public MempoolItemViewModel(MempoolSensor mempool) => _mempool = mempool;
+
+    public string Description => string.IsNullOrWhiteSpace(_mempool.Description) ? "-" : _mempool.Description!;
+
+    public double UsagePercent => _mempool.UsagePercent ?? 0;
+
+    public string UsageText => _mempool.UsagePercent is { } percent ? $"{percent:0.#}%" : "-";
+
+    public string DetailText => ResourceByteFormat.FormatUsedOfTotal(_mempool.UsedBytes, _mempool.TotalBytes);
+
+    public AlertSeverity Severity => ResourceSeverity.Evaluate(_mempool.UsagePercent, _mempool.WarningPercent);
+}
+
+/// <summary>One row in a device's Resources tab - one disk/filesystem.</summary>
+public sealed class StorageItemViewModel
+{
+    private readonly StorageVolume _volume;
+
+    public StorageItemViewModel(StorageVolume volume) => _volume = volume;
+
+    public string Description => string.IsNullOrWhiteSpace(_volume.Description) ? "-" : _volume.Description!;
+
+    public double UsagePercent => _volume.UsagePercent ?? 0;
+
+    public string UsageText => _volume.UsagePercent is { } percent ? $"{percent:0.#}%" : "-";
+
+    public string DetailText => ResourceByteFormat.FormatUsedOfTotal(_volume.UsedBytes, _volume.TotalBytes);
+
+    public AlertSeverity Severity => ResourceSeverity.Evaluate(_volume.UsagePercent, _volume.WarningPercent);
+}
+
+/// <summary>
+/// Shared severity rule for CPU/memory/disk rows. Unlike <see cref="Sensor"/>,
+/// LibreNMS only tracks one boundary for these (a single "warning" percent,
+/// no separate critical) - so a configured boundary reads as Warning, and a
+/// device left unconfigured falls back to fixed, generic bands. Either way,
+/// a reading at or past 95% is always Critical: however it is configured,
+/// that is no longer a warning.
+/// </summary>
+file static class ResourceSeverity
+{
+    private const double AlwaysCriticalAt = 95;
+    private const double DefaultWarningAt = 90;
+
+    public static AlertSeverity Evaluate(double? usagePercent, double? warningPercent)
+    {
+        if (usagePercent is not { } percent)
+        {
+            return AlertSeverity.Unknown;
+        }
+
+        if (percent >= AlwaysCriticalAt)
+        {
+            return AlertSeverity.Critical;
+        }
+
+        var warning = warningPercent ?? DefaultWarningAt;
+        return percent >= warning ? AlertSeverity.Warning : AlertSeverity.Ok;
+    }
+}
+
+/// <summary>Human-readable "12.3 GB / 64 GB" for a memory pool or disk volume.</summary>
+file static class ResourceByteFormat
+{
+    private static readonly string[] Units = { "B", "KB", "MB", "GB", "TB" };
+
+    public static string FormatUsedOfTotal(long? usedBytes, long? totalBytes)
+    {
+        if (usedBytes is not { } used || totalBytes is not { } total || total <= 0)
+        {
+            return "-";
+        }
+
+        return $"{Format(used)} / {Format(total)}";
+    }
+
+    private static string Format(long bytes)
+    {
+        double value = bytes;
+        var unit = 0;
+
+        while (value >= 1024 && unit < Units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        return value.ToString(unit == 0 ? "0" : "0.#", CultureInfo.InvariantCulture) + " " + Units[unit];
+    }
 }

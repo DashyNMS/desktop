@@ -24,6 +24,8 @@ public interface ILibreNmsClient
 
     ILinksApi Links { get; }
 
+    IDeviceHealthApi Health { get; }
+
     ILogsApi Logs { get; }
 
     ISystemApi System { get; }

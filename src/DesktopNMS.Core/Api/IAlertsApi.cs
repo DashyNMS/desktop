@@ -96,3 +96,26 @@ public interface IPortsApi
     /// </summary>
     Task<IReadOnlyList<Port>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// CPU/memory/disk endpoints. LibreNMS keeps these in separate tables from
+/// <see cref="Sensor"/> and has no fleet-wide listing for them either - like
+/// <see cref="ILinksApi"/> and <see cref="IPortsApi"/>, each is fetched on
+/// demand for one device at a time.
+/// </summary>
+public interface IDeviceHealthApi
+{
+    /// <summary>
+    /// GET /api/v0/devices/{id}/health/processor(/{sensor_id}). LibreNMS's
+    /// list call for a health type only returns each sensor's id and
+    /// description - the actual reading needs a second call per id, which
+    /// this issues concurrently (bounded) rather than one by one.
+    /// </summary>
+    Task<IReadOnlyList<ProcessorSensor>> ListProcessorsAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>GET /api/v0/devices/{id}/health/mempool(/{sensor_id}) - see <see cref="ListProcessorsAsync"/>.</summary>
+    Task<IReadOnlyList<MempoolSensor>> ListMempoolsAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>GET /api/v0/devices/{id}/health/storage(/{sensor_id}) - see <see cref="ListProcessorsAsync"/>.</summary>
+    Task<IReadOnlyList<StorageVolume>> ListStorageAsync(int deviceId, CancellationToken cancellationToken = default);
+}

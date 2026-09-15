@@ -18,6 +18,7 @@
             <converters:MarkdownToFlowDocumentConverter x:Key="MarkdownToFlowDocument" />
             <converters:GaugeArcConverter x:Key="GaugeArc" />
             <converters:GridUnitToPixelsConverter x:Key="GridUnitToPixels" />
+            <converters:PercentToStarWidthConverter x:Key="PercentToStarWidth" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -156,6 +156,32 @@ public sealed class GaugeArcConverter : IValueConverter
     }
 }
 
+/// <summary>
+/// Turns a 0-100 percentage into a proportional star-sized <see cref="GridLength"/>,
+/// so a two-column Grid (fill column, then remainder column) draws a simple
+/// bar without a dedicated ProgressBar template. Pass "invert" for the
+/// remainder column (100 - value).
+/// </summary>
+public sealed class PercentToStarWidthConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var percent = value is double d ? Math.Clamp(d, 0, 100) : 0.0;
+
+        if (parameter is string text && text.Equals("invert", StringComparison.OrdinalIgnoreCase))
+        {
+            percent = 100 - percent;
+        }
+
+        // A zero-width star column is legal but renders inconsistently across
+        // WPF versions, so floor it at a hairline instead of exactly zero.
+        return new GridLength(Math.Max(percent, 0.01), GridUnitType.Star);
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 /// <summary>Scales an integer dashboard grid unit (column/row/span) up to pixels by <see cref="DashboardWidget.CellSize"/>.</summary>
 public sealed class GridUnitToPixelsConverter : IValueConverter
 {

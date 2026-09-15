@@ -133,6 +133,11 @@
                                   Visibility="{Binding HasPorts, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="{Binding Ports.Count, Mode=OneWay, StringFormat=Ports ({0})}" />
                     </ToggleButton>
+                    <ToggleButton Content="Resources"
+                                  Style="{StaticResource NavTabButtonStyle}"
+                                  IsChecked="{Binding IsResourcesSelected, Mode=OneWay}"
+                                  Command="{Binding SelectResourcesCommand}"
+                                  Visibility="{Binding HasResources, Converter={StaticResource BoolToVisibility}}" />
                     <ToggleButton Style="{StaticResource NavTabButtonStyle}"
                                   IsChecked="{Binding IsAlertHistorySelected, Mode=OneWay}"
                                   Command="{Binding SelectAlertHistoryCommand}">
@@ -315,6 +320,17 @@
                                 <TextBlock Text="Alert history" Style="{StaticResource SectionHeaderStyle}" />
                                 <TextBlock Text="{Binding AlertHistory.Count}" Style="{StaticResource HeadingTextStyle}" />
                                 <TextBlock Text="entries logged" Style="{StaticResource SubtleTextStyle}" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button Command="{Binding SelectResourcesCommand}"
+                                Style="{StaticResource OverviewCardButtonStyle}"
+                                Margin="4,0"
+                                Visibility="{Binding HasResources, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel HorizontalAlignment="Left">
+                                <TextBlock Text="Resources" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBlock Text="{Binding Processors.Count, StringFormat={}{0} CPUs}" Style="{StaticResource HeadingTextStyle}" />
+                                <TextBlock Text="{Binding ResourceSummaryText}" Style="{StaticResource SubtleTextStyle}" />
                             </StackPanel>
                         </Button>
                     </UniformGrid>
@@ -546,6 +562,145 @@
                            Visibility="{Binding HasPorts, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
                            Style="{StaticResource SubtleTextStyle}" />
             </Grid>
+
+            <!-- ==================== Resources ==================== -->
+            <!-- CPU/memory/disk each get their own card rather than one grid:
+                 the row shape differs (a disk/pool shows a used/total byte
+                 figure a CPU has no equivalent for), and a device may report
+                 any mix of the three. -->
+            <ScrollViewer Margin="24"
+                          VerticalScrollBarVisibility="Auto"
+                          Visibility="{Binding IsResourcesSelected, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+
+                    <!-- Processors -->
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="16"
+                            Margin="0,0,0,12"
+                            Visibility="{Binding HasProcessors, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Processors.Count, StringFormat=Processors ({0})}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+                            <ItemsControl ItemsSource="{Binding Processors}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="200" />
+                                                <ColumnDefinition Width="55" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" Text="{Binding Description}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,10,0" />
+
+                                            <Grid Grid.Column="1" Height="8" VerticalAlignment="Center">
+                                                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="{Binding UsagePercent, Converter={StaticResource PercentToStarWidth}}" />
+                                                        <ColumnDefinition Width="{Binding UsagePercent, Converter={StaticResource PercentToStarWidth}, ConverterParameter=invert}" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" CornerRadius="4" Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                </Grid>
+                                            </Grid>
+
+                                            <TextBlock Grid.Column="2" Text="{Binding UsageText}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Memory pools -->
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="16"
+                            Margin="0,0,0,12"
+                            Visibility="{Binding HasMempools, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Mempools.Count, StringFormat=Memory ({0})}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+                            <ItemsControl ItemsSource="{Binding Mempools}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="200" />
+                                                <ColumnDefinition Width="55" />
+                                                <ColumnDefinition Width="150" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" Text="{Binding Description}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,10,0" />
+
+                                            <Grid Grid.Column="1" Height="8" VerticalAlignment="Center">
+                                                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="{Binding UsagePercent, Converter={StaticResource PercentToStarWidth}}" />
+                                                        <ColumnDefinition Width="{Binding UsagePercent, Converter={StaticResource PercentToStarWidth}, ConverterParameter=invert}" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" CornerRadius="4" Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                </Grid>
+                                            </Grid>
+
+                                            <TextBlock Grid.Column="2" Text="{Binding UsageText}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                            <TextBlock Grid.Column="3" Text="{Binding DetailText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Storage -->
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="16"
+                            Visibility="{Binding HasStorage, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Storage.Count, StringFormat=Storage ({0})}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+                            <ItemsControl ItemsSource="{Binding Storage}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="200" />
+                                                <ColumnDefinition Width="55" />
+                                                <ColumnDefinition Width="150" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" Text="{Binding Description}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,10,0" />
+
+                                            <Grid Grid.Column="1" Height="8" VerticalAlignment="Center">
+                                                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="{Binding UsagePercent, Converter={StaticResource PercentToStarWidth}}" />
+                                                        <ColumnDefinition Width="{Binding UsagePercent, Converter={StaticResource PercentToStarWidth}, ConverterParameter=invert}" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" CornerRadius="4" Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                </Grid>
+                                            </Grid>
+
+                                            <TextBlock Grid.Column="2" Text="{Binding UsageText}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                            <TextBlock Grid.Column="3" Text="{Binding DetailText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
 
             <!-- ==================== Alert history ==================== -->
             <Grid Margin="24"

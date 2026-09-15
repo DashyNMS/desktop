@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using System.Text.Json;
 using DesktopNMS.Core.Json;
 using DesktopNMS.Core.Models;
@@ -149,6 +150,69 @@ internal sealed class PortsApi : IPortsApi
     {
         var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/ports?columns=" + Columns;
         return _transport.GetCollectionAsync<Port>(url, "ports", cancellationToken);
+    }
+}
+
+/// <summary>Implementation of <see cref="IDeviceHealthApi"/>.</summary>
+internal sealed class DeviceHealthApi : IDeviceHealthApi
+{
+    /// <summary>
+    /// Caps how many per-sensor detail requests run at once, so a device with
+    /// many CPUs or disks (a 16-core box, a device with a dozen mount points)
+    /// does not fire that many requests in one burst.
+    /// </summary>
+    private const int MaxConcurrency = 6;
+
+    private readonly ILibreNmsTransport _transport;
+
+    public DeviceHealthApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<ProcessorSensor>> ListProcessorsAsync(int deviceId, CancellationToken cancellationToken = default)
+        => ListAsync<ProcessorSensor>(deviceId, "processor", cancellationToken);
+
+    public Task<IReadOnlyList<MempoolSensor>> ListMempoolsAsync(int deviceId, CancellationToken cancellationToken = default)
+        => ListAsync<MempoolSensor>(deviceId, "mempool", cancellationToken);
+
+    public Task<IReadOnlyList<StorageVolume>> ListStorageAsync(int deviceId, CancellationToken cancellationToken = default)
+        => ListAsync<StorageVolume>(deviceId, "storage", cancellationToken);
+
+    private async Task<IReadOnlyList<T>> ListAsync<T>(int deviceId, string healthType, CancellationToken cancellationToken)
+        where T : class
+    {
+        var baseUrl = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/health/" + healthType;
+        var refs = await _transport.GetCollectionAsync<HealthGraphRef>(baseUrl, "graphs", cancellationToken).ConfigureAwait(false);
+
+        if (refs.Count == 0)
+        {
+            return Array.Empty<T>();
+        }
+
+        using var gate = new SemaphoreSlim(MaxConcurrency);
+
+        var detailTasks = refs.Select(async reference =>
+        {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var url = baseUrl + "/" + reference.SensorId.ToString(CultureInfo.InvariantCulture);
+                var detail = await _transport.GetCollectionAsync<T>(url, "graphs", cancellationToken).ConfigureAwait(false);
+                return detail.Count > 0 ? detail[0] : null;
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        var results = await Task.WhenAll(detailTasks).ConfigureAwait(false);
+        return results.Where(r => r is not null).Select(r => r!).ToList();
+    }
+
+    /// <summary>The list call's own shape - just enough to know which ids to fetch detail for.</summary>
+    private sealed class HealthGraphRef
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("sensor_id")]
+        public int SensorId { get; set; }
     }
 }
 
