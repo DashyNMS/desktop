@@ -24,7 +24,9 @@ public enum DeviceDetailSection
     Sensors,
     Ports,
     Resources,
-    AlertHistory,
+
+    /// <summary>Both this device's currently active alerts and its historical alert log - see <see cref="Views.DeviceView"/>.</summary>
+    Alerts,
     EventLog,
 }
 
@@ -122,7 +124,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectSensorsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Sensors);
         SelectPortsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Ports);
         SelectResourcesCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Resources);
-        SelectAlertHistoryCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.AlertHistory);
+        SelectAlertsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Alerts);
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
 
         LoadMoreEventLogCommand = new AsyncRelayCommand(LoadMoreEventLogAsync, () => HasMoreEventLog && !IsLoadingMoreEventLog);
@@ -195,7 +197,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectResourcesCommand { get; }
 
-    public RelayCommand SelectAlertHistoryCommand { get; }
+    public RelayCommand SelectAlertsCommand { get; }
 
     public RelayCommand SelectEventLogCommand { get; }
 
@@ -255,7 +257,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsSensorsSelected));
                 OnPropertyChanged(nameof(IsPortsSelected));
                 OnPropertyChanged(nameof(IsResourcesSelected));
-                OnPropertyChanged(nameof(IsAlertHistorySelected));
+                OnPropertyChanged(nameof(IsAlertsSelected));
                 OnPropertyChanged(nameof(IsEventLogSelected));
             }
         }
@@ -269,7 +271,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public bool IsResourcesSelected => SelectedSection == DeviceDetailSection.Resources;
 
-    public bool IsAlertHistorySelected => SelectedSection == DeviceDetailSection.AlertHistory;
+    public bool IsAlertsSelected => SelectedSection == DeviceDetailSection.Alerts;
 
     public bool IsEventLogSelected => SelectedSection == DeviceDetailSection.EventLog;
 

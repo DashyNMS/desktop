@@ -157,14 +157,12 @@
                             <TextBlock Text="{Binding Ports.Count, Mode=OneWay, StringFormat=Ports ({0})}" />
                         </ToggleButton>
 
-                        <TextBlock Text="ALERTS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
+                        <TextBlock Text="ALERTS &amp; LOGS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
                         <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsAlertHistorySelected, Mode=OneWay}"
-                                      Command="{Binding SelectAlertHistoryCommand}">
-                            <TextBlock Text="{Binding AlertHistory.Count, Mode=OneWay, StringFormat=Alert history ({0})}" />
+                                      IsChecked="{Binding IsAlertsSelected, Mode=OneWay}"
+                                      Command="{Binding SelectAlertsCommand}">
+                            <TextBlock Text="{Binding ActiveAlerts.Count, Mode=OneWay, StringFormat=Alerts ({0})}" />
                         </ToggleButton>
-
-                        <TextBlock Text="LOGS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
                         <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsEventLogSelected, Mode=OneWay}"
                                       Command="{Binding SelectEventLogCommand}">
@@ -226,76 +224,6 @@
                         </Grid>
                     </Border>
 
-                    <Border Margin="0,16,0,0"
-                            Background="{StaticResource SurfaceBrush}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="20">
-                        <StackPanel>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-
-                                <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                    <TextBlock FontWeight="SemiBold" VerticalAlignment="Center">
-                                        <Run Text="Active alerts" />
-                                        <Run Text="{Binding ActiveAlerts.Count, Mode=OneWay, StringFormat=({0})}" />
-                                    </TextBlock>
-                                    <TextBlock Text="{Binding ActiveAlertSummaryText}"
-                                               Style="{StaticResource SubtleTextStyle}"
-                                               Margin="8,0,0,0"
-                                               VerticalAlignment="Center"
-                                               Visibility="{Binding ActiveAlertSummaryText, Converter={StaticResource StringToVisibility}}" />
-                                </StackPanel>
-
-                                <Button Grid.Column="1"
-                                        Content="Show alerts for this device"
-                                        Command="{Binding ShowAlertsCommand}"
-                                        Padding="10,5"
-                                        Visibility="{Binding HasActiveAlerts, Converter={StaticResource BoolToVisibility}}" />
-                            </Grid>
-
-                            <ItemsControl ItemsSource="{Binding ActiveAlerts}"
-                                          Margin="0,12,0,0"
-                                          Visibility="{Binding HasActiveAlerts, Converter={StaticResource BoolToVisibility}}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,8">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <Ellipse Grid.Column="0"
-                                                         Width="9"
-                                                         Height="9"
-                                                         Margin="0,0,10,0"
-                                                         VerticalAlignment="Center"
-                                                         Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
-                                                <TextBlock Grid.Column="1" Text="{Binding RuleName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="2"
-                                                           Text="{Binding AgeText}"
-                                                           Style="{StaticResource SubtleTextStyle}"
-                                                           VerticalAlignment="Center"
-                                                           Margin="12,0,0,0" />
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <TextBlock Text="No active alerts."
-                                       Style="{StaticResource SubtleTextStyle}"
-                                       Margin="0,12,0,0"
-                                       Visibility="{Binding HasActiveAlerts, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
-                        </StackPanel>
-                    </Border>
-
                     <!-- UniformGrid sizes itself from its visible children only, so the
                          Ports tile - hidden entirely on a device with no
                          interfaces - does not leave a blank gap behind it. -->
@@ -325,13 +253,15 @@
                             </StackPanel>
                         </Button>
 
-                        <Button Command="{Binding SelectAlertHistoryCommand}"
+                        <Button Command="{Binding SelectAlertsCommand}"
                                 Style="{StaticResource OverviewCardButtonStyle}"
                                 Margin="4,0">
                             <StackPanel HorizontalAlignment="Left">
-                                <TextBlock Text="Alert history" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding AlertHistory.Count}" Style="{StaticResource HeadingTextStyle}" />
-                                <TextBlock Text="entries logged" Style="{StaticResource SubtleTextStyle}" />
+                                <TextBlock Text="Alerts" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBlock Text="{Binding ActiveAlerts.Count}" Style="{StaticResource HeadingTextStyle}" />
+                                <TextBlock Text="{Binding ActiveAlertSummaryText}"
+                                           Style="{StaticResource SubtleTextStyle}"
+                                           Visibility="{Binding ActiveAlertSummaryText, Converter={StaticResource StringToVisibility}}" />
                             </StackPanel>
                         </Button>
 
@@ -714,56 +644,136 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- ==================== Alert history ==================== -->
+            <!-- ==================== Alerts ==================== -->
+            <!-- Active and historical together: what is on fire right now,
+                 and everything that has ever fired, in one place - rather
+                 than needing the Overview tab for one and this tab for the
+                 other. -->
             <Grid Margin="24"
-                  Visibility="{Binding IsAlertHistorySelected, Converter={StaticResource BoolToVisibility}}">
-                <DataGrid ItemsSource="{Binding AlertHistory}"
-                          Visibility="{Binding HasAlertHistory, Converter={StaticResource BoolToVisibility}}"
-                          IsReadOnly="True"
-                          HeadersVisibility="Column">
-                    <DataGrid.Columns>
+                  Visibility="{Binding IsAlertsSelected, Converter={StaticResource BoolToVisibility}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-                        <DataGridTemplateColumn Header="Severity" Width="90" SortMemberPath="Severity">
-                            <DataGridTemplateColumn.CellTemplate>
+                <!-- Active -->
+                <Border Grid.Row="0"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="20"
+                        Margin="0,0,0,16">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center">
+                                <Run Text="Active" />
+                                <Run Text="{Binding ActiveAlerts.Count, Mode=OneWay, StringFormat=({0})}" />
+                            </TextBlock>
+
+                            <Button Grid.Column="1"
+                                    Content="Show alerts for this device"
+                                    Command="{Binding ShowAlertsCommand}"
+                                    Padding="10,5"
+                                    Visibility="{Binding HasActiveAlerts, Converter={StaticResource BoolToVisibility}}" />
+                        </Grid>
+
+                        <ItemsControl ItemsSource="{Binding ActiveAlerts}"
+                                      Margin="0,12,0,0"
+                                      Visibility="{Binding HasActiveAlerts, Converter={StaticResource BoolToVisibility}}">
+                            <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" Margin="8,0">
-                                        <Ellipse Width="9"
-                                                 Height="9"
-                                                 Margin="0,0,6,0"
-                                                 VerticalAlignment="Center"
-                                                 Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
-                                        <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
-                                    </StackPanel>
+                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <Ellipse Grid.Column="0"
+                                                     Width="9"
+                                                     Height="9"
+                                                     Margin="0,0,10,0"
+                                                     VerticalAlignment="Center"
+                                                     Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding RuleName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding AgeText}"
+                                                       Style="{StaticResource SubtleTextStyle}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="12,0,0,0" />
+                                        </Grid>
+                                    </Border>
                                 </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
-                        <DataGridTemplateColumn Header="Rule" Width="*">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <StackPanel Margin="8,4" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding RuleName}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding DetailText}"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   FontSize="11"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Visibility="{Binding HasDetail, Converter={StaticResource BoolToVisibility}}" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="State" Width="110" Binding="{Binding StateText}" />
-                        <DataGridTextColumn Header="Time" Width="150" Binding="{Binding TimeText}" />
+                        <TextBlock Text="No active alerts."
+                                   Style="{StaticResource SubtleTextStyle}"
+                                   Margin="0,12,0,0"
+                                   Visibility="{Binding HasActiveAlerts, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                    </StackPanel>
+                </Border>
 
-                    </DataGrid.Columns>
-                </DataGrid>
+                <!-- History -->
+                <TextBlock Grid.Row="1" Text="{Binding AlertHistory.Count, StringFormat=History ({0})}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
 
-                <TextBlock Text="No alert history for this device."
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           IsHitTestVisible="False"
-                           Visibility="{Binding HasAlertHistory, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
-                           Style="{StaticResource SubtleTextStyle}" />
+                <Grid Grid.Row="2">
+                    <DataGrid ItemsSource="{Binding AlertHistory}"
+                              Visibility="{Binding HasAlertHistory, Converter={StaticResource BoolToVisibility}}"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column">
+                        <DataGrid.Columns>
+
+                            <DataGridTemplateColumn Header="Severity" Width="90" SortMemberPath="Severity">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0">
+                                            <Ellipse Width="9"
+                                                     Height="9"
+                                                     Margin="0,0,6,0"
+                                                     VerticalAlignment="Center"
+                                                     Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                            <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Rule" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="8,4" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding RuleName}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding DetailText}"
+                                                       Style="{StaticResource SubtleTextStyle}"
+                                                       FontSize="11"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Visibility="{Binding HasDetail, Converter={StaticResource BoolToVisibility}}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="State" Width="110" Binding="{Binding StateText}" />
+                            <DataGridTextColumn Header="Time" Width="150" Binding="{Binding TimeText}" />
+
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Text="No alert history for this device."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding HasAlertHistory, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                               Style="{StaticResource SubtleTextStyle}" />
+                </Grid>
             </Grid>
 
             <!-- ==================== Event log ==================== -->
