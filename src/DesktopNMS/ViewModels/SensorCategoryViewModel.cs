@@ -213,6 +213,21 @@ public sealed class SensorCategoryViewModel : ObservableObject
         SearchText = string.Empty;
     }
 
+    /// <summary>Shift-click on a status badge: show only that status, hiding the rest.</summary>
+    public void IsolateSeverity(AlertSeverity severity)
+    {
+        _showCritical = severity == AlertSeverity.Critical;
+        _showWarning = severity == AlertSeverity.Warning;
+        _showOk = severity == AlertSeverity.Ok;
+        _showUnknown = severity == AlertSeverity.Unknown;
+
+        OnPropertyChanged(nameof(ShowCritical));
+        OnPropertyChanged(nameof(ShowWarning));
+        OnPropertyChanged(nameof(ShowOk));
+        OnPropertyChanged(nameof(ShowUnknown));
+        OnFilterChanged();
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private bool FilterSensor(object item)

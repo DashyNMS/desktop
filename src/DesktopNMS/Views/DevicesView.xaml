@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:models="clr-namespace:DesktopNMS.Core.Models;assembly=DesktopNMS.Core"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:DeviceListViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100">
@@ -29,28 +30,28 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <ToggleButton IsChecked="{Binding ShowUp}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide up" Margin="0,0,10,0">
+                    <ToggleButton IsChecked="{Binding ShowUp}" Tag="{x:Static models:DeviceState.Up}" PreviewMouseLeftButtonDown="StatusBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide up (shift-click to show only up)" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
                             <TextBlock Text="up" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                         </StackPanel>
                     </ToggleButton>
-                    <ToggleButton IsChecked="{Binding ShowDown}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide down" Margin="0,0,10,0">
+                    <ToggleButton IsChecked="{Binding ShowDown}" Tag="{x:Static models:DeviceState.Down}" PreviewMouseLeftButtonDown="StatusBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide down (shift-click to show only down)" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
                             <TextBlock Text="down" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                         </StackPanel>
                     </ToggleButton>
-                    <ToggleButton IsChecked="{Binding ShowMaintenance}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide maintenance" Margin="0,0,10,0">
+                    <ToggleButton IsChecked="{Binding ShowMaintenance}" Tag="{x:Static models:DeviceState.Maintenance}" PreviewMouseLeftButtonDown="StatusBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide maintenance (shift-click to show only maintenance)" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource MaintenanceBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding MaintenanceCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
                             <TextBlock Text="in maintenance" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                         </StackPanel>
                     </ToggleButton>
-                    <ToggleButton IsChecked="{Binding ShowDisabled}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide disabled / ignored">
+                    <ToggleButton IsChecked="{Binding ShowDisabled}" Tag="{x:Static models:DeviceState.Disabled}" PreviewMouseLeftButtonDown="StatusBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide disabled / ignored (shift-click to show only disabled / ignored)">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding DisabledCount}" FontWeight="SemiBold" Margin="8,0,5,0" />

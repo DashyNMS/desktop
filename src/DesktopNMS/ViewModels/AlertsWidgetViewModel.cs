@@ -142,6 +142,18 @@ public sealed class AlertsWidgetViewModel : DashboardWidgetViewModel, IDisposabl
 
     private void PersistFilter() => Layout.SetAlertsFilter(Id, ShowCritical, ShowWarning, IncludeAcknowledged);
 
+    /// <summary>Shift-click on a severity chip: show only that severity, hiding the other.</summary>
+    public void IsolateSeverity(AlertSeverity severity)
+    {
+        _showCritical = severity == AlertSeverity.Critical;
+        _showWarning = severity == AlertSeverity.Warning;
+
+        OnPropertyChanged(nameof(ShowCritical));
+        OnPropertyChanged(nameof(ShowWarning));
+        PersistFilter();
+        Render();
+    }
+
     private void OnPolled(object? sender, AlertPollResult result)
     {
         if (!result.Succeeded)

@@ -337,6 +337,21 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         SearchText = string.Empty;
     }
 
+    /// <summary>Shift-click on a status badge: show only that status, hiding the rest.</summary>
+    public void IsolateState(DeviceState state)
+    {
+        _showUp = state == DeviceState.Up;
+        _showDown = state == DeviceState.Down;
+        _showMaintenance = state == DeviceState.Maintenance;
+        _showDisabled = state is DeviceState.Disabled or DeviceState.Ignored;
+
+        OnPropertyChanged(nameof(ShowUp));
+        OnPropertyChanged(nameof(ShowDown));
+        OnPropertyChanged(nameof(ShowMaintenance));
+        OnPropertyChanged(nameof(ShowDisabled));
+        OnFilterChanged();
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private bool FilterDevice(object item)

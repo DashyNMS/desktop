@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:models="clr-namespace:DesktopNMS.Core.Models;assembly=DesktopNMS.Core"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100">
@@ -74,14 +75,14 @@
                                VerticalAlignment="Center"
                                Margin="0,0,10,0" />
 
-                    <ToggleButton IsChecked="{Binding ShowCritical}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide critical" Margin="0,0,8,0">
+                    <ToggleButton IsChecked="{Binding ShowCritical}" Tag="{x:Static models:AlertSeverity.Critical}" PreviewMouseLeftButtonDown="SeverityBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide critical (shift-click to show only critical)" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding CriticalCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
                             <TextBlock Text="critical" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                         </StackPanel>
                     </ToggleButton>
-                    <ToggleButton IsChecked="{Binding ShowWarning}" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide warning" Margin="0,0,8,0">
+                    <ToggleButton IsChecked="{Binding ShowWarning}" Tag="{x:Static models:AlertSeverity.Warning}" PreviewMouseLeftButtonDown="SeverityBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide warning (shift-click to show only warning)" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource WarningBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding WarningCount}" FontWeight="SemiBold" Margin="8,0,5,0" />

@@ -7,6 +7,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using DesktopNMS.Core.Configuration;
+using DesktopNMS.Core.Models;
 using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views;
@@ -290,4 +291,31 @@ public partial class DashboardView : UserControl
         && a.Column + a.ColumnSpan > b.Column
         && a.Row < b.Row + b.RowSpan
         && a.Row + a.RowSpan > b.Row;
+
+    /// <summary>
+    /// Shift-clicking a severity chip on an Alerts widget isolates that
+    /// severity instead of toggling it normally - handled here (rather than a
+    /// Command) so the plain click still flips <c>IsChecked</c> via its
+    /// binding unchanged. The chip's own DataContext (not this view's) is the
+    /// widget, since this fires from inside the widget's DataTemplate.
+    /// </summary>
+    private void AlertSeverityBadge_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Shift)
+        {
+            return;
+        }
+
+        if (((FrameworkElement)sender).DataContext is not AlertsWidgetViewModel widget)
+        {
+            return;
+        }
+
+        var severity = ((ToggleButton)sender).Content as string == "Critical"
+            ? AlertSeverity.Critical
+            : AlertSeverity.Warning;
+
+        widget.IsolateSeverity(severity);
+        e.Handled = true;
+    }
 }

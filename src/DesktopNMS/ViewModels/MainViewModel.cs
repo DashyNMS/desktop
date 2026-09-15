@@ -963,6 +963,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         OnFilterChanged();
     }
 
+    /// <summary>
+    /// Shift-click on a severity badge: show only that severity, hiding the
+    /// other. Leaves <see cref="ShowUnknownSeverity"/> alone - it has no
+    /// badge of its own and stays permanently on.
+    /// </summary>
+    public void IsolateSeverity(AlertSeverity severity)
+    {
+        _showCritical = severity == AlertSeverity.Critical;
+        _showWarning = severity == AlertSeverity.Warning;
+
+        OnPropertyChanged(nameof(ShowCritical));
+        OnPropertyChanged(nameof(ShowWarning));
+        OnFilterChanged();
+    }
+
     private void OpenSettings()
     {
         if (!_windows.ShowSettingsDialog())

@@ -226,11 +226,15 @@
                         <ToggleButton Content="Critical"
                                       Style="{StaticResource ChipToggleStyle}"
                                       Tag="{StaticResource CriticalBrush}"
-                                      IsChecked="{Binding ShowCritical}" />
+                                      IsChecked="{Binding ShowCritical}"
+                                      PreviewMouseLeftButtonDown="AlertSeverityBadge_PreviewMouseLeftButtonDown"
+                                      ToolTip="Shift-click to show only critical" />
                         <ToggleButton Content="Warning"
                                       Style="{StaticResource ChipToggleStyle}"
                                       Tag="{StaticResource WarningBrush}"
-                                      IsChecked="{Binding ShowWarning}" />
+                                      IsChecked="{Binding ShowWarning}"
+                                      PreviewMouseLeftButtonDown="AlertSeverityBadge_PreviewMouseLeftButtonDown"
+                                      ToolTip="Shift-click to show only warning" />
                         <ToggleButton Content="Acknowledged"
                                       Style="{StaticResource ChipToggleStyle}"
                                       IsChecked="{Binding IncludeAcknowledged}" />
