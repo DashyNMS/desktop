@@ -114,14 +114,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         EventLogView = CollectionViewSource.GetDefaultView(EventLog);
         EventLogView.Filter = FilterEventLogEntry;
 
-        OpenInLibreNmsCommand = new RelayCommand(() =>
-        {
-            if (DeviceUrl is { } url)
-            {
-                _windows.OpenUrl(url);
-            }
-        }, () => DeviceUrl is not null);
-
         ShowAlertsCommand = new RelayCommand(() => _windows.ShowAlertsForDevice(_device?.Hostname ?? Name));
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => _session.IsConnected && !IsBusy);
@@ -190,8 +182,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>The event log, filtered by <see cref="EventLogSearchText"/>. What the Event log tab actually binds to.</summary>
     public ICollectionView EventLogView { get; }
-
-    public RelayCommand OpenInLibreNmsCommand { get; }
 
     public RelayCommand ShowAlertsCommand { get; }
 
@@ -312,8 +302,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public string Type => Blank(_device?.Type);
 
     public string UptimeText => _device is { State: DeviceState.Up } d ? FormatUptime(d.Uptime) : "-";
-
-    public Uri? DeviceUrl => _device is null ? null : _session.Connection?.DeviceUrl(_deviceId);
 
     /// <summary>True once the shared device monitor has actually reported on this device at least once.</summary>
     public bool HasLoaded => _device is not null;
@@ -999,10 +987,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Location));
         OnPropertyChanged(nameof(Type));
         OnPropertyChanged(nameof(UptimeText));
-        OnPropertyChanged(nameof(DeviceUrl));
         OnPropertyChanged(nameof(HasLoaded));
         OnPropertyChanged(nameof(IsLoadingDevice));
-        OpenInLibreNmsCommand.RaiseCanExecuteChanged();
     }
 
     private static string Blank(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value!;

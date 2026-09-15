@@ -48,7 +48,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -91,69 +90,15 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Command="{Binding RefreshCommand}"
                             Style="{StaticResource IconButtonStyle}"
-                            ToolTip="Refresh now"
-                            Margin="0,0,8,0">
+                            ToolTip="Refresh now">
                         <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
                     </Button>
-                    <Button Content="Show alerts for this device"
-                            Command="{Binding ShowAlertsCommand}"
-                            Padding="12,7"
-                            Margin="0,0,8,0" />
-                    <Button Content="Open in LibreNMS"
-                            Command="{Binding OpenInLibreNmsCommand}"
-                            Style="{StaticResource PrimaryButtonStyle}"
-                            Padding="12,7" />
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ======================== Section tabs ======================== -->
-        <Border Grid.Row="1"
-                Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="24,12">
-            <Border Style="{StaticResource NavTabTrackStyle}" HorizontalAlignment="Left">
-                <StackPanel Orientation="Horizontal">
-                    <ToggleButton Content="Overview"
-                                  Style="{StaticResource NavTabButtonStyle}"
-                                  IsChecked="{Binding IsOverviewSelected, Mode=OneWay}"
-                                  Command="{Binding SelectOverviewCommand}" />
-                    <ToggleButton Style="{StaticResource NavTabButtonStyle}"
-                                  IsChecked="{Binding IsSensorsSelected, Mode=OneWay}"
-                                  Command="{Binding SelectSensorsCommand}">
-                        <!-- Content is typed object, not string, so Binding.StringFormat is
-                             silently ignored when applied directly to it - an explicit
-                             TextBlock.Text (a real string property) is needed instead. -->
-                        <TextBlock Text="{Binding Sensors.Count, Mode=OneWay, StringFormat=Sensors ({0})}" />
-                    </ToggleButton>
-                    <ToggleButton Style="{StaticResource NavTabButtonStyle}"
-                                  IsChecked="{Binding IsPortsSelected, Mode=OneWay}"
-                                  Command="{Binding SelectPortsCommand}"
-                                  Visibility="{Binding HasPorts, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="{Binding Ports.Count, Mode=OneWay, StringFormat=Ports ({0})}" />
-                    </ToggleButton>
-                    <ToggleButton Content="Resources"
-                                  Style="{StaticResource NavTabButtonStyle}"
-                                  IsChecked="{Binding IsResourcesSelected, Mode=OneWay}"
-                                  Command="{Binding SelectResourcesCommand}"
-                                  Visibility="{Binding HasResources, Converter={StaticResource BoolToVisibility}}" />
-                    <ToggleButton Style="{StaticResource NavTabButtonStyle}"
-                                  IsChecked="{Binding IsAlertHistorySelected, Mode=OneWay}"
-                                  Command="{Binding SelectAlertHistoryCommand}">
-                        <TextBlock Text="{Binding AlertHistory.Count, Mode=OneWay, StringFormat=Alert history ({0})}" />
-                    </ToggleButton>
-                    <ToggleButton Style="{StaticResource NavTabButtonStyle}"
-                                  IsChecked="{Binding IsEventLogSelected, Mode=OneWay}"
-                                  Command="{Binding SelectEventLogCommand}">
-                        <TextBlock Text="{Binding EventLog.Count, Mode=OneWay, StringFormat=Event log ({0})}" />
-                    </ToggleButton>
-                </StackPanel>
-            </Border>
-        </Border>
-
         <!-- ======================== Error banner ======================== -->
-        <Border Grid.Row="2"
+        <Border Grid.Row="1"
                 Background="#33DA3633"
                 BorderBrush="{StaticResource CriticalBrush}"
                 BorderThickness="0,0,0,1"
@@ -162,8 +107,75 @@
             <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" />
         </Border>
 
-        <!-- ======================== Section content ======================== -->
-        <Grid Grid.Row="3">
+        <!-- ======================== Sidebar + section content ======================== -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ==================== Section nav ==================== -->
+            <!-- Grouped rather than one flat row: a handful of sections reads
+                 fine as a row of tabs, but this window is growing towards a
+                 dozen (FDB, ARP, routing, VLANs, ... alongside what is here
+                 already) - a flat row would just run off the window edge,
+                 where a vertical list keeps scaling by scrolling instead. -->
+            <Border Grid.Column="0"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,1,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10,16">
+                        <ToggleButton Content="Overview"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsOverviewSelected, Mode=OneWay}"
+                                      Command="{Binding SelectOverviewCommand}" />
+
+                        <TextBlock Text="HEALTH" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
+                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsSensorsSelected, Mode=OneWay}"
+                                      Command="{Binding SelectSensorsCommand}">
+                            <!-- Content is typed object, not string, so Binding.StringFormat is
+                                 silently ignored when applied directly to it - an explicit
+                                 TextBlock.Text (a real string property) is needed instead. -->
+                            <TextBlock Text="{Binding Sensors.Count, Mode=OneWay, StringFormat=Sensors ({0})}" />
+                        </ToggleButton>
+                        <ToggleButton Content="Resources"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsResourcesSelected, Mode=OneWay}"
+                                      Command="{Binding SelectResourcesCommand}"
+                                      Visibility="{Binding HasResources, Converter={StaticResource BoolToVisibility}}" />
+
+                        <TextBlock Text="NETWORK"
+                                   Style="{StaticResource SectionHeaderStyle}"
+                                   Margin="14,16,0,6"
+                                   Visibility="{Binding HasPorts, Converter={StaticResource BoolToVisibility}}" />
+                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsPortsSelected, Mode=OneWay}"
+                                      Command="{Binding SelectPortsCommand}"
+                                      Visibility="{Binding HasPorts, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{Binding Ports.Count, Mode=OneWay, StringFormat=Ports ({0})}" />
+                        </ToggleButton>
+
+                        <TextBlock Text="ALERTS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
+                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsAlertHistorySelected, Mode=OneWay}"
+                                      Command="{Binding SelectAlertHistoryCommand}">
+                            <TextBlock Text="{Binding AlertHistory.Count, Mode=OneWay, StringFormat=Alert history ({0})}" />
+                        </ToggleButton>
+
+                        <TextBlock Text="LOGS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
+                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsEventLogSelected, Mode=OneWay}"
+                                      Command="{Binding SelectEventLogCommand}">
+                            <TextBlock Text="{Binding EventLog.Count, Mode=OneWay, StringFormat=Event log ({0})}" />
+                        </ToggleButton>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- ==================== Section content ==================== -->
+            <Grid Grid.Column="1">
 
             <!-- ==================== Overview ==================== -->
             <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -830,10 +842,11 @@
                     </Button>
                 </StackPanel>
             </Grid>
+            </Grid>
         </Grid>
 
         <!-- ======================== Status bar ======================== -->
-        <Border Grid.Row="4"
+        <Border Grid.Row="3"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0"
