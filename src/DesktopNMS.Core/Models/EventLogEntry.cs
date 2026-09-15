@@ -11,7 +11,10 @@ namespace DesktopNMS.Core.Models;
 /// </summary>
 public sealed class EventLogEntry
 {
-    [JsonPropertyName("id")]
+    // LibreNMS's eventlog table names its primary key "event_id", not "id"
+    // (unlike most other tables) - confirmed against the live API, since
+    // trusting "id" here silently deserialized every entry to 0.
+    [JsonPropertyName("event_id")]
     public int Id { get; set; }
 
     [JsonPropertyName("device_id")]

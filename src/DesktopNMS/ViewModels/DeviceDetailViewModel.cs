@@ -821,7 +821,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         try
         {
             var entries = await _client.Logs.ListEventLogAsync(_deviceId, _eventLogLimit).ConfigureAwait(true);
-            WarnIfFieldsLookWrong(entries);
 
             EventLog.Clear();
             _loadedEventLogIds.Clear();
@@ -833,14 +832,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             }
 
             HasMoreEventLog = entries.Count >= _eventLogLimit;
-
-            // TEMPORARY: remove alongside the matching log in LoadMoreEventLogAsync
-            // once "load more" is confirmed working.
-            _logger.LogInformation(
-                "Event log first page for device {DeviceId}: {Count} entries, ids {MinId}-{MaxId}",
-                _deviceId, entries.Count,
-                entries.Count > 0 ? entries.Min(e => e.Id) : -1,
-                entries.Count > 0 ? entries.Max(e => e.Id) : -1);
 
             OnPropertyChanged(nameof(HasEventLog));
         }
@@ -870,14 +861,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         IsLoadingMoreEventLog = true;
         var newLimit = _eventLogLimit + EventLogPageSize;
 
-        // TEMPORARY: a snapshot from before this fetch touches anything, so
-        // the log below can show exactly what was already tracked versus
-        // what came back - remove alongside the other event log diagnostics
-        // once "load more" is confirmed working.
-        var previouslyTrackedCount = _loadedEventLogIds.Count;
-        var previouslyTrackedMin = _loadedEventLogIds.Count > 0 ? _loadedEventLogIds.Min() : -1;
-        var previouslyTrackedMax = _loadedEventLogIds.Count > 0 ? _loadedEventLogIds.Max() : -1;
-
         try
         {
             var entries = await _client.Logs.ListEventLogAsync(_deviceId, newLimit).ConfigureAwait(true);
@@ -891,14 +874,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                     added++;
                 }
             }
-
-            _logger.LogInformation(
-                "Event log widen for device {DeviceId}: requested limit={RequestedLimit}, got {ReturnedCount} back (ids {MinId}-{MaxId}), had {PrevCount} tracked (ids {PrevMin}-{PrevMax}), {Added} new",
-                _deviceId, newLimit, entries.Count,
-                entries.Count > 0 ? entries.Min(e => e.Id) : -1,
-                entries.Count > 0 ? entries.Max(e => e.Id) : -1,
-                previouslyTrackedCount, previouslyTrackedMin, previouslyTrackedMax,
-                added);
 
             _eventLogLimit = newLimit;
             HasMoreEventLog = added > 0 && entries.Count >= newLimit;
@@ -917,36 +892,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         finally
         {
             IsLoadingMoreEventLog = false;
-        }
-    }
-
-    /// <summary>
-    /// The event log model's field names are a best guess at LibreNMS's
-    /// schema, unconfirmed against a real response - if the one field that
-    /// matters came back empty, log what the server actually sent so this can
-    /// be fixed from evidence rather than another guess.
-    /// </summary>
-    private void WarnIfFieldsLookWrong(IReadOnlyList<EventLogEntry> entries)
-    {
-        if (entries.Count == 0)
-        {
-            return;
-        }
-
-        var sample = entries[0];
-
-        // Id is confirmed wrong already (every entry maps to 0, breaking
-        // duplicate detection in LoadMoreEventLogAsync) - dumping the raw
-        // fields here shows the real primary key column name instead of
-        // guessing again. Remove once EventLogEntry.Id is fixed.
-        if (sample.Id == 0 || string.IsNullOrEmpty(sample.Message))
-        {
-            var extra = sample.AdditionalData is { Count: > 0 }
-                ? string.Join(", ", sample.AdditionalData.Select(kv => $"{kv.Key}={kv.Value}"))
-                : "(none)";
-            _logger.LogWarning(
-                "Event log entry for device {DeviceId} looks wrong (Id={Id}, Message={Message}) - field names may not match LibreNMS's schema: {Extra}",
-                _deviceId, sample.Id, sample.Message, extra);
         }
     }
 
