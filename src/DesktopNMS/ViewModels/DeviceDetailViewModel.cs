@@ -24,6 +24,7 @@ public enum DeviceDetailSection
     Sensors,
     Ports,
     Resources,
+    Vlans,
     Fdb,
     Arp,
 
@@ -62,14 +63,22 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// Port id -&gt; display name, populated whenever <see cref="Ports"/>
     /// loads. The FDB/ARP tabs read this directly (not a copy) at display
     /// time to show a friendly port name instead of a bare id - if either
-    /// loads before Ports does, the affected rows just show "Port {id}"
-    /// until whichever loads next, since nothing currently re-raises their
-    /// PropertyChanged after the fact. Good enough in practice: a user has
-    /// to actively navigate to one of those tabs before this could be
-    /// visible, by which point Ports (a single fast call) has essentially
-    /// always already resolved.
+    /// loads before Ports does (not rare in practice: Ports also fetches
+    /// neighbours and IP addresses, so it is often the slower of the two),
+    /// the affected rows show "Port {id}" until Ports finishes, at which
+    /// point LoadPortsAsync calls RefreshPortName on each already-created
+    /// row to correct it.
     /// </summary>
     private readonly Dictionary<int, string> _portNamesByPortId = new();
+
+    /// <summary>
+    /// VLAN internal id -&gt; the VLAN itself, populated whenever
+    /// <see cref="LoadVlansAsync"/> loads. FdbItemViewModel reads this
+    /// directly (not a copy) to resolve FdbEntry.VlanId - see its own
+    /// remarks, and LoadVlansAsync's, for why this is a device-filtered
+    /// slice of a fleet-wide fetch rather than a per-device one.
+    /// </summary>
+    private readonly Dictionary<int, Vlan> _vlansById = new();
 
     private const int EventLogPageSize = 50;
     private const int MaxOutagesShown = 10;
@@ -92,6 +101,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private string _arpSearchText = string.Empty;
     private string _portSearchText = string.Empty;
     private string _sensorSearchText = string.Empty;
+    private string _vlanSearchText = string.Empty;
 
     // Each section here loads independently and asynchronously (see the
     // constructor's fire-and-forget Load*Async calls), so "Count == 0" alone
@@ -102,6 +112,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     // every IsLoadingX/HasVisibleX property below.
     private bool _hasLoadedSensors;
     private bool _hasLoadedPorts;
+    private bool _hasLoadedVlans;
     private bool _hasLoadedFdb;
     private bool _hasLoadedArp;
     private bool _hasLoadedResources;
@@ -153,12 +164,16 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Storage = new ObservableCollection<StorageItemViewModel>();
         Outages = new ObservableCollection<OutageItemViewModel>();
         AvailabilityTimeline = new ObservableCollection<OutageDayViewModel>();
+        VlanEntries = new ObservableCollection<VlanItemViewModel>();
         FdbEntries = new ObservableCollection<FdbItemViewModel>();
         ArpEntries = new ObservableCollection<ArpItemViewModel>();
         EventLog = new ObservableCollection<EventLogItemViewModel>();
 
         PortsView = CollectionViewSource.GetDefaultView(Ports);
         PortsView.Filter = FilterPortEntry;
+
+        VlansView = CollectionViewSource.GetDefaultView(VlanEntries);
+        VlansView.Filter = FilterVlanEntry;
 
         FdbView = CollectionViewSource.GetDefaultView(FdbEntries);
         FdbView.Filter = FilterFdbEntry;
@@ -180,6 +195,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectSensorsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Sensors);
         SelectPortsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Ports);
         SelectResourcesCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Resources);
+        SelectVlansCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Vlans);
         SelectFdbCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Fdb);
         SelectArpCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Arp);
         SelectAlertsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Alerts);
@@ -211,6 +227,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _ = LoadPortsAsync();
         _ = LoadResourcesAsync();
         _ = LoadAvailabilityAsync();
+        _ = LoadVlansAsync();
         _ = LoadFdbAsync();
         _ = LoadArpAsync();
         _ = LoadEventLogAsync();
@@ -237,6 +254,11 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>Ports, filtered by <see cref="PortSearchText"/>. What the Ports tab actually binds to.</summary>
     public ICollectionView PortsView { get; }
+
+    public ObservableCollection<VlanItemViewModel> VlanEntries { get; }
+
+    /// <summary>The VLANs, filtered by <see cref="VlanSearchText"/>. What the VLANs tab actually binds to.</summary>
+    public ICollectionView VlansView { get; }
 
     public ObservableCollection<ProcessorItemViewModel> Processors { get; }
 
@@ -288,6 +310,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectResourcesCommand { get; }
 
+    public RelayCommand SelectVlansCommand { get; }
+
     public RelayCommand SelectFdbCommand { get; }
 
     public RelayCommand SelectArpCommand { get; }
@@ -309,6 +333,21 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 PortsView.Refresh();
                 OnPropertyChanged(nameof(HasVisiblePorts));
                 OnPropertyChanged(nameof(ShowPortsNoMatchesMessage));
+            }
+        }
+    }
+
+    /// <summary>Free-text filter over a VLAN's number and name.</summary>
+    public string VlanSearchText
+    {
+        get => _vlanSearchText;
+        set
+        {
+            if (SetProperty(ref _vlanSearchText, value))
+            {
+                VlansView.Refresh();
+                OnPropertyChanged(nameof(HasVisibleVlans));
+                OnPropertyChanged(nameof(ShowVlansNoMatchesMessage));
             }
         }
     }
@@ -412,6 +451,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsSensorsSelected));
                 OnPropertyChanged(nameof(IsPortsSelected));
                 OnPropertyChanged(nameof(IsResourcesSelected));
+                OnPropertyChanged(nameof(IsVlansSelected));
                 OnPropertyChanged(nameof(IsFdbSelected));
                 OnPropertyChanged(nameof(IsArpSelected));
                 OnPropertyChanged(nameof(IsAlertsSelected));
@@ -427,6 +467,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsPortsSelected => SelectedSection == DeviceDetailSection.Ports;
 
     public bool IsResourcesSelected => SelectedSection == DeviceDetailSection.Resources;
+
+    public bool IsVlansSelected => SelectedSection == DeviceDetailSection.Vlans;
 
     public bool IsFdbSelected => SelectedSection == DeviceDetailSection.Fdb;
 
@@ -625,8 +667,25 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// <summary>Shown once loaded, when the device has ports but the current search matched none of them.</summary>
     public bool ShowPortsNoMatchesMessage => !IsLoadingPorts && HasPorts && !HasVisiblePorts;
 
-    /// <summary>Whether the sidebar's "Network" group has anything to show at all - it should not appear as an empty header for a device with none of these, but also should not disappear and reappear as each of the three loads independently.</summary>
-    public bool HasNetworkSection => ShowPortsNav || ShowFdbNav || ShowArpNav;
+    public bool HasVlans => VlanEntries.Count > 0;
+
+    /// <summary>True until VLANs has actually been fetched at least once - distinguishes "still loading" from "confirmed no VLANs" below.</summary>
+    public bool IsLoadingVlans => !_hasLoadedVlans;
+
+    /// <summary>Whether the sidebar's VLANs item should show - see <see cref="ShowPortsNav"/>'s remarks, which apply equally here.</summary>
+    public bool ShowVlansNav => IsLoadingVlans || HasVlans;
+
+    /// <summary>True once <see cref="VlansView"/> has something to show - false either for a device with no VLANs at all, or one where <see cref="VlanSearchText"/> currently matches none.</summary>
+    public bool HasVisibleVlans => VlansView.Cast<object>().Any();
+
+    /// <summary>Shown once loading has finished and the device genuinely has no VLANs - never while still loading, and never just because the current search matched nothing.</summary>
+    public bool ShowVlansEmptyMessage => !IsLoadingVlans && !HasVlans;
+
+    /// <summary>Shown once loaded, when the device has VLANs but the current search matched none of them.</summary>
+    public bool ShowVlansNoMatchesMessage => !IsLoadingVlans && HasVlans && !HasVisibleVlans;
+
+    /// <summary>Whether the sidebar's "Network" group has anything to show at all - it should not appear as an empty header for a device with none of these, but also should not disappear and reappear as each loads independently.</summary>
+    public bool HasNetworkSection => ShowPortsNav || ShowVlansNav || ShowFdbNav || ShowArpNav;
 
     public int PortsUpCount => Ports.Count(p => p.IsUp);
 
@@ -1135,6 +1194,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 entry.RefreshPortName();
             }
 
+            // Same reasoning, for the VLANs tab's own per-VLAN port list -
+            // it queries this same Ports collection live, but a row built
+            // before this completed needs telling to re-read it.
+            foreach (var vlan in VlanEntries)
+            {
+                vlan.RefreshPorts();
+            }
+
             OnPropertyChanged(nameof(HasPorts));
             OnPropertyChanged(nameof(HasVisiblePorts));
             OnPropertyChanged(nameof(ShowPortsEmptyMessage));
@@ -1202,22 +1269,71 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Fleet-wide VLANs, for <see cref="LoadFdbAsync"/> to resolve <see cref="FdbEntry.VlanId"/> against - see <see cref="IVlansApi"/>'s remarks on why this has to fetch everything rather than just this device's own.</summary>
-    private async Task<IReadOnlyList<Vlan>> TryLoadVlansAsync()
+    /// <summary>
+    /// Every VLAN configured on this device - its own tab, and also what
+    /// <see cref="FdbEntry.VlanId"/> resolves against on the FDB tab (see
+    /// <see cref="_vlansById"/>). The VLANs endpoint has no per-device filter
+    /// that also returns the internal id FdbEntry.VlanId needs (see
+    /// <see cref="IVlansApi"/>'s remarks), so it comes back for the whole
+    /// fleet and is filtered down here - fetched independently, same as
+    /// ports/resources, so a problem here cannot take another tab down with it.
+    /// </summary>
+    private async Task LoadVlansAsync()
     {
         try
         {
-            return await _client.Vlans.ListAsync().ConfigureAwait(true);
+            var vlans = await _client.Vlans.ListAsync().ConfigureAwait(true);
+
+            var mine = vlans
+                .Where(v => v.DeviceId == _deviceId)
+                .OrderBy(v => v.VlanNumber)
+                .ToList();
+
+            // Mutated in place, not reassigned: FdbItemViewModel rows already
+            // built hold this same dictionary reference (see LoadFdbAsync),
+            // and RefreshVlan below only helps if their next read of it sees
+            // these updated values rather than whatever a fresh dictionary
+            // object would have held.
+            _vlansById.Clear();
+            foreach (var vlan in mine)
+            {
+                _vlansById[vlan.VlanId] = vlan;
+            }
+
+            VlanEntries.Clear();
+            foreach (var vlan in mine)
+            {
+                VlanEntries.Add(new VlanItemViewModel(vlan, Ports));
+            }
+
+            // FDB rows built before this finished resolved against whatever
+            // was in _vlansById at the time (likely nothing) - tell them to
+            // re-check now that it is populated.
+            foreach (var entry in FdbEntries)
+            {
+                entry.RefreshVlan();
+            }
+
+            OnPropertyChanged(nameof(HasVlans));
+            OnPropertyChanged(nameof(HasVisibleVlans));
+            OnPropertyChanged(nameof(ShowVlansEmptyMessage));
+            OnPropertyChanged(nameof(ShowVlansNoMatchesMessage));
         }
         catch (LibreNmsApiException ex)
         {
             _logger.LogWarning(ex, "Could not load VLANs for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
-            return Array.Empty<Vlan>();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not load VLANs for device {DeviceId}", _deviceId);
-            return Array.Empty<Vlan>();
+        }
+        finally
+        {
+            _hasLoadedVlans = true;
+            OnPropertyChanged(nameof(IsLoadingVlans));
+            OnPropertyChanged(nameof(ShowVlansNav));
+            OnPropertyChanged(nameof(ShowVlansEmptyMessage));
+            OnPropertyChanged(nameof(HasNetworkSection));
         }
     }
 
@@ -1231,23 +1347,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var entriesTask = _client.Fdb.ListForDeviceAsync(_deviceId);
-            var vlansTask = TryLoadVlansAsync();
-            await Task.WhenAll(entriesTask, vlansTask).ConfigureAwait(true);
-
-            // The VLANs endpoint has no per-device filter that also returns
-            // the internal id FdbEntry.VlanId needs to resolve against (see
-            // IVlansApi's remarks), so it comes back for the whole fleet and
-            // is filtered down here.
-            var vlansById = vlansTask.Result
-                .Where(v => v.DeviceId == _deviceId)
-                .GroupBy(v => v.VlanId)
-                .ToDictionary(g => g.Key, g => g.First());
+            var entries = await _client.Fdb.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
 
             FdbEntries.Clear();
-            foreach (var entry in entriesTask.Result.OrderBy(e => e.MacAddress, StringComparer.OrdinalIgnoreCase))
+            foreach (var entry in entries.OrderBy(e => e.MacAddress, StringComparer.OrdinalIgnoreCase))
             {
-                FdbEntries.Add(new FdbItemViewModel(entry, _portNamesByPortId, vlansById));
+                FdbEntries.Add(new FdbItemViewModel(entry, _portNamesByPortId, _vlansById));
             }
 
             OnPropertyChanged(nameof(HasFdbEntries));
@@ -1591,6 +1696,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         item is PortItemViewModel entry
         && (string.IsNullOrWhiteSpace(PortSearchText) || entry.Matches(PortSearchText.Trim()));
 
+    private bool FilterVlanEntry(object item) =>
+        item is VlanItemViewModel entry
+        && (string.IsNullOrWhiteSpace(VlanSearchText) || entry.Matches(VlanSearchText.Trim()));
+
     private bool FilterFdbEntry(object item) =>
         item is FdbItemViewModel entry
         && (string.IsNullOrWhiteSpace(FdbSearchText) || entry.Matches(FdbSearchText.Trim()));
@@ -1606,7 +1715,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _alertMonitor.RequestRefresh();
         return Task.WhenAll(
             LoadAlertHistoryAsync(), LoadPortsAsync(), LoadResourcesAsync(), LoadAvailabilityAsync(),
-            LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync());
+            LoadVlansAsync(), LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync());
     }
 
     private void RaiseDeviceChanged()
@@ -2003,6 +2112,78 @@ public sealed class FdbItemViewModel : ObservableObject
 
     /// <summary>Called once Ports finishes loading, in case it resolved after this row was already created - see <see cref="PortText"/>'s remarks.</summary>
     public void RefreshPortName() => OnPropertyChanged(nameof(PortText));
+
+    /// <summary>Called once VLANs finishes loading, in case it resolved after this row was already created - see <see cref="VlanText"/>'s remarks.</summary>
+    public void RefreshVlan()
+    {
+        OnPropertyChanged(nameof(VlanText));
+        OnPropertyChanged(nameof(VlanNameText));
+        OnPropertyChanged(nameof(HasVlanName));
+    }
+}
+
+/// <summary>One row in a device's VLANs tab - one VLAN configured on it.</summary>
+public sealed class VlanItemViewModel : ObservableObject
+{
+    private readonly Vlan _vlan;
+    private readonly ObservableCollection<PortItemViewModel> _allPorts;
+
+    public VlanItemViewModel(Vlan vlan, ObservableCollection<PortItemViewModel> allPorts)
+    {
+        _vlan = vlan;
+        _allPorts = allPorts;
+    }
+
+    public string NumberText => _vlan.VlanNumber.ToString(CultureInfo.InvariantCulture);
+
+    public string NameText => string.IsNullOrWhiteSpace(_vlan.VlanName) ? "-" : _vlan.VlanName!;
+
+    /// <summary>
+    /// Every port whose own untagged/native VLAN (Port.IfVlan) matches this
+    /// one - NOT full trunk membership. LibreNMS's per-VLAN trunk-membership
+    /// endpoint (/devices/{id}/ports/vlan/{vlan}) would cover a trunk port
+    /// carrying this VLAN tagged too, but it 500s unconditionally on every
+    /// server tried this was built against (confirmed with several id/format
+    /// variations, and with no working alternative route found) - a bug in
+    /// that LibreNMS build, not something fixable from here. This is the
+    /// reliable subset the API actually gives back. Queried live against the
+    /// shared Ports collection rather than cached, so a Ports refresh is
+    /// reflected without this row needing to rebuild.
+    /// </summary>
+    public IReadOnlyList<PortItemViewModel> AccessPorts =>
+        _allPorts.Where(p => p.Model.IfVlan == _vlan.VlanNumber).ToList();
+
+    /// <summary>
+    /// "12 ports: Gi1/1, Gi1/2, ..." or "-" for none - one string doing
+    /// double duty as the DataGrid cell (ellipsis-trimmed) and its tooltip
+    /// (shown in full), rather than a separate count column plus a
+    /// truncated-with-"+N more" string to keep in sync with it. Deliberately
+    /// labelled "access ports" (see the column header in DeviceView.xaml),
+    /// not just "ports", so it doesn't imply full trunk membership - see
+    /// AccessPorts' remarks.
+    /// </summary>
+    public string AccessPortsSummaryText
+    {
+        get
+        {
+            var ports = AccessPorts;
+            if (ports.Count == 0)
+            {
+                return "-";
+            }
+
+            var countLabel = ports.Count == 1 ? "1 port: " : $"{ports.Count} ports: ";
+            return countLabel + string.Join(", ", ports.Select(p => p.DisplayName));
+        }
+    }
+
+    public bool Matches(string term) =>
+        NumberText.Contains(term, StringComparison.OrdinalIgnoreCase)
+        || NameText.Contains(term, StringComparison.OrdinalIgnoreCase)
+        || AccessPorts.Any(p => p.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Called once Ports finishes loading (or reloads), in case it resolved after or changed since this row was already created - see <see cref="AccessPorts"/>'s remarks.</summary>
+    public void RefreshPorts() => OnPropertyChanged(nameof(AccessPortsSummaryText));
 }
 
 /// <summary>

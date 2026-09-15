@@ -167,6 +167,12 @@
                             <TextBlock Text="{Binding Ports.Count, Mode=OneWay, StringFormat=Ports ({0})}" />
                         </ToggleButton>
                         <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsVlansSelected, Mode=OneWay}"
+                                      Command="{Binding SelectVlansCommand}"
+                                      Visibility="{Binding ShowVlansNav, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{Binding VlanEntries.Count, Mode=OneWay, StringFormat=VLANs ({0})}" />
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsFdbSelected, Mode=OneWay}"
                                       Command="{Binding SelectFdbCommand}"
                                       Visibility="{Binding ShowFdbNav, Converter={StaticResource BoolToVisibility}}">
@@ -721,6 +727,82 @@
                            IsHitTestVisible="False"
                            Visibility="{Binding ShowPortsNoMatchesMessage, Converter={StaticResource BoolToVisibility}}"
                            Style="{StaticResource SubtleTextStyle}" />
+                </Grid>
+            </Grid>
+
+            <!-- ==================== VLANs ==================== -->
+            <Grid Margin="24"
+                  Visibility="{Binding IsVlansSelected, Converter={StaticResource BoolToVisibility}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBox Grid.Row="0"
+                         Style="{StaticResource SearchTextBoxStyle}"
+                         Tag="Search VLANs"
+                         Text="{Binding VlanSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                         ToolTip="Search by VLAN number, name or port"
+                         Width="320"
+                         HorizontalAlignment="Left"
+                         Margin="0,0,0,10" />
+
+                <Grid Grid.Row="1">
+                    <DataGrid ItemsSource="{Binding VlansView}"
+                              Visibility="{Binding HasVisibleVlans, Converter={StaticResource BoolToVisibility}}"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column">
+                        <DataGrid.Columns>
+
+                            <DataGridTextColumn Header="VLAN" Width="90" Binding="{Binding NumberText}" />
+                            <DataGridTextColumn Header="Name" Width="200" Binding="{Binding NameText}" />
+
+                            <!-- Labelled "Access ports", not just "Ports": this only
+                                 reflects each port's own untagged/native VLAN
+                                 (SNMP dot1qPvid). A trunk port carrying this VLAN
+                                 tagged alongside others is not included - LibreNMS's
+                                 own per-VLAN trunk-membership endpoint 500s on this
+                                 server (see VlanItemViewModel.AccessPorts), so this
+                                 is the reliable subset the API actually gives back. -->
+                            <DataGridTemplateColumn Width="*" SortMemberPath="AccessPortsSummaryText">
+                                <DataGridTemplateColumn.Header>
+                                    <TextBlock Text="Access ports"
+                                               ToolTip="Ports where this is the untagged/native VLAN. Trunk ports carrying it as a tagged VLAN aren't included - LibreNMS has no working way to report that on this server." />
+                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding AccessPortsSummaryText}"
+                                                   ToolTip="{Binding AccessPortsSummaryText}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center"
+                                                   Margin="8,0" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Text="Loading VLANs..."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding IsLoadingVlans, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
+                    <TextBlock Text="No VLANs reported for this device."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding ShowVlansEmptyMessage, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
+                    <TextBlock Text="No VLANs match your search."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding ShowVlansNoMatchesMessage, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
                 </Grid>
             </Grid>
 

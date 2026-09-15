@@ -41,6 +41,17 @@ public sealed class Port
     [JsonPropertyName("ifPhysAddress")]
     public string? IfPhysAddress { get; set; }
 
+    /// <summary>
+    /// The port's own untagged/native VLAN (SNMP dot1qPvid). A trunk port's
+    /// other tagged VLANs are not captured by this field - LibreNMS's own
+    /// per-device-VLAN-membership endpoint (/devices/{id}/ports/vlan/{vlan})
+    /// would cover those too, but errors out server-side on this install, so
+    /// this is the reliable subset: which ports have a given VLAN as their
+    /// access/native VLAN.
+    /// </summary>
+    [JsonPropertyName("ifVlan")]
+    public int? IfVlan { get; set; }
+
     /// <summary>"up", "down", "testing", "unknown", ... (RFC 1213 ifOperStatus).</summary>
     [JsonPropertyName("ifOperStatus")]
     public string? IfOperStatus { get; set; }

@@ -152,7 +152,7 @@ internal sealed class PortsApi : IPortsApi
     private const string Columns =
         "port_id,device_id,ifIndex,ifName,ifDescr,ifAlias,ifType,ifSpeed,ifDuplex,ifMtu," +
         "ifPhysAddress,ifOperStatus,ifAdminStatus,ifInOctets_rate,ifOutOctets_rate," +
-        "ifInErrors_delta,ifOutErrors_delta,ignore,disabled,deleted";
+        "ifInErrors_delta,ifOutErrors_delta,ifVlan,ignore,disabled,deleted";
 
     private readonly ILibreNmsTransport _transport;
 
