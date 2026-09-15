@@ -19,8 +19,25 @@ the rest bolted on without rework.
   filtered feed), Alerts gauge (critical/warning/acknowledged at a glance) and
   Device status (up/down/maintenance/disabled counts). Dragging or resizing a
   widget over another pushes it out of the way instead of blocking.
-- **Health tab.** Signal, temperature and fan speed sections across every
-  device, with configurable warning/critical thresholds.
+- **Health tab.** dBm, signal, temperature and fan speed sections across every
+  device. A sensor's own LibreNMS-configured limit wins per-boundary wherever
+  it sets one; the app's own Settings thresholds only fill the gaps (a toggle
+  reverts to app-only thresholds everywhere). Shift-click a status badge
+  (here, on Devices, Alerts, or the Dashboard's Alerts widget) to show only
+  that one status instead of toggling it.
+- **Device View.** Click a device (from the Devices tab, an alert, or a
+  sensor) to open a full window on it instead of jumping to the website:
+  - **Overview** — status, hardware, active alerts, and availability/outage
+    history (24h/7d/30d/1y uptime, a 30-day status-page-style history bar,
+    a collapsed list of individual outages).
+  - **Sensors**, grouped by component (every lane of one transceiver, one
+    PSU's voltage/current/power) instead of a flat list.
+  - **Ports**, with LLDP/CDP neighbour discovery and each port's own bound
+    IP addresses.
+  - **Resources** — CPU, memory and disk usage, built on LibreNMS's own
+    processor/memory-pool/storage data.
+  - **Alerts & Logs** — active and historical alerts together in one place,
+    plus a searchable, paginated event log.
 - **Alert list with filtering.** Filter chips for Critical / Warning / OK and for
   Active / Acknowledged / Recovered, plus a free-text search across host, rule,
   note and alert id. Your chip selection is remembered between runs.
@@ -82,7 +99,7 @@ Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php)
 to `publish/` (see above):
 
 ```bash
-"C:/Users/<you>/AppData/Local/Programs/Inno Setup 6/ISCC.exe" /DAppVersion=0.3.0 installer/DashyNMS.iss
+"C:/Users/<you>/AppData/Local/Programs/Inno Setup 6/ISCC.exe" /DAppVersion=0.4.0 installer/DashyNMS.iss
 ```
 
 This produces `dist/DashyNMS-Setup-<version>.exe`. The installer runs
@@ -93,7 +110,7 @@ its state under the current Windows account — into
 checkboxes. For a silent install with the same defaults:
 
 ```bash
-dist/DashyNMS-Setup-0.3.0.exe /VERYSILENT /SUPPRESSMSGBOXES /TASKS=startmenuicon
+dist/DashyNMS-Setup-0.4.0.exe /VERYSILENT /SUPPRESSMSGBOXES /TASKS=startmenuicon
 ```
 
 Add `,desktopicon` to `/TASKS` to also create a desktop shortcut. Note that
@@ -169,8 +186,17 @@ completely.
 | Fetch devices | `GET /api/v0/devices` |
 | Fetch alert rules | `GET /api/v0/rules` / `GET /api/v0/rules/{id}` |
 | Fetch alert log (fault detail) | `GET /api/v0/logs/alertlog/{device}` |
+| Fetch event log | `GET /api/v0/logs/eventlog/{device}` |
 | Acknowledge | `PUT /api/v0/alerts/{id}` with `{"note":"...","until_clear":true}` |
 | Return to active | `PUT /api/v0/alerts/unmute/{id}` |
+| Fetch sensors (fleet-wide) | `GET /api/v0/resources/sensors` |
+| Fetch ports for a device | `GET /api/v0/devices/{id}/ports?columns=...` |
+| Fetch neighbours (LLDP/CDP) | `GET /api/v0/devices/{id}/links` |
+| Fetch IP addresses | `GET /api/v0/devices/{id}/ip` |
+| Fetch CPU/memory/disk | `GET /api/v0/devices/{id}/health/{processor,mempool,storage}(/{id})` |
+| Fetch availability | `GET /api/v0/devices/{id}/availability` |
+| Fetch outage history | `GET /api/v0/devices/{id}/outages` |
+| Maintenance status | `GET /api/v0/devices/{id}/maintenance` |
 
 Severity comes from the alert *rule*, not the alert, so DashyNMS fetches all
 severities and filters client-side; that also makes the filter chips instant.
@@ -199,7 +225,9 @@ buttons still work when the app is sitting in the tray.
 
 The obvious next slices, roughly in order of usefulness:
 
-1. Alert history and per-rule drill-down (`/api/v0/rules`, already modelled).
-2. Ports and traffic graphs.
-3. Multiple LibreNMS instances in one window.
-4. Alert rule editing.
+1. Historical graphs (interface traffic, CPU/memory/disk trends, ping
+   response) - the Device View is currently a live snapshot only.
+2. FDB and ARP tables on the Device View.
+3. Scheduling a maintenance window from the app (currently read-only).
+4. Multiple LibreNMS instances in one window.
+5. Alert rule editing.
