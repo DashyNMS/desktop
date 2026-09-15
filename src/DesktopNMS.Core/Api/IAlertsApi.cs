@@ -56,6 +56,15 @@ public interface IDevicesApi
     /// callers should batch with bounded concurrency and cache the result.
     /// </remarks>
     Task<bool> IsUnderMaintenanceAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/devices/{id}/availability. Uptime percentage over four
+    /// fixed windows (1 day, 7 days, 30 days, 1 year).
+    /// </summary>
+    Task<IReadOnlyList<AvailabilityWindow>> GetAvailabilityAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>GET /api/v0/devices/{id}/outages. Every downtime incident LibreNMS has recorded for the device.</summary>
+    Task<IReadOnlyList<DeviceOutage>> GetOutagesAsync(int deviceId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Instance-level endpoints.</summary>

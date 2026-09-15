@@ -101,6 +101,18 @@ internal sealed class DevicesApi : IDevicesApi
         // client, in case this ever arrives as "1"/"0" like other columns do.
         return JsonSerializer.Deserialize<bool>(element.GetRawText(), LibreNmsJson.Options);
     }
+
+    public Task<IReadOnlyList<AvailabilityWindow>> GetAvailabilityAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/availability";
+        return _transport.GetCollectionAsync<AvailabilityWindow>(url, "availability", cancellationToken);
+    }
+
+    public Task<IReadOnlyList<DeviceOutage>> GetOutagesAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/outages";
+        return _transport.GetCollectionAsync<DeviceOutage>(url, "outages", cancellationToken);
+    }
 }
 
 /// <summary>Implementation of <see cref="ISensorsApi"/>.</summary>

@@ -57,8 +57,15 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private readonly HashSet<int> _loadedEventLogIds = new();
 
     private const int EventLogPageSize = 50;
+    private const int MaxOutagesShown = 10;
+    private const int AvailabilityTimelineDays = 30;
 
     private int _eventLogLimit = EventLogPageSize;
+
+    private double? _availability1Day;
+    private double? _availability7Day;
+    private double? _availability30Day;
+    private double? _availability1Year;
 
     private Device? _device;
     private bool _isUnderMaintenance;
@@ -109,6 +116,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Processors = new ObservableCollection<ProcessorItemViewModel>();
         Mempools = new ObservableCollection<MempoolItemViewModel>();
         Storage = new ObservableCollection<StorageItemViewModel>();
+        Outages = new ObservableCollection<OutageItemViewModel>();
+        AvailabilityTimeline = new ObservableCollection<OutageDayViewModel>();
         EventLog = new ObservableCollection<EventLogItemViewModel>();
 
         // Filter only - no grouping, so this does not run into the DataGrid
@@ -152,6 +161,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _ = LoadAlertHistoryAsync();
         _ = LoadPortsAsync();
         _ = LoadResourcesAsync();
+        _ = LoadAvailabilityAsync();
         _ = LoadEventLogAsync();
     }
 
@@ -179,6 +189,20 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public ObservableCollection<MempoolItemViewModel> Mempools { get; }
 
     public ObservableCollection<StorageItemViewModel> Storage { get; }
+
+    /// <summary>
+    /// The device's recorded downtime incidents, newest first, capped to
+    /// <see cref="MaxOutagesShown"/> - a long-lived device can accumulate a
+    /// lot of these, and only the recent ones are actually useful at a glance.
+    /// </summary>
+    public ObservableCollection<OutageItemViewModel> Outages { get; }
+
+    /// <summary>
+    /// One entry per of the last <see cref="AvailabilityTimelineDays"/> days,
+    /// oldest first - a compact status-page-style history bar, built from the
+    /// same outage data as <see cref="Outages"/> rather than a second fetch.
+    /// </summary>
+    public ObservableCollection<OutageDayViewModel> AvailabilityTimeline { get; }
 
     public ObservableCollection<EventLogItemViewModel> EventLog { get; }
 
@@ -386,6 +410,19 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             return string.Join(", ", parts);
         }
     }
+
+    /// <summary>True once availability has actually been fetched - hides the Overview card rather than showing dashes until then.</summary>
+    public bool HasAvailability => _availability1Day is not null;
+
+    public string Availability1DayText => FormatPercent(_availability1Day);
+
+    public string Availability7DayText => FormatPercent(_availability7Day);
+
+    public string Availability30DayText => FormatPercent(_availability30Day);
+
+    public string Availability1YearText => FormatPercent(_availability1Year);
+
+    public bool HasOutages => Outages.Count > 0;
 
     public bool HasActiveAlerts => ActiveAlerts.Count > 0;
 
@@ -807,6 +844,107 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Uptime percentage (1 day/7 day/30 day/1 year) and downtime history.
+    /// Fetched independently, same as ports/resources, so a problem here
+    /// cannot take another tab down with it.
+    /// </summary>
+    private async Task LoadAvailabilityAsync()
+    {
+        try
+        {
+            var availabilityTask = _client.Devices.GetAvailabilityAsync(_deviceId);
+            var outagesTask = _client.Devices.GetOutagesAsync(_deviceId);
+            await Task.WhenAll(availabilityTask, outagesTask).ConfigureAwait(true);
+
+            // Identified by duration rather than array position - LibreNMS's
+            // own ordering is not worth trusting blindly, and this is cheap
+            // either way since there are only ever four of them.
+            double? PercentFor(long durationSeconds) => availabilityTask.Result
+                .FirstOrDefault(w => w.DurationSeconds == durationSeconds)?.Percent;
+
+            _availability1Day = PercentFor(86_400);
+            _availability7Day = PercentFor(604_800);
+            _availability30Day = PercentFor(2_592_000);
+            _availability1Year = PercentFor(31_536_000);
+
+            Outages.Clear();
+            foreach (var outage in outagesTask.Result
+                .OrderByDescending(o => o.GoingDown)
+                .Take(MaxOutagesShown))
+            {
+                Outages.Add(new OutageItemViewModel(outage));
+            }
+
+            AvailabilityTimeline.Clear();
+            foreach (var day in BuildAvailabilityTimeline(outagesTask.Result))
+            {
+                AvailabilityTimeline.Add(day);
+            }
+
+            OnPropertyChanged(nameof(HasAvailability));
+            OnPropertyChanged(nameof(Availability1DayText));
+            OnPropertyChanged(nameof(Availability7DayText));
+            OnPropertyChanged(nameof(Availability30DayText));
+            OnPropertyChanged(nameof(Availability1YearText));
+            OnPropertyChanged(nameof(HasOutages));
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load availability for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load availability for device {DeviceId}", _deviceId);
+        }
+    }
+
+    private static string FormatPercent(double? percent) =>
+        percent is { } value ? value.ToString("0.##", CultureInfo.InvariantCulture) + "%" : "-";
+
+    /// <summary>
+    /// Buckets every outage into local calendar days over the trailing
+    /// <see cref="AvailabilityTimelineDays"/> window, oldest first, summing
+    /// however much of each day fell inside a down period (an outage can span
+    /// midnight, or several days). An outage still ongoing (<see cref="DeviceOutage.UpAgain"/>
+    /// null) is treated as down through to now.
+    /// </summary>
+    private static List<OutageDayViewModel> BuildAvailabilityTimeline(IReadOnlyList<DeviceOutage> outages)
+    {
+        var today = DateTime.Today;
+        var days = new List<OutageDayViewModel>(AvailabilityTimelineDays);
+
+        for (var offset = AvailabilityTimelineDays - 1; offset >= 0; offset--)
+        {
+            var dayStart = today.AddDays(-offset);
+            var dayEnd = dayStart.AddDays(1);
+            double downSeconds = 0;
+
+            foreach (var outage in outages)
+            {
+                if (outage.GoingDown is not { } start)
+                {
+                    continue;
+                }
+
+                var localStart = start.ToLocalTime();
+                var localEnd = (outage.UpAgain ?? DateTime.UtcNow).ToLocalTime();
+
+                var overlapStart = localStart > dayStart ? localStart : dayStart;
+                var overlapEnd = localEnd < dayEnd ? localEnd : dayEnd;
+
+                if (overlapEnd > overlapStart)
+                {
+                    downSeconds += (overlapEnd - overlapStart).TotalSeconds;
+                }
+            }
+
+            days.Add(new OutageDayViewModel(DateOnly.FromDateTime(dayStart), downSeconds));
+        }
+
+        return days;
+    }
+
+    /// <summary>
     /// LibreNMS's general audit trail for the device (config changes, up/down
     /// transitions, polling events, ...) - distinct from the alert log, which
     /// is only what tripped an alert rule. Fetched independently, same as
@@ -918,7 +1056,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _deviceMonitor.RequestRefresh();
         _sensorMonitor.RequestRefresh();
         _alertMonitor.RequestRefresh();
-        return Task.WhenAll(LoadAlertHistoryAsync(), LoadPortsAsync(), LoadResourcesAsync(), LoadEventLogAsync());
+        return Task.WhenAll(LoadAlertHistoryAsync(), LoadPortsAsync(), LoadResourcesAsync(), LoadAvailabilityAsync(), LoadEventLogAsync());
     }
 
     private void RaiseDeviceChanged()
@@ -1374,6 +1512,78 @@ public sealed class StorageItemViewModel
     public string DetailText => ResourceByteFormat.FormatUsedOfTotal(_volume.UsedBytes, _volume.TotalBytes);
 
     public AlertSeverity Severity => ResourceSeverity.Evaluate(_volume.UsagePercent, _volume.WarningPercent);
+}
+
+/// <summary>One row in a device's Overview "outages" list - a period the device was recorded down.</summary>
+public sealed class OutageItemViewModel
+{
+    private readonly DeviceOutage _outage;
+
+    public OutageItemViewModel(DeviceOutage outage) => _outage = outage;
+
+    public string StartedText => _outage.GoingDown is { } t
+        ? t.ToLocalTime().ToString("dd MMM HH:mm", CultureInfo.InvariantCulture)
+        : "-";
+
+    public string EndedText => _outage.UpAgain is { } t
+        ? t.ToLocalTime().ToString("dd MMM HH:mm", CultureInfo.InvariantCulture)
+        : "ongoing";
+
+    public string DurationText => _outage is { GoingDown: { } start, UpAgain: { } end }
+        ? DurationFormat.Format(end - start)
+        : "-";
+}
+
+/// <summary>
+/// One day in the Overview "availability timeline" bar - a compact, at-a-glance
+/// history strip (like a status page's uptime bar) rather than the individual
+/// incident list <see cref="OutageItemViewModel"/> covers. Deliberately binary
+/// (a day either had downtime or it did not) rather than graded by how much,
+/// since LibreNMS itself does not track a meaningful "partial" threshold here -
+/// the exact amount is still available in <see cref="TooltipText"/>.
+/// </summary>
+public sealed class OutageDayViewModel
+{
+    public OutageDayViewModel(DateOnly date, double downSeconds)
+    {
+        Date = date;
+        DownSeconds = downSeconds;
+    }
+
+    public DateOnly Date { get; }
+
+    public double DownSeconds { get; }
+
+    public bool HadOutage => DownSeconds > 0;
+
+    public AlertSeverity Severity => HadOutage ? AlertSeverity.Critical : AlertSeverity.Ok;
+
+    public string TooltipText => HadOutage
+        ? $"{Date:dd MMM}: down {DurationFormat.Format(TimeSpan.FromSeconds(DownSeconds))}"
+        : $"{Date:dd MMM}: no downtime";
+}
+
+file static class DurationFormat
+{
+    public static string Format(TimeSpan span)
+    {
+        if (span < TimeSpan.Zero)
+        {
+            span = TimeSpan.Zero;
+        }
+
+        if (span.TotalDays >= 1)
+        {
+            return $"{(int)span.TotalDays}d {span.Hours}h";
+        }
+
+        if (span.TotalHours >= 1)
+        {
+            return $"{(int)span.TotalHours}h {span.Minutes}m";
+        }
+
+        return $"{Math.Max(1, (int)span.TotalMinutes)}m";
+    }
 }
 
 /// <summary>

@@ -224,6 +224,95 @@
                         </Grid>
                     </Border>
 
+                    <Border Margin="0,16,0,0"
+                            Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="20"
+                            Visibility="{Binding HasAvailability, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="Availability" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+
+                            <UniformGrid Rows="1" Columns="4">
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="24 hours" Style="{StaticResource SubtleTextStyle}" />
+                                    <TextBlock Text="{Binding Availability1DayText}" FontSize="18" FontWeight="SemiBold" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="7 days" Style="{StaticResource SubtleTextStyle}" />
+                                    <TextBlock Text="{Binding Availability7DayText}" FontSize="18" FontWeight="SemiBold" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="30 days" Style="{StaticResource SubtleTextStyle}" />
+                                    <TextBlock Text="{Binding Availability30DayText}" FontSize="18" FontWeight="SemiBold" />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="1 year" Style="{StaticResource SubtleTextStyle}" />
+                                    <TextBlock Text="{Binding Availability1YearText}" FontSize="18" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </UniformGrid>
+
+                            <!-- A compact status-page-style history bar: one segment per day
+                                 over the last 30 days, red if the device had any downtime
+                                 that day. UniformGrid with a fixed Rows="1" spaces the
+                                 segments evenly across the full width regardless of count. -->
+                            <ItemsControl ItemsSource="{Binding AvailabilityTimeline}" Margin="0,16,0,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Rows="1" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Height="28"
+                                                Margin="1,0"
+                                                CornerRadius="2"
+                                                Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}"
+                                                ToolTip="{Binding TooltipText}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Grid Margin="0,4,0,0">
+                                <TextBlock Text="30 days ago" Style="{StaticResource SubtleTextStyle}" FontSize="10" HorizontalAlignment="Left" />
+                                <TextBlock Text="Today" Style="{StaticResource SubtleTextStyle}" FontSize="10" HorizontalAlignment="Right" />
+                            </Grid>
+
+                            <Expander Style="{StaticResource AccordionExpanderStyle}"
+                                      IsExpanded="False"
+                                      Margin="0,16,0,0"
+                                      Visibility="{Binding HasOutages, Converter={StaticResource BoolToVisibility}}">
+                                <!-- StringFormat has no effect on Header directly - it is
+                                     typed object, not string, so WPF silently skips the
+                                     format and shows the raw count instead. A TextBlock
+                                     as the header content sidesteps that. -->
+                                <Expander.Header>
+                                    <TextBlock Text="{Binding Outages.Count, StringFormat=Recent outages ({0})}" />
+                                </Expander.Header>
+                                <ItemsControl ItemsSource="{Binding Outages}" Margin="0,10,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" VerticalAlignment="Center">
+                                                    <Run Text="{Binding StartedText, Mode=OneWay}" /><Run Text=" &#8594; " /><Run Text="{Binding EndedText, Mode=OneWay}" />
+                                                </TextBlock>
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding DurationText}"
+                                                           Style="{StaticResource SubtleTextStyle}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="12,0,0,0" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Expander>
+                        </StackPanel>
+                    </Border>
+
                     <!-- UniformGrid sizes itself from its visible children only, so the
                          Ports tile - hidden entirely on a device with no
                          interfaces - does not leave a blank gap behind it. -->
