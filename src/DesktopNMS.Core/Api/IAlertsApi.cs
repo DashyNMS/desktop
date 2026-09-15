@@ -104,6 +104,15 @@ public interface IPortsApi
     /// demand by whatever needs one device's interfaces, not by a shared poller.
     /// </summary>
     Task<IReadOnlyList<Port>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/devices/{id}/ip. Every IPv4/IPv6 address bound to any of
+    /// the device's interfaces, keyed by <see cref="DeviceIpAddress.PortId"/>
+    /// rather than returned per-port - a device can have several addresses
+    /// on one interface (secondaries, HSRP/VRRP), or none at all on plenty
+    /// (an access-only switchport, an unrouted management VLAN).
+    /// </summary>
+    Task<IReadOnlyList<DeviceIpAddress>> ListIpAddressesAsync(int deviceId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

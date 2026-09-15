@@ -559,6 +559,16 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
+                        <DataGridTextColumn Header="IP address" Width="160" Binding="{Binding IpAddressesText}">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                    <Setter Property="VerticalAlignment" Value="Center" />
+                                    <Setter Property="ToolTip" Value="{Binding IpAddressesText}" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+
                         <DataGridTemplateColumn Header="Neighbour" Width="180" SortMemberPath="NeighborText">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>

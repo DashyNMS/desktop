@@ -163,6 +163,12 @@ internal sealed class PortsApi : IPortsApi
         var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/ports?columns=" + Columns;
         return _transport.GetCollectionAsync<Port>(url, "ports", cancellationToken);
     }
+
+    public Task<IReadOnlyList<DeviceIpAddress>> ListIpAddressesAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/ip";
+        return _transport.GetCollectionAsync<DeviceIpAddress>(url, "addresses", cancellationToken);
+    }
 }
 
 /// <summary>Implementation of <see cref="IDeviceHealthApi"/>.</summary>

@@ -737,20 +737,29 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             var ports = await _client.Ports.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
 
-            // Neighbours are fetched independently and tolerate their own
-            // failure - a problem with link discovery (a different endpoint,
-            // possibly unsupported on an older LibreMS version) should not
+            // Neighbours and IP addresses are fetched independently and each
+            // tolerate their own failure - a problem with one endpoint
+            // (possibly unsupported on an older LibreNMS version) should not
             // take the ports list down with it.
-            var linksByPort = (await TryLoadLinksAsync().ConfigureAwait(true))
+            var linksTask = TryLoadLinksAsync();
+            var addressesTask = TryLoadIpAddressesAsync();
+            await Task.WhenAll(linksTask, addressesTask).ConfigureAwait(true);
+
+            var linksByPort = linksTask.Result
                 .Where(l => l.LocalPortId > 0)
                 .GroupBy(l => l.LocalPortId)
                 .ToDictionary(g => g.Key, g => g.First());
+
+            var addressesByPort = addressesTask.Result
+                .GroupBy(a => a.PortId)
+                .ToDictionary(g => g.Key, g => (IReadOnlyList<DeviceIpAddress>)g.ToList());
 
             Ports.Clear();
             foreach (var port in ports.OrderBy(p => p.IfIndex ?? int.MaxValue))
             {
                 linksByPort.TryGetValue(port.PortId, out var link);
-                Ports.Add(new PortItemViewModel(port, link, _windows));
+                addressesByPort.TryGetValue(port.PortId, out var addresses);
+                Ports.Add(new PortItemViewModel(port, link, addresses ?? Array.Empty<DeviceIpAddress>(), _windows));
             }
 
             OnPropertyChanged(nameof(HasPorts));
@@ -788,6 +797,24 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             _logger.LogWarning(ex, "Could not load neighbours for device {DeviceId}", _deviceId);
             return Array.Empty<NetworkLink>();
+        }
+    }
+
+    private async Task<IReadOnlyList<DeviceIpAddress>> TryLoadIpAddressesAsync()
+    {
+        try
+        {
+            return await _client.Ports.ListIpAddressesAsync(_deviceId).ConfigureAwait(true);
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load IP addresses for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
+            return Array.Empty<DeviceIpAddress>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load IP addresses for device {DeviceId}", _deviceId);
+            return Array.Empty<DeviceIpAddress>();
         }
     }
 
@@ -1242,12 +1269,14 @@ public sealed class PortItemViewModel
 {
     private readonly Port _port;
     private readonly NetworkLink? _link;
+    private readonly IReadOnlyList<DeviceIpAddress> _addresses;
     private readonly IWindowService _windows;
 
-    public PortItemViewModel(Port port, NetworkLink? link, IWindowService windows)
+    public PortItemViewModel(Port port, NetworkLink? link, IReadOnlyList<DeviceIpAddress> addresses, IWindowService windows)
     {
         _port = port;
         _link = link;
+        _addresses = addresses;
         _windows = windows;
 
         OpenNeighborCommand = new RelayCommand(
@@ -1256,6 +1285,18 @@ public sealed class PortItemViewModel
     }
 
     public Port Model => _port;
+
+    /// <summary>
+    /// Every address bound to this interface, comma-joined - a secondary
+    /// address, or an HSRP/VRRP virtual alongside the real one, means this is
+    /// not always exactly one. Empty for the many ports (access switchports,
+    /// an unrouted management VLAN) that carry no address at all.
+    /// </summary>
+    public string IpAddressesText => _addresses.Count == 0
+        ? string.Empty
+        : string.Join(", ", _addresses.Select(a => a.DisplayText));
+
+    public bool HasIpAddresses => _addresses.Count > 0;
 
     public string DisplayName => _port.DisplayName;
 
