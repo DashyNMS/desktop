@@ -61,62 +61,49 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- A single compact trigger rather than a badge per type
-                         (see DeviceListViewModel.ApplyTypeFilters - the type
-                         list is open-ended and grows with the fleet): this
-                         costs the same one button's width regardless of how
-                         many types exist. The popover itself carries a search
-                         box, since a list of types can get long enough to be
-                         worth narrowing (matches the app's other searchable
-                         lists, e.g. the Event log tab). -->
-                    <ToggleButton x:Name="TypeFilterButton"
-                                  Content="Type"
-                                  IsChecked="{Binding IsTypeFilterOpen}"
-                                  Style="{StaticResource ChipToggleStyle}"
-                                  ToolTip="Filter by device type" />
-                    <Popup PlacementTarget="{Binding ElementName=TypeFilterButton}"
-                           Placement="Bottom"
-                           IsOpen="{Binding IsTypeFilterOpen, Mode=TwoWay}"
-                           StaysOpen="False"
-                           AllowsTransparency="True">
-                        <Border Background="{StaticResource SurfaceBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="12"
-                                MinWidth="220"
-                                Margin="0,4,0,0">
-                            <StackPanel>
-                                <TextBox Text="{Binding TypeFilterSearchText, UpdateSourceTrigger=PropertyChanged}"
-                                         ToolTip="Search types"
-                                         Margin="0,0,0,8" />
-                                <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto">
-                                    <ItemsControl ItemsSource="{Binding TypeFiltersView}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <CheckBox Content="{Binding LabelText}" IsChecked="{Binding IsChecked}" Margin="0,3" />
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </ScrollViewer>
-                                <Grid Margin="0,10,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" Content="Select all" Command="{Binding CheckAllTypesCommand}" HorizontalAlignment="Left" Padding="8,4" />
-                                    <Button Grid.Column="1" Content="Select none" Command="{Binding UncheckAllTypesCommand}" HorizontalAlignment="Right" Padding="8,4" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-                    </Popup>
-
+                    <!-- Search first, then the Filters trigger beside it -
+                         the conventional left-to-right order for a table
+                         toolbar (search narrows by free text, filters narrow
+                         by a fixed facet), with the destructive-ish Clear
+                         action set apart on the far right. -->
                     <TextBox x:Name="SearchBox"
                              Width="240"
+                             Style="{StaticResource SearchTextBoxStyle}"
+                             Tag="Search devices"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
                              ToolTip="Filter by name, IP, OS, hardware, location or device id"
-                             Margin="8,0,8,0" />
-                    <Button Content="Clear" Command="{Binding ClearFiltersCommand}" Padding="10,7" />
+                             Margin="0,0,8,0" />
+
+                    <!-- One compact trigger opening a centered dialog (see
+                         DeviceFiltersWindow) with a tab for each facet
+                         (DeviceListViewModel's TypeFilter/LocationFilter/
+                         GroupFilter - each an open-ended, growing list)
+                         rather than a button per facet or a badge per value:
+                         this costs the same one button's width regardless of
+                         how many types, locations or groups exist. The dot
+                         is the only always-visible sign that a facet is
+                         actively hiding something, since the dialog's own
+                         checkboxes are not visible until it's opened. -->
+                    <Grid Margin="0,0,14,0">
+                        <Button Content="Filters"
+                                Command="{Binding ShowFiltersCommand}"
+                                Style="{StaticResource ChipButtonStyle}"
+                                Margin="0"
+                                ToolTip="Filter by type, location or device group" />
+                        <Ellipse Width="7"
+                                 Height="7"
+                                 Fill="{DynamicResource AccentBrush}"
+                                 HorizontalAlignment="Right"
+                                 VerticalAlignment="Top"
+                                 Margin="0,-2,-2,0"
+                                 IsHitTestVisible="False"
+                                 Visibility="{Binding IsFiltersActive, Converter={StaticResource BoolToVisibility}}" />
+                    </Grid>
+
+                    <Button Content="Clear"
+                            Command="{Binding ClearFiltersCommand}"
+                            IsEnabled="{Binding HasAnyFilterApplied}"
+                            Padding="10,7" />
                 </StackPanel>
             </Grid>
         </Border>

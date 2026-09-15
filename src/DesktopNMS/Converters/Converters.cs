@@ -55,11 +55,20 @@ public sealed class BooleanToVisibilityConverter : IValueConverter
         => value is Visibility.Visible;
 }
 
-/// <summary>Non-empty string becomes Visible.</summary>
+/// <summary>Non-empty string becomes Visible - or Collapsed instead with ConverterParameter="invert" (e.g. a search box's placeholder, shown only while its text is empty).</summary>
 public sealed class StringToVisibilityConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => string.IsNullOrWhiteSpace(value as string) ? Visibility.Collapsed : Visibility.Visible;
+    {
+        var hasText = !string.IsNullOrWhiteSpace(value as string);
+
+        if (parameter is string text && text.Equals("invert", StringComparison.OrdinalIgnoreCase))
+        {
+            hasText = !hasText;
+        }
+
+        return hasText ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => Binding.DoNothing;

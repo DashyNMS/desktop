@@ -134,6 +134,23 @@ public interface IArpApi
     Task<IReadOnlyList<ArpEntry>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Device group endpoints.</summary>
+public interface IDeviceGroupsApi
+{
+    /// <summary>GET /api/v0/devicegroups. Every saved device group (dynamic or static) defined on the server.</summary>
+    Task<IReadOnlyList<DeviceGroup>> ListAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Every group's membership as one reverse index (device id -> the names
+    /// of every group it belongs to). LibreNMS has no endpoint that returns a
+    /// device's own group memberships or a bulk mapping, so this calls
+    /// GET /api/v0/devicegroups/{id} once per group (see <see cref="ListAsync"/>)
+    /// and merges the results - a device commonly belongs to more than one
+    /// group (e.g. both a site group and a role group).
+    /// </summary>
+    Task<IReadOnlyDictionary<int, IReadOnlyList<string>>> GetMembershipByDeviceAsync(CancellationToken cancellationToken = default);
+}
+
 /// <summary>
 /// CPU/memory/disk endpoints. LibreNMS keeps these in separate tables from
 /// <see cref="Sensor"/> and has no fleet-wide listing for them either - like

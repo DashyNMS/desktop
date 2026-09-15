@@ -117,6 +117,24 @@ public sealed class WindowService : IWindowService
         return window.ShowDialog() == true;
     }
 
+    public void ShowDeviceFiltersDialog()
+    {
+        // DeviceListViewModel is a singleton (see App.xaml.cs), so this
+        // resolves the exact same instance already driving the Devices tab -
+        // its TypeFilter/LocationFilter/GroupFilter are the same live
+        // objects, not a copy, so checking a box here immediately affects
+        // the device grid behind this dialog.
+        var viewModel = _services.GetRequiredService<DeviceListViewModel>();
+        var window = new DeviceFiltersWindow(viewModel);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        window.ShowDialog();
+    }
+
     public bool ShowSignInDialog()
     {
         var viewModel = _services.GetRequiredService<ConnectionViewModel>();

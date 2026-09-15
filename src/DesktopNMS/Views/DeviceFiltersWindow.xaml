@@ -1,0 +1,93 @@
+<Window x:Class="DesktopNMS.Views.DeviceFiltersWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:DeviceListViewModel}"
+        Title="Filter devices"
+        Width="380"
+        Height="500"
+        ResizeMode="NoResize"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Background="{StaticResource BackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+
+    <Window.Resources>
+        <!-- One facet's tab content (Type, Location and Group each bind an
+             instance of this to a FilterFacet - see DeviceListViewModel). A
+             shared template rather than three near-identical copies of the
+             same search box + checklist + select-all/none markup. -->
+        <DataTemplate x:Key="FilterFacetSectionTemplate" DataType="{x:Type vm:FilterFacet}">
+            <Grid Margin="18">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBox Grid.Row="0"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="Search"
+                         Margin="0,0,0,10" />
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding OptionsView}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <CheckBox Content="{Binding LabelText}" IsChecked="{Binding IsChecked}" Margin="0,4" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <Grid Grid.Row="2" Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Content="Select all" Command="{Binding CheckAllCommand}" HorizontalAlignment="Left" Padding="8,4" />
+                    <Button Grid.Column="1" Content="Select none" Command="{Binding UncheckAllCommand}" HorizontalAlignment="Right" Padding="8,4" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TabControl Grid.Row="0" Style="{StaticResource FlatTabControlStyle}">
+            <TabItem Header="Type">
+                <ContentControl Content="{Binding TypeFilter}" ContentTemplate="{StaticResource FilterFacetSectionTemplate}" Focusable="False" />
+            </TabItem>
+            <TabItem Header="Location">
+                <ContentControl Content="{Binding LocationFilter}" ContentTemplate="{StaticResource FilterFacetSectionTemplate}" Focusable="False" />
+            </TabItem>
+            <TabItem Header="Group">
+                <ContentControl Content="{Binding GroupFilter}" ContentTemplate="{StaticResource FilterFacetSectionTemplate}" Focusable="False" />
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="1"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="24,14">
+            <!-- Every checkbox filters the device list live as it is
+                 clicked (see FilterFacet/DeviceListViewModel.FilterDevice) -
+                 there is no separate Apply step, so this dialog only ever
+                 needs a single dismiss button. IsCancel closes it on Escape
+                 too, with no code-behind needed. -->
+            <Button Content="Close"
+                    IsCancel="True"
+                    IsDefault="True"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    Padding="20,7"
+                    HorizontalAlignment="Right" />
+        </Border>
+    </Grid>
+</Window>

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Threading;
+using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
@@ -24,10 +25,14 @@ namespace DesktopNMS.ViewModels;
 /// </summary>
 public sealed class DeviceListViewModel : ObservableObject, IDisposable
 {
+    /// <summary>The <see cref="GroupFilter"/> key used for a device that belongs to no group at all.</summary>
+    private static readonly IReadOnlyList<string> NoGroupKey = new[] { string.Empty };
+
     private readonly DeviceMonitor _deviceMonitor;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
+    private readonly ILibreNmsClient _client;
     private readonly ILogger<DeviceListViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, DeviceItemViewModel> _index = new();
@@ -39,15 +44,18 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     private DateTimeOffset? _lastUpdated;
     private string _searchText = string.Empty;
     private bool _hasLoadedOnce;
+    private bool _hasLoadedGroupsOnce;
 
     private bool _showUp = true;
     private bool _showDown = true;
     private bool _showDisabled = true;
     private bool _showMaintenance = true;
 
-    private readonly Dictionary<string, DeviceTypeFilterViewModel> _typeFilterIndex = new();
-    private string _typeFilterSearchText = string.Empty;
-    private bool _isTypeFilterOpen;
+    /// <summary>Device id -> the names of every group it belongs to. Empty until <see cref="LoadDeviceGroupsAsync"/> first completes.</summary>
+    private IReadOnlyDictionary<int, IReadOnlyList<string>> _groupMembership = new Dictionary<int, IReadOnlyList<string>>();
+
+    /// <summary>The device list from the most recent poll, kept so group membership arriving separately (see <see cref="LoadDeviceGroupsAsync"/>) can rebuild <see cref="GroupFilter"/> without waiting for the next poll.</summary>
+    private IReadOnlyList<Device> _lastOrderedDevices = Array.Empty<Device>();
 
     private readonly AutoRefreshTimer _autoRefresh;
 
@@ -56,12 +64,14 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         ISessionService session,
         ISettingsStore settings,
         IWindowService windows,
+        ILibreNmsClient client,
         ILogger<DeviceListViewModel> logger)
     {
         _deviceMonitor = deviceMonitor;
         _session = session;
         _settings = settings;
         _windows = windows;
+        _client = client;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -69,22 +79,32 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         DevicesView = CollectionViewSource.GetDefaultView(Devices);
         DevicesView.Filter = FilterDevice;
 
-        TypeFilters = new ObservableCollection<DeviceTypeFilterViewModel>();
-        TypeFiltersView = CollectionViewSource.GetDefaultView(TypeFilters);
-        TypeFiltersView.Filter = FilterTypeFilterEntry;
+        TypeFilter = new FilterFacet(OnFilterChanged);
+        LocationFilter = new FilterFacet(OnFilterChanged);
+        GroupFilter = new FilterFacet(OnFilterChanged);
+
+        TypeFilter.PropertyChanged += OnFacetPropertyChanged;
+        LocationFilter.PropertyChanged += OnFacetPropertyChanged;
+        GroupFilter.PropertyChanged += OnFacetPropertyChanged;
 
         RefreshCommand = new AsyncRelayCommand(() =>
         {
             _deviceMonitor.RequestRefresh();
+
+            // Fire-and-forget rather than awaited: group membership is a
+            // separate, slower fetch (one call per group) from the device
+            // poll this command otherwise only requests, and awaiting it here
+            // would leave the Refresh button disabled for that whole time.
+            // LoadDeviceGroupsAsync handles its own failures.
+            _ = LoadDeviceGroupsAsync();
+
             return Task.CompletedTask;
         }, () => _session.IsConnected && !IsBusy);
 
         ShowDeviceDetailCommand = new RelayCommand(ShowSelectedDeviceDetail, () => SelectedDevice is not null);
         ShowAlertsCommand = new RelayCommand(ShowAlertsForSelected, () => SelectedDevice is not null);
         ClearFiltersCommand = new RelayCommand(ClearFilters);
-
-        CheckAllTypesCommand = new RelayCommand(() => SetAllTypesChecked(true));
-        UncheckAllTypesCommand = new RelayCommand(() => SetAllTypesChecked(false));
+        ShowFiltersCommand = new RelayCommand(ShowFiltersDialog);
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
@@ -99,16 +119,38 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// One entry per distinct <see cref="Device.Type"/> actually present in
-    /// the fleet, alphabetical by <see cref="DeviceTypeFilterViewModel.DisplayText"/> -
-    /// a fixed order, unlike sorting by count, so the badges do not shuffle
-    /// position as counts fluctuate poll to poll. Built dynamically rather
-    /// than a fixed enum like <see cref="DeviceState"/>, since LibreNMS's own
-    /// type list is open-ended and varies by what is actually being monitored.
+    /// the fleet. Built dynamically rather than a fixed enum like
+    /// <see cref="DeviceState"/>, since LibreNMS's own type list is
+    /// open-ended and varies by what is actually being monitored.
     /// </summary>
-    public ObservableCollection<DeviceTypeFilterViewModel> TypeFilters { get; }
+    public FilterFacet TypeFilter { get; }
 
-    /// <summary>TypeFilters, filtered by <see cref="TypeFilterSearchText"/> - what the filter popover's checklist actually binds to.</summary>
-    public ICollectionView TypeFiltersView { get; }
+    /// <summary>One entry per distinct <see cref="Device.Location"/> actually present in the fleet.</summary>
+    public FilterFacet LocationFilter { get; }
+
+    /// <summary>
+    /// One entry per LibreNMS device group that has at least one member in
+    /// the fleet (see <see cref="LoadDeviceGroupsAsync"/>) - unlike Type and
+    /// Location, a device can belong to more than one group at once, so this
+    /// facet's counting and matching both work in terms of a set of keys per
+    /// device rather than a single one.
+    /// </summary>
+    public FilterFacet GroupFilter { get; }
+
+    /// <summary>True as soon as any of the three facets has something unchecked - drives the dot on the Devices tab's Filters button.</summary>
+    public bool IsFiltersActive => TypeFilter.HasActiveFilter || LocationFilter.HasActiveFilter || GroupFilter.HasActiveFilter;
+
+    /// <summary>
+    /// True when the device list is filtered in any way at all - a facet, a
+    /// hidden status, or a search term - broader than <see cref="IsFiltersActive"/>,
+    /// which only covers the Filters dialog's three facets. Drives whether
+    /// the Clear button does anything, so it isn't left clickable with
+    /// nothing to clear.
+    /// </summary>
+    public bool HasAnyFilterApplied =>
+        !string.IsNullOrEmpty(SearchText)
+        || !ShowUp || !ShowDown || !ShowMaintenance || !ShowDisabled
+        || IsFiltersActive;
 
     public AsyncRelayCommand RefreshCommand { get; }
 
@@ -118,9 +160,8 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     public RelayCommand ClearFiltersCommand { get; }
 
-    public RelayCommand CheckAllTypesCommand { get; }
-
-    public RelayCommand UncheckAllTypesCommand { get; }
+    /// <summary>Opens the centered Type/Location/Group filter dialog (see <see cref="IWindowService.ShowDeviceFiltersDialog"/>).</summary>
+    public RelayCommand ShowFiltersCommand { get; }
 
     /// <summary>A short "45s" / "2:05" countdown to the next automatic refresh.</summary>
     public string NextRefreshText => PollAlignment.FormatRemaining(_deviceMonitor.SecondsUntilNextPoll());
@@ -156,33 +197,6 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     {
         get => _searchText;
         set { if (SetProperty(ref _searchText, value)) OnFilterChanged(); }
-    }
-
-    /// <summary>Search box inside the type filter popover - narrows <see cref="TypeFiltersView"/>, not the device list itself.</summary>
-    public string TypeFilterSearchText
-    {
-        get => _typeFilterSearchText;
-        set
-        {
-            if (SetProperty(ref _typeFilterSearchText, value))
-            {
-                TypeFiltersView.Refresh();
-            }
-        }
-    }
-
-    public bool IsTypeFilterOpen
-    {
-        get => _isTypeFilterOpen;
-        set
-        {
-            if (SetProperty(ref _isTypeFilterOpen, value) && !value)
-            {
-                // Clears on close, not on open, so it does not visibly empty
-                // itself while still visible to the user.
-                TypeFilterSearchText = string.Empty;
-            }
-        }
     }
 
     // ------------------------------------------------------------------ state
@@ -269,6 +283,12 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         // and leave it frozen between polls.
         _autoRefresh.Start();
 
+        if (!_hasLoadedGroupsOnce)
+        {
+            _hasLoadedGroupsOnce = true;
+            _ = LoadDeviceGroupsAsync();
+        }
+
         if (_hasLoadedOnce)
         {
             return;
@@ -351,7 +371,18 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             }
         }
 
-        ApplyTypeFilters(ordered);
+        _lastOrderedDevices = ordered;
+
+        TypeFilter.Apply(ordered
+            .GroupBy(d => d.Type ?? string.Empty)
+            .Select(g => (g.Key, TypeDisplayText(g.Key), g.Count())));
+
+        LocationFilter.Apply(ordered
+            .GroupBy(d => d.Location ?? string.Empty)
+            .Select(g => (g.Key, LocationDisplayText(g.Key), g.Count())));
+
+        RebuildGroupFilter(ordered);
+
         RaiseCountsChanged();
 
         if (SelectedDevice is not null && !_index.ContainsKey(SelectedDevice.DeviceId))
@@ -361,42 +392,61 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Adds a <see cref="DeviceTypeFilterViewModel"/> for any type just seen
-    /// for the first time (checked by default, so a newly-appearing type does
-    /// not silently hide devices), drops any that no longer appear at all,
-    /// and refreshes every entry's count - preserving each existing entry's
-    /// checked state rather than resetting it every poll.
+    /// Rebuilds <see cref="GroupFilter"/>'s counts from the current device
+    /// list against whatever group membership is currently known - called
+    /// both after a device poll and after <see cref="LoadDeviceGroupsAsync"/>
+    /// completes, since either can change independently of the other.
     /// </summary>
-    private void ApplyTypeFilters(IReadOnlyList<Device> ordered)
+    private void RebuildGroupFilter(IReadOnlyList<Device> ordered)
     {
-        var countsByType = ordered
-            .GroupBy(d => d.Type ?? string.Empty)
-            .ToDictionary(g => g.Key, g => g.Count());
+        var counts = new Dictionary<string, int>();
 
-        for (var i = TypeFilters.Count - 1; i >= 0; i--)
+        foreach (var device in ordered)
         {
-            var type = TypeFilters[i].Type;
-            if (!countsByType.ContainsKey(type))
+            var groups = _groupMembership.TryGetValue(device.DeviceId, out var names) && names.Count > 0
+                ? names
+                : NoGroupKey;
+
+            foreach (var group in groups)
             {
-                _typeFilterIndex.Remove(type);
-                TypeFilters.RemoveAt(i);
+                counts[group] = counts.TryGetValue(group, out var existing) ? existing + 1 : 1;
             }
         }
 
-        foreach (var (type, count) in countsByType.OrderBy(kv => DeviceTypeFilterViewModel.DisplayTextFor(kv.Key), StringComparer.OrdinalIgnoreCase))
+        GroupFilter.Apply(counts.Select(kv => (kv.Key, GroupDisplayText(kv.Key), kv.Value)));
+    }
+
+    /// <summary>
+    /// Fetches every device group's membership (see <see cref="IDeviceGroupsApi.GetMembershipByDeviceAsync"/>)
+    /// and rebuilds <see cref="GroupFilter"/> from it. Deliberately separate
+    /// from the regular device poll: LibreNMS has no bulk endpoint for this,
+    /// so building it costs one call per group, worth doing on tab load and
+    /// on an explicit refresh rather than on every 30-second background poll.
+    /// </summary>
+    private async Task LoadDeviceGroupsAsync()
+    {
+        if (!_session.IsConnected)
         {
-            if (_typeFilterIndex.TryGetValue(type, out var existing))
+            return;
+        }
+
+        try
+        {
+            var membership = await _client.DeviceGroups.GetMembershipByDeviceAsync().ConfigureAwait(false);
+
+            await _dispatcher.InvokeAsync(() =>
             {
-                existing.Count = count;
-                continue;
-            }
-
-            var filter = new DeviceTypeFilterViewModel(type, OnFilterChanged) { Count = count };
-            _typeFilterIndex[type] = filter;
-
-            var insertAt = TypeFilters.TakeWhile(f =>
-                string.Compare(f.DisplayText, filter.DisplayText, StringComparison.OrdinalIgnoreCase) < 0).Count();
-            TypeFilters.Insert(insertAt, filter);
+                _groupMembership = membership;
+                RebuildGroupFilter(_lastOrderedDevices);
+            });
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load device group membership");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not load device group membership unexpectedly");
         }
     }
 
@@ -424,6 +474,18 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         _windows.ShowAlertsForDevice(device.Model.Hostname ?? device.Name);
     }
 
+    private void ShowFiltersDialog()
+    {
+        _windows.ShowDeviceFiltersDialog();
+
+        // Cleared after the dialog closes (ShowDeviceFiltersDialog blocks
+        // until then), not while it's open, so none of the three search
+        // boxes visibly empties itself while still visible to the user.
+        TypeFilter.ClearSearch();
+        LocationFilter.ClearSearch();
+        GroupFilter.ClearSearch();
+    }
+
     private void ClearFilters()
     {
         ShowUp = true;
@@ -432,10 +494,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         ShowMaintenance = true;
         SearchText = string.Empty;
 
-        foreach (var filter in TypeFilters)
-        {
-            filter.SetCheckedQuietly(true);
-        }
+        TypeFilter.SetAllChecked(true, notify: false);
+        LocationFilter.SetAllChecked(true, notify: false);
+        GroupFilter.SetAllChecked(true, notify: false);
 
         OnFilterChanged();
     }
@@ -455,28 +516,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         OnFilterChanged();
     }
 
-    private void SetAllTypesChecked(bool value)
-    {
-        foreach (var filter in TypeFilters)
-        {
-            filter.SetCheckedQuietly(value);
-        }
-
-        OnFilterChanged();
-    }
-
     // ---------------------------------------------------------------- helpers
-
-    private bool FilterTypeFilterEntry(object item)
-    {
-        if (item is not DeviceTypeFilterViewModel filter)
-        {
-            return false;
-        }
-
-        var term = TypeFilterSearchText;
-        return string.IsNullOrWhiteSpace(term) || filter.DisplayText.Contains(term, StringComparison.OrdinalIgnoreCase);
-    }
 
     private bool FilterDevice(object item)
     {
@@ -498,8 +538,21 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             return false;
         }
 
-        var typeKey = device.Model.Type ?? string.Empty;
-        if (_typeFilterIndex.TryGetValue(typeKey, out var typeFilter) && !typeFilter.IsChecked)
+        if (!TypeFilter.Allows(device.Model.Type ?? string.Empty))
+        {
+            return false;
+        }
+
+        if (!LocationFilter.Allows(device.Model.Location ?? string.Empty))
+        {
+            return false;
+        }
+
+        var groups = _groupMembership.TryGetValue(device.DeviceId, out var names) && names.Count > 0
+            ? names
+            : NoGroupKey;
+
+        if (!GroupFilter.AllowsAny(groups))
         {
             return false;
         }
@@ -508,10 +561,39 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         return string.IsNullOrWhiteSpace(term) || device.Matches(term.Trim());
     }
 
+    /// <summary>"Unspecified" for a device with no type set - LibreNMS's own web UI leaves this blank rather than naming it, but a blank filter entry would be confusing.</summary>
+    private static string TypeDisplayText(string type) =>
+        string.IsNullOrWhiteSpace(type) ? "Unspecified" : char.ToUpperInvariant(type[0]) + type[1..];
+
+    private static string LocationDisplayText(string location) =>
+        string.IsNullOrWhiteSpace(location) ? "Unspecified" : location;
+
+    private static string GroupDisplayText(string group) =>
+        string.IsNullOrWhiteSpace(group) ? "Not in a group" : group;
+
     private void OnFilterChanged()
     {
         DevicesView.Refresh();
         OnPropertyChanged(nameof(VisibleCount));
+        OnPropertyChanged(nameof(HasAnyFilterApplied));
+    }
+
+    /// <summary>
+    /// Relays a facet's own <see cref="FilterFacet.HasActiveFilter"/> change
+    /// into this view model's aggregate properties - Apply() can flip it
+    /// without going through OnFilterChanged (e.g. the last unchecked group
+    /// disappearing from the fleet), so this listens directly rather than
+    /// relying only on the checkbox-toggle path.
+    /// </summary>
+    private void OnFacetPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(FilterFacet.HasActiveFilter))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(IsFiltersActive));
+        OnPropertyChanged(nameof(HasAnyFilterApplied));
     }
 
     private void OnSettingsChanged(object? sender, AppSettings settings)
@@ -545,62 +627,8 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         _settings.Changed -= OnSettingsChanged;
         _deviceMonitor.PollStarted -= OnPollStarted;
         _deviceMonitor.Polled -= OnPolled;
+        TypeFilter.PropertyChanged -= OnFacetPropertyChanged;
+        LocationFilter.PropertyChanged -= OnFacetPropertyChanged;
+        GroupFilter.PropertyChanged -= OnFacetPropertyChanged;
     }
-}
-
-/// <summary>
-/// One status badge in the Devices tab's type-filter row - one of LibreNMS's
-/// own device types (e.g. "network", "server", "wireless"), built dynamically
-/// from whatever the fleet actually reports rather than a fixed list.
-/// </summary>
-public sealed class DeviceTypeFilterViewModel : ObservableObject
-{
-    private readonly Action _onChanged;
-    private bool _isChecked = true;
-    private int _count;
-
-    public DeviceTypeFilterViewModel(string type, Action onChanged)
-    {
-        Type = type;
-        _onChanged = onChanged;
-    }
-
-    /// <summary>The raw LibreNMS value, e.g. "network" - empty for a device with no type set.</summary>
-    public string Type { get; }
-
-    public string DisplayText => DisplayTextFor(Type);
-
-    public int Count
-    {
-        get => _count;
-        set
-        {
-            if (SetProperty(ref _count, value))
-            {
-                OnPropertyChanged(nameof(LabelText));
-            }
-        }
-    }
-
-    /// <summary>"Network (209)" - a real string property rather than a Content/StringFormat combination, which silently does nothing on an object-typed property like CheckBox.Content (confirmed the hard way elsewhere in this app - see Expander.Header's remarks in DeviceView.xaml).</summary>
-    public string LabelText => $"{DisplayText} ({Count})";
-
-    public bool IsChecked
-    {
-        get => _isChecked;
-        set
-        {
-            if (SetProperty(ref _isChecked, value))
-            {
-                _onChanged();
-            }
-        }
-    }
-
-    /// <summary>Sets <see cref="IsChecked"/> without invoking the change callback - for a caller (ClearFilters, SetAllTypesChecked) updating several of these at once, which raises the one filter refresh itself afterwards.</summary>
-    public void SetCheckedQuietly(bool value) => SetProperty(ref _isChecked, value, nameof(IsChecked));
-
-    /// <summary>"Unspecified" for a device with no type set - LibreNMS's own web UI leaves this blank rather than naming it, but a blank filter badge would be confusing.</summary>
-    public static string DisplayTextFor(string type) =>
-        string.IsNullOrWhiteSpace(type) ? "Unspecified" : char.ToUpperInvariant(type[0]) + type[1..];
 }

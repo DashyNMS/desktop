@@ -35,6 +35,14 @@ public interface IWindowService
     /// <summary>Shows the settings dialog. Returns true if the user saved.</summary>
     bool ShowSettingsDialog();
 
+    /// <summary>
+    /// Shows the Devices tab's Type/Location/Group filter dialog, modal to
+    /// the main window. Every checkbox inside it filters the device list
+    /// live, so unlike the other dialogs here there is nothing to report
+    /// back once it closes.
+    /// </summary>
+    void ShowDeviceFiltersDialog();
+
     /// <summary>Shows the sign-in dialog. Returns true if a session was established.</summary>
     bool ShowSignInDialog();
 

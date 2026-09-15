@@ -199,6 +199,76 @@ internal sealed class ArpApi : IArpApi
     }
 }
 
+/// <summary>Implementation of <see cref="IDeviceGroupsApi"/>.</summary>
+internal sealed class DeviceGroupsApi : IDeviceGroupsApi
+{
+    /// <summary>
+    /// Caps how many /devicegroups/{id} calls run at once, so a server with
+    /// many groups does not get them all fired in one burst - same reasoning
+    /// as <see cref="DeviceHealthApi"/>'s own concurrency cap.
+    /// </summary>
+    private const int MaxConcurrency = 6;
+
+    private readonly ILibreNmsTransport _transport;
+
+    public DeviceGroupsApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<DeviceGroup>> ListAsync(CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<DeviceGroup>("devicegroups", "groups", cancellationToken);
+
+    public async Task<IReadOnlyDictionary<int, IReadOnlyList<string>>> GetMembershipByDeviceAsync(CancellationToken cancellationToken = default)
+    {
+        var groups = await ListAsync(cancellationToken).ConfigureAwait(false);
+        if (groups.Count == 0)
+        {
+            return new Dictionary<int, IReadOnlyList<string>>();
+        }
+
+        using var gate = new SemaphoreSlim(MaxConcurrency);
+
+        var memberTasks = groups.Select(async group =>
+        {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var url = "devicegroups/" + group.Id.ToString(CultureInfo.InvariantCulture);
+                var members = await _transport.GetCollectionAsync<DeviceGroupMember>(url, "devices", cancellationToken).ConfigureAwait(false);
+                return (group.Name, Members: members);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        var results = await Task.WhenAll(memberTasks).ConfigureAwait(false);
+
+        var membership = new Dictionary<int, List<string>>();
+        foreach (var (name, members) in results)
+        {
+            foreach (var member in members)
+            {
+                if (!membership.TryGetValue(member.DeviceId, out var names))
+                {
+                    names = new List<string>();
+                    membership[member.DeviceId] = names;
+                }
+
+                names.Add(name);
+            }
+        }
+
+        return membership.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value);
+    }
+
+    /// <summary>The membership call's own shape - just enough to know which device this row is.</summary>
+    private sealed class DeviceGroupMember
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("device_id")]
+        public int DeviceId { get; set; }
+    }
+}
+
 /// <summary>Implementation of <see cref="IDeviceHealthApi"/>.</summary>
 internal sealed class DeviceHealthApi : IDeviceHealthApi
 {
