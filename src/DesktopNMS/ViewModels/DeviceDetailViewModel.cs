@@ -446,6 +446,11 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public bool HasAlternateName => AlternateName is not null;
 
+    /// <summary>The raw SNMP system description, e.g. "Onyx,SN2010M,SWv3.10.4408" - shown under the device name, matching where LibreNMS's own device page puts it.</summary>
+    public string? SysDescr => string.IsNullOrWhiteSpace(_device?.SysDescr) ? null : _device.SysDescr;
+
+    public bool HasSysDescr => SysDescr is not null;
+
     public DeviceState State => _isUnderMaintenance ? DeviceState.Maintenance : _device?.State ?? DeviceState.Down;
 
     public string StateText => State.ToDisplayString();
@@ -458,9 +463,56 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public string Location => Blank(_device?.Location);
 
-    public string Type => Blank(_device?.Type);
+    /// <summary>LibreNMS's own type values are lowercase ("network", "wireless", ...) - capitalised here to match how the Devices tab's type filter already displays them.</summary>
+    public string Type => TitleCase(_device?.Type);
 
     public string UptimeText => _device is { State: DeviceState.Up } d ? FormatUptime(d.Uptime) : "-";
+
+    // ------------------------------------------------------- additional details
+
+    /// <summary>
+    /// Inventory/identity fields LibreNMS's own device page shows but this
+    /// app did not yet - each conditionally shown (see the matching HasX
+    /// property below) rather than falling back to "-" like Ip/Os/Hardware
+    /// above, since most devices leave several of these unset and a card
+    /// full of dashes would be pure noise.
+    /// </summary>
+    public string? Serial => string.IsNullOrWhiteSpace(_device?.Serial) ? null : _device.Serial;
+
+    public bool HasSerial => Serial is not null;
+
+    public string? Contact => string.IsNullOrWhiteSpace(_device?.Contact) ? null : _device.Contact;
+
+    public bool HasContact => Contact is not null;
+
+    public string? SysObjectId => string.IsNullOrWhiteSpace(_device?.SysObjectId) ? null : _device.SysObjectId;
+
+    public bool HasSysObjectId => SysObjectId is not null;
+
+    /// <summary>Comma-separated hostnames, as LibreNMS itself stores them - most devices have none.</summary>
+    public string? DependencyParentText => string.IsNullOrWhiteSpace(_device?.DependencyParentHostname) ? null : _device.DependencyParentHostname;
+
+    public bool HasDependencyParent => DependencyParentText is not null;
+
+    /// <summary>
+    /// Elapsed time since LibreNMS added this device, e.g. "36d 4h ago" -
+    /// same compact style as <see cref="UptimeText"/>/alert ages elsewhere in
+    /// this app, not LibreNMS's own spelled-out "1 month ago" wording.
+    /// Not converted from server time, matching how the event log and alert
+    /// history timestamps in this same file are already treated - both are
+    /// the same ambiguous MySQL datetime format this field also uses.
+    /// </summary>
+    public string? InsertedText => _device?.Inserted is { } t ? DurationFormat.Format(DateTime.Now - t) + " ago" : null;
+
+    public bool HasInserted => InsertedText is not null;
+
+    /// <summary>When LibreNMS last ran full discovery (not just a poll) against this device - see <see cref="InsertedText"/>'s remarks on formatting and timezone.</summary>
+    public string? LastDiscoveredText => _device?.LastDiscovered is { } t ? DurationFormat.Format(DateTime.Now - t) + " ago" : null;
+
+    public bool HasLastDiscovered => LastDiscoveredText is not null;
+
+    /// <summary>Whether the Overview's "Technical" card has anything to show at all - it should not appear as an empty card for a device with none of Object ID/Serial/Depends-on. Location/Contact and Uptime/Device-added/Last-discovered have their own cards, but never hide entirely, since Location and Uptime always show something (even just "-").</summary>
+    public bool HasTechnicalDetails => HasSysObjectId || HasSerial || HasDependencyParent;
 
     /// <summary>True once the shared device monitor has actually reported on this device at least once.</summary>
     public bool HasLoaded => _device is not null;
@@ -1547,9 +1599,27 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(UptimeText));
         OnPropertyChanged(nameof(HasLoaded));
         OnPropertyChanged(nameof(IsLoadingDevice));
+        OnPropertyChanged(nameof(SysDescr));
+        OnPropertyChanged(nameof(HasSysDescr));
+        OnPropertyChanged(nameof(Serial));
+        OnPropertyChanged(nameof(HasSerial));
+        OnPropertyChanged(nameof(Contact));
+        OnPropertyChanged(nameof(HasContact));
+        OnPropertyChanged(nameof(SysObjectId));
+        OnPropertyChanged(nameof(HasSysObjectId));
+        OnPropertyChanged(nameof(DependencyParentText));
+        OnPropertyChanged(nameof(HasDependencyParent));
+        OnPropertyChanged(nameof(InsertedText));
+        OnPropertyChanged(nameof(HasInserted));
+        OnPropertyChanged(nameof(LastDiscoveredText));
+        OnPropertyChanged(nameof(HasLastDiscovered));
+        OnPropertyChanged(nameof(HasTechnicalDetails));
     }
 
     private static string Blank(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value!;
+
+    private static string TitleCase(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "-" : char.ToUpperInvariant(value[0]) + value[1..];
 
     private static string FormatUptime(long seconds)
     {

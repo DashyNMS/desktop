@@ -83,6 +83,10 @@
                                    Style="{StaticResource SubtleTextStyle}"
                                    TextWrapping="Wrap"
                                    Visibility="{Binding HasAlternateName, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock Text="{Binding SysDescr}"
+                                   Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding HasSysDescr, Converter={StaticResource BoolToVisibility}}" />
                     </StackPanel>
                 </StackPanel>
 
@@ -198,49 +202,82 @@
                           Visibility="{Binding IsOverviewSelected, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel Margin="24">
 
-                    <Border Background="{StaticResource SurfaceBrush}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="20">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,16">
-                                <TextBlock Text="IP address" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding Ip}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,16">
-                                <TextBlock Text="Operating system" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding Os}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,16">
-                                <TextBlock Text="Uptime" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding UptimeText}" TextWrapping="Wrap" />
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="1" Grid.Column="0">
-                                <TextBlock Text="Hardware" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding Hardware}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Grid.Row="1" Grid.Column="1">
-                                <TextBlock Text="Type" Style="{StaticResource SectionHeaderStyle}" />
+                    <!-- Four themed cards rather than one wide grid: each
+                         stays a sensible, tight size regardless of how wide
+                         the window is (a UniformGrid row, same pattern as
+                         the shortcut-card row lower on this page), instead
+                         of a single card whose columns stretch to fill an
+                         arbitrary window width and leave huge gaps around
+                         short values. Identity/Location/Status always show
+                         something (Ip/Location/UptimeText all fall back to
+                         "-"); only "Technical" can disappear entirely, for a
+                         device with none of Object ID/Serial/Depends-on. -->
+                    <UniformGrid Rows="1">
+                        <Border Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="20"
+                                Margin="0,0,6,0">
+                            <StackPanel>
+                                <TextBlock Text="IP address" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,0" />
+                                <TextBlock Text="{Binding Ip}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                                <TextBlock Text="Operating system" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,0" />
+                                <TextBlock Text="{Binding Os}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                                <TextBlock Text="Hardware" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,0" />
+                                <TextBlock Text="{Binding Hardware}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                                <TextBlock Text="Type" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,0" />
                                 <TextBlock Text="{Binding Type}" TextWrapping="Wrap" />
                             </StackPanel>
-                            <StackPanel Grid.Row="1" Grid.Column="2">
+                        </Border>
+
+                        <Border Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="20"
+                                Margin="6,0">
+                            <StackPanel>
                                 <TextBlock Text="Location" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding Location}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Location}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                                <TextBlock Text="Contact" Style="{StaticResource SectionHeaderStyle}" Visibility="{Binding HasContact, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Text="{Binding Contact}" TextWrapping="Wrap" Visibility="{Binding HasContact, Converter={StaticResource BoolToVisibility}}" />
                             </StackPanel>
-                        </Grid>
-                    </Border>
+                        </Border>
+
+                        <Border Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="20"
+                                Margin="6,0">
+                            <StackPanel>
+                                <TextBlock Text="Uptime" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBlock Text="{Binding UptimeText}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                                <TextBlock Text="Device added" Style="{StaticResource SectionHeaderStyle}" Visibility="{Binding HasInserted, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Text="{Binding InsertedText}" TextWrapping="Wrap" Visibility="{Binding HasInserted, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,14" />
+                                <TextBlock Text="Last discovered" Style="{StaticResource SectionHeaderStyle}" Visibility="{Binding HasLastDiscovered, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Text="{Binding LastDiscoveredText}" TextWrapping="Wrap" Visibility="{Binding HasLastDiscovered, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="20"
+                                Margin="6,0,0,0"
+                                Visibility="{Binding HasTechnicalDetails, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="Object ID" Style="{StaticResource SectionHeaderStyle}" Visibility="{Binding HasSysObjectId, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Text="{Binding SysObjectId}" TextWrapping="Wrap" Visibility="{Binding HasSysObjectId, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,14" />
+                                <TextBlock Text="Serial number" Style="{StaticResource SectionHeaderStyle}" Visibility="{Binding HasSerial, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Text="{Binding Serial}" TextWrapping="Wrap" Visibility="{Binding HasSerial, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,14" />
+                                <TextBlock Text="Depends on" Style="{StaticResource SectionHeaderStyle}" Visibility="{Binding HasDependencyParent, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Text="{Binding DependencyParentText}" TextWrapping="Wrap" Visibility="{Binding HasDependencyParent, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                        </Border>
+                    </UniformGrid>
 
                     <Border Margin="0,16,0,0"
                             Background="{StaticResource SurfaceBrush}"

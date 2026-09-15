@@ -42,6 +42,33 @@ public sealed class Device
     [JsonPropertyName("purpose")]
     public string? Purpose { get; set; }
 
+    /// <summary>The raw SNMP system description, e.g. "Onyx,SN2010M,SWv3.10.4408" - a one-line hardware/firmware summary LibreNMS's own device page shows prominently at the top.</summary>
+    [JsonPropertyName("sysDescr")]
+    public string? SysDescr { get; set; }
+
+    [JsonPropertyName("sysContact")]
+    public string? Contact { get; set; }
+
+    /// <summary>The device's SNMP sysObjectID, e.g. ".1.3.6.1.4.1.33049.1.1.1.201015" - identifies the vendor/model MIB, mainly useful for cross-referencing against vendor documentation.</summary>
+    [JsonPropertyName("sysObjectID")]
+    public string? SysObjectId { get; set; }
+
+    /// <summary>Hardware serial number, when the vendor's MIB exposes one - not every vendor does.</summary>
+    [JsonPropertyName("serial")]
+    public string? Serial { get; set; }
+
+    /// <summary>Hostname(s) of whatever this device is recorded as depending on, comma-separated - most devices have none.</summary>
+    [JsonPropertyName("dependency_parent_hostname")]
+    public string? DependencyParentHostname { get; set; }
+
+    /// <summary>When LibreNMS first added this device.</summary>
+    [JsonPropertyName("inserted")]
+    public DateTime? Inserted { get; set; }
+
+    /// <summary>When LibreNMS last ran full discovery (not just a poll) against this device.</summary>
+    [JsonPropertyName("last_discovered")]
+    public DateTime? LastDiscovered { get; set; }
+
     /// <summary>1 = up, 0 = down.</summary>
     [JsonPropertyName("status")]
     public bool Status { get; set; }
