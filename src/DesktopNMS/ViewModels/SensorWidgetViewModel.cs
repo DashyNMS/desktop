@@ -161,7 +161,7 @@ public sealed class SensorWidgetViewModel : DashboardWidgetViewModel
             }
 
             var deviceName = deviceNameFor(sensor.DeviceId);
-            var thresholds = entry.Thresholds(settings);
+            var thresholds = entry.Thresholds(settings, sensor);
 
             if (_index.TryGetValue(sensor.SensorId, out var existing))
             {
@@ -192,7 +192,7 @@ public sealed class SensorWidgetViewModel : DashboardWidgetViewModel
             var entry = SensorCategoryRegistry.Resolve(sensor.Model.SensorClass);
             if (entry is not null)
             {
-                sensor.ApplyThresholds(entry.Thresholds(settings));
+                sensor.ApplyThresholds(entry.Thresholds(settings, sensor.Model));
             }
         }
     }

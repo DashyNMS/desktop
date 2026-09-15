@@ -55,10 +55,14 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         _devices = devices;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
-        Dbm = new SensorCategoryViewModel(windows, s => s.DbmThresholds, " dBm", "No dBm sensors found.");
-        Signal = new SensorCategoryViewModel(windows, s => s.SignalThresholds, string.Empty, "No signal sensors found.");
-        Temperature = new SensorCategoryViewModel(windows, s => s.TemperatureThresholds, " °C", "No temperature sensors found.");
-        FanSpeed = new SensorCategoryViewModel(windows, s => s.FanSpeedThresholds, " RPM", "No fan speed sensors found.");
+        // Thresholds delegate to SensorCategoryRegistry rather than the raw
+        // *ThresholdSettings, so a sensor's own LibreNMS-configured limit
+        // (see HybridThresholdEvaluator) applies here the same as everywhere
+        // else that classifies a sensor, instead of only DashyNMS's own setting.
+        Dbm = new SensorCategoryViewModel(windows, SensorCategoryRegistry.Resolve("dbm")!.Thresholds, " dBm", "No dBm sensors found.");
+        Signal = new SensorCategoryViewModel(windows, SensorCategoryRegistry.Resolve("signal")!.Thresholds, string.Empty, "No signal sensors found.");
+        Temperature = new SensorCategoryViewModel(windows, SensorCategoryRegistry.Resolve("temperature")!.Thresholds, " °C", "No temperature sensors found.");
+        FanSpeed = new SensorCategoryViewModel(windows, SensorCategoryRegistry.Resolve("fanspeed")!.Thresholds, " RPM", "No fan speed sensors found.");
 
         RefreshCommand = new AsyncRelayCommand(() =>
         {

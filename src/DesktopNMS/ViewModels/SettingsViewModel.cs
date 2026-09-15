@@ -400,6 +400,27 @@ public sealed class SettingsViewModel : ObservableObject
 
     // ------------------------------------------------------ health thresholds
 
+    /// <summary>
+    /// When true, reverts to the app-only "current deciding system": these
+    /// thresholds always win and a sensor's own LibreNMS-configured limit is
+    /// ignored. When false (default), a sensor's own limit wins per-boundary
+    /// wherever it sets one, and these values only fill the gaps.
+    /// </summary>
+    public bool OverrideSensorLimitsWithAppThresholds
+    {
+        get => _draft.OverrideSensorLimitsWithAppThresholds;
+        set
+        {
+            if (_draft.OverrideSensorLimitsWithAppThresholds == value)
+            {
+                return;
+            }
+
+            _draft.OverrideSensorLimitsWithAppThresholds = value;
+            OnPropertyChanged();
+        }
+    }
+
     public double DbmWarningThreshold
     {
         get => _draft.DbmThresholds.WarningThreshold;

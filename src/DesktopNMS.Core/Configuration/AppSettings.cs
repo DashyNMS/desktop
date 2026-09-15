@@ -92,6 +92,15 @@ public sealed class AppSettings
     /// <summary>Warning/critical bands applied to fan-speed sensors on the Health tab.</summary>
     public BandThresholdSettings FanSpeedThresholds { get; set; } = BandThresholdSettings.FanSpeedDefaults();
 
+    /// <summary>
+    /// When a sensor has its own warning/critical limit configured in
+    /// LibreNMS, that normally wins over the threshold below it for whichever
+    /// bound it specifies (a device-specific limit is more accurate than one
+    /// fleet-wide guess). Turning this on reverts to always using the
+    /// thresholds below, ignoring what is configured on the sensor itself.
+    /// </summary>
+    public bool OverrideSensorLimitsWithAppThresholds { get; set; }
+
     /// <summary>Widgets laid out on the Dashboard tab (grid position/span, title, type, and - for a Sensors widget - which sensors it shows).</summary>
     public List<DashboardWidget> DashboardWidgets { get; set; } = new();
 
@@ -119,6 +128,7 @@ public sealed class AppSettings
         SignalThresholds = SignalThresholds.Clone(),
         TemperatureThresholds = TemperatureThresholds.Clone(),
         FanSpeedThresholds = FanSpeedThresholds.Clone(),
+        OverrideSensorLimitsWithAppThresholds = OverrideSensorLimitsWithAppThresholds,
         DashboardWidgets = DashboardWidgets.Select(w => w.Clone()).ToList(),
         Window = Window?.Clone(),
     };
@@ -227,6 +237,9 @@ public sealed class DbmThresholdSettings : IThresholdEvaluator
 
         return AlertSeverity.Ok;
     }
+
+    /// <summary>This category's low-side bounds, in the common shape <see cref="HybridThresholdEvaluator"/> merges against a sensor's own limits. There is no high side here - see the class remarks.</summary>
+    public ThresholdBounds ToBounds() => new(LowCritical: CriticalThreshold, LowWarning: WarningThreshold, HighWarning: null, HighCritical: null);
 }
 
 /// <summary>
@@ -289,6 +302,9 @@ public sealed class SignalThresholdSettings : IThresholdEvaluator
 
         return AlertSeverity.Ok;
     }
+
+    /// <summary>This category's low-side bounds - see <see cref="DbmThresholdSettings.ToBounds"/>.</summary>
+    public ThresholdBounds ToBounds() => new(LowCritical: CriticalThreshold, LowWarning: WarningThreshold, HighWarning: null, HighCritical: null);
 }
 
 /// <summary>
@@ -365,6 +381,95 @@ public sealed class BandThresholdSettings : IThresholdEvaluator
         }
 
         if (value <= LowWarning || value >= HighWarning)
+        {
+            return AlertSeverity.Warning;
+        }
+
+        return AlertSeverity.Ok;
+    }
+
+    /// <summary>This category's bounds - see <see cref="DbmThresholdSettings.ToBounds"/>. Unlike dBm/signal, both sides are real bounds here, not just a low side.</summary>
+    public ThresholdBounds ToBounds() => new(LowCritical, LowWarning, HighWarning, HighCritical);
+}
+
+/// <summary>
+/// Four optional boundaries - at-or-below/at-or-above is a fault - shared by
+/// every Health tab category's settings (see each type's <c>ToBounds()</c>)
+/// and by a sensor's own LibreNMS-configured limits, so
+/// <see cref="HybridThresholdEvaluator"/> can merge the two without caring
+/// which shape of settings produced either side.
+/// </summary>
+public readonly record struct ThresholdBounds(double? LowCritical, double? LowWarning, double? HighWarning, double? HighCritical);
+
+/// <summary>
+/// Classifies a reading against whichever of a sensor's own LibreNMS-configured
+/// limits (sensor_limit/_warn/_low/_low_warn) are actually set, falling back to
+/// the app's own configured threshold for any bound the sensor leaves
+/// unconfigured - or, if <see cref="AppSettings.OverrideSensorLimitsWithAppThresholds"/>
+/// is on, always uses the app's bound regardless of what the sensor specifies.
+/// A device-specific limit is normally the more accurate one: LibreNMS's app
+/// threshold is one fleet-wide guess, while a sensor's own limit (when the
+/// device or its discovery module set one) reflects that specific hardware.
+/// </summary>
+public sealed class HybridThresholdEvaluator : IThresholdEvaluator
+{
+    private readonly double? _lowCritical;
+    private readonly double? _lowWarning;
+    private readonly double? _highWarning;
+    private readonly double? _highCritical;
+    private readonly double? _ignoreAtOrAbove;
+    private readonly double? _ignoreAtOrBelow;
+
+    public HybridThresholdEvaluator(
+        ThresholdBounds appBounds,
+        ThresholdBounds sensorBounds,
+        bool overrideSensorLimitsWithAppThresholds,
+        double? ignoreAtOrAbove = null,
+        double? ignoreAtOrBelow = null)
+    {
+        double? Merge(double? sensorValue, double? appValue) =>
+            !overrideSensorLimitsWithAppThresholds && sensorValue.HasValue ? sensorValue : appValue;
+
+        _lowCritical = Merge(sensorBounds.LowCritical, appBounds.LowCritical);
+        _lowWarning = Merge(sensorBounds.LowWarning, appBounds.LowWarning);
+        _highWarning = Merge(sensorBounds.HighWarning, appBounds.HighWarning);
+        _highCritical = Merge(sensorBounds.HighCritical, appBounds.HighCritical);
+
+        // The "this reading means the port is unplugged/down" sentinel bands
+        // (dBm/signal only) are a DashyNMS concept with no equivalent on the
+        // sensor itself, so these always come from the app's own settings.
+        _ignoreAtOrAbove = ignoreAtOrAbove;
+        _ignoreAtOrBelow = ignoreAtOrBelow;
+    }
+
+    public AlertSeverity Evaluate(double value)
+    {
+        if (_ignoreAtOrAbove is { } above && value >= above)
+        {
+            return AlertSeverity.Unknown;
+        }
+
+        if (_ignoreAtOrBelow is { } below && value <= below)
+        {
+            return AlertSeverity.Unknown;
+        }
+
+        if (_lowCritical is { } lowCritical && value <= lowCritical)
+        {
+            return AlertSeverity.Critical;
+        }
+
+        if (_highCritical is { } highCritical && value >= highCritical)
+        {
+            return AlertSeverity.Critical;
+        }
+
+        if (_lowWarning is { } lowWarning && value <= lowWarning)
+        {
+            return AlertSeverity.Warning;
+        }
+
+        if (_highWarning is { } highWarning && value >= highWarning)
         {
             return AlertSeverity.Warning;
         }
@@ -486,14 +591,36 @@ public sealed class DashboardWidget
 /// </summary>
 public static class SensorCategoryRegistry
 {
-    public sealed record Entry(Func<AppSettings, IThresholdEvaluator> Thresholds, string UnitSuffix, string DisplayName);
+    /// <summary>
+    /// <see cref="Thresholds"/> takes the sensor being classified, not just
+    /// the app's settings: the resulting evaluator is a <see cref="HybridThresholdEvaluator"/>
+    /// that prefers that sensor's own configured limit for whichever bound it
+    /// specifies, over the app's fleet-wide one.
+    /// </summary>
+    public sealed record Entry(Func<AppSettings, Sensor, IThresholdEvaluator> Thresholds, string UnitSuffix, string DisplayName);
+
+    private static ThresholdBounds SensorBounds(Sensor sensor) => new(sensor.LimitLow, sensor.LimitLowWarn, sensor.LimitHighWarn, sensor.LimitHigh);
 
     private static readonly Dictionary<string, Entry> ByClass = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["dbm"] = new Entry(s => s.DbmThresholds, " dBm", "dBm"),
-        ["signal"] = new Entry(s => s.SignalThresholds, string.Empty, "Signal"),
-        ["temperature"] = new Entry(s => s.TemperatureThresholds, " °C", "Temperature"),
-        ["fanspeed"] = new Entry(s => s.FanSpeedThresholds, " RPM", "Fan speed"),
+        ["dbm"] = new Entry(
+            (settings, sensor) => new HybridThresholdEvaluator(
+                settings.DbmThresholds.ToBounds(), SensorBounds(sensor), settings.OverrideSensorLimitsWithAppThresholds,
+                settings.DbmThresholds.IgnoreAtOrAbove, settings.DbmThresholds.IgnoreAtOrBelow),
+            " dBm", "dBm"),
+        ["signal"] = new Entry(
+            (settings, sensor) => new HybridThresholdEvaluator(
+                settings.SignalThresholds.ToBounds(), SensorBounds(sensor), settings.OverrideSensorLimitsWithAppThresholds,
+                settings.SignalThresholds.IgnoreAtOrAbove, settings.SignalThresholds.IgnoreAtOrBelow),
+            string.Empty, "Signal"),
+        ["temperature"] = new Entry(
+            (settings, sensor) => new HybridThresholdEvaluator(
+                settings.TemperatureThresholds.ToBounds(), SensorBounds(sensor), settings.OverrideSensorLimitsWithAppThresholds),
+            " °C", "Temperature"),
+        ["fanspeed"] = new Entry(
+            (settings, sensor) => new HybridThresholdEvaluator(
+                settings.FanSpeedThresholds.ToBounds(), SensorBounds(sensor), settings.OverrideSensorLimitsWithAppThresholds),
+            " RPM", "Fan speed"),
     };
 
     /// <summary>All sensor classes the app understands, in display order.</summary>

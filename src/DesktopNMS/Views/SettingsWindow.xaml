@@ -171,6 +171,20 @@
                                    Margin="0,0,0,14"
                                    Text="Each sensor type on the Health tab has its own band of Warning/Critical colours. Expand a sensor type below to see or change them." />
 
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,14">
+                            <StackPanel>
+                                <CheckBox Content="Always use these app thresholds, ignoring each sensor's own configured limits"
+                                          IsChecked="{Binding OverrideSensorLimitsWithAppThresholds}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Off (default): a sensor's own limit, as configured in LibreNMS, wins for whichever bound it sets - these app thresholds only fill in what the sensor leaves unset. On: these app thresholds always decide, and sensor-configured limits are ignored." />
+                            </StackPanel>
+                        </Border>
+
                         <!-- Each sensor type the Health tab understands gets its
                              own Expander; a future type is a new sibling here,
                              not a new page. -->

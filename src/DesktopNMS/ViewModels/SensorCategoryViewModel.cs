@@ -22,7 +22,7 @@ namespace DesktopNMS.ViewModels;
 public sealed class SensorCategoryViewModel : ObservableObject
 {
     private readonly IWindowService _windows;
-    private readonly Func<AppSettings, IThresholdEvaluator> _thresholdsSelector;
+    private readonly Func<AppSettings, Sensor, IThresholdEvaluator> _thresholdsSelector;
     private readonly string _unitSuffix;
     private readonly Dictionary<int, SensorItemViewModel> _index = new();
 
@@ -36,7 +36,7 @@ public sealed class SensorCategoryViewModel : ObservableObject
 
     public SensorCategoryViewModel(
         IWindowService windows,
-        Func<AppSettings, IThresholdEvaluator> thresholdsSelector,
+        Func<AppSettings, Sensor, IThresholdEvaluator> thresholdsSelector,
         string unitSuffix,
         string noneFoundMessage)
     {
@@ -135,8 +135,6 @@ public sealed class SensorCategoryViewModel : ObservableObject
     /// <summary>Replaces this category's sensor list with a fresh fetch.</summary>
     public void Apply(IReadOnlyList<Sensor> sensors, Func<int, string> deviceNameFor, LibreNmsConnection? connection, AppSettings settings)
     {
-        var thresholds = _thresholdsSelector(settings);
-
         var ordered = sensors
             .OrderBy(s => deviceNameFor(s.DeviceId), StringComparer.OrdinalIgnoreCase)
             .ThenBy(s => s.Description, StringComparer.OrdinalIgnoreCase)
@@ -157,6 +155,7 @@ public sealed class SensorCategoryViewModel : ObservableObject
         {
             var sensor = ordered[target];
             var deviceName = deviceNameFor(sensor.DeviceId);
+            var thresholds = _thresholdsSelector(settings, sensor);
 
             if (_index.TryGetValue(sensor.SensorId, out var existing))
             {
@@ -187,11 +186,9 @@ public sealed class SensorCategoryViewModel : ObservableObject
     /// <summary>Re-evaluates every row's severity, e.g. after the thresholds changed in Settings.</summary>
     public void ApplyThresholds(AppSettings settings)
     {
-        var thresholds = _thresholdsSelector(settings);
-
         foreach (var sensor in Sensors)
         {
-            sensor.ApplyThresholds(thresholds);
+            sensor.ApplyThresholds(_thresholdsSelector(settings, sensor.Model));
         }
 
         RaiseCountsChanged();

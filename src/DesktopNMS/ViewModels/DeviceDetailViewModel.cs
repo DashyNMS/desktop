@@ -450,6 +450,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     private void ApplySensors(IReadOnlyList<Sensor> fleet)
     {
+        var settings = _settings.Current;
         var connection = _session.Connection;
         var deviceName = Name;
 
@@ -473,8 +474,15 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         for (var target = 0; target < mine.Count; target++)
         {
             var sensor = mine[target];
-            var evaluator = new SensorLimitThresholdEvaluator(sensor);
-            var unit = SensorUnitDisplay.Resolve(sensor.SensorClass);
+
+            // dBm/signal/temperature/fan speed have an app-configured
+            // fallback (see SensorCategoryRegistry) for whichever bound the
+            // sensor itself leaves unconfigured, and respect the Settings
+            // toggle to always prefer that fallback; every other class has
+            // only the sensor's own limits to go on.
+            var entry = SensorCategoryRegistry.Resolve(sensor.SensorClass);
+            var evaluator = entry?.Thresholds(settings, sensor) ?? new SensorLimitThresholdEvaluator(sensor);
+            var unit = entry?.UnitSuffix ?? SensorUnitDisplay.Resolve(sensor.SensorClass);
 
             if (_sensorIndex.TryGetValue(sensor.SensorId, out var existing))
             {
@@ -917,14 +925,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Classifies a reading against the thresholds LibreNMS itself has
-    /// configured on that specific sensor (sensor_limit/_warn/_low/_low_warn),
-    /// rather than one of DashyNMS's own app-wide settings - unlike the Health
-    /// tab and the Dashboard's Sensors widget (which apply one threshold
-    /// consistently across every device for a class), a single-device view
-    /// should show what is actually configured on the device, and covers
-    /// every sensor class this way rather than only the four DashyNMS has its
-    /// own settings for.
+    /// Classifies a reading purely against the limits LibreNMS itself has
+    /// configured on that specific sensor (sensor_limit/_warn/_low/_low_warn) -
+    /// the fallback for every sensor class outside <see cref="SensorCategoryRegistry"/>
+    /// (voltage, current, power, ...), which have no app-wide setting to fall
+    /// back to at all, unlike dBm/signal/temperature/fan speed (see
+    /// <see cref="HybridThresholdEvaluator"/>, used for those via the registry).
     /// </summary>
     private sealed class SensorLimitThresholdEvaluator : IThresholdEvaluator
     {
@@ -968,17 +974,15 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 }
 
 /// <summary>
-/// Units for common LibreNMS sensor classes, since the API does not return a
-/// unit string - only classes worth labelling with confidence are included;
+/// Units for LibreNMS sensor classes outside <see cref="SensorCategoryRegistry"/>
+/// (which already carries a unit for its four) - the API does not return a
+/// unit string, so only classes worth labelling with confidence are included;
 /// anything else (state, count, runtime, ...) is left bare rather than guessed.
 /// </summary>
 file static class SensorUnitDisplay
 {
     private static readonly Dictionary<string, string> Units = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["dbm"] = " dBm",
-        ["temperature"] = " °C",
-        ["fanspeed"] = " RPM",
         ["voltage"] = " V",
         ["current"] = " A",
         ["power"] = " W",
