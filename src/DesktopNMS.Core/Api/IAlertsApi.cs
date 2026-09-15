@@ -134,6 +134,20 @@ public interface IArpApi
     Task<IReadOnlyList<ArpEntry>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
 }
 
+/// <summary>VLAN endpoints.</summary>
+public interface IVlansApi
+{
+    /// <summary>
+    /// GET /api/v0/resources/vlans. Every VLAN LibreNMS knows about, across
+    /// every device - there is no per-device variant that also returns the
+    /// internal <see cref="Vlan.VlanId"/> a caller would need to resolve
+    /// <see cref="FdbEntry.VlanId"/> (the per-device /devices/{id}/vlans
+    /// endpoint omits it), so this fetches the whole list and callers filter
+    /// by <see cref="Vlan.DeviceId"/> themselves.
+    /// </summary>
+    Task<IReadOnlyList<Vlan>> ListAsync(CancellationToken cancellationToken = default);
+}
+
 /// <summary>Device group endpoints.</summary>
 public interface IDeviceGroupsApi
 {

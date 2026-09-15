@@ -30,6 +30,8 @@ public interface ILibreNmsClient
 
     IArpApi Arp { get; }
 
+    IVlansApi Vlans { get; }
+
     IDeviceGroupsApi DeviceGroups { get; }
 
     ILogsApi Logs { get; }

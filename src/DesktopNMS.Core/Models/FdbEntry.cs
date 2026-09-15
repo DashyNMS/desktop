@@ -20,6 +20,13 @@ public sealed class FdbEntry
     [JsonPropertyName("mac_address")]
     public string? MacAddress { get; set; }
 
+    /// <summary>
+    /// LibreNMS's own internal id for the VLAN row, NOT the 802.1Q VLAN
+    /// number - confirmed against a live server, where this held values like
+    /// 50 on a device whose actual VLANs were 1/2074/2076/2099/2102/2254.
+    /// Resolve the real tag and name via <see cref="Vlan"/> (<see cref="IVlansApi"/>),
+    /// keyed by this value.
+    /// </summary>
     [JsonPropertyName("vlan_id")]
     public int? VlanId { get; set; }
 

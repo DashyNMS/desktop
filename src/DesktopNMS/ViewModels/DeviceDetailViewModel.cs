@@ -1042,6 +1042,22 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 _portNamesByPortId[port.PortId] = port.DisplayName;
             }
 
+            // FDB/ARP may well have already loaded (this call fetches
+            // neighbours and IP addresses too, so it is not reliably the
+            // fastest of the three) with rows falling back to "Port {id}" -
+            // now that names are known, tell those already-created rows to
+            // re-read PortText instead of leaving the fallback showing for
+            // the rest of the session.
+            foreach (var entry in FdbEntries)
+            {
+                entry.RefreshPortName();
+            }
+
+            foreach (var entry in ArpEntries)
+            {
+                entry.RefreshPortName();
+            }
+
             OnPropertyChanged(nameof(HasPorts));
             OnPropertyChanged(nameof(HasVisiblePorts));
             OnPropertyChanged(nameof(ShowPortsEmptyMessage));
@@ -1109,6 +1125,25 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Fleet-wide VLANs, for <see cref="LoadFdbAsync"/> to resolve <see cref="FdbEntry.VlanId"/> against - see <see cref="IVlansApi"/>'s remarks on why this has to fetch everything rather than just this device's own.</summary>
+    private async Task<IReadOnlyList<Vlan>> TryLoadVlansAsync()
+    {
+        try
+        {
+            return await _client.Vlans.ListAsync().ConfigureAwait(true);
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load VLANs for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
+            return Array.Empty<Vlan>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load VLANs for device {DeviceId}", _deviceId);
+            return Array.Empty<Vlan>();
+        }
+    }
+
     /// <summary>
     /// The MAC address table. Fetched independently, same as ports/resources,
     /// so a problem here cannot take another tab down with it - most devices
@@ -1119,12 +1154,23 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var entries = await _client.Fdb.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
+            var entriesTask = _client.Fdb.ListForDeviceAsync(_deviceId);
+            var vlansTask = TryLoadVlansAsync();
+            await Task.WhenAll(entriesTask, vlansTask).ConfigureAwait(true);
+
+            // The VLANs endpoint has no per-device filter that also returns
+            // the internal id FdbEntry.VlanId needs to resolve against (see
+            // IVlansApi's remarks), so it comes back for the whole fleet and
+            // is filtered down here.
+            var vlansById = vlansTask.Result
+                .Where(v => v.DeviceId == _deviceId)
+                .GroupBy(v => v.VlanId)
+                .ToDictionary(g => g.Key, g => g.First());
 
             FdbEntries.Clear();
-            foreach (var entry in entries.OrderBy(e => e.MacAddress, StringComparer.OrdinalIgnoreCase))
+            foreach (var entry in entriesTask.Result.OrderBy(e => e.MacAddress, StringComparer.OrdinalIgnoreCase))
             {
-                FdbEntries.Add(new FdbItemViewModel(entry, _portNamesByPortId));
+                FdbEntries.Add(new FdbItemViewModel(entry, _portNamesByPortId, vlansById));
             }
 
             OnPropertyChanged(nameof(HasFdbEntries));
@@ -1781,26 +1827,72 @@ public sealed class PortItemViewModel
     }
 }
 
-/// <summary>One row in a device's FDB tab - one MAC address the switch has learned.</summary>
-public sealed class FdbItemViewModel
+/// <summary>
+/// One row in a device's FDB tab - one MAC address the switch has learned.
+/// An <see cref="ObservableObject"/> (not a plain class) specifically so
+/// <see cref="RefreshPortName"/> can be called once port names resolve after
+/// this row was already created and shown - see its remarks.
+/// </summary>
+public sealed class FdbItemViewModel : ObservableObject
 {
     private readonly FdbEntry _entry;
     private readonly Dictionary<int, string> _portNamesByPortId;
+    private readonly Dictionary<int, Vlan> _vlansById;
 
-    public FdbItemViewModel(FdbEntry entry, Dictionary<int, string> portNamesByPortId)
+    public FdbItemViewModel(FdbEntry entry, Dictionary<int, string> portNamesByPortId, Dictionary<int, Vlan> vlansById)
     {
         _entry = entry;
         _portNamesByPortId = portNamesByPortId;
+        _vlansById = vlansById;
     }
 
     public string MacAddressText => MacAddressFormat.Format(_entry.MacAddress);
 
-    /// <summary>The port's display name if <see cref="Ports"/> has resolved it yet, otherwise a bare id as a fallback - see <see cref="_portNamesByPortId"/>'s remarks on the DeviceDetailViewModel field it is a reference to.</summary>
+    /// <summary>
+    /// The port's display name if Ports has resolved it yet, otherwise a
+    /// bare id as a fallback - see <see cref="DeviceDetailViewModel._portNamesByPortId"/>'s
+    /// remarks. Unlike when this fallback was first written, Ports loading
+    /// after FDB (its own neighbour/IP-address lookups make it the slower of
+    /// the two more often than not) is not rare in practice, so
+    /// <see cref="RefreshPortName"/> exists to correct this once that
+    /// happens instead of leaving the fallback showing for good.
+    /// </summary>
     public string PortText => _portNamesByPortId.TryGetValue(_entry.PortId, out var name)
         ? name
         : string.Create(CultureInfo.InvariantCulture, $"Port {_entry.PortId}");
 
-    public string VlanText => _entry.VlanId is { } vlan and > 0 ? vlan.ToString(CultureInfo.InvariantCulture) : "-";
+    /// <summary>
+    /// The real 802.1Q VLAN number, resolved via <see cref="_vlansById"/> -
+    /// <see cref="FdbEntry.VlanId"/> is LibreNMS's own internal id for the
+    /// VLAN row, not the tag itself (confirmed against a live server: a
+    /// vlan_id of 50 on a device whose actual VLANs were all four digits).
+    /// Falls back to the raw id if it cannot be resolved (VLANs failed to
+    /// load, or a stale/unknown id), which is no worse than showing the
+    /// wrong number outright, just not corrected.
+    /// </summary>
+    public string VlanText
+    {
+        get
+        {
+            if (_entry.VlanId is not { } vlanId || vlanId <= 0)
+            {
+                return "-";
+            }
+
+            return _vlansById.TryGetValue(vlanId, out var vlan)
+                ? vlan.VlanNumber.ToString(CultureInfo.InvariantCulture)
+                : vlanId.ToString(CultureInfo.InvariantCulture);
+        }
+    }
+
+    /// <summary>The VLAN's own name, e.g. "I-MGMT-Intern" - shown as a subtitle under the number when known.</summary>
+    public string? VlanNameText => _entry.VlanId is { } vlanId
+        && _vlansById.TryGetValue(vlanId, out var vlan)
+        && !string.IsNullOrWhiteSpace(vlan.VlanName)
+            ? vlan.VlanName
+            : null;
+
+    public bool HasVlanName => VlanNameText is not null;
 
     public string UpdatedText => _entry.UpdatedAt is { } t
         ? t.ToLocalTime().ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
@@ -1809,11 +1901,19 @@ public sealed class FdbItemViewModel
     public bool Matches(string term) =>
         MacAddressText.Contains(term, StringComparison.OrdinalIgnoreCase)
         || PortText.Contains(term, StringComparison.OrdinalIgnoreCase)
-        || VlanText.Contains(term, StringComparison.OrdinalIgnoreCase);
+        || VlanText.Contains(term, StringComparison.OrdinalIgnoreCase)
+        || (VlanNameText?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false);
+
+    /// <summary>Called once Ports finishes loading, in case it resolved after this row was already created - see <see cref="PortText"/>'s remarks.</summary>
+    public void RefreshPortName() => OnPropertyChanged(nameof(PortText));
 }
 
-/// <summary>One row in a device's ARP tab - one IPv4-to-MAC mapping the device has resolved.</summary>
-public sealed class ArpItemViewModel
+/// <summary>
+/// One row in a device's ARP tab - one IPv4-to-MAC mapping the device has
+/// resolved. An <see cref="ObservableObject"/> for the same reason as
+/// <see cref="FdbItemViewModel"/> - see its <see cref="FdbItemViewModel.RefreshPortName"/> remarks.
+/// </summary>
+public sealed class ArpItemViewModel : ObservableObject
 {
     private readonly ArpEntry _entry;
     private readonly Dictionary<int, string> _portNamesByPortId;
@@ -1828,7 +1928,7 @@ public sealed class ArpItemViewModel
 
     public string MacAddressText => MacAddressFormat.Format(_entry.MacAddress);
 
-    /// <summary>See <see cref="FdbItemViewModel.PortText"/> - same lookup, same fallback.</summary>
+    /// <summary>See <see cref="FdbItemViewModel.PortText"/> - same lookup, same fallback, same reason it can need <see cref="RefreshPortName"/>.</summary>
     public string PortText => _portNamesByPortId.TryGetValue(_entry.PortId, out var name)
         ? name
         : string.Create(CultureInfo.InvariantCulture, $"Port {_entry.PortId}");
@@ -1837,6 +1937,9 @@ public sealed class ArpItemViewModel
         Ipv4AddressText.Contains(term, StringComparison.OrdinalIgnoreCase)
         || MacAddressText.Contains(term, StringComparison.OrdinalIgnoreCase)
         || PortText.Contains(term, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Called once Ports finishes loading, in case it resolved after this row was already created - see <see cref="PortText"/>'s remarks.</summary>
+    public void RefreshPortName() => OnPropertyChanged(nameof(PortText));
 }
 
 /// <summary>One row in a device's currently active alerts, shown on the Overview tab.</summary>

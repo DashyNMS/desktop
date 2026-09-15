@@ -269,6 +269,17 @@ internal sealed class DeviceGroupsApi : IDeviceGroupsApi
     }
 }
 
+/// <summary>Implementation of <see cref="IVlansApi"/>.</summary>
+internal sealed class VlansApi : IVlansApi
+{
+    private readonly ILibreNmsTransport _transport;
+
+    public VlansApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<Vlan>> ListAsync(CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<Vlan>("resources/vlans", "vlans", cancellationToken);
+}
+
 /// <summary>Implementation of <see cref="IDeviceHealthApi"/>.</summary>
 internal sealed class DeviceHealthApi : IDeviceHealthApi
 {

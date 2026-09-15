@@ -708,7 +708,22 @@
 
                             <DataGridTextColumn Header="MAC address" Width="150" Binding="{Binding MacAddressText}" />
                             <DataGridTextColumn Header="Port" Width="140" Binding="{Binding PortText}" />
-                            <DataGridTextColumn Header="VLAN" Width="80" Binding="{Binding VlanText}" />
+
+                            <DataGridTemplateColumn Header="VLAN" Width="150" SortMemberPath="VlanText">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="8,4" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding VlanText}" />
+                                            <TextBlock Text="{Binding VlanNameText}"
+                                                       Style="{StaticResource SubtleTextStyle}"
+                                                       FontSize="11"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Visibility="{Binding HasVlanName, Converter={StaticResource BoolToVisibility}}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
                             <DataGridTextColumn Header="Last seen" Width="150" Binding="{Binding UpdatedText}" />
 
                         </DataGrid.Columns>
