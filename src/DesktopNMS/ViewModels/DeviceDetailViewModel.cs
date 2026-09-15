@@ -90,6 +90,24 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private string _eventLogSearchText = string.Empty;
     private string _fdbSearchText = string.Empty;
     private string _arpSearchText = string.Empty;
+    private string _portSearchText = string.Empty;
+    private string _sensorSearchText = string.Empty;
+
+    // Each section here loads independently and asynchronously (see the
+    // constructor's fire-and-forget Load*Async calls), so "Count == 0" alone
+    // cannot tell a device that genuinely has none of something apart from
+    // one whose fetch just has not landed yet. These flip once, the first
+    // time that section's load actually completes (success or failure - a
+    // failed fetch still means there is nothing confirmed to show), and back
+    // every IsLoadingX/HasVisibleX property below.
+    private bool _hasLoadedSensors;
+    private bool _hasLoadedPorts;
+    private bool _hasLoadedFdb;
+    private bool _hasLoadedArp;
+    private bool _hasLoadedResources;
+    private bool _hasLoadedActiveAlerts;
+    private bool _hasLoadedAlertHistory;
+    private bool _hasLoadedEventLog;
 
     // Starts false, not true: until the first page has actually loaded and
     // said so, there is nothing confirmed to load more of. Defaulting this to
@@ -138,6 +156,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         FdbEntries = new ObservableCollection<FdbItemViewModel>();
         ArpEntries = new ObservableCollection<ArpItemViewModel>();
         EventLog = new ObservableCollection<EventLogItemViewModel>();
+
+        PortsView = CollectionViewSource.GetDefaultView(Ports);
+        PortsView.Filter = FilterPortEntry;
 
         FdbView = CollectionViewSource.GetDefaultView(FdbEntries);
         FdbView.Filter = FilterFdbEntry;
@@ -213,6 +234,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<PortItemViewModel> Ports { get; }
 
+    /// <summary>Ports, filtered by <see cref="PortSearchText"/>. What the Ports tab actually binds to.</summary>
+    public ICollectionView PortsView { get; }
+
     public ObservableCollection<ProcessorItemViewModel> Processors { get; }
 
     public ObservableCollection<MempoolItemViewModel> Mempools { get; }
@@ -270,6 +294,34 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public AsyncRelayCommand LoadMoreEventLogCommand { get; }
 
+    /// <summary>Free-text filter over a port's name, description and alias.</summary>
+    public string PortSearchText
+    {
+        get => _portSearchText;
+        set
+        {
+            if (SetProperty(ref _portSearchText, value))
+            {
+                PortsView.Refresh();
+                OnPropertyChanged(nameof(HasVisiblePorts));
+                OnPropertyChanged(nameof(ShowPortsNoMatchesMessage));
+            }
+        }
+    }
+
+    /// <summary>Free-text filter over a sensor's device name, description and id - narrows <see cref="SensorGroups"/> itself, since the tab groups rather than lists sensors flatly.</summary>
+    public string SensorSearchText
+    {
+        get => _sensorSearchText;
+        set
+        {
+            if (SetProperty(ref _sensorSearchText, value))
+            {
+                RebuildSensorGroups(force: true);
+            }
+        }
+    }
+
     /// <summary>Free-text filter over the FDB's MAC address, port and VLAN.</summary>
     public string FdbSearchText
     {
@@ -279,6 +331,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _fdbSearchText, value))
             {
                 FdbView.Refresh();
+                OnPropertyChanged(nameof(HasVisibleFdbEntries));
+                OnPropertyChanged(nameof(ShowFdbNoMatchesMessage));
             }
         }
     }
@@ -292,6 +346,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _arpSearchText, value))
             {
                 ArpView.Refresh();
+                OnPropertyChanged(nameof(HasVisibleArpEntries));
+                OnPropertyChanged(nameof(ShowArpNoMatchesMessage));
             }
         }
     }
@@ -305,6 +361,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _eventLogSearchText, value))
             {
                 EventLogView.Refresh();
+                OnPropertyChanged(nameof(HasVisibleEventLog));
+                OnPropertyChanged(nameof(ShowEventLogNoMatchesMessage));
             }
         }
     }
@@ -412,6 +470,18 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public bool HasSensors => Sensors.Count > 0;
 
+    /// <summary>True until the shared sensor monitor has reported on this device at least once - distinguishes "still loading" from "confirmed no sensors" below.</summary>
+    public bool IsLoadingSensors => !_hasLoadedSensors;
+
+    /// <summary>True once <see cref="SensorGroups"/> has something to show - false either for a device with no sensors at all, or one where <see cref="SensorSearchText"/> currently matches none.</summary>
+    public bool HasVisibleSensorGroups => SensorGroups.Count > 0;
+
+    /// <summary>Shown once loading has finished and the device genuinely has no sensors - never while still loading, and never just because the current search matched nothing.</summary>
+    public bool ShowSensorsEmptyMessage => !IsLoadingSensors && !HasSensors;
+
+    /// <summary>Shown once loaded, when the device has sensors but the current search matched none of them.</summary>
+    public bool ShowSensorsNoMatchesMessage => !IsLoadingSensors && HasSensors && !HasVisibleSensorGroups;
+
     public int SensorWarningCount => Sensors.Count(s => s.Severity == AlertSeverity.Warning);
 
     public int SensorCriticalCount => Sensors.Count(s => s.Severity == AlertSeverity.Critical);
@@ -430,7 +500,25 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public bool HasAlertHistory => AlertHistory.Count > 0;
 
+    /// <summary>True until alert history has actually been fetched at least once - distinguishes "still loading" from "confirmed no history" below.</summary>
+    public bool IsLoadingAlertHistory => !_hasLoadedAlertHistory;
+
+    /// <summary>Shown once loading has finished and the device genuinely has no alert history.</summary>
+    public bool ShowNoAlertHistoryMessage => !IsLoadingAlertHistory && !HasAlertHistory;
+
     public bool HasEventLog => EventLog.Count > 0;
+
+    /// <summary>True until the event log has actually been fetched at least once - distinguishes "still loading" from "confirmed no entries" below.</summary>
+    public bool IsLoadingEventLog => !_hasLoadedEventLog;
+
+    /// <summary>True once <see cref="EventLogView"/> has something to show - false either for a device with no event log at all, or one where <see cref="EventLogSearchText"/> currently matches none.</summary>
+    public bool HasVisibleEventLog => EventLogView.Cast<object>().Any();
+
+    /// <summary>Shown once loading has finished and the device genuinely has no event log entries - never while still loading, and never just because the current search matched nothing.</summary>
+    public bool ShowEventLogEmptyMessage => !IsLoadingEventLog && !HasEventLog;
+
+    /// <summary>Shown once loaded, when the device has event log entries but the current search matched none of them.</summary>
+    public bool ShowEventLogNoMatchesMessage => !IsLoadingEventLog && HasEventLog && !HasVisibleEventLog;
 
     /// <summary>
     /// True once ports have actually been fetched and the device reports at
@@ -439,8 +527,29 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// </summary>
     public bool HasPorts => Ports.Count > 0;
 
-    /// <summary>Whether the sidebar's "Network" group has anything to show at all - it should not appear as an empty header for a device with none of these.</summary>
-    public bool HasNetworkSection => HasPorts || HasFdbEntries || HasArpEntries;
+    /// <summary>True until Ports has actually been fetched at least once - distinguishes "still loading" from "confirmed no ports" below.</summary>
+    public bool IsLoadingPorts => !_hasLoadedPorts;
+
+    /// <summary>
+    /// Whether the sidebar's Ports item (and Overview's Ports card) should
+    /// show: visible while still loading, so it does not pop into existence
+    /// after the fact and shift everything below it, and once actually
+    /// confirmed to have ports - hidden only once loading has finished and
+    /// the device genuinely has none.
+    /// </summary>
+    public bool ShowPortsNav => IsLoadingPorts || HasPorts;
+
+    /// <summary>True once <see cref="PortsView"/> has something to show - false either for a device with no ports at all, or one where <see cref="PortSearchText"/> currently matches none.</summary>
+    public bool HasVisiblePorts => PortsView.Cast<object>().Any();
+
+    /// <summary>Shown once loading has finished and the device genuinely has no ports - never while still loading, and never just because the current search matched nothing.</summary>
+    public bool ShowPortsEmptyMessage => !IsLoadingPorts && !HasPorts;
+
+    /// <summary>Shown once loaded, when the device has ports but the current search matched none of them.</summary>
+    public bool ShowPortsNoMatchesMessage => !IsLoadingPorts && HasPorts && !HasVisiblePorts;
+
+    /// <summary>Whether the sidebar's "Network" group has anything to show at all - it should not appear as an empty header for a device with none of these, but also should not disappear and reappear as each of the three loads independently.</summary>
+    public bool HasNetworkSection => ShowPortsNav || ShowFdbNav || ShowArpNav;
 
     public int PortsUpCount => Ports.Count(p => p.IsUp);
 
@@ -452,6 +561,15 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// devices (switches, PDUs, sensors-only appliances) expose none of these.
     /// </summary>
     public bool HasResources => Processors.Count > 0 || Mempools.Count > 0 || Storage.Count > 0;
+
+    /// <summary>True until CPU/memory/disk have actually been fetched at least once - distinguishes "still loading" from "confirmed none of these" below.</summary>
+    public bool IsLoadingResources => !_hasLoadedResources;
+
+    /// <summary>Whether the sidebar's Resources item (and Overview's Resources card) should show - see <see cref="ShowPortsNav"/>'s remarks, which apply equally here.</summary>
+    public bool ShowResourcesNav => IsLoadingResources || HasResources;
+
+    /// <summary>Shown once loading has finished and the device genuinely reports none of CPU/memory/disk.</summary>
+    public bool ShowResourcesEmptyMessage => !IsLoadingResources && !HasResources;
 
     public bool HasProcessors => Processors.Count > 0;
 
@@ -505,10 +623,46 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// <summary>True once the MAC address table has actually been fetched and the device reports at least one entry - not every device is a switch.</summary>
     public bool HasFdbEntries => FdbEntries.Count > 0;
 
+    /// <summary>True until the FDB has actually been fetched at least once - distinguishes "still loading" from "confirmed no entries" below.</summary>
+    public bool IsLoadingFdb => !_hasLoadedFdb;
+
+    /// <summary>Whether the sidebar's FDB item should show - see <see cref="ShowPortsNav"/>'s remarks, which apply equally here.</summary>
+    public bool ShowFdbNav => IsLoadingFdb || HasFdbEntries;
+
+    /// <summary>True once <see cref="FdbView"/> has something to show - false either for a device with no FDB entries at all, or one where <see cref="FdbSearchText"/> currently matches none.</summary>
+    public bool HasVisibleFdbEntries => FdbView.Cast<object>().Any();
+
+    /// <summary>Shown once loading has finished and the device genuinely has no FDB entries - never while still loading, and never just because the current search matched nothing.</summary>
+    public bool ShowFdbEmptyMessage => !IsLoadingFdb && !HasFdbEntries;
+
+    /// <summary>Shown once loaded, when the device has FDB entries but the current search matched none of them.</summary>
+    public bool ShowFdbNoMatchesMessage => !IsLoadingFdb && HasFdbEntries && !HasVisibleFdbEntries;
+
     /// <summary>True once the ARP table has actually been fetched and the device reports at least one entry - not every device does IP routing.</summary>
     public bool HasArpEntries => ArpEntries.Count > 0;
 
+    /// <summary>True until the ARP table has actually been fetched at least once - distinguishes "still loading" from "confirmed no entries" below.</summary>
+    public bool IsLoadingArp => !_hasLoadedArp;
+
+    /// <summary>Whether the sidebar's ARP item should show - see <see cref="ShowPortsNav"/>'s remarks, which apply equally here.</summary>
+    public bool ShowArpNav => IsLoadingArp || HasArpEntries;
+
+    /// <summary>True once <see cref="ArpView"/> has something to show - false either for a device with no ARP entries at all, or one where <see cref="ArpSearchText"/> currently matches none.</summary>
+    public bool HasVisibleArpEntries => ArpView.Cast<object>().Any();
+
+    /// <summary>Shown once loading has finished and the device genuinely has no ARP entries - never while still loading, and never just because the current search matched nothing.</summary>
+    public bool ShowArpEmptyMessage => !IsLoadingArp && !HasArpEntries;
+
+    /// <summary>Shown once loaded, when the device has ARP entries but the current search matched none of them.</summary>
+    public bool ShowArpNoMatchesMessage => !IsLoadingArp && HasArpEntries && !HasVisibleArpEntries;
+
     public bool HasActiveAlerts => ActiveAlerts.Count > 0;
+
+    /// <summary>True until the shared alert monitor has reported on this device at least once - distinguishes "still loading" from "confirmed no active alerts" below.</summary>
+    public bool IsLoadingActiveAlerts => !_hasLoadedActiveAlerts;
+
+    /// <summary>Shown once loading has finished and the device genuinely has no active alerts.</summary>
+    public bool ShowNoActiveAlertsMessage => !IsLoadingActiveAlerts && !HasActiveAlerts;
 
     public int ActiveCriticalCount => ActiveAlerts.Count(a => a.Severity == AlertSeverity.Critical);
 
@@ -576,6 +730,18 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     private void OnSensorPolled(object? sender, SensorPollResult result) => _dispatcher.InvokeAsync(() =>
     {
+        // Flips once, on the very first poll to come back - success or not -
+        // regardless of whether it actually carried anything for this
+        // device, so IsLoadingSensors stops being true even if this device
+        // turns out to report none at all.
+        if (!_hasLoadedSensors)
+        {
+            _hasLoadedSensors = true;
+            OnPropertyChanged(nameof(IsLoadingSensors));
+            OnPropertyChanged(nameof(ShowSensorsEmptyMessage));
+            OnPropertyChanged(nameof(ShowSensorsNoMatchesMessage));
+        }
+
         if (result.Succeeded)
         {
             ApplySensors(result.Sensors);
@@ -590,6 +756,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// </summary>
     private void OnAlertsPolled(object? sender, AlertPollResult result) => _dispatcher.InvokeAsync(() =>
     {
+        // See OnSensorPolled's remarks - flips once regardless of outcome.
+        if (!_hasLoadedActiveAlerts)
+        {
+            _hasLoadedActiveAlerts = true;
+            OnPropertyChanged(nameof(IsLoadingActiveAlerts));
+            OnPropertyChanged(nameof(ShowNoActiveAlertsMessage));
+        }
+
         if (result.Succeeded)
         {
             ApplyActiveAlerts(result.Alerts);
@@ -614,6 +788,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
 
         OnPropertyChanged(nameof(HasActiveAlerts));
+        OnPropertyChanged(nameof(ShowNoActiveAlertsMessage));
         OnPropertyChanged(nameof(ActiveCriticalCount));
         OnPropertyChanged(nameof(ActiveWarningCount));
         OnPropertyChanged(nameof(ActiveAlertSummaryText));
@@ -676,22 +851,36 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         RebuildSensorGroupsIfChanged();
 
         OnPropertyChanged(nameof(HasSensors));
+        OnPropertyChanged(nameof(ShowSensorsEmptyMessage));
+        OnPropertyChanged(nameof(ShowSensorsNoMatchesMessage));
         OnPropertyChanged(nameof(SensorWarningCount));
         OnPropertyChanged(nameof(SensorCriticalCount));
         OnPropertyChanged(nameof(SensorAlertSummaryText));
     }
 
+    /// <summary>Rebuilds <see cref="SensorGroups"/> only when the grouping actually differs from what is already on screen - see <see cref="RebuildSensorGroups"/>.</summary>
+    private void RebuildSensorGroupsIfChanged() => RebuildSensorGroups(force: false);
+
     /// <summary>
-    /// Rebuilds <see cref="SensorGroups"/>, but only when the grouping
-    /// actually differs from what is already on screen. Which sensors a
-    /// device has barely ever changes, so the common case - every poll - is a
-    /// no-op, and the rows keep their view models and update their values in
-    /// place rather than the whole list being torn down and rebuilt (which
-    /// would lose the scroll position every 30 seconds).
+    /// Rebuilds <see cref="SensorGroups"/> from whichever sensors currently
+    /// match <see cref="SensorSearchText"/> (all of them, when it is empty).
+    /// Unless <paramref name="force"/> is set, this is skipped when the
+    /// result would not actually differ from what is already on screen -
+    /// which sensors a device has barely ever changes, so the common case -
+    /// every poll - is a no-op, and the rows keep their view models and
+    /// update their values in place rather than the whole list being torn
+    /// down and rebuilt (which would lose the scroll position every 30
+    /// seconds). A search text change always forces a rebuild, since the set
+    /// of matching sensors just changed by definition.
     /// </summary>
-    private void RebuildSensorGroupsIfChanged()
+    private void RebuildSensorGroups(bool force)
     {
-        var grouped = Sensors
+        var term = SensorSearchText.Trim();
+        var matching = term.Length == 0
+            ? Sensors
+            : (IEnumerable<SensorItemViewModel>)Sensors.Where(s => s.Matches(term));
+
+        var grouped = matching
             .GroupBy(s => s.GroupKey, StringComparer.OrdinalIgnoreCase)
             .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
             .Select(g => new SensorGroupViewModel(
@@ -699,7 +888,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 g.OrderBy(s => s.Description, StringComparer.OrdinalIgnoreCase).ToList()))
             .ToList();
 
-        if (MatchesCurrentGroups(grouped))
+        if (!force && MatchesCurrentGroups(grouped))
         {
             return;
         }
@@ -709,6 +898,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             SensorGroups.Add(group);
         }
+
+        OnPropertyChanged(nameof(HasVisibleSensorGroups));
     }
 
     private bool MatchesCurrentGroups(IReadOnlyList<SensorGroupViewModel> candidate)
@@ -786,6 +977,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         finally
         {
             IsBusy = false;
+            _hasLoadedAlertHistory = true;
+            OnPropertyChanged(nameof(IsLoadingAlertHistory));
+            OnPropertyChanged(nameof(ShowNoAlertHistoryMessage));
         }
     }
 
@@ -849,7 +1043,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             }
 
             OnPropertyChanged(nameof(HasPorts));
-            OnPropertyChanged(nameof(HasNetworkSection));
+            OnPropertyChanged(nameof(HasVisiblePorts));
+            OnPropertyChanged(nameof(ShowPortsEmptyMessage));
+            OnPropertyChanged(nameof(ShowPortsNoMatchesMessage));
             OnPropertyChanged(nameof(PortsUpCount));
             OnPropertyChanged(nameof(PortsDownCount));
         }
@@ -866,6 +1062,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not load ports for device {DeviceId}", _deviceId);
+        }
+        finally
+        {
+            _hasLoadedPorts = true;
+            OnPropertyChanged(nameof(IsLoadingPorts));
+            OnPropertyChanged(nameof(ShowPortsNav));
+            OnPropertyChanged(nameof(ShowPortsEmptyMessage));
+            OnPropertyChanged(nameof(HasNetworkSection));
         }
     }
 
@@ -924,7 +1128,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             }
 
             OnPropertyChanged(nameof(HasFdbEntries));
-            OnPropertyChanged(nameof(HasNetworkSection));
+            OnPropertyChanged(nameof(HasVisibleFdbEntries));
+            OnPropertyChanged(nameof(ShowFdbEmptyMessage));
+            OnPropertyChanged(nameof(ShowFdbNoMatchesMessage));
         }
         catch (LibreNmsApiException ex)
         {
@@ -933,6 +1139,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not load the FDB for device {DeviceId}", _deviceId);
+        }
+        finally
+        {
+            _hasLoadedFdb = true;
+            OnPropertyChanged(nameof(IsLoadingFdb));
+            OnPropertyChanged(nameof(ShowFdbNav));
+            OnPropertyChanged(nameof(ShowFdbEmptyMessage));
+            OnPropertyChanged(nameof(HasNetworkSection));
         }
     }
 
@@ -950,7 +1164,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             }
 
             OnPropertyChanged(nameof(HasArpEntries));
-            OnPropertyChanged(nameof(HasNetworkSection));
+            OnPropertyChanged(nameof(HasVisibleArpEntries));
+            OnPropertyChanged(nameof(ShowArpEmptyMessage));
+            OnPropertyChanged(nameof(ShowArpNoMatchesMessage));
         }
         catch (LibreNmsApiException ex)
         {
@@ -959,6 +1175,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not load the ARP table for device {DeviceId}", _deviceId);
+        }
+        finally
+        {
+            _hasLoadedArp = true;
+            OnPropertyChanged(nameof(IsLoadingArp));
+            OnPropertyChanged(nameof(ShowArpNav));
+            OnPropertyChanged(nameof(ShowArpEmptyMessage));
+            OnPropertyChanged(nameof(HasNetworkSection));
         }
     }
 
@@ -1011,6 +1235,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not load resources for device {DeviceId}", _deviceId);
+        }
+        finally
+        {
+            _hasLoadedResources = true;
+            OnPropertyChanged(nameof(IsLoadingResources));
+            OnPropertyChanged(nameof(ShowResourcesNav));
+            OnPropertyChanged(nameof(ShowResourcesEmptyMessage));
         }
     }
 
@@ -1143,6 +1374,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             HasMoreEventLog = entries.Count >= _eventLogLimit;
 
             OnPropertyChanged(nameof(HasEventLog));
+            OnPropertyChanged(nameof(HasVisibleEventLog));
+            OnPropertyChanged(nameof(ShowEventLogEmptyMessage));
+            OnPropertyChanged(nameof(ShowEventLogNoMatchesMessage));
         }
         catch (LibreNmsApiException ex)
         {
@@ -1151,6 +1385,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not load event log for device {DeviceId}", _deviceId);
+        }
+        finally
+        {
+            _hasLoadedEventLog = true;
+            OnPropertyChanged(nameof(IsLoadingEventLog));
+            OnPropertyChanged(nameof(ShowEventLogEmptyMessage));
         }
     }
 
@@ -1187,6 +1427,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             _eventLogLimit = newLimit;
             HasMoreEventLog = added > 0 && entries.Count >= newLimit;
             OnPropertyChanged(nameof(HasEventLog));
+            OnPropertyChanged(nameof(HasVisibleEventLog));
+            OnPropertyChanged(nameof(ShowEventLogNoMatchesMessage));
         }
         catch (LibreNmsApiException ex)
         {
@@ -1221,6 +1463,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             || entry.TypeText.Contains(term, StringComparison.OrdinalIgnoreCase)
             || entry.Username.Contains(term, StringComparison.OrdinalIgnoreCase);
     }
+
+    private bool FilterPortEntry(object item) =>
+        item is PortItemViewModel entry
+        && (string.IsNullOrWhiteSpace(PortSearchText) || entry.Matches(PortSearchText.Trim()));
 
     private bool FilterFdbEntry(object item) =>
         item is FdbItemViewModel entry

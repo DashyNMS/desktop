@@ -11,7 +11,6 @@
         Height="800"
         MinWidth="640"
         MinHeight="480"
-        WindowState="Maximized"
         Icon="pack://application:,,,/Assets/app.ico"
         Background="{StaticResource BackgroundBrush}"
         WindowStartupLocation="CenterOwner">
@@ -144,8 +143,15 @@
                                       Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsResourcesSelected, Mode=OneWay}"
                                       Command="{Binding SelectResourcesCommand}"
-                                      Visibility="{Binding HasResources, Converter={StaticResource BoolToVisibility}}" />
+                                      Visibility="{Binding ShowResourcesNav, Converter={StaticResource BoolToVisibility}}" />
 
+                        <!-- ShowXNav (not HasX) stays visible while its section
+                             is still loading, only disappearing once loading
+                             has finished and genuinely found nothing - so it
+                             does not pop into existence after the window
+                             opens and shift every item below it (see
+                             DeviceDetailViewModel's remarks on IsLoadingPorts
+                             and friends). -->
                         <TextBlock Text="NETWORK"
                                    Style="{StaticResource SectionHeaderStyle}"
                                    Margin="14,16,0,6"
@@ -153,19 +159,19 @@
                         <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsPortsSelected, Mode=OneWay}"
                                       Command="{Binding SelectPortsCommand}"
-                                      Visibility="{Binding HasPorts, Converter={StaticResource BoolToVisibility}}">
+                                      Visibility="{Binding ShowPortsNav, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="{Binding Ports.Count, Mode=OneWay, StringFormat=Ports ({0})}" />
                         </ToggleButton>
                         <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsFdbSelected, Mode=OneWay}"
                                       Command="{Binding SelectFdbCommand}"
-                                      Visibility="{Binding HasFdbEntries, Converter={StaticResource BoolToVisibility}}">
+                                      Visibility="{Binding ShowFdbNav, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="{Binding FdbEntries.Count, Mode=OneWay, StringFormat=FDB ({0})}" />
                         </ToggleButton>
                         <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsArpSelected, Mode=OneWay}"
                                       Command="{Binding SelectArpCommand}"
-                                      Visibility="{Binding HasArpEntries, Converter={StaticResource BoolToVisibility}}">
+                                      Visibility="{Binding ShowArpNav, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="{Binding ArpEntries.Count, Mode=OneWay, StringFormat=ARP ({0})}" />
                         </ToggleButton>
 
@@ -344,7 +350,7 @@
                         <Button Command="{Binding SelectPortsCommand}"
                                 Style="{StaticResource OverviewCardButtonStyle}"
                                 Margin="4,0"
-                                Visibility="{Binding HasPorts, Converter={StaticResource BoolToVisibility}}">
+                                Visibility="{Binding ShowPortsNav, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel HorizontalAlignment="Left">
                                 <TextBlock Text="Ports" Style="{StaticResource SectionHeaderStyle}" />
                                 <TextBlock Text="{Binding Ports.Count}" Style="{StaticResource HeadingTextStyle}" />
@@ -369,7 +375,7 @@
                         <Button Command="{Binding SelectResourcesCommand}"
                                 Style="{StaticResource OverviewCardButtonStyle}"
                                 Margin="4,0"
-                                Visibility="{Binding HasResources, Converter={StaticResource BoolToVisibility}}">
+                                Visibility="{Binding ShowResourcesNav, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel HorizontalAlignment="Left">
                                 <TextBlock Text="Resources" Style="{StaticResource SectionHeaderStyle}" />
                                 <TextBlock Text="{Binding Processors.Count, StringFormat={}{0} CPUs}" Style="{StaticResource HeadingTextStyle}" />
@@ -383,12 +389,27 @@
             <!-- ==================== Sensors ==================== -->
             <Grid Margin="24"
                   Visibility="{Binding IsSensorsSelected, Converter={StaticResource BoolToVisibility}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBox Grid.Row="0"
+                         Style="{StaticResource SearchTextBoxStyle}"
+                         Tag="Search sensors"
+                         Text="{Binding SensorSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                         ToolTip="Search by device name, description or sensor id"
+                         Width="320"
+                         HorizontalAlignment="Left"
+                         Margin="0,0,0,10" />
+
+                <Grid Grid.Row="1">
                 <!-- A card per group rather than a grouped DataGrid: this list
                      needs no sorting or selection, and an ItemsControl lays
                      its rows out at full width without fighting DataGrid's
                      grouping internals. -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              Visibility="{Binding HasSensors, Converter={StaticResource BoolToVisibility}}">
+                              Visibility="{Binding HasVisibleSensorGroups, Converter={StaticResource BoolToVisibility}}">
                     <ItemsControl ItemsSource="{Binding SensorGroups}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -464,19 +485,49 @@
                     </ItemsControl>
                 </ScrollViewer>
 
+                <TextBlock Text="Loading sensors..."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Visibility="{Binding IsLoadingSensors, Converter={StaticResource BoolToVisibility}}"
+                           Style="{StaticResource SubtleTextStyle}" />
+
                 <TextBlock Text="No sensors reported for this device."
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
                            IsHitTestVisible="False"
-                           Visibility="{Binding HasSensors, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                           Visibility="{Binding ShowSensorsEmptyMessage, Converter={StaticResource BoolToVisibility}}"
                            Style="{StaticResource SubtleTextStyle}" />
+
+                <TextBlock Text="No sensors match your search."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Visibility="{Binding ShowSensorsNoMatchesMessage, Converter={StaticResource BoolToVisibility}}"
+                           Style="{StaticResource SubtleTextStyle}" />
+                </Grid>
             </Grid>
 
             <!-- ==================== Ports ==================== -->
             <Grid Margin="24"
                   Visibility="{Binding IsPortsSelected, Converter={StaticResource BoolToVisibility}}">
-                <DataGrid ItemsSource="{Binding Ports}"
-                          Visibility="{Binding HasPorts, Converter={StaticResource BoolToVisibility}}"
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBox Grid.Row="0"
+                         Style="{StaticResource SearchTextBoxStyle}"
+                         Tag="Search ports"
+                         Text="{Binding PortSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                         ToolTip="Search by interface name or description"
+                         Width="320"
+                         HorizontalAlignment="Left"
+                         Margin="0,0,0,10" />
+
+                <Grid Grid.Row="1">
+                <DataGrid ItemsSource="{Binding PortsView}"
+                          Visibility="{Binding HasVisiblePorts, Converter={StaticResource BoolToVisibility}}"
                           IsReadOnly="True"
                           HeadersVisibility="Column">
                     <DataGrid.Columns>
@@ -608,12 +659,27 @@
                     </DataGrid.Columns>
                 </DataGrid>
 
+                <TextBlock Text="Loading ports..."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Visibility="{Binding IsLoadingPorts, Converter={StaticResource BoolToVisibility}}"
+                           Style="{StaticResource SubtleTextStyle}" />
+
                 <TextBlock Text="No ports reported for this device."
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
                            IsHitTestVisible="False"
-                           Visibility="{Binding HasPorts, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                           Visibility="{Binding ShowPortsEmptyMessage, Converter={StaticResource BoolToVisibility}}"
                            Style="{StaticResource SubtleTextStyle}" />
+
+                <TextBlock Text="No ports match your search."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Visibility="{Binding ShowPortsNoMatchesMessage, Converter={StaticResource BoolToVisibility}}"
+                           Style="{StaticResource SubtleTextStyle}" />
+                </Grid>
             </Grid>
 
             <!-- ==================== FDB ==================== -->
@@ -625,6 +691,8 @@
                 </Grid.RowDefinitions>
 
                 <TextBox Grid.Row="0"
+                         Style="{StaticResource SearchTextBoxStyle}"
+                         Tag="Search the FDB"
                          Text="{Binding FdbSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
                          ToolTip="Search by MAC address, port or VLAN"
                          Width="320"
@@ -633,7 +701,7 @@
 
                 <Grid Grid.Row="1">
                     <DataGrid ItemsSource="{Binding FdbView}"
-                              Visibility="{Binding HasFdbEntries, Converter={StaticResource BoolToVisibility}}"
+                              Visibility="{Binding HasVisibleFdbEntries, Converter={StaticResource BoolToVisibility}}"
                               IsReadOnly="True"
                               HeadersVisibility="Column">
                         <DataGrid.Columns>
@@ -646,11 +714,25 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
+                    <TextBlock Text="Loading the FDB..."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding IsLoadingFdb, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
                     <TextBlock Text="No FDB entries reported for this device."
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                IsHitTestVisible="False"
-                               Visibility="{Binding HasFdbEntries, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                               Visibility="{Binding ShowFdbEmptyMessage, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
+                    <TextBlock Text="No FDB entries match your search."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding ShowFdbNoMatchesMessage, Converter={StaticResource BoolToVisibility}}"
                                Style="{StaticResource SubtleTextStyle}" />
                 </Grid>
             </Grid>
@@ -664,6 +746,8 @@
                 </Grid.RowDefinitions>
 
                 <TextBox Grid.Row="0"
+                         Style="{StaticResource SearchTextBoxStyle}"
+                         Tag="Search the ARP table"
                          Text="{Binding ArpSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
                          ToolTip="Search by IP address, MAC address or port"
                          Width="320"
@@ -672,7 +756,7 @@
 
                 <Grid Grid.Row="1">
                     <DataGrid ItemsSource="{Binding ArpView}"
-                              Visibility="{Binding HasArpEntries, Converter={StaticResource BoolToVisibility}}"
+                              Visibility="{Binding HasVisibleArpEntries, Converter={StaticResource BoolToVisibility}}"
                               IsReadOnly="True"
                               HeadersVisibility="Column">
                         <DataGrid.Columns>
@@ -684,11 +768,25 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
+                    <TextBlock Text="Loading the ARP table..."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding IsLoadingArp, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
                     <TextBlock Text="No ARP entries reported for this device."
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                IsHitTestVisible="False"
-                               Visibility="{Binding HasArpEntries, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                               Visibility="{Binding ShowArpEmptyMessage, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
+                    <TextBlock Text="No ARP entries match your search."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding ShowArpNoMatchesMessage, Converter={StaticResource BoolToVisibility}}"
                                Style="{StaticResource SubtleTextStyle}" />
                 </Grid>
             </Grid>
@@ -698,9 +796,10 @@
                  the row shape differs (a disk/pool shows a used/total byte
                  figure a CPU has no equivalent for), and a device may report
                  any mix of the three. -->
-            <ScrollViewer Margin="24"
-                          VerticalScrollBarVisibility="Auto"
-                          Visibility="{Binding IsResourcesSelected, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="24"
+                  Visibility="{Binding IsResourcesSelected, Converter={StaticResource BoolToVisibility}}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          Visibility="{Binding HasResources, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel>
 
                     <!-- Processors -->
@@ -832,6 +931,21 @@
                 </StackPanel>
             </ScrollViewer>
 
+                <TextBlock Text="Loading resources..."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Visibility="{Binding IsLoadingResources, Converter={StaticResource BoolToVisibility}}"
+                           Style="{StaticResource SubtleTextStyle}" />
+
+                <TextBlock Text="No CPU, memory or disk data reported for this device."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Visibility="{Binding ShowResourcesEmptyMessage, Converter={StaticResource BoolToVisibility}}"
+                           Style="{StaticResource SubtleTextStyle}" />
+            </Grid>
+
             <!-- ==================== Alerts ==================== -->
             <!-- Active and historical together: what is on fire right now,
                  and everything that has ever fired, in one place - rather
@@ -903,10 +1017,15 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
+                        <TextBlock Text="Loading active alerts..."
+                                   Style="{StaticResource SubtleTextStyle}"
+                                   Margin="0,12,0,0"
+                                   Visibility="{Binding IsLoadingActiveAlerts, Converter={StaticResource BoolToVisibility}}" />
+
                         <TextBlock Text="No active alerts."
                                    Style="{StaticResource SubtleTextStyle}"
                                    Margin="0,12,0,0"
-                                   Visibility="{Binding HasActiveAlerts, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                   Visibility="{Binding ShowNoActiveAlertsMessage, Converter={StaticResource BoolToVisibility}}" />
                     </StackPanel>
                 </Border>
 
@@ -955,11 +1074,18 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
+                    <TextBlock Text="Loading alert history..."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding IsLoadingAlertHistory, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
                     <TextBlock Text="No alert history for this device."
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                IsHitTestVisible="False"
-                               Visibility="{Binding HasAlertHistory, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                               Visibility="{Binding ShowNoAlertHistoryMessage, Converter={StaticResource BoolToVisibility}}"
                                Style="{StaticResource SubtleTextStyle}" />
                 </Grid>
             </Grid>
@@ -974,6 +1100,8 @@
                 </Grid.RowDefinitions>
 
                 <TextBox Grid.Row="0"
+                         Style="{StaticResource SearchTextBoxStyle}"
+                         Tag="Search the event log"
                          Text="{Binding EventLogSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
                          ToolTip="Search by message, type or user"
                          Width="320"
@@ -989,7 +1117,7 @@
                          who never scrolls that far. -->
                     <DataGrid x:Name="EventLogGrid"
                               ItemsSource="{Binding EventLogView}"
-                              Visibility="{Binding HasEventLog, Converter={StaticResource BoolToVisibility}}"
+                              Visibility="{Binding HasVisibleEventLog, Converter={StaticResource BoolToVisibility}}"
                               IsReadOnly="True"
                               HeadersVisibility="Column">
                         <DataGrid.Columns>
@@ -1002,11 +1130,25 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
+                    <TextBlock Text="Loading the event log..."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding IsLoadingEventLog, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
                     <TextBlock Text="No event log entries for this device."
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                IsHitTestVisible="False"
-                               Visibility="{Binding HasEventLog, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                               Visibility="{Binding ShowEventLogEmptyMessage, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
+                    <TextBlock Text="No event log entries match your search."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding ShowEventLogNoMatchesMessage, Converter={StaticResource BoolToVisibility}}"
                                Style="{StaticResource SubtleTextStyle}" />
                 </Grid>
 
