@@ -45,6 +45,10 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     private bool _showDisabled = true;
     private bool _showMaintenance = true;
 
+    private readonly Dictionary<string, DeviceTypeFilterViewModel> _typeFilterIndex = new();
+    private string _typeFilterSearchText = string.Empty;
+    private bool _isTypeFilterOpen;
+
     private readonly AutoRefreshTimer _autoRefresh;
 
     public DeviceListViewModel(
@@ -65,6 +69,10 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         DevicesView = CollectionViewSource.GetDefaultView(Devices);
         DevicesView.Filter = FilterDevice;
 
+        TypeFilters = new ObservableCollection<DeviceTypeFilterViewModel>();
+        TypeFiltersView = CollectionViewSource.GetDefaultView(TypeFilters);
+        TypeFiltersView.Filter = FilterTypeFilterEntry;
+
         RefreshCommand = new AsyncRelayCommand(() =>
         {
             _deviceMonitor.RequestRefresh();
@@ -74,6 +82,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         ShowDeviceDetailCommand = new RelayCommand(ShowSelectedDeviceDetail, () => SelectedDevice is not null);
         ShowAlertsCommand = new RelayCommand(ShowAlertsForSelected, () => SelectedDevice is not null);
         ClearFiltersCommand = new RelayCommand(ClearFilters);
+
+        CheckAllTypesCommand = new RelayCommand(() => SetAllTypesChecked(true));
+        UncheckAllTypesCommand = new RelayCommand(() => SetAllTypesChecked(false));
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
@@ -86,6 +97,19 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     public ICollectionView DevicesView { get; }
 
+    /// <summary>
+    /// One entry per distinct <see cref="Device.Type"/> actually present in
+    /// the fleet, alphabetical by <see cref="DeviceTypeFilterViewModel.DisplayText"/> -
+    /// a fixed order, unlike sorting by count, so the badges do not shuffle
+    /// position as counts fluctuate poll to poll. Built dynamically rather
+    /// than a fixed enum like <see cref="DeviceState"/>, since LibreNMS's own
+    /// type list is open-ended and varies by what is actually being monitored.
+    /// </summary>
+    public ObservableCollection<DeviceTypeFilterViewModel> TypeFilters { get; }
+
+    /// <summary>TypeFilters, filtered by <see cref="TypeFilterSearchText"/> - what the filter popover's checklist actually binds to.</summary>
+    public ICollectionView TypeFiltersView { get; }
+
     public AsyncRelayCommand RefreshCommand { get; }
 
     public RelayCommand ShowDeviceDetailCommand { get; }
@@ -93,6 +117,10 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     public RelayCommand ShowAlertsCommand { get; }
 
     public RelayCommand ClearFiltersCommand { get; }
+
+    public RelayCommand CheckAllTypesCommand { get; }
+
+    public RelayCommand UncheckAllTypesCommand { get; }
 
     /// <summary>A short "45s" / "2:05" countdown to the next automatic refresh.</summary>
     public string NextRefreshText => PollAlignment.FormatRemaining(_deviceMonitor.SecondsUntilNextPoll());
@@ -128,6 +156,33 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     {
         get => _searchText;
         set { if (SetProperty(ref _searchText, value)) OnFilterChanged(); }
+    }
+
+    /// <summary>Search box inside the type filter popover - narrows <see cref="TypeFiltersView"/>, not the device list itself.</summary>
+    public string TypeFilterSearchText
+    {
+        get => _typeFilterSearchText;
+        set
+        {
+            if (SetProperty(ref _typeFilterSearchText, value))
+            {
+                TypeFiltersView.Refresh();
+            }
+        }
+    }
+
+    public bool IsTypeFilterOpen
+    {
+        get => _isTypeFilterOpen;
+        set
+        {
+            if (SetProperty(ref _isTypeFilterOpen, value) && !value)
+            {
+                // Clears on close, not on open, so it does not visibly empty
+                // itself while still visible to the user.
+                TypeFilterSearchText = string.Empty;
+            }
+        }
     }
 
     // ------------------------------------------------------------------ state
@@ -296,11 +351,52 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             }
         }
 
+        ApplyTypeFilters(ordered);
         RaiseCountsChanged();
 
         if (SelectedDevice is not null && !_index.ContainsKey(SelectedDevice.DeviceId))
         {
             SelectedDevice = null;
+        }
+    }
+
+    /// <summary>
+    /// Adds a <see cref="DeviceTypeFilterViewModel"/> for any type just seen
+    /// for the first time (checked by default, so a newly-appearing type does
+    /// not silently hide devices), drops any that no longer appear at all,
+    /// and refreshes every entry's count - preserving each existing entry's
+    /// checked state rather than resetting it every poll.
+    /// </summary>
+    private void ApplyTypeFilters(IReadOnlyList<Device> ordered)
+    {
+        var countsByType = ordered
+            .GroupBy(d => d.Type ?? string.Empty)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        for (var i = TypeFilters.Count - 1; i >= 0; i--)
+        {
+            var type = TypeFilters[i].Type;
+            if (!countsByType.ContainsKey(type))
+            {
+                _typeFilterIndex.Remove(type);
+                TypeFilters.RemoveAt(i);
+            }
+        }
+
+        foreach (var (type, count) in countsByType.OrderBy(kv => DeviceTypeFilterViewModel.DisplayTextFor(kv.Key), StringComparer.OrdinalIgnoreCase))
+        {
+            if (_typeFilterIndex.TryGetValue(type, out var existing))
+            {
+                existing.Count = count;
+                continue;
+            }
+
+            var filter = new DeviceTypeFilterViewModel(type, OnFilterChanged) { Count = count };
+            _typeFilterIndex[type] = filter;
+
+            var insertAt = TypeFilters.TakeWhile(f =>
+                string.Compare(f.DisplayText, filter.DisplayText, StringComparison.OrdinalIgnoreCase) < 0).Count();
+            TypeFilters.Insert(insertAt, filter);
         }
     }
 
@@ -335,6 +431,13 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         ShowDisabled = true;
         ShowMaintenance = true;
         SearchText = string.Empty;
+
+        foreach (var filter in TypeFilters)
+        {
+            filter.SetCheckedQuietly(true);
+        }
+
+        OnFilterChanged();
     }
 
     /// <summary>Shift-click on a status badge: show only that status, hiding the rest.</summary>
@@ -352,7 +455,28 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         OnFilterChanged();
     }
 
+    private void SetAllTypesChecked(bool value)
+    {
+        foreach (var filter in TypeFilters)
+        {
+            filter.SetCheckedQuietly(value);
+        }
+
+        OnFilterChanged();
+    }
+
     // ---------------------------------------------------------------- helpers
+
+    private bool FilterTypeFilterEntry(object item)
+    {
+        if (item is not DeviceTypeFilterViewModel filter)
+        {
+            return false;
+        }
+
+        var term = TypeFilterSearchText;
+        return string.IsNullOrWhiteSpace(term) || filter.DisplayText.Contains(term, StringComparison.OrdinalIgnoreCase);
+    }
 
     private bool FilterDevice(object item)
     {
@@ -370,6 +494,12 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         };
 
         if (!stateAllowed)
+        {
+            return false;
+        }
+
+        var typeKey = device.Model.Type ?? string.Empty;
+        if (_typeFilterIndex.TryGetValue(typeKey, out var typeFilter) && !typeFilter.IsChecked)
         {
             return false;
         }
@@ -416,4 +546,61 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         _deviceMonitor.PollStarted -= OnPollStarted;
         _deviceMonitor.Polled -= OnPolled;
     }
+}
+
+/// <summary>
+/// One status badge in the Devices tab's type-filter row - one of LibreNMS's
+/// own device types (e.g. "network", "server", "wireless"), built dynamically
+/// from whatever the fleet actually reports rather than a fixed list.
+/// </summary>
+public sealed class DeviceTypeFilterViewModel : ObservableObject
+{
+    private readonly Action _onChanged;
+    private bool _isChecked = true;
+    private int _count;
+
+    public DeviceTypeFilterViewModel(string type, Action onChanged)
+    {
+        Type = type;
+        _onChanged = onChanged;
+    }
+
+    /// <summary>The raw LibreNMS value, e.g. "network" - empty for a device with no type set.</summary>
+    public string Type { get; }
+
+    public string DisplayText => DisplayTextFor(Type);
+
+    public int Count
+    {
+        get => _count;
+        set
+        {
+            if (SetProperty(ref _count, value))
+            {
+                OnPropertyChanged(nameof(LabelText));
+            }
+        }
+    }
+
+    /// <summary>"Network (209)" - a real string property rather than a Content/StringFormat combination, which silently does nothing on an object-typed property like CheckBox.Content (confirmed the hard way elsewhere in this app - see Expander.Header's remarks in DeviceView.xaml).</summary>
+    public string LabelText => $"{DisplayText} ({Count})";
+
+    public bool IsChecked
+    {
+        get => _isChecked;
+        set
+        {
+            if (SetProperty(ref _isChecked, value))
+            {
+                _onChanged();
+            }
+        }
+    }
+
+    /// <summary>Sets <see cref="IsChecked"/> without invoking the change callback - for a caller (ClearFilters, SetAllTypesChecked) updating several of these at once, which raises the one filter refresh itself afterwards.</summary>
+    public void SetCheckedQuietly(bool value) => SetProperty(ref _isChecked, value, nameof(IsChecked));
+
+    /// <summary>"Unspecified" for a device with no type set - LibreNMS's own web UI leaves this blank rather than naming it, but a blank filter badge would be confusing.</summary>
+    public static string DisplayTextFor(string type) =>
+        string.IsNullOrWhiteSpace(type) ? "Unspecified" : char.ToUpperInvariant(type[0]) + type[1..];
 }

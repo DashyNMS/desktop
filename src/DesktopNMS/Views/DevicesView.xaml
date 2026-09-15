@@ -61,11 +61,61 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- A single compact trigger rather than a badge per type
+                         (see DeviceListViewModel.ApplyTypeFilters - the type
+                         list is open-ended and grows with the fleet): this
+                         costs the same one button's width regardless of how
+                         many types exist. The popover itself carries a search
+                         box, since a list of types can get long enough to be
+                         worth narrowing (matches the app's other searchable
+                         lists, e.g. the Event log tab). -->
+                    <ToggleButton x:Name="TypeFilterButton"
+                                  Content="Type"
+                                  IsChecked="{Binding IsTypeFilterOpen}"
+                                  Style="{StaticResource ChipToggleStyle}"
+                                  ToolTip="Filter by device type" />
+                    <Popup PlacementTarget="{Binding ElementName=TypeFilterButton}"
+                           Placement="Bottom"
+                           IsOpen="{Binding IsTypeFilterOpen, Mode=TwoWay}"
+                           StaysOpen="False"
+                           AllowsTransparency="True">
+                        <Border Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12"
+                                MinWidth="220"
+                                Margin="0,4,0,0">
+                            <StackPanel>
+                                <TextBox Text="{Binding TypeFilterSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Search types"
+                                         Margin="0,0,0,8" />
+                                <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding TypeFiltersView}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Content="{Binding LabelText}" IsChecked="{Binding IsChecked}" Margin="0,3" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Content="Select all" Command="{Binding CheckAllTypesCommand}" HorizontalAlignment="Left" Padding="8,4" />
+                                    <Button Grid.Column="1" Content="Select none" Command="{Binding UncheckAllTypesCommand}" HorizontalAlignment="Right" Padding="8,4" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
                     <TextBox x:Name="SearchBox"
                              Width="240"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
                              ToolTip="Filter by name, IP, OS, hardware, location or device id"
-                             Margin="0,0,8,0" />
+                             Margin="8,0,8,0" />
                     <Button Content="Clear" Command="{Binding ClearFiltersCommand}" Padding="10,7" />
                 </StackPanel>
             </Grid>
