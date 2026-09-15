@@ -104,6 +104,20 @@ public sealed class WindowService : IWindowService
         window.Show();
     }
 
+    public void CloseDeviceDetail(int deviceId)
+    {
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window))
+        {
+            window.Close();
+        }
+    }
+
+    public void ShowDevicesFilteredByLocation(string location)
+    {
+        _services.GetRequiredService<DeviceListViewModel>().FilterByLocationOnly(location);
+        ShowDevicesTab();
+    }
+
     public bool ShowSettingsDialog()
     {
         var viewModel = _services.GetRequiredService<SettingsViewModel>();

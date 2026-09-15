@@ -32,6 +32,18 @@ public interface IWindowService
     /// </summary>
     void ShowDeviceDetail(int deviceId);
 
+    /// <summary>Closes a device's detail window if it is currently open - a no-op otherwise.</summary>
+    void CloseDeviceDetail(int deviceId);
+
+    /// <summary>
+    /// Shows the main window with the Devices tab selected and every filter
+    /// reset except Location, which is isolated down to just this one value -
+    /// used by the device view's Location link, routed through here rather
+    /// than a direct reference so the device detail and device list view
+    /// models do not depend on each other.
+    /// </summary>
+    void ShowDevicesFilteredByLocation(string location);
+
     /// <summary>Shows the settings dialog. Returns true if the user saved.</summary>
     bool ShowSettingsDialog();
 

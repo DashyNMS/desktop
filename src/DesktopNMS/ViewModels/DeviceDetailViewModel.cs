@@ -172,6 +172,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         EventLogView.Filter = FilterEventLogEntry;
 
         ShowAlertsCommand = new RelayCommand(() => _windows.ShowAlertsForDevice(_device?.Hostname ?? Name));
+        ShowDevicesForLocationCommand = new RelayCommand(ShowDevicesForLocation, () => HasLocation);
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => _session.IsConnected && !IsBusy);
 
@@ -273,6 +274,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public ICollectionView EventLogView { get; }
 
     public RelayCommand ShowAlertsCommand { get; }
+
+    /// <summary>Closes this window and shows the Devices tab isolated down to this device's own location - see <see cref="IWindowService.ShowDevicesFilteredByLocation"/>.</summary>
+    public RelayCommand ShowDevicesForLocationCommand { get; }
 
     public AsyncRelayCommand RefreshCommand { get; }
 
@@ -463,6 +467,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public string Location => Blank(_device?.Location);
 
+    /// <summary>Whether Location is a real value rather than the "-" placeholder - gates <see cref="ShowDevicesForLocationCommand"/>, since there is nothing useful to filter the Devices tab down to otherwise.</summary>
+    public bool HasLocation => !string.IsNullOrWhiteSpace(_device?.Location);
+
     /// <summary>LibreNMS's own type values are lowercase ("network", "wireless", ...) - capitalised here to match how the Devices tab's type filter already displays them.</summary>
     public string Type => TitleCase(_device?.Type);
 
@@ -513,6 +520,24 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>Whether the Overview's "Technical" card has anything to show at all - it should not appear as an empty card for a device with none of Object ID/Serial/Depends-on. Location/Contact and Uptime/Device-added/Last-discovered have their own cards, but never hide entirely, since Location and Uptime always show something (even just "-").</summary>
     public bool HasTechnicalDetails => HasSysObjectId || HasSerial || HasDependencyParent;
+
+    /// <summary>
+    /// Closes this window and jumps to the Devices tab isolated down to this
+    /// device's own location, discarding whatever filters were already set
+    /// there - a location is a physical grouping devices actually share, so
+    /// "show me the rest of what's here" is the useful action, not "add this
+    /// to whatever I already had selected".
+    /// </summary>
+    private void ShowDevicesForLocation()
+    {
+        if (string.IsNullOrWhiteSpace(_device?.Location))
+        {
+            return;
+        }
+
+        _windows.ShowDevicesFilteredByLocation(_device.Location);
+        _windows.CloseDeviceDetail(_deviceId);
+    }
 
     /// <summary>True once the shared device monitor has actually reported on this device at least once.</summary>
     public bool HasLoaded => _device is not null;
@@ -1614,6 +1639,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(LastDiscoveredText));
         OnPropertyChanged(nameof(HasLastDiscovered));
         OnPropertyChanged(nameof(HasTechnicalDetails));
+        OnPropertyChanged(nameof(HasLocation));
+        ShowDevicesForLocationCommand.RaiseCanExecuteChanged();
     }
 
     private static string Blank(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value!;

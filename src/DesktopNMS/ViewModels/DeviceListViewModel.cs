@@ -501,6 +501,29 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         OnFilterChanged();
     }
 
+    /// <summary>
+    /// Jumped to from a device's own Location link (see DeviceDetailViewModel's
+    /// ShowDevicesForLocationCommand): resets every other filter (status
+    /// toggles, search text, Type and Group) and isolates the Location facet
+    /// down to just this one value, so the Devices tab shows exactly the
+    /// devices at that location and nothing left over from whatever was
+    /// filtered before.
+    /// </summary>
+    public void FilterByLocationOnly(string location)
+    {
+        ShowUp = true;
+        ShowDown = true;
+        ShowDisabled = true;
+        ShowMaintenance = true;
+        SearchText = string.Empty;
+
+        TypeFilter.SetAllChecked(true, notify: false);
+        GroupFilter.SetAllChecked(true, notify: false);
+        LocationFilter.IsolateOne(location, notify: false);
+
+        OnFilterChanged();
+    }
+
     /// <summary>Shift-click on a status badge: show only that status, hiding the rest.</summary>
     public void IsolateState(DeviceState state)
     {

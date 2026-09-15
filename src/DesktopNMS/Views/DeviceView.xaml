@@ -239,7 +239,12 @@
                                 Margin="6,0">
                             <StackPanel>
                                 <TextBlock Text="Location" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding Location}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,14" Cursor="Hand">
+                                    <Hyperlink Command="{Binding ShowDevicesForLocationCommand}"
+                                               ToolTip="Show every device at this location">
+                                        <Run Text="{Binding Location, Mode=OneWay}" />
+                                    </Hyperlink>
+                                </TextBlock>
                                 <TextBlock Text="Contact" Style="{StaticResource SectionHeaderStyle}" Visibility="{Binding HasContact, Converter={StaticResource BoolToVisibility}}" />
                                 <TextBlock Text="{Binding Contact}" TextWrapping="Wrap" Visibility="{Binding HasContact, Converter={StaticResource BoolToVisibility}}" />
                             </StackPanel>

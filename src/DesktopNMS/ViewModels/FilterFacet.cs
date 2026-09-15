@@ -197,6 +197,30 @@ public sealed class FilterFacet : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Checks only the option matching <paramref name="key"/>, unchecking
+    /// every other one - for a caller that wants to jump straight to one
+    /// value (e.g. "show only this location"), discarding whatever was
+    /// already checked in this facet rather than adding to it. A no-op on
+    /// any option that already matches; if no option matches at all (the
+    /// value has not been indexed for some reason), every option ends up
+    /// unchecked, same as "select none".
+    /// </summary>
+    public void IsolateOne(string key, bool notify = true)
+    {
+        foreach (var option in Options)
+        {
+            option.SetCheckedQuietly(string.Equals(option.Key, key, StringComparison.OrdinalIgnoreCase));
+        }
+
+        OnPropertyChanged(nameof(HasActiveFilter));
+
+        if (notify)
+        {
+            _onChanged();
+        }
+    }
+
     /// <summary>Wraps the external callback so toggling one checkbox also keeps <see cref="HasActiveFilter"/> current, not just the device list refresh the caller (DeviceListViewModel.OnFilterChanged) actually asked for.</summary>
     private void OnOptionChanged()
     {
