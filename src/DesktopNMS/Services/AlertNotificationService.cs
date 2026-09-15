@@ -345,11 +345,8 @@ public sealed class AlertNotificationService : IAlertNotificationService
             ApplyAudio(builder, makeSticky ? ToastPersistence.UntilDismissed : ToastPersistence.Transient, playSound: true);
             ApplyScenario(builder, makeSticky ? ToastPersistence.UntilDismissed : ToastPersistence.Transient);
 
-            builder.AddButton(new ToastButton()
-                .SetContent("Open DashyNMS")
-                .AddArgument(ArgumentAction, "show")
-                .SetBackgroundActivation());
-
+            // No "Open" button - clicking the toast body already does this,
+            // via the "show" argument set on the whole toast above.
             builder.AddButton(new ToastButtonDismiss("Dismiss"));
 
             builder.Show(toast =>
@@ -391,11 +388,8 @@ public sealed class AlertNotificationService : IAlertNotificationService
             ApplyAudio(builder, severitySettings.Persistence, severitySettings.PlaySound);
             ApplyScenario(builder, severitySettings.Persistence);
 
-            builder.AddButton(new ToastButton()
-                .SetContent("Open DashyNMS")
-                .AddArgument(ArgumentAction, "show")
-                .SetBackgroundActivation());
-
+            // No "Open" button - clicking the toast body already does this,
+            // via the "show" argument set on the whole toast above.
             builder.AddButton(new ToastButtonDismiss("Dismiss"));
 
             builder.Show(toast =>
@@ -427,6 +421,13 @@ public sealed class AlertNotificationService : IAlertNotificationService
         }
     }
 
+    /// <summary>
+    /// Acknowledge (for a problem) and Dismiss (for a sticky toast) - no
+    /// "Open" button, since clicking the toast body itself already does that
+    /// (see the "show" argument <see cref="ShowChange"/> sets on the whole
+    /// toast), and no website link either, so a click never leaves the app
+    /// for the browser.
+    /// </summary>
     private void AddButtons(ToastContentBuilder builder, AlertChange change, ToastPersistence persistence)
     {
         var alert = change.Alert;
@@ -438,14 +439,6 @@ public sealed class AlertNotificationService : IAlertNotificationService
                 .AddArgument(ArgumentAction, "acknowledge")
                 .AddArgument(ArgumentAlertId, alert.Id)
                 .SetBackgroundActivation());
-        }
-
-        var connection = _session.Connection;
-        if (connection is not null)
-        {
-            builder.AddButton(new ToastButton()
-                .SetContent("Open in LibreNMS")
-                .SetProtocolActivation(connection.AlertUrl(alert.Id)));
         }
 
         // A sticky toast with no way to clear it is an irritation, and Alarm
