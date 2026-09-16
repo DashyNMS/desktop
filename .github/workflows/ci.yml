@@ -1,0 +1,30 @@
+name: Build and test
+
+# The required status check for master: every PR (yours or a contributor's)
+# has to build and pass tests before it can merge. Kept separate from
+# codeql.yml so a security-scan slowdown or finding never blocks a plain
+# merge gate.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Build
+        run: dotnet build DesktopNMS.sln -c Debug
+
+      - name: Test
+        run: dotnet test tests/DesktopNMS.Core.Tests -c Debug --no-build

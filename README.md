@@ -221,7 +221,15 @@ lists the app in Settings > Notifications. That is how an unpackaged desktop
 app is allowed to raise toasts and receive clicks on them, and it is why toast
 buttons still work when the app is sitting in the tray.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) - PRs are welcome, and go through the
+same CI build/test check as everything else.
+
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for the milestone plan from here to a 1.0.0
-release and beyond.
+Tracked as [GitHub issues](https://github.com/DashyNMS/desktop/issues),
+grouped under the [1.0.0](https://github.com/DashyNMS/desktop/milestone/1),
+[1.1.0](https://github.com/DashyNMS/desktop/milestone/2) and
+[1.2.0](https://github.com/DashyNMS/desktop/milestone/3) milestones, each
+issue labelled `Feature`, `UI/UX`, `Performance`, or `bug`.
