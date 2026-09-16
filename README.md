@@ -223,5 +223,8 @@ buttons still work when the app is sitting in the tray.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for the milestone plan from here to a 1.0.0
-release and beyond.
+Tracked as [GitHub issues](https://github.com/DashyNMS/desktop/issues),
+grouped under the [1.0.0](https://github.com/DashyNMS/desktop/milestone/1),
+[1.1.0](https://github.com/DashyNMS/desktop/milestone/2) and
+[1.2.0](https://github.com/DashyNMS/desktop/milestone/3) milestones, each
+issue labelled `Feature`, `UI/UX`, `Performance`, or `bug`.
