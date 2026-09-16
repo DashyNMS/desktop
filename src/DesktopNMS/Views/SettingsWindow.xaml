@@ -503,17 +503,29 @@
                     <!-- ==================== Window ==================== -->
                     <StackPanel Visibility="{Binding IsWindowSectionSelected, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="Window and start-up" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
-                        <CheckBox Content="Closing the window keeps DashyNMS running in the notification area"
-                                  IsChecked="{Binding MinimiseToTrayOnClose}" />
-                        <CheckBox Content="Start hidden in the notification area"
-                                  IsChecked="{Binding StartMinimised}" />
-                        <CheckBox Content="Start DashyNMS when I sign in to Windows"
-                                  IsChecked="{Binding StartWithWindows}" />
 
-                        <TextBlock Text="Tab to show at startup" Style="{StaticResource SectionHeaderStyle}" />
-                        <ComboBox ItemsSource="{Binding StartupTabOptions}"
-                                  SelectedItem="{Binding SelectedStartupTab}"
-                                  DisplayMemberPath="Label" />
+                        <!-- One card, not per-item - unlike Alert display's
+                             three unrelated settings, everything here is
+                             genuinely one topic (how the app starts and
+                             behaves as a window), so splitting it further
+                             would be grouping for its own sake. -->
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
+                            <StackPanel>
+                                <CheckBox Content="Closing the window keeps DashyNMS running in the notification area"
+                                          IsChecked="{Binding MinimiseToTrayOnClose}" />
+                                <CheckBox Content="Start hidden in the notification area"
+                                          IsChecked="{Binding StartMinimised}"
+                                          Margin="0,8,0,0" />
+                                <CheckBox Content="Start DashyNMS when I sign in to Windows"
+                                          IsChecked="{Binding StartWithWindows}"
+                                          Margin="0,8,0,0" />
+
+                                <TextBlock Text="Tab to show at startup" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <ComboBox ItemsSource="{Binding StartupTabOptions}"
+                                          SelectedItem="{Binding SelectedStartupTab}"
+                                          DisplayMemberPath="Label" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- ==================== Appearance ==================== -->
