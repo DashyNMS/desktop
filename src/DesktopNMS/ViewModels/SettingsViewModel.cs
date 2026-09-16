@@ -672,6 +672,28 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Inverted from <see cref="AppSettings.SuppressBulkAlertActionConfirmation"/>
+    /// so the checkbox reads as "on" by default - that flag only becomes true
+    /// once someone ticks "don't ask me again" on the prompt itself, and this
+    /// is where it gets turned back on.
+    /// </summary>
+    public bool ConfirmBulkAlertActions
+    {
+        get => !_draft.SuppressBulkAlertActionConfirmation;
+        set
+        {
+            var suppress = !value;
+            if (_draft.SuppressBulkAlertActionConfirmation == suppress)
+            {
+                return;
+            }
+
+            _draft.SuppressBulkAlertActionConfirmation = suppress;
+            OnPropertyChanged();
+        }
+    }
+
     // ------------------------------------------------------ health thresholds
 
     /// <summary>

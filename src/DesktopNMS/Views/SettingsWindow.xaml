@@ -169,6 +169,13 @@
                         <TextBlock Style="{StaticResource SubtleTextStyle}"
                                    TextWrapping="Wrap"
                                    Text="Fetches the rows the alert rule matched, with their measured values. Costs one extra request each time you select an alert." />
+
+                        <CheckBox Content="Confirm before a large bulk acknowledge/unacknowledge"
+                                  IsChecked="{Binding ConfirmBulkAlertActions}"
+                                  Margin="0,14,0,0" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Text="Turned off automatically if you tick &quot;don't ask me again&quot; on that prompt - check this to turn it back on." />
                     </StackPanel>
 
                     <!-- ==================== Health thresholds ==================== -->
