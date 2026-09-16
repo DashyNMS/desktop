@@ -28,44 +28,64 @@
             </Grid.ColumnDefinitions>
 
             <!-- ======================== Sidebar ======================== -->
+            <!-- Grouped under headers rather than one flat list of eight -
+                 the same pattern DeviceView's sidebar already uses (see its
+                 HEALTH/NETWORK/ALERTS & LOGS headers) for the same reason:
+                 it scales by adding to a cluster or adding a new cluster,
+                 rather than by growing one undifferentiated column that gets
+                 harder to scan every time a section is added. Wrapped in a
+                 ScrollViewer for the same future-proofing reason, even
+                 though eight items still fit without scrolling today. -->
             <Border Grid.Column="0"
                     Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,0,1,0">
-                <StackPanel Margin="10,16">
-                    <ToggleButton Content="Polling"
-                                  Style="{StaticResource SettingsNavItemStyle}"
-                                  IsChecked="{Binding IsPollingSectionSelected, Mode=OneWay}"
-                                  Command="{Binding SelectPollingSectionCommand}" />
-                    <ToggleButton Content="Alert display"
-                                  Style="{StaticResource SettingsNavItemStyle}"
-                                  IsChecked="{Binding IsAlertDisplaySectionSelected, Mode=OneWay}"
-                                  Command="{Binding SelectAlertDisplaySectionCommand}" />
-                    <ToggleButton Content="Health thresholds"
-                                  Style="{StaticResource SettingsNavItemStyle}"
-                                  IsChecked="{Binding IsHealthThresholdsSectionSelected, Mode=OneWay}"
-                                  Command="{Binding SelectHealthThresholdsSectionCommand}" />
-                    <ToggleButton Content="Notifications"
-                                  Style="{StaticResource SettingsNavItemStyle}"
-                                  IsChecked="{Binding IsNotificationsSectionSelected, Mode=OneWay}"
-                                  Command="{Binding SelectNotificationsSectionCommand}" />
-                    <ToggleButton Content="Window and start-up"
-                                  Style="{StaticResource SettingsNavItemStyle}"
-                                  IsChecked="{Binding IsWindowSectionSelected, Mode=OneWay}"
-                                  Command="{Binding SelectWindowSectionCommand}" />
-                    <ToggleButton Content="Appearance"
-                                  Style="{StaticResource SettingsNavItemStyle}"
-                                  IsChecked="{Binding IsAppearanceSectionSelected, Mode=OneWay}"
-                                  Command="{Binding SelectAppearanceSectionCommand}" />
-                    <ToggleButton Content="Server"
-                                  Style="{StaticResource SettingsNavItemStyle}"
-                                  IsChecked="{Binding IsServerSectionSelected, Mode=OneWay}"
-                                  Command="{Binding SelectServerSectionCommand}" />
-                    <ToggleButton Content="About"
-                                  Style="{StaticResource SettingsNavItemStyle}"
-                                  IsChecked="{Binding IsAboutSectionSelected, Mode=OneWay}"
-                                  Command="{Binding SelectAboutSectionCommand}" />
-                </StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10,16">
+                        <TextBlock Text="CONNECTION" Style="{StaticResource SectionHeaderStyle}" Margin="14,0,0,6" />
+                        <ToggleButton Content="Polling"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsPollingSectionSelected, Mode=OneWay}"
+                                      Command="{Binding SelectPollingSectionCommand}" />
+                        <ToggleButton Content="Server"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsServerSectionSelected, Mode=OneWay}"
+                                      Command="{Binding SelectServerSectionCommand}" />
+
+                        <TextBlock Text="ALERTS &amp; HEALTH" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
+                        <ToggleButton Content="Alert display"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsAlertDisplaySectionSelected, Mode=OneWay}"
+                                      Command="{Binding SelectAlertDisplaySectionCommand}" />
+                        <ToggleButton Content="Health thresholds"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsHealthThresholdsSectionSelected, Mode=OneWay}"
+                                      Command="{Binding SelectHealthThresholdsSectionCommand}" />
+                        <ToggleButton Content="Notifications"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsNotificationsSectionSelected, Mode=OneWay}"
+                                      Command="{Binding SelectNotificationsSectionCommand}" />
+
+                        <TextBlock Text="WINDOW &amp; APPEARANCE" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
+                        <ToggleButton Content="Window and start-up"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsWindowSectionSelected, Mode=OneWay}"
+                                      Command="{Binding SelectWindowSectionCommand}" />
+                        <ToggleButton Content="Appearance"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsAppearanceSectionSelected, Mode=OneWay}"
+                                      Command="{Binding SelectAppearanceSectionCommand}" />
+
+                        <!-- Standalone, like DeviceView's Overview - not
+                             every item needs a cluster, just enough top
+                             margin to read as separate from the group above. -->
+                        <ToggleButton Content="About"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsAboutSectionSelected, Mode=OneWay}"
+                                      Command="{Binding SelectAboutSectionCommand}"
+                                      Margin="0,16,0,2" />
+                    </StackPanel>
+                </ScrollViewer>
             </Border>
 
             <!-- ======================== Content ======================== -->
