@@ -597,97 +597,111 @@
 
                     <!-- ==================== Server ==================== -->
                     <StackPanel Visibility="{Binding IsServerSectionSelected, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="Server" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,4" />
-                        <TextBlock Text="{Binding ServerUrlText}" Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                        <TextBlock Text="Server" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
-                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12" Margin="0,0,0,14">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
-                                           Text="{Binding ServerInfoStatusText}"
+                        <!-- One card for the whole thing rather than one per
+                             field group - unlike Appearance/Polling this page
+                             is a single read-only info panel with one action
+                             (Refresh), not several independent settings, so
+                             splitting it into multiple cards would be
+                             grouping for its own sake rather than clarifying
+                             anything. -->
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
+                            <StackPanel>
+                                <!-- The URL is the card's header, paired with
+                                     the action that refreshes what it's
+                                     describing - not a caption sitting above
+                                     an unrelated status line. An error (if
+                                     any) shows underneath rather than
+                                     replacing the URL, since it's still
+                                     useful to see what was being refreshed
+                                     when it failed. -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding ServerUrlText}"
+                                               VerticalAlignment="Center"
+                                               TextWrapping="Wrap" />
+                                    <Button Grid.Column="1"
+                                            Content="Refresh"
+                                            Command="{Binding RefreshServerInfoCommand}"
+                                            Padding="10,6"
+                                            Margin="12,0,0,0" />
+                                </Grid>
+                                <TextBlock Text="{Binding ServerInfoStatusText}"
                                            Foreground="{StaticResource CriticalBrush}"
-                                           VerticalAlignment="Center"
                                            TextWrapping="Wrap"
+                                           Margin="0,8,0,0"
                                            Visibility="{Binding HasServerInfoStatus, Converter={StaticResource BoolToVisibility}}" />
-                                <TextBlock Grid.Column="0"
-                                           Text="Version details from the connected server."
+
+                                <Grid Margin="0,16,0,0" Visibility="{Binding HasServerInfo, Converter={StaticResource BoolToVisibility}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,10,14">
+                                        <TextBlock Text="LibreNMS version" Style="{StaticResource SectionHeaderStyle}" />
+                                        <TextBlock Text="{Binding ServerVersionText}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,14">
+                                        <TextBlock Text="Branch" Style="{StaticResource SectionHeaderStyle}" />
+                                        <TextBlock Text="{Binding ServerBranchText}" TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,10,14">
+                                        <TextBlock Text="Commit" Style="{StaticResource SectionHeaderStyle}" />
+                                        <TextBlock Text="{Binding ServerCommitText}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,14">
+                                        <TextBlock Text="Release date" Style="{StaticResource SectionHeaderStyle}" />
+                                        <TextBlock Text="{Binding ServerDateText}" TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,10,14">
+                                        <TextBlock Text="Database version" Style="{StaticResource SectionHeaderStyle}" />
+                                        <TextBlock Text="{Binding DatabaseVersionText}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,14">
+                                        <TextBlock Text="Database schema" Style="{StaticResource SectionHeaderStyle}" />
+                                        <TextBlock Text="{Binding DatabaseSchemaText}" TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,10,14">
+                                        <TextBlock Text="PHP version" Style="{StaticResource SectionHeaderStyle}" />
+                                        <TextBlock Text="{Binding PhpVersionText}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,14">
+                                        <TextBlock Text="Python version" Style="{StaticResource SectionHeaderStyle}" />
+                                        <TextBlock Text="{Binding PythonVersionText}" TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,10,0">
+                                        <TextBlock Text="RRDtool version" Style="{StaticResource SectionHeaderStyle}" />
+                                        <TextBlock Text="{Binding RrdToolVersionText}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,0,0,0">
+                                        <TextBlock Text="Net-SNMP version" Style="{StaticResource SectionHeaderStyle}" />
+                                        <TextBlock Text="{Binding NetSnmpVersionText}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="Not connected to a server."
                                            Style="{StaticResource SubtleTextStyle}"
-                                           VerticalAlignment="Center"
-                                           TextWrapping="Wrap"
-                                           Visibility="{Binding HasServerInfoStatus, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
-                                <Button Grid.Column="1"
-                                        Content="Refresh"
-                                        Command="{Binding RefreshServerInfoCommand}"
-                                        Padding="10,6"
-                                        Margin="12,0,0,0" />
-                            </Grid>
+                                           Margin="0,16,0,0"
+                                           Visibility="{Binding HasServerInfo, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                            </StackPanel>
                         </Border>
-
-                        <Grid Visibility="{Binding HasServerInfo, Converter={StaticResource BoolToVisibility}}">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,10,14">
-                                <TextBlock Text="LibreNMS version" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding ServerVersionText}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,14">
-                                <TextBlock Text="Branch" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding ServerBranchText}" TextWrapping="Wrap" />
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,10,14">
-                                <TextBlock Text="Commit" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding ServerCommitText}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,14">
-                                <TextBlock Text="Release date" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding ServerDateText}" TextWrapping="Wrap" />
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,10,14">
-                                <TextBlock Text="Database version" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding DatabaseVersionText}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,14">
-                                <TextBlock Text="Database schema" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding DatabaseSchemaText}" TextWrapping="Wrap" />
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,10,14">
-                                <TextBlock Text="PHP version" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding PhpVersionText}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,14">
-                                <TextBlock Text="Python version" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding PythonVersionText}" TextWrapping="Wrap" />
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,10,0">
-                                <TextBlock Text="RRDtool version" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding RrdToolVersionText}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,0,0,0">
-                                <TextBlock Text="Net-SNMP version" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding NetSnmpVersionText}" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Grid>
-
-                        <TextBlock Text="Not connected to a server."
-                                   Style="{StaticResource SubtleTextStyle}"
-                                   Visibility="{Binding HasServerInfo, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
                     </StackPanel>
 
                     <!-- ==================== About ==================== -->
