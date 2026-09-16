@@ -445,6 +445,28 @@ public sealed class SettingsViewModel : ObservableObject
 
     public string CurrentVersionText => $"Version {_updates.CurrentVersion}";
 
+    /// <summary>
+    /// Also treat GitHub pre-release ("preview") tags as an available update.
+    /// Re-checks immediately on toggle - like the accent colour swatch above,
+    /// this does not wait for Save so flipping it and seeing the effect is
+    /// one action, not two.
+    /// </summary>
+    public bool IncludePreviewBuilds
+    {
+        get => _draft.IncludePreviewBuilds;
+        set
+        {
+            if (_draft.IncludePreviewBuilds == value)
+            {
+                return;
+            }
+
+            _draft.IncludePreviewBuilds = value;
+            OnPropertyChanged();
+            _ = CheckForUpdatesAsync(notifyIfNewer: false);
+        }
+    }
+
     public bool IsCheckingForUpdates
     {
         get => _isCheckingForUpdates;
@@ -480,7 +502,7 @@ public sealed class SettingsViewModel : ObservableObject
         IsCheckingForUpdates = true;
         UpdateStatusText = "Checking for updates...";
 
-        var result = await _updates.CheckAsync(notifyIfNewer).ConfigureAwait(true);
+        var result = await _updates.CheckAsync(notifyIfNewer, IncludePreviewBuilds).ConfigureAwait(true);
 
         _latestRelease = result.LatestRelease;
         IsNewerVersionAvailable = result.IsNewerVersionAvailable;
@@ -488,7 +510,9 @@ public sealed class SettingsViewModel : ObservableObject
         UpdateStatusText = !result.Succeeded
             ? "Could not check for updates. Check your internet connection."
             : result.IsNewerVersionAvailable
-                ? $"Version {result.LatestRelease!.TagName} is available."
+                ? result.LatestRelease!.Prerelease
+                    ? $"Preview {result.LatestRelease!.TagName} is available."
+                    : $"Version {result.LatestRelease!.TagName} is available."
                 : "You're up to date.";
 
         OnPropertyChanged(nameof(HasLatestRelease));

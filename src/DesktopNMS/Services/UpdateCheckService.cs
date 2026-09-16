@@ -25,7 +25,14 @@ public interface IUpdateCheckService
     /// release is found that has not already been notified about (tracked in
     /// settings), shows a toast once.
     /// </summary>
-    Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, CancellationToken cancellationToken = default);
+    /// <param name="notifyIfNewer">Show a toast for a not-yet-notified newer release.</param>
+    /// <param name="includePreviewBuildsOverride">
+    /// When set, overrides <c>AppSettings.IncludePreviewBuilds</c> for this one
+    /// check instead of reading the saved setting - used by the Settings
+    /// dialog so toggling the checkbox and checking again reflects
+    /// immediately, without needing Save first.
+    /// </param>
+    Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, bool? includePreviewBuildsOverride = null, CancellationToken cancellationToken = default);
 }
 
 /// <summary>The outcome of a single update check.</summary>
@@ -55,11 +62,15 @@ public sealed class UpdateCheckService : IUpdateCheckService
     public string CurrentVersion { get; } =
         Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
 
-    public async Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, CancellationToken cancellationToken = default)
+    public async Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, bool? includePreviewBuildsOverride = null, CancellationToken cancellationToken = default)
     {
-        var release = await _releases.GetLatestReleaseAsync(cancellationToken).ConfigureAwait(false);
+        var includePreviewBuilds = includePreviewBuildsOverride ?? _settings.Current.IncludePreviewBuilds;
 
-        if (release is null || release.Draft || release.Prerelease || string.IsNullOrWhiteSpace(release.TagName))
+        var release = includePreviewBuilds
+            ? await GetBestIncludingPreviewsAsync(cancellationToken).ConfigureAwait(false)
+            : await _releases.GetLatestReleaseAsync(cancellationToken).ConfigureAwait(false);
+
+        if (release is null || release.Draft || string.IsNullOrWhiteSpace(release.TagName))
         {
             return new UpdateCheckResult(Succeeded: release is not null, LatestRelease: null, IsNewerVersionAvailable: false);
         }
@@ -76,9 +87,38 @@ public sealed class UpdateCheckService : IUpdateCheckService
         return new UpdateCheckResult(Succeeded: true, LatestRelease: release, IsNewerVersionAvailable: isNewer);
     }
 
+    /// <summary>
+    /// GitHub's own "latest" endpoint never returns a pre-release, so once
+    /// preview builds are opted into this instead lists recent releases and
+    /// picks the best-ranked one (see <see cref="ReleaseVersion.Compare"/>) -
+    /// a published stable release still wins over an older preview tag.
+    /// </summary>
+    private async Task<GitHubRelease?> GetBestIncludingPreviewsAsync(CancellationToken cancellationToken)
+    {
+        var releases = await _releases.GetReleasesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        GitHubRelease? best = null;
+        foreach (var candidate in releases)
+        {
+            if (candidate.Draft || string.IsNullOrWhiteSpace(candidate.TagName))
+            {
+                continue;
+            }
+
+            if (best is null || ReleaseVersion.Compare(candidate.TagName, best.TagName) > 0)
+            {
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
     private void ShowUpdateToast(GitHubRelease release)
     {
-        var title = $"DashyNMS {release.TagName} is available";
+        var title = release.Prerelease
+            ? $"DashyNMS {release.TagName} (preview) is available"
+            : $"DashyNMS {release.TagName} is available";
         var body = string.IsNullOrWhiteSpace(release.Name) ? "A new version is ready to download." : release.Name!;
 
         try

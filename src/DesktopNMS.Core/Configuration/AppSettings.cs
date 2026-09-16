@@ -88,6 +88,15 @@ public sealed class AppSettings
     /// </summary>
     public string? LastNotifiedUpdateVersion { get; set; }
 
+    /// <summary>
+    /// Also consider GitHub pre-release ("preview") builds - rollups of
+    /// in-progress work published between stable releases - when checking
+    /// for updates, both for the Settings &gt; About check and the
+    /// background startup check. Off by default: most users should only
+    /// ever be nudged towards a stable release.
+    /// </summary>
+    public bool IncludePreviewBuilds { get; set; }
+
     public NotificationSettings Notifications { get; set; } = new();
 
     public AlertFilterSettings Filter { get; set; } = new();
@@ -152,6 +161,7 @@ public sealed class AppSettings
         StartWithWindows = StartWithWindows,
         StartupTab = StartupTab,
         LastNotifiedUpdateVersion = LastNotifiedUpdateVersion,
+        IncludePreviewBuilds = IncludePreviewBuilds,
         Notifications = Notifications.Clone(),
         Filter = Filter.Clone(),
         DbmThresholds = DbmThresholds.Clone(),

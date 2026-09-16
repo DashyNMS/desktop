@@ -33,4 +33,30 @@ public class ReleaseVersionTests
     {
         Assert.False(ReleaseVersion.IsNewer(candidateTag, currentVersion));
     }
+
+    [Theory]
+    [InlineData("v1.0.0", "v0.9.9")]
+    [InlineData("v1.0.0", "v1.0.0-preview.2")]
+    [InlineData("v1.0.0-preview.2", "v1.0.0-preview.1")]
+    [InlineData("v1.0.0-preview.10", "v1.0.0-preview.2")]
+    public void Compare_ranks_a_above_b(string a, string b)
+    {
+        Assert.True(ReleaseVersion.Compare(a, b) > 0);
+        Assert.True(ReleaseVersion.Compare(b, a) < 0);
+    }
+
+    [Fact]
+    public void Compare_treats_equal_tags_as_equal()
+    {
+        Assert.Equal(0, ReleaseVersion.Compare("v1.0.0-preview.2", "1.0.0-preview.2"));
+    }
+
+    [Theory]
+    [InlineData(null, "v1.0.0")]
+    [InlineData("v1.0.0", null)]
+    [InlineData("not-a-version", "v1.0.0")]
+    public void Compare_is_unranked_for_unparsable_input(string? a, string? b)
+    {
+        Assert.Equal(0, ReleaseVersion.Compare(a, b));
+    }
 }

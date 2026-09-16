@@ -64,5 +64,34 @@ public sealed class GitHubReleaseService : IGitHubReleaseService, IDisposable
         }
     }
 
+    public async Task<IReadOnlyList<GitHubRelease>> GetReleasesAsync(int count = 10, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var url = $"repos/{Owner}/{Repo}/releases?per_page={count}";
+            using var response = await _http.GetAsync(url, cancellationToken).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogDebug("GitHub releases list returned HTTP {Status} for {Url}", (int)response.StatusCode, url);
+                return Array.Empty<GitHubRelease>();
+            }
+
+            var releases = await response.Content.ReadFromJsonAsync<List<GitHubRelease>>(cancellationToken: cancellationToken).ConfigureAwait(false);
+            return (IReadOnlyList<GitHubRelease>?)releases ?? Array.Empty<GitHubRelease>();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Same reasoning as GetLatestReleaseAsync above: never treat a
+            // failed update check as an app error.
+            _logger.LogDebug(ex, "Could not list GitHub releases");
+            return Array.Empty<GitHubRelease>();
+        }
+    }
+
     public void Dispose() => _http.Dispose();
 }

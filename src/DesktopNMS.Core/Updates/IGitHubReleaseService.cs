@@ -8,4 +8,13 @@ public interface IGitHubReleaseService
     /// repository has none or the request failed. Never throws.
     /// </summary>
     Task<GitHubRelease?> GetLatestReleaseAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The most recent published releases, newest first, including
+    /// pre-releases (never drafts - GitHub excludes them for an unauthenticated
+    /// caller anyway). Used to find the newest preview build once a user has
+    /// opted into seeing them. Returns an empty list rather than throwing if
+    /// the request fails.
+    /// </summary>
+    Task<IReadOnlyList<GitHubRelease>> GetReleasesAsync(int count = 10, CancellationToken cancellationToken = default);
 }

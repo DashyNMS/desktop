@@ -612,6 +612,14 @@
                         <TextBlock Text="About" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,4" />
                         <TextBlock Text="{Binding CurrentVersionText}" Style="{StaticResource SubtleTextStyle}" Margin="0,0,0,14" />
 
+                        <CheckBox Content="Include preview builds"
+                                  IsChecked="{Binding IncludePreviewBuilds}"
+                                  Margin="0,0,0,6" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14"
+                                   Text="Preview builds are rollups of in-progress features and fixes published between stable releases, so you can try them early. They get less testing than a stable release - off by default." />
+
                         <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
                             <StackPanel>
                                 <Grid>
