@@ -21,6 +21,14 @@ namespace DesktopNMS.ViewModels;
 /// <summary>View model behind the main alert window.</summary>
 public sealed class MainViewModel : ObservableObject, IDisposable
 {
+    /// <summary>
+    /// Above this many alerts, a bulk acknowledge/unacknowledge asks for
+    /// confirmation first rather than acting immediately - matches the
+    /// "collapse into one summary" toast threshold's default, another place
+    /// a handful is fine but more than that warrants a second look.
+    /// </summary>
+    private const int BulkConfirmThreshold = 5;
+
     private readonly ILibreNmsClient _client;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
@@ -839,6 +847,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         // collection, and the grid selection itself may change underneath us.
         var items = SelectedAlerts.ToList();
 
+        if (items.Count > BulkConfirmThreshold)
+        {
+            var (title, message) = BulkConfirmText(selfActionKind, items.Count);
+            if (!_windows.Confirm(title, message))
+            {
+                return;
+            }
+        }
+
         _isBulkUpdating = true;
         foreach (var item in items)
         {
@@ -903,6 +920,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         RequestRefresh();
     }
+
+    /// <summary>Confirmation dialog text for a bulk action above <see cref="BulkConfirmThreshold"/>, phrased per action rather than sharing one generic verb.</summary>
+    private static (string Title, string Message) BulkConfirmText(AlertChangeKind kind, int count) => kind switch
+    {
+        AlertChangeKind.Acknowledged => ("Acknowledge alerts", $"Acknowledge all {count} selected alerts?"),
+        AlertChangeKind.Unacknowledged => ("Return alerts to active", $"Return all {count} selected alerts to active?"),
+        _ => ("Confirm", $"Apply this to all {count} selected alerts?"),
+    };
 
     private void OpenSelectedAlert()
     {
