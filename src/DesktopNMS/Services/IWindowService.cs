@@ -70,6 +70,15 @@ public interface IWindowService
 
     bool Confirm(string title, string message);
 
+    /// <summary>
+    /// Same as <see cref="Confirm"/>, but with a "don't ask me again"
+    /// checkbox. Its state is returned separately from the confirm/cancel
+    /// answer and regardless of it - the checkbox is a standalone "stop
+    /// asking me" declaration, so callers should honour it even when the
+    /// user cancels this particular prompt.
+    /// </summary>
+    (bool Confirmed, bool DontAskAgain) ConfirmWithOptOut(string title, string message, string dontAskAgainLabel = "Don't ask me again");
+
     /// <summary>Shuts the application down, including the tray icon.</summary>
     void Exit();
 }

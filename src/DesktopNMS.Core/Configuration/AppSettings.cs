@@ -97,6 +97,14 @@ public sealed class AppSettings
     /// </summary>
     public bool IncludePreviewBuilds { get; set; }
 
+    /// <summary>
+    /// Skip the confirmation prompt before a large bulk alert acknowledge/
+    /// unacknowledge (see MainViewModel's bulk-confirm threshold). Set when
+    /// the user ticks "don't ask me again" on that prompt; re-enabled from
+    /// Settings &gt; Alert display.
+    /// </summary>
+    public bool SuppressBulkAlertActionConfirmation { get; set; }
+
     public NotificationSettings Notifications { get; set; } = new();
 
     public AlertFilterSettings Filter { get; set; } = new();
@@ -162,6 +170,7 @@ public sealed class AppSettings
         StartupTab = StartupTab,
         LastNotifiedUpdateVersion = LastNotifiedUpdateVersion,
         IncludePreviewBuilds = IncludePreviewBuilds,
+        SuppressBulkAlertActionConfirmation = SuppressBulkAlertActionConfirmation,
         Notifications = Notifications.Clone(),
         Filter = Filter.Clone(),
         DbmThresholds = DbmThresholds.Clone(),

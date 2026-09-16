@@ -200,7 +200,29 @@ public sealed class WindowService : IWindowService
         => ShowMessage(title, message, MessageBoxButton.OK, MessageBoxImage.Information);
 
     public bool Confirm(string title, string message)
-        => ShowMessage(title, message, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+        => ShowConfirmDialog(title, message, showDontAskAgain: false, dontAskAgainLabel: string.Empty).Confirmed;
+
+    public (bool Confirmed, bool DontAskAgain) ConfirmWithOptOut(string title, string message, string dontAskAgainLabel = "Don't ask me again")
+        => ShowConfirmDialog(title, message, showDontAskAgain: true, dontAskAgainLabel);
+
+    /// <summary>
+    /// A themed dialog rather than <see cref="MessageBox"/> for confirmations -
+    /// a plain Windows message box does not pick up the app's own dark/light
+    /// theme and stands out against the rest of the UI.
+    /// </summary>
+    private (bool Confirmed, bool DontAskAgain) ShowConfirmDialog(string title, string message, bool showDontAskAgain, string dontAskAgainLabel)
+    {
+        var viewModel = new ConfirmDialogViewModel(title, message, showDontAskAgain, dontAskAgainLabel);
+        var window = new ConfirmDialog(viewModel);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        var confirmed = window.ShowDialog() == true;
+        return (confirmed, viewModel.DontAskAgain);
+    }
 
     private MessageBoxResult ShowMessage(string title, string message, MessageBoxButton button, MessageBoxImage image)
     {

@@ -847,10 +847,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         // collection, and the grid selection itself may change underneath us.
         var items = SelectedAlerts.ToList();
 
-        if (items.Count > BulkConfirmThreshold)
+        if (items.Count > BulkConfirmThreshold && !_settings.Current.SuppressBulkAlertActionConfirmation)
         {
             var (title, message) = BulkConfirmText(selfActionKind, items.Count);
-            if (!_windows.Confirm(title, message))
+            var (confirmed, dontAskAgain) = _windows.ConfirmWithOptOut(title, message);
+
+            if (dontAskAgain)
+            {
+                _settings.Current.SuppressBulkAlertActionConfirmation = true;
+                _settings.Save();
+            }
+
+            if (!confirmed)
             {
                 return;
             }
