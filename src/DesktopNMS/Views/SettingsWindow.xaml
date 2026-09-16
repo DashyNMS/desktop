@@ -364,16 +364,23 @@
                     <StackPanel Visibility="{Binding IsNotificationsSectionSelected, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="Notifications" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
+                        <!-- The master switch stays bare above the cards,
+                             like the page heading itself - it gates
+                             everything below rather than being a topic of
+                             its own. Critical/Warning were already card-
+                             wrapped; Other events and Quiet hours now match
+                             them instead of being bare labelled StackPanels. -->
                         <CheckBox Content="Show Windows notifications"
-                                  IsChecked="{Binding NotificationsEnabled}" />
+                                  IsChecked="{Binding NotificationsEnabled}"
+                                  Margin="0,0,0,16" />
 
-                        <!-- Critical -->
-                        <TextBlock Text="Critical" Style="{StaticResource SectionHeaderStyle}" />
                         <Border Background="{StaticResource SurfaceAltBrush}"
                                 CornerRadius="6"
                                 Padding="14,12"
+                                Margin="0,0,0,16"
                                 IsEnabled="{Binding NotificationsEnabled}">
                             <StackPanel>
+                                <TextBlock Text="Critical" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
                                 <CheckBox Content="Notify for critical alerts" IsChecked="{Binding CriticalEnabled}" />
                                 <ComboBox ItemsSource="{Binding PersistenceOptions}"
                                           SelectedItem="{Binding CriticalPersistence}"
@@ -397,13 +404,13 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Warning -->
-                        <TextBlock Text="Warning" Style="{StaticResource SectionHeaderStyle}" />
                         <Border Background="{StaticResource SurfaceAltBrush}"
                                 CornerRadius="6"
                                 Padding="14,12"
+                                Margin="0,0,0,16"
                                 IsEnabled="{Binding NotificationsEnabled}">
                             <StackPanel>
+                                <TextBlock Text="Warning" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
                                 <CheckBox Content="Notify for warning alerts" IsChecked="{Binding WarningEnabled}" />
                                 <ComboBox ItemsSource="{Binding PersistenceOptions}"
                                           SelectedItem="{Binding WarningPersistence}"
@@ -427,60 +434,70 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Other events -->
-                        <TextBlock Text="Other events" Style="{StaticResource SectionHeaderStyle}" />
-                        <StackPanel IsEnabled="{Binding NotificationsEnabled}">
-                            <CheckBox Content="Notify when an alert recovers" IsChecked="{Binding NotifyOnRecovery}" />
-                            <CheckBox Content="Notify when an alert is acknowledged" IsChecked="{Binding NotifyOnAcknowledge}" />
-                            <CheckBox Content="Stay quiet about alerts that were already open at start-up"
-                                      IsChecked="{Binding SuppressOnFirstPoll}" />
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16"
+                                IsEnabled="{Binding NotificationsEnabled}">
+                            <StackPanel>
+                                <TextBlock Text="Other events" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <CheckBox Content="Notify when an alert recovers" IsChecked="{Binding NotifyOnRecovery}" />
+                                <CheckBox Content="Notify when an alert is acknowledged" IsChecked="{Binding NotifyOnAcknowledge}" Margin="0,8,0,0" />
+                                <CheckBox Content="Stay quiet about alerts that were already open at start-up"
+                                          IsChecked="{Binding SuppressOnFirstPoll}"
+                                          Margin="0,8,0,0" />
 
-                            <TextBlock Text="Collapse into one summary above" Style="{StaticResource SectionHeaderStyle}" />
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Slider Grid.Column="0"
-                                        Minimum="1"
-                                        Maximum="25"
-                                        TickFrequency="1"
-                                        IsSnapToTickEnabled="True"
-                                        VerticalAlignment="Center"
-                                        Value="{Binding MaxToastsPerPoll}" />
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding MaxToastsPerPoll, StringFormat={}{0} toasts}"
-                                           Style="{StaticResource SubtleTextStyle}"
-                                           VerticalAlignment="Center"
-                                           MinWidth="76"
-                                           TextAlignment="Right"
-                                           Margin="12,0,0,0" />
-                            </Grid>
-                        </StackPanel>
-
-                        <!-- Quiet hours -->
-                        <TextBlock Text="Quiet hours" Style="{StaticResource SectionHeaderStyle}" />
-                        <StackPanel IsEnabled="{Binding NotificationsEnabled}">
-                            <CheckBox Content="Suppress notifications overnight" IsChecked="{Binding QuietHoursEnabled}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0" IsEnabled="{Binding QuietHoursEnabled}">
-                                <TextBlock Text="From" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <ComboBox Width="80"
-                                          ItemsSource="{Binding Hours}"
-                                          SelectedItem="{Binding QuietHoursStartHour}" />
-                                <TextBlock Text="to" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="12,0,8,0" />
-                                <ComboBox Width="80"
-                                          ItemsSource="{Binding Hours}"
-                                          SelectedItem="{Binding QuietHoursEndHour}" />
-                                <TextBlock Text="(24 hour clock, local time)"
-                                           Style="{StaticResource SubtleTextStyle}"
-                                           VerticalAlignment="Center"
-                                           Margin="12,0,0,0" />
+                                <TextBlock Text="Collapse into one summary above" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0"
+                                            Minimum="1"
+                                            Maximum="25"
+                                            TickFrequency="1"
+                                            IsSnapToTickEnabled="True"
+                                            VerticalAlignment="Center"
+                                            Value="{Binding MaxToastsPerPoll}" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding MaxToastsPerPoll, StringFormat={}{0} toasts}"
+                                               Style="{StaticResource SubtleTextStyle}"
+                                               VerticalAlignment="Center"
+                                               MinWidth="76"
+                                               TextAlignment="Right"
+                                               Margin="12,0,0,0" />
+                                </Grid>
                             </StackPanel>
-                            <CheckBox Content="Still notify for critical alerts during quiet hours"
-                                      IsChecked="{Binding QuietHoursAllowCritical}"
-                                      IsEnabled="{Binding QuietHoursEnabled}"
-                                      Margin="0,10,0,0" />
-                        </StackPanel>
+                        </Border>
+
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                IsEnabled="{Binding NotificationsEnabled}">
+                            <StackPanel>
+                                <TextBlock Text="Quiet hours" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <CheckBox Content="Suppress notifications overnight" IsChecked="{Binding QuietHoursEnabled}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0" IsEnabled="{Binding QuietHoursEnabled}">
+                                    <TextBlock Text="From" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <ComboBox Width="80"
+                                              ItemsSource="{Binding Hours}"
+                                              SelectedItem="{Binding QuietHoursStartHour}" />
+                                    <TextBlock Text="to" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="12,0,8,0" />
+                                    <ComboBox Width="80"
+                                              ItemsSource="{Binding Hours}"
+                                              SelectedItem="{Binding QuietHoursEndHour}" />
+                                    <TextBlock Text="(24 hour clock, local time)"
+                                               Style="{StaticResource SubtleTextStyle}"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0,0,0" />
+                                </StackPanel>
+                                <CheckBox Content="Still notify for critical alerts during quiet hours"
+                                          IsChecked="{Binding QuietHoursAllowCritical}"
+                                          IsEnabled="{Binding QuietHoursEnabled}"
+                                          Margin="0,10,0,0" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- ==================== Window ==================== -->
