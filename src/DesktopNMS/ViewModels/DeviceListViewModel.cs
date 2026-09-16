@@ -29,15 +29,15 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     private static readonly IReadOnlyList<string> NoGroupKey = new[] { string.Empty };
 
     /// <summary>
-    /// How often <see cref="LoadDeviceGroupsAsync"/> re-fetches in the
-    /// background, on top of the existing first-load-and-manual-refresh
-    /// triggers. Deliberately much longer than the device poll interval -
-    /// group membership changes far less often than device state - but
-    /// still automatic, so a dynamic group's membership (or a manual
-    /// LibreNMS-side edit) doesn't sit stale for an entire session of a
-    /// tray-resident app that can run for days between restarts.
+    /// <see cref="LoadDeviceGroupsAsync"/> re-fetches in the background this
+    /// many times less often than the device poll - group membership
+    /// changes far less often than device state, so tying it to a multiple
+    /// of <see cref="AppSettings.PollIntervalSeconds"/> keeps it scaling
+    /// with whatever cadence the user has already chosen, rather than a
+    /// flat constant that would either be relatively too eager (a fast
+    /// device poll) or too lax (a slow one).
     /// </summary>
-    private static readonly TimeSpan GroupMembershipRefreshInterval = TimeSpan.FromMinutes(10);
+    private const int GroupMembershipRefreshMultiplier = 10;
 
     private readonly DeviceMonitor _deviceMonitor;
     private readonly ISessionService _session;
@@ -120,7 +120,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
-        _groupMembershipRefreshTimer = new DispatcherTimer { Interval = GroupMembershipRefreshInterval };
+        _groupMembershipRefreshTimer = new DispatcherTimer { Interval = GroupMembershipRefreshInterval() };
         _groupMembershipRefreshTimer.Tick += (_, _) => _ = LoadDeviceGroupsAsync();
 
         _settings.Changed += OnSettingsChanged;
@@ -667,7 +667,15 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         {
             device.ApplyNameStyle(nameStyle);
         }
+
+        // Changing Interval on a running DispatcherTimer is safe and takes
+        // effect immediately - picks up a mid-session poll-interval change
+        // without needing a restart.
+        _groupMembershipRefreshTimer.Interval = GroupMembershipRefreshInterval();
     }
+
+    private TimeSpan GroupMembershipRefreshInterval()
+        => TimeSpan.FromSeconds(_settings.Current.PollIntervalSeconds * GroupMembershipRefreshMultiplier);
 
     private void RaiseCountsChanged()
     {
