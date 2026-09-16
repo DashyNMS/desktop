@@ -28,6 +28,17 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// <summary>The <see cref="GroupFilter"/> key used for a device that belongs to no group at all.</summary>
     private static readonly IReadOnlyList<string> NoGroupKey = new[] { string.Empty };
 
+    /// <summary>
+    /// <see cref="LoadDeviceGroupsAsync"/> re-fetches in the background this
+    /// many times less often than the device poll - group membership
+    /// changes far less often than device state, so tying it to a multiple
+    /// of <see cref="AppSettings.PollIntervalSeconds"/> keeps it scaling
+    /// with whatever cadence the user has already chosen, rather than a
+    /// flat constant that would either be relatively too eager (a fast
+    /// device poll) or too lax (a slow one).
+    /// </summary>
+    private const int GroupMembershipRefreshMultiplier = 10;
+
     private readonly DeviceMonitor _deviceMonitor;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
@@ -58,6 +69,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     private IReadOnlyList<Device> _lastOrderedDevices = Array.Empty<Device>();
 
     private readonly AutoRefreshTimer _autoRefresh;
+    private readonly DispatcherTimer _groupMembershipRefreshTimer;
 
     public DeviceListViewModel(
         DeviceMonitor deviceMonitor,
@@ -107,6 +119,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         ShowFiltersCommand = new RelayCommand(ShowFiltersDialog);
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
+
+        _groupMembershipRefreshTimer = new DispatcherTimer { Interval = GroupMembershipRefreshInterval() };
+        _groupMembershipRefreshTimer.Tick += (_, _) => _ = LoadDeviceGroupsAsync();
 
         _settings.Changed += OnSettingsChanged;
         _deviceMonitor.PollStarted += OnPollStarted;
@@ -287,6 +302,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         {
             _hasLoadedGroupsOnce = true;
             _ = LoadDeviceGroupsAsync();
+            _groupMembershipRefreshTimer.Start();
         }
 
         if (_hasLoadedOnce)
@@ -420,8 +436,12 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// Fetches every device group's membership (see <see cref="IDeviceGroupsApi.GetMembershipByDeviceAsync"/>)
     /// and rebuilds <see cref="GroupFilter"/> from it. Deliberately separate
     /// from the regular device poll: LibreNMS has no bulk endpoint for this,
-    /// so building it costs one call per group, worth doing on tab load and
-    /// on an explicit refresh rather than on every 30-second background poll.
+    /// so building it costs one call per group - too expensive for every
+    /// 30-second background poll, but still kept automatically fresh via
+    /// <see cref="_groupMembershipRefreshTimer"/> (every
+    /// <see cref="GroupMembershipRefreshInterval"/>) rather than only ever
+    /// updating on first tab load or an explicit user-triggered refresh,
+    /// which could otherwise leave it stale for a whole session.
     /// </summary>
     private async Task LoadDeviceGroupsAsync()
     {
@@ -647,7 +667,15 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         {
             device.ApplyNameStyle(nameStyle);
         }
+
+        // Changing Interval on a running DispatcherTimer is safe and takes
+        // effect immediately - picks up a mid-session poll-interval change
+        // without needing a restart.
+        _groupMembershipRefreshTimer.Interval = GroupMembershipRefreshInterval();
     }
+
+    private TimeSpan GroupMembershipRefreshInterval()
+        => TimeSpan.FromSeconds(_settings.Current.PollIntervalSeconds * GroupMembershipRefreshMultiplier);
 
     private void RaiseCountsChanged()
     {
@@ -667,6 +695,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _autoRefresh.Dispose();
+        _groupMembershipRefreshTimer.Stop();
         _settings.Changed -= OnSettingsChanged;
         _deviceMonitor.PollStarted -= OnPollStarted;
         _deviceMonitor.Polled -= OnPolled;
