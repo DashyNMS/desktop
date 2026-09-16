@@ -19,10 +19,12 @@ namespace DesktopNMS.ViewModels;
 /// <see cref="IsEditMode"/>). Widget types: "Sensors" (each showing whichever
 /// sensors were added to it specifically, fed by the shared
 /// <see cref="SensorMonitor"/> also used by the Health tab), "Alerts" and
-/// "AlertsGauge" (fed by the app-wide <see cref="AlertMonitor"/>), and
+/// "AlertsGauge" (fed by the app-wide <see cref="AlertMonitor"/>),
 /// "DeviceStatus" (fed by the shared <see cref="DeviceMonitor"/> also used by
-/// the Devices tab). None of them trigger a fetch of their own - having any
-/// combination open never costs more than one poll of each kind of data.
+/// the Devices tab), and "RecentlyViewed" (reads straight from settings, the
+/// same list the Devices tab's own recently-viewed strip shows). None of them
+/// trigger a fetch of their own - having any combination open never costs
+/// more than one poll of each kind of data.
 /// </summary>
 public sealed class DashboardViewModel : ObservableObject, IDisposable
 {
@@ -94,6 +96,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         AddAlertsWidgetCommand = new RelayCommand(() => _layout.AddWidget("Alerts", "Alerts"));
         AddAlertsGaugeWidgetCommand = new RelayCommand(() => _layout.AddWidget("AlertsGauge", "Alerts gauge"));
         AddDeviceStatusWidgetCommand = new RelayCommand(() => _layout.AddWidget("DeviceStatus", "Device status"));
+        AddRecentlyViewedWidgetCommand = new RelayCommand(() => _layout.AddWidget("RecentlyViewed", "Recently viewed"));
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
@@ -115,6 +118,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     public RelayCommand AddAlertsGaugeWidgetCommand { get; }
 
     public RelayCommand AddDeviceStatusWidgetCommand { get; }
+
+    public RelayCommand AddRecentlyViewedWidgetCommand { get; }
 
     /// <summary>True while the user is arranging the dashboard: widgets show drag/resize/remove handles.</summary>
     public bool IsEditMode
@@ -321,6 +326,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         "Alerts" => new AlertsWidgetViewModel(_layout, model, _alertMonitor, _session, _settings, _devices, _windows),
         "AlertsGauge" => new AlertsGaugeWidgetViewModel(_layout, model, _alertMonitor),
         "DeviceStatus" => new DeviceStatusWidgetViewModel(_layout, model, _deviceMonitor),
+        "RecentlyViewed" => new RecentlyViewedWidgetViewModel(_layout, model, _settings, deviceId => _windows.ShowDeviceDetail(deviceId)),
         // "Sensors" (and any future/unknown type, so a layout from a newer
         // version does not blow up) fall back to the Sensors widget.
         _ => new SensorWidgetViewModel(_layout, model, OpenDeviceCommand),

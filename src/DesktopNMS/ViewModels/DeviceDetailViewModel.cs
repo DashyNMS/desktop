@@ -238,7 +238,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Bumps this device to the top of Settings > RecentlyViewedDevices,
-    /// trimming to <see cref="AppSettings.MaxRecentlyViewedDevices"/>. Only
+    /// trimming to <see cref="AppSettings.RecentlyViewedDeviceCount"/>. Only
     /// runs when a new Device View is actually constructed - reactivating an
     /// already-open one (see WindowService.ShowDeviceDetail) does not bump
     /// it again, a minor gap not worth a new dependency to close.
@@ -255,7 +255,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             ViewedAt = DateTimeOffset.Now,
         });
 
-        while (recent.Count > AppSettings.MaxRecentlyViewedDevices)
+        while (recent.Count > _settings.Current.RecentlyViewedDeviceCount)
         {
             recent.RemoveAt(recent.Count - 1);
         }

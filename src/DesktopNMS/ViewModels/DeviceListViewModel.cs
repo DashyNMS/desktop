@@ -142,7 +142,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// </summary>
     public ObservableCollection<RecentlyViewedDeviceItemViewModel> RecentlyViewedDevices { get; }
 
-    public bool HasRecentlyViewedDevices => RecentlyViewedDevices.Count > 0;
+    public bool HasRecentlyViewedDevices => _settings.Current.ShowRecentlyViewedDevices && RecentlyViewedDevices.Count > 0;
 
     /// <summary>
     /// One entry per distinct <see cref="Device.Type"/> actually present in

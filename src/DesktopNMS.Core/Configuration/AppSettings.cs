@@ -33,8 +33,8 @@ public enum AppTheme
 /// </summary>
 public sealed class AppSettings
 {
-    /// <summary>How many entries <see cref="RecentlyViewedDevices"/> keeps.</summary>
-    public const int MaxRecentlyViewedDevices = 10;
+    /// <summary>Hard ceiling on <see cref="RecentlyViewedDeviceCount"/> itself, independent of whatever the user picks.</summary>
+    public const int MaxRecentlyViewedDeviceCount = 25;
 
     /// <summary>Root URL of the LibreNMS web UI, e.g. https://nms.example.com/.</summary>
     public string? ServerUrl { get; set; }
@@ -138,10 +138,17 @@ public sealed class AppSettings
 
     /// <summary>
     /// Devices opened in a Device View recently, most-recent first, capped at
-    /// <see cref="MaxRecentlyViewedDevices"/>. Shown on the Devices tab as a
-    /// quick way back into something you were just looking at.
+    /// <see cref="RecentlyViewedDeviceCount"/>. Shown on the Devices tab (if
+    /// <see cref="ShowRecentlyViewedDevices"/> is on) and available as its own
+    /// Dashboard widget.
     /// </summary>
     public List<RecentlyViewedDevice> RecentlyViewedDevices { get; set; } = new();
+
+    /// <summary>Shows the recently-viewed strip above the Devices tab's grid. Does not affect the Dashboard widget, which is opt-in by adding it.</summary>
+    public bool ShowRecentlyViewedDevices { get; set; } = true;
+
+    /// <summary>How many devices <see cref="RecentlyViewedDevices"/> remembers - the same number is shown everywhere it appears.</summary>
+    public int RecentlyViewedDeviceCount { get; set; } = 10;
 
     /// <summary>
     /// The accent colour used for buttons, selection highlights and links
@@ -190,6 +197,8 @@ public sealed class AppSettings
         OverrideSensorLimitsWithAppThresholds = OverrideSensorLimitsWithAppThresholds,
         DashboardWidgets = DashboardWidgets.Select(w => w.Clone()).ToList(),
         RecentlyViewedDevices = RecentlyViewedDevices.Select(d => d.Clone()).ToList(),
+        ShowRecentlyViewedDevices = ShowRecentlyViewedDevices,
+        RecentlyViewedDeviceCount = RecentlyViewedDeviceCount,
         AccentColor = AccentColor,
         Theme = Theme,
         ShowServerLogo = ShowServerLogo,
@@ -207,10 +216,14 @@ public sealed class AppSettings
         Notifications ??= new NotificationSettings();
         Filter ??= new AlertFilterSettings();
         DashboardWidgets ??= new List<DashboardWidget>();
+
+        if (RecentlyViewedDeviceCount < 1) RecentlyViewedDeviceCount = 1;
+        if (RecentlyViewedDeviceCount > MaxRecentlyViewedDeviceCount) RecentlyViewedDeviceCount = MaxRecentlyViewedDeviceCount;
+
         RecentlyViewedDevices ??= new List<RecentlyViewedDevice>();
-        if (RecentlyViewedDevices.Count > MaxRecentlyViewedDevices)
+        if (RecentlyViewedDevices.Count > RecentlyViewedDeviceCount)
         {
-            RecentlyViewedDevices = RecentlyViewedDevices.Take(MaxRecentlyViewedDevices).ToList();
+            RecentlyViewedDevices = RecentlyViewedDevices.Take(RecentlyViewedDeviceCount).ToList();
         }
         DbmThresholds ??= new DbmThresholdSettings();
         SignalThresholds ??= new SignalThresholdSettings();
