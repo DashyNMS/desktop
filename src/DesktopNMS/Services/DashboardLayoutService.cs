@@ -75,13 +75,21 @@ public sealed class DashboardLayoutService : IDashboardLayoutService
 
     /// <summary>
     /// Finds the first spot on the grid, scanning row by row, where a new
-    /// widget of this size would not overlap any existing one. Bounded to a
-    /// generous but finite number of rows so a pathological number of
-    /// existing widgets cannot search forever.
+    /// widget of this size would not overlap any existing one. <paramref name="columnSpan"/>
+    /// scans against a real column count wide enough to actually pack widgets
+    /// side by side (three default-width widgets' worth) - too narrow a bound
+    /// here (this used to be 6, the same as <see cref="DashboardWidget.MinColumnSpan"/>,
+    /// too small for even one <see cref="DashboardWidget.DefaultColumnSpan"/>-wide
+    /// widget) means every widget "overlaps" at every candidate column on its
+    /// own row and the search falls through to stacking everything straight
+    /// down column 0, one per row, wasting the rest of the canvas's width -
+    /// what read as "too much padding" on a wide window (issue #90) was
+    /// actually this. Bounded to a generous but finite number of rows so a
+    /// pathological number of existing widgets cannot search forever.
     /// </summary>
     private static (int Column, int Row) FindFreeSpot(IReadOnlyList<DashboardWidget> existing, int columnSpan, int rowSpan)
     {
-        const int columns = 6;
+        const int columns = DashboardWidget.DefaultColumnSpan * 3;
         const int rows = 200;
 
         for (var row = 0; row < rows; row++)
