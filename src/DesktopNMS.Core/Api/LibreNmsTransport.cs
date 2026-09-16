@@ -141,6 +141,27 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
             {
                 _logger.LogDebug(ex, "Retrying {Url} after a possible stale pooled connection", relativeUrl);
             }
+            // Beyond the immediate retry above, a genuinely struggling server
+            // (502/503/504, or the connection/timeout layer failing outright)
+            // gets a few more attempts with growing, jittered delays instead
+            // of an instant hard failure - see TransientRetryPolicy for what
+            // counts as transient and why only GET/PUT are eligible.
+            catch (LibreNmsApiException ex) when (
+                attempt <= TransientRetryPolicy.MaxAttempts
+                && TransientRetryPolicy.IsRetryable(method)
+                && TransientRetryPolicy.IsTransientFailure(ex)
+                && !cancellationToken.IsCancellationRequested)
+            {
+                var delay = TransientRetryPolicy.ComputeBackoffDelay(attempt);
+                _logger.LogDebug(
+                    ex,
+                    "Retrying {Url} after a transient failure (attempt {Attempt}/{Max}), waiting {DelayMs:0}ms",
+                    relativeUrl,
+                    attempt,
+                    TransientRetryPolicy.MaxAttempts,
+                    delay.TotalMilliseconds);
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 
