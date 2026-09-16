@@ -1,0 +1,94 @@
+name: Preview build
+
+# Manually triggered from the Actions tab: pick the branch/commit to cut a
+# preview from, and this works out the next preview number itself by looking
+# at existing tags for the version currently in Directory.Build.props.
+#
+# Bump <Version> there to the release you're working towards *before* running
+# this the first time for that release, so preview tags land as
+# v{version}-preview.1, .2, ... rather than previews of whatever last shipped.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Work out the version and next preview number
+        id: version
+        shell: pwsh
+        run: |
+          $props = Get-Content Directory.Build.props -Raw
+          if ($props -notmatch '<Version>([^<]+)</Version>') {
+            throw "Could not find <Version> in Directory.Build.props"
+          }
+          $version = $matches[1]
+
+          git fetch --tags --force
+          $existing = git tag -l "v$version-preview.*"
+          $next = 1
+          if ($existing) {
+            $numbers = $existing | ForEach-Object { [int]($_ -replace ".*-preview\.", "") }
+            $next = ($numbers | Measure-Object -Maximum).Maximum + 1
+          }
+
+          $previewVersion = "$version-preview.$next"
+          $previewTag = "v$previewVersion"
+
+          Write-Host "Base version: $version"
+          Write-Host "Preview tag: $previewTag"
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "preview_version=$previewVersion" >> $env:GITHUB_OUTPUT
+          "preview_tag=$previewTag" >> $env:GITHUB_OUTPUT
+
+      - name: Capture the commit message for the release notes
+        shell: pwsh
+        run: git log -1 --pretty=%B | Out-File -FilePath commit-message.txt -Encoding utf8NoBOM
+
+      - name: Publish
+        run: dotnet publish src/DesktopNMS/DesktopNMS.csproj -c Release -o publish
+
+      - name: Ensure Inno Setup is installed
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ISCC.exe -ErrorAction SilentlyContinue)) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
+          & $iscc "/DAppVersion=${{ steps.version.outputs.preview_version }}" installer\DashyNMS.iss
+
+      - name: Tag the commit
+        shell: pwsh
+        run: |
+          git tag ${{ steps.version.outputs.preview_tag }}
+          git push origin ${{ steps.version.outputs.preview_tag }}
+
+      - name: Create the preview release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.preview_tag }}
+          name: ${{ steps.version.outputs.preview_version }}
+          body_path: commit-message.txt
+          prerelease: true
+          files: dist/DashyNMS-Setup-*.exe

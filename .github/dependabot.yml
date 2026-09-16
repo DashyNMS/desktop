@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # NuGet package updates and vulnerability alerts.
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Keep the GitHub Actions used by the workflows above up to date too.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

@@ -1,0 +1,61 @@
+name: Release build
+
+# Fires when a GitHub Release is published (draft it and write the notes in
+# the web UI as usual, tagged vX.Y.Z) and attaches the built installer to it.
+# Skips a release published with "Set as a pre-release" ticked - that's what
+# the preview-build workflow already produces and attaches its own installer
+# to, so there is nothing for this workflow to add.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.event.release.prerelease == false
+    runs-on: windows-latest
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Work out the version from the release tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.release.tag_name }}"
+          $version = $tag -replace '^v', ''
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Publish
+        run: dotnet publish src/DesktopNMS/DesktopNMS.csproj -c Release -o publish
+
+      - name: Ensure Inno Setup is installed
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ISCC.exe -ErrorAction SilentlyContinue)) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
+          & $iscc "/DAppVersion=${{ steps.version.outputs.version }}" installer\DashyNMS.iss
+
+      - name: Attach the installer to the release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: dist/DashyNMS-Setup-*.exe

@@ -1,0 +1,39 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    # 03:17 UTC every Monday - an off-peak, deliberately non-round time.
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    # WPF/net9.0-windows only builds on Windows, and CodeQL needs a real
+    # build to analyse rather than just checking out the source.
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+
+      - name: Build
+        run: dotnet build DesktopNMS.sln -c Release
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
