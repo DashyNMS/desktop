@@ -610,8 +610,16 @@
              resize grip in edit mode. Position/size are committed once a drag
              finishes (see DashboardView.xaml.cs), not on every pixel. -->
         <DataTemplate x:Key="WidgetTemplate" DataType="{x:Type vm:DashboardWidgetViewModel}">
-            <Border Width="{Binding ColumnSpan, Converter={StaticResource GridUnitToPixels}}"
-                    Height="{Binding RowSpan, Converter={StaticResource GridUnitToPixels}}"
+            <!-- The outer Grid keeps the exact cell footprint (ColumnSpan/RowSpan
+                 * CellSize) that Canvas.Left/Top and every drag/resize/reflow
+                 calculation in DashboardView.xaml.cs assumes - two widgets in
+                 adjacent cells butt up against each other with zero gap. The
+                 visible chrome lives on the inner Border instead, inset by
+                 Margin so adjacent widgets still show a gutter between them
+                 without changing where either widget's cell actually is. -->
+            <Grid Width="{Binding ColumnSpan, Converter={StaticResource GridUnitToPixels}}"
+                  Height="{Binding RowSpan, Converter={StaticResource GridUnitToPixels}}">
+            <Border Margin="6"
                     Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1"
@@ -731,6 +739,7 @@
                     </Thumb>
                 </Grid>
             </Border>
+            </Grid>
         </DataTemplate>
 
     </UserControl.Resources>
