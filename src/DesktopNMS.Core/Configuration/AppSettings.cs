@@ -33,6 +33,9 @@ public enum AppTheme
 /// </summary>
 public sealed class AppSettings
 {
+    /// <summary>How many entries <see cref="RecentlyViewedDevices"/> keeps.</summary>
+    public const int MaxRecentlyViewedDevices = 10;
+
     /// <summary>Root URL of the LibreNMS web UI, e.g. https://nms.example.com/.</summary>
     public string? ServerUrl { get; set; }
 
@@ -134,6 +137,13 @@ public sealed class AppSettings
     public List<DashboardWidget> DashboardWidgets { get; set; } = new();
 
     /// <summary>
+    /// Devices opened in a Device View recently, most-recent first, capped at
+    /// <see cref="MaxRecentlyViewedDevices"/>. Shown on the Devices tab as a
+    /// quick way back into something you were just looking at.
+    /// </summary>
+    public List<RecentlyViewedDevice> RecentlyViewedDevices { get; set; } = new();
+
+    /// <summary>
     /// The accent colour used for buttons, selection highlights and links
     /// throughout the app, as "#RRGGBB". Deliberately separate from the fixed
     /// Critical/Warning/Ok severity colours, which never change.
@@ -179,6 +189,7 @@ public sealed class AppSettings
         FanSpeedThresholds = FanSpeedThresholds.Clone(),
         OverrideSensorLimitsWithAppThresholds = OverrideSensorLimitsWithAppThresholds,
         DashboardWidgets = DashboardWidgets.Select(w => w.Clone()).ToList(),
+        RecentlyViewedDevices = RecentlyViewedDevices.Select(d => d.Clone()).ToList(),
         AccentColor = AccentColor,
         Theme = Theme,
         ShowServerLogo = ShowServerLogo,
@@ -196,6 +207,11 @@ public sealed class AppSettings
         Notifications ??= new NotificationSettings();
         Filter ??= new AlertFilterSettings();
         DashboardWidgets ??= new List<DashboardWidget>();
+        RecentlyViewedDevices ??= new List<RecentlyViewedDevice>();
+        if (RecentlyViewedDevices.Count > MaxRecentlyViewedDevices)
+        {
+            RecentlyViewedDevices = RecentlyViewedDevices.Take(MaxRecentlyViewedDevices).ToList();
+        }
         DbmThresholds ??= new DbmThresholdSettings();
         SignalThresholds ??= new SignalThresholdSettings();
         TemperatureThresholds ??= BandThresholdSettings.TemperatureDefaults();
@@ -528,6 +544,29 @@ public sealed class HybridThresholdEvaluator : IThresholdEvaluator
 
         return AlertSeverity.Ok;
     }
+}
+
+/// <summary>
+/// One entry in the Devices tab's "recently viewed" strip. DisplayName is a
+/// snapshot taken at the moment the device was opened - like
+/// <see cref="PinnedSensor"/>, a cached label so the strip has something to
+/// show even before the device list itself has loaded this session, not a
+/// live-updating name.
+/// </summary>
+public sealed class RecentlyViewedDevice
+{
+    public int DeviceId { get; set; }
+
+    public string? DisplayName { get; set; }
+
+    public DateTimeOffset ViewedAt { get; set; }
+
+    public RecentlyViewedDevice Clone() => new()
+    {
+        DeviceId = DeviceId,
+        DisplayName = DisplayName,
+        ViewedAt = ViewedAt,
+    };
 }
 
 /// <summary>

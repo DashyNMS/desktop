@@ -23,89 +23,118 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="18,12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <ToggleButton IsChecked="{Binding ShowUp}" Tag="{x:Static models:DeviceState.Up}" PreviewMouseLeftButtonDown="StatusBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide up (shift-click to show only up)" Margin="0,0,10,0">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                            <TextBlock Text="up" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ToggleButton>
-                    <ToggleButton IsChecked="{Binding ShowDown}" Tag="{x:Static models:DeviceState.Down}" PreviewMouseLeftButtonDown="StatusBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide down (shift-click to show only down)" Margin="0,0,10,0">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                            <TextBlock Text="down" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ToggleButton>
-                    <ToggleButton IsChecked="{Binding ShowMaintenance}" Tag="{x:Static models:DeviceState.Maintenance}" PreviewMouseLeftButtonDown="StatusBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide maintenance (shift-click to show only maintenance)" Margin="0,0,10,0">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="9" Height="9" Fill="{StaticResource MaintenanceBrush}" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding MaintenanceCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                            <TextBlock Text="in maintenance" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ToggleButton>
-                    <ToggleButton IsChecked="{Binding ShowDisabled}" Tag="{x:Static models:DeviceState.Disabled}" PreviewMouseLeftButtonDown="StatusBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide disabled / ignored (shift-click to show only disabled / ignored)">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding DisabledCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                            <TextBlock Text="disabled / ignored" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ToggleButton>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <ToggleButton IsChecked="{Binding ShowUp}" Tag="{x:Static models:DeviceState.Up}" PreviewMouseLeftButtonDown="StatusBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide up (shift-click to show only up)" Margin="0,0,10,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                                <TextBlock Text="up" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <ToggleButton IsChecked="{Binding ShowDown}" Tag="{x:Static models:DeviceState.Down}" PreviewMouseLeftButtonDown="StatusBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide down (shift-click to show only down)" Margin="0,0,10,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                                <TextBlock Text="down" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <ToggleButton IsChecked="{Binding ShowMaintenance}" Tag="{x:Static models:DeviceState.Maintenance}" PreviewMouseLeftButtonDown="StatusBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide maintenance (shift-click to show only maintenance)" Margin="0,0,10,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="9" Height="9" Fill="{StaticResource MaintenanceBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding MaintenanceCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                                <TextBlock Text="in maintenance" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <ToggleButton IsChecked="{Binding ShowDisabled}" Tag="{x:Static models:DeviceState.Disabled}" PreviewMouseLeftButtonDown="StatusBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide disabled / ignored (shift-click to show only disabled / ignored)">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding DisabledCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                                <TextBlock Text="disabled / ignored" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Search first, then the Filters trigger beside it -
+                             the conventional left-to-right order for a table
+                             toolbar (search narrows by free text, filters narrow
+                             by a fixed facet), with the destructive-ish Clear
+                             action set apart on the far right. -->
+                        <TextBox x:Name="SearchBox"
+                                 Width="240"
+                                 Style="{StaticResource SearchTextBoxStyle}"
+                                 Tag="Search devices"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                                 ToolTip="Filter by name, IP, OS, hardware, location or device id"
+                                 Margin="0,0,8,0" />
+
+                        <!-- One compact trigger opening a centered dialog (see
+                             DeviceFiltersWindow) with a tab for each facet
+                             (DeviceListViewModel's TypeFilter/LocationFilter/
+                             GroupFilter - each an open-ended, growing list)
+                             rather than a button per facet or a badge per value:
+                             this costs the same one button's width regardless of
+                             how many types, locations or groups exist. The dot
+                             is the only always-visible sign that a facet is
+                             actively hiding something, since the dialog's own
+                             checkboxes are not visible until it's opened. -->
+                        <Grid Margin="0,0,14,0">
+                            <Button Content="Filters"
+                                    Command="{Binding ShowFiltersCommand}"
+                                    Style="{StaticResource ChipButtonStyle}"
+                                    Margin="0"
+                                    ToolTip="Filter by type, location or device group" />
+                            <Ellipse Width="7"
+                                     Height="7"
+                                     Fill="{DynamicResource AccentBrush}"
+                                     HorizontalAlignment="Right"
+                                     VerticalAlignment="Top"
+                                     Margin="0,-2,-2,0"
+                                     IsHitTestVisible="False"
+                                     Visibility="{Binding IsFiltersActive, Converter={StaticResource BoolToVisibility}}" />
+                        </Grid>
+
+                        <Button Content="Clear"
+                                Command="{Binding ClearFiltersCommand}"
+                                IsEnabled="{Binding HasAnyFilterApplied}"
+                                Padding="10,7" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- A quick way back into something you were just looking at -
+                     collapsed entirely when empty, so a fresh install or a
+                     just-cleared history costs no space here at all. -->
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,12,0,0"
+                            Visibility="{Binding HasRecentlyViewedDevices, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="Recently viewed:"
+                               Style="{StaticResource SubtleTextStyle}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0" />
+                    <ItemsControl ItemsSource="{Binding RecentlyViewedDevices}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding DisplayName}"
+                                        Command="{Binding OpenCommand}"
+                                        Style="{StaticResource ChipButtonStyle}"
+                                        Margin="0,0,8,0" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
-
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Search first, then the Filters trigger beside it -
-                         the conventional left-to-right order for a table
-                         toolbar (search narrows by free text, filters narrow
-                         by a fixed facet), with the destructive-ish Clear
-                         action set apart on the far right. -->
-                    <TextBox x:Name="SearchBox"
-                             Width="240"
-                             Style="{StaticResource SearchTextBoxStyle}"
-                             Tag="Search devices"
-                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                             ToolTip="Filter by name, IP, OS, hardware, location or device id"
-                             Margin="0,0,8,0" />
-
-                    <!-- One compact trigger opening a centered dialog (see
-                         DeviceFiltersWindow) with a tab for each facet
-                         (DeviceListViewModel's TypeFilter/LocationFilter/
-                         GroupFilter - each an open-ended, growing list)
-                         rather than a button per facet or a badge per value:
-                         this costs the same one button's width regardless of
-                         how many types, locations or groups exist. The dot
-                         is the only always-visible sign that a facet is
-                         actively hiding something, since the dialog's own
-                         checkboxes are not visible until it's opened. -->
-                    <Grid Margin="0,0,14,0">
-                        <Button Content="Filters"
-                                Command="{Binding ShowFiltersCommand}"
-                                Style="{StaticResource ChipButtonStyle}"
-                                Margin="0"
-                                ToolTip="Filter by type, location or device group" />
-                        <Ellipse Width="7"
-                                 Height="7"
-                                 Fill="{DynamicResource AccentBrush}"
-                                 HorizontalAlignment="Right"
-                                 VerticalAlignment="Top"
-                                 Margin="0,-2,-2,0"
-                                 IsHitTestVisible="False"
-                                 Visibility="{Binding IsFiltersActive, Converter={StaticResource BoolToVisibility}}" />
-                    </Grid>
-
-                    <Button Content="Clear"
-                            Command="{Binding ClearFiltersCommand}"
-                            IsEnabled="{Binding HasAnyFilterApplied}"
-                            Padding="10,7" />
-                </StackPanel>
-            </Grid>
+            </StackPanel>
         </Border>
 
         <!-- ======================== Error banner ======================== -->

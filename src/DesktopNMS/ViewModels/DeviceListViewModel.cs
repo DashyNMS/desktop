@@ -91,6 +91,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         DevicesView = CollectionViewSource.GetDefaultView(Devices);
         DevicesView.Filter = FilterDevice;
 
+        RecentlyViewedDevices = new ObservableCollection<RecentlyViewedDeviceItemViewModel>();
+        RebuildRecentlyViewed(_settings.Current.RecentlyViewedDevices);
+
         TypeFilter = new FilterFacet(OnFilterChanged);
         LocationFilter = new FilterFacet(OnFilterChanged);
         GroupFilter = new FilterFacet(OnFilterChanged);
@@ -131,6 +134,15 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     public ObservableCollection<DeviceItemViewModel> Devices { get; }
 
     public ICollectionView DevicesView { get; }
+
+    /// <summary>
+    /// Devices opened recently (see DeviceDetailViewModel.RecordRecentlyViewed),
+    /// most-recent first - a quick way back into something you were just
+    /// looking at, shown as a row of chips above the grid.
+    /// </summary>
+    public ObservableCollection<RecentlyViewedDeviceItemViewModel> RecentlyViewedDevices { get; }
+
+    public bool HasRecentlyViewedDevices => RecentlyViewedDevices.Count > 0;
 
     /// <summary>
     /// One entry per distinct <see cref="Device.Type"/> actually present in
@@ -672,7 +684,26 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         // effect immediately - picks up a mid-session poll-interval change
         // without needing a restart.
         _groupMembershipRefreshTimer.Interval = GroupMembershipRefreshInterval();
+
+        // Opening any Device View saves settings (see
+        // DeviceDetailViewModel.RecordRecentlyViewed), so this is how the
+        // strip picks up a new entry live rather than only on the next poll.
+        RebuildRecentlyViewed(settings.RecentlyViewedDevices);
     }
+
+    private void RebuildRecentlyViewed(IReadOnlyList<RecentlyViewedDevice> entries)
+    {
+        RecentlyViewedDevices.Clear();
+
+        foreach (var entry in entries)
+        {
+            RecentlyViewedDevices.Add(new RecentlyViewedDeviceItemViewModel(entry, OpenRecentlyViewedDevice));
+        }
+
+        OnPropertyChanged(nameof(HasRecentlyViewedDevices));
+    }
+
+    private void OpenRecentlyViewedDevice(int deviceId) => _windows.ShowDeviceDetail(deviceId);
 
     private TimeSpan GroupMembershipRefreshInterval()
         => TimeSpan.FromSeconds(_settings.Current.PollIntervalSeconds * GroupMembershipRefreshMultiplier);

@@ -207,6 +207,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         // window until the next shared poll lands.
         _device = deviceCache.Get(deviceId);
 
+        RecordRecentlyViewed();
+
         _deviceMonitor.Polled += OnDevicePolled;
         _sensorMonitor.Polled += OnSensorPolled;
         _alertMonitor.Polled += OnAlertsPolled;
@@ -232,6 +234,33 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _ = LoadFdbAsync();
         _ = LoadArpAsync();
         _ = LoadEventLogAsync();
+    }
+
+    /// <summary>
+    /// Bumps this device to the top of Settings > RecentlyViewedDevices,
+    /// trimming to <see cref="AppSettings.MaxRecentlyViewedDevices"/>. Only
+    /// runs when a new Device View is actually constructed - reactivating an
+    /// already-open one (see WindowService.ShowDeviceDetail) does not bump
+    /// it again, a minor gap not worth a new dependency to close.
+    /// </summary>
+    private void RecordRecentlyViewed()
+    {
+        var recent = _settings.Current.RecentlyViewedDevices;
+
+        recent.RemoveAll(d => d.DeviceId == _deviceId);
+        recent.Insert(0, new RecentlyViewedDevice
+        {
+            DeviceId = _deviceId,
+            DisplayName = _device?.BestName,
+            ViewedAt = DateTimeOffset.Now,
+        });
+
+        while (recent.Count > AppSettings.MaxRecentlyViewedDevices)
+        {
+            recent.RemoveAt(recent.Count - 1);
+        }
+
+        _settings.Save();
     }
 
     public ObservableCollection<SensorItemViewModel> Sensors { get; }
