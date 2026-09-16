@@ -156,10 +156,37 @@
                 </Grid.ColumnDefinitions>
 
                 <DataGrid Grid.Column="0"
+                          x:Name="DeviceGrid"
                           ItemsSource="{Binding DevicesView}"
                           SelectedItem="{Binding SelectedDevice}"
-                          MouseDoubleClick="OnGridDoubleClick">
+                          MouseDoubleClick="OnGridDoubleClick"
+                          Sorting="DeviceGrid_Sorting">
                     <DataGrid.Columns>
+
+                        <!-- Pinned devices always sort to the top - see
+                             DeviceListViewModel's IsPinned SortDescription and
+                             DevicesView.xaml.cs's Sorting handler, which keeps
+                             it ahead of whichever column the user clicks. -->
+                        <DataGridTemplateColumn Header="" Width="40" CanUserSort="False">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Command="{Binding TogglePinCommand}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Width="28"
+                                            Height="28"
+                                            FontSize="13"
+                                            ToolTip="Pin this device to the top of the list">
+                                        <Grid>
+                                            <TextBlock Text="&#xE735;"
+                                                       Foreground="{DynamicResource AccentBrush}"
+                                                       Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibility}}" />
+                                            <TextBlock Text="&#xE734;"
+                                                       Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
 
                         <DataGridTemplateColumn Header="State" Width="90" SortMemberPath="State">
                             <DataGridTemplateColumn.CellTemplate>

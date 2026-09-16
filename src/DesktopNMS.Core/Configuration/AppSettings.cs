@@ -151,6 +151,14 @@ public sealed class AppSettings
     public int RecentlyViewedDeviceCount { get; set; } = 10;
 
     /// <summary>
+    /// Devices pinned to the top of the Devices tab's grid (see
+    /// DeviceItemViewModel.IsPinned) and available as their own Dashboard
+    /// widget. Pinning only changes sort order - a pinned device still
+    /// disappears under the Devices tab's own filters like any other row.
+    /// </summary>
+    public List<PinnedDevice> PinnedDevices { get; set; } = new();
+
+    /// <summary>
     /// The accent colour used for buttons, selection highlights and links
     /// throughout the app, as "#RRGGBB". Deliberately separate from the fixed
     /// Critical/Warning/Ok severity colours, which never change.
@@ -199,6 +207,7 @@ public sealed class AppSettings
         RecentlyViewedDevices = RecentlyViewedDevices.Select(d => d.Clone()).ToList(),
         ShowRecentlyViewedDevices = ShowRecentlyViewedDevices,
         RecentlyViewedDeviceCount = RecentlyViewedDeviceCount,
+        PinnedDevices = PinnedDevices.Select(d => d.Clone()).ToList(),
         AccentColor = AccentColor,
         Theme = Theme,
         ShowServerLogo = ShowServerLogo,
@@ -225,6 +234,7 @@ public sealed class AppSettings
         {
             RecentlyViewedDevices = RecentlyViewedDevices.Take(RecentlyViewedDeviceCount).ToList();
         }
+        PinnedDevices ??= new List<PinnedDevice>();
         DbmThresholds ??= new DbmThresholdSettings();
         SignalThresholds ??= new SignalThresholdSettings();
         TemperatureThresholds ??= BandThresholdSettings.TemperatureDefaults();
@@ -579,6 +589,27 @@ public sealed class RecentlyViewedDevice
         DeviceId = DeviceId,
         DisplayName = DisplayName,
         ViewedAt = ViewedAt,
+    };
+}
+
+/// <summary>
+/// A device pinned to the top of the Devices tab (see <see cref="AppSettings.PinnedDevices"/>).
+/// DisplayName is a snapshot taken at the moment it was pinned - same
+/// reasoning as <see cref="RecentlyViewedDevice"/> and <see cref="PinnedSensor"/>.
+/// </summary>
+public sealed class PinnedDevice
+{
+    public int DeviceId { get; set; }
+
+    public string? DisplayName { get; set; }
+
+    public DateTimeOffset PinnedAt { get; set; }
+
+    public PinnedDevice Clone() => new()
+    {
+        DeviceId = DeviceId,
+        DisplayName = DisplayName,
+        PinnedAt = PinnedAt,
     };
 }
 

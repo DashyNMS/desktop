@@ -12,16 +12,32 @@ public sealed class DeviceItemViewModel : ObservableObject
     private Device _device;
     private DeviceNameStyle _nameStyle;
     private bool _isUnderMaintenance;
+    private bool _isPinned;
 
-    public DeviceItemViewModel(Device device, DeviceNameStyle nameStyle)
+    public DeviceItemViewModel(Device device, DeviceNameStyle nameStyle, Action<int> onTogglePin)
     {
         _device = device;
         _nameStyle = nameStyle;
+        TogglePinCommand = new RelayCommand(() => onTogglePin(DeviceId));
     }
 
     public int DeviceId => _device.DeviceId;
 
     public Device Model => _device;
+
+    /// <summary>
+    /// True while this device is pinned to the top of the Devices tab (see
+    /// DeviceListViewModel.TogglePin). Kept in step with AppSettings.PinnedDevices
+    /// rather than owning the fact itself, the same relationship
+    /// <see cref="IsUnderMaintenance"/> has with its own source of truth.
+    /// </summary>
+    public bool IsPinned
+    {
+        get => _isPinned;
+        set => SetProperty(ref _isPinned, value);
+    }
+
+    public RelayCommand TogglePinCommand { get; }
 
     /// <summary>
     /// True when LibreNMS reports this device inside an active maintenance
