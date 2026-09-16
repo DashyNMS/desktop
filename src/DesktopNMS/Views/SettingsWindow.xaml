@@ -195,32 +195,55 @@
                     <StackPanel Visibility="{Binding IsAlertDisplaySectionSelected, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="Alert display" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
-                        <TextBlock Text="Name devices by" Style="{StaticResource SectionHeaderStyle}" />
-                        <ComboBox ItemsSource="{Binding DeviceNameOptions}"
-                                  SelectedItem="{Binding DeviceName}"
-                                  DisplayMemberPath="Label" />
-                        <TextBlock Text="{Binding DeviceName.Description}"
-                                   Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,6,0,0" />
-                        <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,6,0,0"
-                                   Text="The name not chosen here is shown underneath it, so you always have both." />
+                        <!-- Three separate cards rather than grouped - unlike
+                             Polling's pairs, these three genuinely don't
+                             relate to each other (naming, data-fetching,
+                             action-safety), so forcing them together would
+                             be grouping for its own sake. -->
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Name devices by" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding DeviceNameOptions}"
+                                          SelectedItem="{Binding DeviceName}"
+                                          DisplayMemberPath="Label" />
+                                <TextBlock Text="{Binding DeviceName.Description}"
+                                           Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="The name not chosen here is shown underneath it, so you always have both." />
+                            </StackPanel>
+                        </Border>
 
-                        <CheckBox Content="Show what triggered the selected alert"
-                                  IsChecked="{Binding LoadAlertFaults}"
-                                  Margin="0,14,0,0" />
-                        <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Text="Fetches the rows the alert rule matched, with their measured values. Costs one extra request each time you select an alert." />
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16">
+                            <StackPanel>
+                                <CheckBox Content="Show what triggered the selected alert"
+                                          IsChecked="{Binding LoadAlertFaults}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Fetches the rows the alert rule matched, with their measured values. Costs one extra request each time you select an alert." />
+                            </StackPanel>
+                        </Border>
 
-                        <CheckBox Content="Confirm before a large bulk acknowledge/unacknowledge"
-                                  IsChecked="{Binding ConfirmBulkAlertActions}"
-                                  Margin="0,14,0,0" />
-                        <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Text="Turned off automatically if you tick &quot;don't ask me again&quot; on that prompt - check this to turn it back on." />
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
+                            <StackPanel>
+                                <CheckBox Content="Confirm before a large bulk acknowledge/unacknowledge"
+                                          IsChecked="{Binding ConfirmBulkAlertActions}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Turned off automatically if you tick &quot;don't ask me again&quot; on that prompt - check this to turn it back on." />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- ==================== Health thresholds ==================== -->
