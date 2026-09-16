@@ -221,6 +221,11 @@ lists the app in Settings > Notifications. That is how an unpackaged desktop
 app is allowed to raise toasts and receive clicks on them, and it is why toast
 buttons still work when the app is sitting in the tray.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) - PRs are welcome, and go through the
+same CI build/test check as everything else.
+
 ## Roadmap
 
 Tracked as [GitHub issues](https://github.com/DashyNMS/desktop/issues),
