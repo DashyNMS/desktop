@@ -56,7 +56,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private readonly ILogger<DeviceDetailViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, SensorItemViewModel> _sensorIndex = new();
-    private readonly Dictionary<int, AlertRule?> _ruleCache = new();
     private readonly HashSet<int> _loadedEventLogIds = new();
 
     /// <summary>
@@ -1085,21 +1084,23 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             var entries = await _client.Logs.ListAlertLogAsync(_deviceId, 30).ConfigureAwait(true);
             var ruleIds = entries.Select(e => e.RuleId).Distinct().ToList();
 
-            await Task.WhenAll(ruleIds.Select(EnsureRuleCachedAsync)).ConfigureAwait(true);
-
-            // The rule tells us which columns its condition actually tests; the
-            // log entry's own "details" blob has the values - same two-piece
-            // lookup the main Alerts tab uses for its fault view.
+            // The rule tells us its name and which columns its condition
+            // actually tests; the log entry's own "details" blob has the
+            // values - same lookup the main Alerts tab uses for its fault
+            // view, and the same shared cache, so a rule already seen there
+            // (or by another device's history) costs nothing here.
+            var rulesByRule = new Dictionary<int, AlertRule?>();
             var fieldsByRule = new Dictionary<int, IReadOnlySet<string>>();
             foreach (var ruleId in ruleIds)
             {
+                rulesByRule[ruleId] = await _ruleFields.GetRuleAsync(ruleId).ConfigureAwait(true);
                 fieldsByRule[ruleId] = await _ruleFields.GetConditionFieldsAsync(ruleId).ConfigureAwait(true);
             }
 
             AlertHistory.Clear();
             foreach (var entry in entries)
             {
-                _ruleCache.TryGetValue(entry.RuleId, out var rule);
+                rulesByRule.TryGetValue(entry.RuleId, out var rule);
                 fieldsByRule.TryGetValue(entry.RuleId, out var fields);
                 var detail = AlertFaultParser.Parse(entry, fields);
                 AlertHistory.Add(new AlertLogItemViewModel(entry, rule, detail));
@@ -1124,25 +1125,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             _hasLoadedAlertHistory = true;
             OnPropertyChanged(nameof(IsLoadingAlertHistory));
             OnPropertyChanged(nameof(ShowNoAlertHistoryMessage));
-        }
-    }
-
-    private async Task EnsureRuleCachedAsync(int ruleId)
-    {
-        if (_ruleCache.ContainsKey(ruleId))
-        {
-            return;
-        }
-
-        try
-        {
-            _ruleCache[ruleId] = await _client.Rules.GetAsync(ruleId).ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            // The log entry is still shown, just without a friendly rule name.
-            _logger.LogDebug(ex, "Could not read alert rule {RuleId}", ruleId);
-            _ruleCache[ruleId] = null;
         }
     }
 
