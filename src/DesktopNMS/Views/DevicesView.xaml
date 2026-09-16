@@ -178,9 +178,13 @@
                                             ToolTip="Pin this device to the top of the list">
                                         <Grid>
                                             <TextBlock Text="&#xE735;"
+                                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                       FontSize="13"
                                                        Foreground="{DynamicResource AccentBrush}"
                                                        Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibility}}" />
                                             <TextBlock Text="&#xE734;"
+                                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                       FontSize="13"
                                                        Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
                                         </Grid>
                                     </Button>
