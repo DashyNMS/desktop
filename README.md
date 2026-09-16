@@ -223,11 +223,5 @@ buttons still work when the app is sitting in the tray.
 
 ## Roadmap
 
-The obvious next slices, roughly in order of usefulness:
-
-1. Historical graphs (interface traffic, CPU/memory/disk trends, ping
-   response) - the Device View is currently a live snapshot only.
-2. FDB and ARP tables on the Device View.
-3. Scheduling a maintenance window from the app (currently read-only).
-4. Multiple LibreNMS instances in one window.
-5. Alert rule editing.
+See [ROADMAP.md](ROADMAP.md) for the milestone plan from here to a 1.0.0
+release and beyond.
