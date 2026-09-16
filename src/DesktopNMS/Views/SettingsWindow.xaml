@@ -453,95 +453,121 @@
 
                     <!-- ==================== Appearance ==================== -->
                     <StackPanel Visibility="{Binding IsAppearanceSectionSelected, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="Appearance" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,4" />
+                        <TextBlock Text="Appearance" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
-                        <TextBlock Text="Theme" Style="{StaticResource SectionHeaderStyle}" Margin="0,10,0,6" />
-                        <Border Style="{StaticResource NavTabTrackStyle}" HorizontalAlignment="Left">
-                            <StackPanel Orientation="Horizontal">
-                                <ToggleButton Content="Dark" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsDarkTheme}" />
-                                <ToggleButton Content="Light" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsLightTheme}" />
+                        <!-- Three separate cards, each self-contained with its
+                             own heading and explanatory text, rather than
+                             text living outside the card it describes. Server
+                             logo first since it's the simplest control on the
+                             page and was the one most easily missed when it
+                             trailed after the taller colour picker; Theme
+                             next; Accent colour last since its sliders/hex/
+                             preview make it the tallest of the three. -->
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Server logo" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <CheckBox Content="Show the connected server's own logo in the header"
+                                          IsChecked="{Binding ShowServerLogo}" />
                             </StackPanel>
                         </Border>
-                        <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,8,0,0"
-                                   Text="Needs a restart to fully apply - unlike the accent colour below, changing this while DashyNMS is running does not repaint what's already open."
-                                   Visibility="{Binding ThemeChangeRequiresRestart, Converter={StaticResource BoolToVisibility}}" />
 
-                        <!-- Ahead of Accent colour deliberately: that section's
-                             sliders/hex/preview make it the tallest thing on
-                             this page, which pushed this one-line checkbox
-                             below the fold where it was easy to miss
-                             entirely without scrolling. -->
-                        <TextBlock Text="Server logo" Style="{StaticResource SectionHeaderStyle}" Margin="0,20,0,6" />
-                        <CheckBox Content="Show the connected server's own logo in the header"
-                                  IsChecked="{Binding ShowServerLogo}" />
-                        <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,6,0,0"
-                                   Text="Off shows DashyNMS's own icon there instead - handy if a server's branding isn't to your taste, or you'd rather not see a shared/demo instance's mark every time you open the app." />
-
-                        <TextBlock Text="Accent colour" Style="{StaticResource SectionHeaderStyle}" Margin="0,20,0,6" />
-                        <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,0,0,14"
-                                   Text="Used for buttons, selection highlights and links throughout the app. Doesn't affect the fixed Critical/Warning/Ok severity colours used for alerts and sensors." />
-
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Column="0" Margin="0,0,20,0">
-                                <TextBlock Text="Red" Style="{StaticResource SectionHeaderStyle}" />
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Slider Grid.Column="0" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding AccentRed}" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Text="{Binding AccentRed}" Width="36" TextAlignment="Right" VerticalAlignment="Center" Style="{StaticResource SubtleTextStyle}" />
-                                </Grid>
-
-                                <TextBlock Text="Green" Style="{StaticResource SectionHeaderStyle}" />
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Slider Grid.Column="0" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding AccentGreen}" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Text="{Binding AccentGreen}" Width="36" TextAlignment="Right" VerticalAlignment="Center" Style="{StaticResource SubtleTextStyle}" />
-                                </Grid>
-
-                                <TextBlock Text="Blue" Style="{StaticResource SectionHeaderStyle}" />
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Slider Grid.Column="0" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding AccentBlue}" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Text="{Binding AccentBlue}" Width="36" TextAlignment="Right" VerticalAlignment="Center" Style="{StaticResource SubtleTextStyle}" />
-                                </Grid>
-
-                                <TextBlock Text="Hex" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBox Text="{Binding AccentColorHex, UpdateSourceTrigger=PropertyChanged}" MaxLength="7" HorizontalAlignment="Left" Width="100" />
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Theme" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <Border Style="{StaticResource NavTabTrackStyle}" HorizontalAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ToggleButton Content="Dark" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsDarkTheme}" />
+                                        <ToggleButton Content="Light" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsLightTheme}" />
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,8,0,0"
+                                           Text="Needs a restart to fully apply - unlike the accent colour below, changing this while DashyNMS is running does not repaint what's already open."
+                                           Visibility="{Binding ThemeChangeRequiresRestart, Converter={StaticResource BoolToVisibility}}" />
                             </StackPanel>
+                        </Border>
 
-                            <Border Grid.Column="1"
-                                    Width="90"
-                                    Height="90"
-                                    CornerRadius="8"
-                                    Background="{Binding AccentPreviewBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1"
-                                    VerticalAlignment="Top" />
-                        </Grid>
+                        <!-- One aligned table (label / slider / typed value) for
+                             Red, Green, Blue and Hex, rather than each channel
+                             getting its own full-width header-plus-row - reads
+                             as a single compact colour-picker widget instead
+                             of four repeated sections. Sliders capped at
+                             MaxWidth so the table reads as a deliberately-
+                             sized control instead of stretching edge-to-edge
+                             if the window is widened. Each channel's value is
+                             also directly typeable, not just slider-drag. -->
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
+                            <StackPanel>
+                                <TextBlock Text="Accent colour" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,14" />
 
-                        <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,14,0,0"
-                                   Text="Takes effect as soon as you save - no restart needed." />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Only the slider column is flexible - the
+                                         label and value columns stay fixed so
+                                         they're always fully legible, and the
+                                         slider itself has a floor (MinWidth)
+                                         so it never shrinks to something
+                                         unusable. This is what makes the whole
+                                         picker adapt when the window is
+                                         resized instead of clipping at
+                                         whatever width it happened to be
+                                         built at. -->
+                                    <Grid Grid.Column="0" Margin="0,0,20,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="44" />
+                                            <ColumnDefinition Width="*" MinWidth="80" />
+                                            <ColumnDefinition Width="64" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Red" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                                        <Slider Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding AccentRed}" VerticalAlignment="Center" Margin="10,0" />
+                                        <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding AccentRedText, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Right" VerticalAlignment="Center" Padding="4,6" />
+
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Green" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="0,10,0,0" />
+                                        <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding AccentGreen}" VerticalAlignment="Center" Margin="10,10,10,0" />
+                                        <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding AccentGreenText, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Right" VerticalAlignment="Center" Margin="0,10,0,0" Padding="4,6" />
+
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Blue" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="0,10,0,0" />
+                                        <Slider Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding AccentBlue}" VerticalAlignment="Center" Margin="10,10,10,0" />
+                                        <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding AccentBlueText, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Right" VerticalAlignment="Center" Margin="0,10,0,0" Padding="4,6" />
+
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Hex" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="0,14,0,0" />
+                                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding AccentColorHex, UpdateSourceTrigger=PropertyChanged}" MaxLength="7" HorizontalAlignment="Left" Width="100" Margin="10,14,0,0" />
+                                    </Grid>
+
+                                    <Border Grid.Column="1"
+                                            Width="90"
+                                            Height="90"
+                                            CornerRadius="8"
+                                            Background="{Binding AccentPreviewBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1"
+                                            VerticalAlignment="Top" />
+                                </Grid>
+
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,14,0,0"
+                                           Text="Takes effect as soon as you save - no restart needed." />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- ==================== Server ==================== -->

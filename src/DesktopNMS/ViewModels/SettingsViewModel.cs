@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Media;
@@ -290,6 +291,52 @@ public sealed class SettingsViewModel : ObservableObject
         set => SetDraftAccentColor(Color.FromRgb(CurrentAccentColor.R, CurrentAccentColor.G, value));
     }
 
+    /// <summary>
+    /// Typed-entry counterpart to <see cref="AccentRed"/>/<see cref="AccentGreen"/>/
+    /// <see cref="AccentBlue"/> for the text box next to each slider - same
+    /// "leave an unparsable in-progress value alone" behaviour as
+    /// <see cref="AccentColorHex"/>, rather than fighting someone mid-keystroke
+    /// or throwing on an out-of-range number.
+    /// </summary>
+    public string AccentRedText
+    {
+        get => AccentRed.ToString(CultureInfo.InvariantCulture);
+        set
+        {
+            if (TryParseChannel(value, out var channel))
+            {
+                AccentRed = channel;
+            }
+        }
+    }
+
+    public string AccentGreenText
+    {
+        get => AccentGreen.ToString(CultureInfo.InvariantCulture);
+        set
+        {
+            if (TryParseChannel(value, out var channel))
+            {
+                AccentGreen = channel;
+            }
+        }
+    }
+
+    public string AccentBlueText
+    {
+        get => AccentBlue.ToString(CultureInfo.InvariantCulture);
+        set
+        {
+            if (TryParseChannel(value, out var channel))
+            {
+                AccentBlue = channel;
+            }
+        }
+    }
+
+    private static bool TryParseChannel(string? text, out byte value)
+        => byte.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+
     /// <summary>A live swatch for the settings dialog itself - the rest of the app only repaints once Save applies the draft.</summary>
     public Brush AccentPreviewBrush => new SolidColorBrush(CurrentAccentColor);
 
@@ -309,6 +356,9 @@ public sealed class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(AccentRed));
         OnPropertyChanged(nameof(AccentGreen));
         OnPropertyChanged(nameof(AccentBlue));
+        OnPropertyChanged(nameof(AccentRedText));
+        OnPropertyChanged(nameof(AccentGreenText));
+        OnPropertyChanged(nameof(AccentBlueText));
         OnPropertyChanged(nameof(AccentPreviewBrush));
     }
 
