@@ -559,6 +559,51 @@
             </Grid>
         </DataTemplate>
 
+        <!-- ======================== Pinned devices widget body ======================== -->
+        <!-- Same data as the Devices tab's own pinned/starred devices, with its
+             own Unpin button so a device can be un-favourited from here too. -->
+        <DataTemplate DataType="{x:Type vm:PinnedDevicesWidgetViewModel}">
+            <Grid>
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}}">
+                    <ItemsControl ItemsSource="{Binding Devices}" Margin="8">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0"
+                                            Content="{Binding DisplayName}"
+                                            Command="{Binding OpenCommand}"
+                                            HorizontalAlignment="Stretch"
+                                            HorizontalContentAlignment="Left"
+                                            Padding="10,7" />
+                                    <Button Grid.Column="1"
+                                            Command="{Binding UnpinCommand}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Width="30"
+                                            Height="30"
+                                            Margin="4,0,0,0"
+                                            ToolTip="Unpin this device">
+                                        <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <TextBlock Text="No pinned devices yet."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+            </Grid>
+        </DataTemplate>
+
         <!-- ======================== Widget chrome ======================== -->
         <!-- Shared by every widget type: title bar (drag handle + rename box +
              remove button, the last two only while editing), body, and a
@@ -763,6 +808,16 @@
                                     <StackPanel Margin="0,2">
                                         <TextBlock Text="Recently viewed" FontWeight="SemiBold" />
                                         <TextBlock Text="A quick way back into devices you were just looking at"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11" />
+                                    </StackPanel>
+                                </MenuItem.Header>
+                            </MenuItem>
+                            <MenuItem Command="{Binding AddPinnedDevicesWidgetCommand}">
+                                <MenuItem.Header>
+                                    <StackPanel Margin="0,2">
+                                        <TextBlock Text="Pinned devices" FontWeight="SemiBold" />
+                                        <TextBlock Text="Devices you've starred on the Devices tab"
                                                    Style="{StaticResource SubtleTextStyle}"
                                                    FontSize="11" />
                                     </StackPanel>

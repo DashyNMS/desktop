@@ -68,6 +68,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// <summary>The device list from the most recent poll, kept so group membership arriving separately (see <see cref="LoadDeviceGroupsAsync"/>) can rebuild <see cref="GroupFilter"/> without waiting for the next poll.</summary>
     private IReadOnlyList<Device> _lastOrderedDevices = Array.Empty<Device>();
 
+    /// <summary>Device ids currently pinned, kept in step with <see cref="AppSettings.PinnedDevices"/> for cheap per-row lookups in <see cref="ApplyDevices"/>.</summary>
+    private HashSet<int> _pinnedIds = new();
+
     private readonly AutoRefreshTimer _autoRefresh;
     private readonly DispatcherTimer _groupMembershipRefreshTimer;
 
@@ -90,6 +93,15 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         Devices = new ObservableCollection<DeviceItemViewModel>();
         DevicesView = CollectionViewSource.GetDefaultView(Devices);
         DevicesView.Filter = FilterDevice;
+
+        // Pinned devices always float to the top, regardless of whichever
+        // column the user has sorted by - see DevicesView.xaml.cs's Sorting
+        // handler, which re-applies this same IsPinned SortDescription ahead
+        // of the clicked column instead of letting the DataGrid replace it.
+        DevicesView.SortDescriptions.Add(new SortDescription(nameof(DeviceItemViewModel.IsPinned), ListSortDirection.Descending));
+        DevicesView.SortDescriptions.Add(new SortDescription(nameof(DeviceItemViewModel.Name), ListSortDirection.Ascending));
+
+        _pinnedIds = _settings.Current.PinnedDevices.Select(p => p.DeviceId).ToHashSet();
 
         RecentlyViewedDevices = new ObservableCollection<RecentlyViewedDeviceItemViewModel>();
         RebuildRecentlyViewed(_settings.Current.RecentlyViewedDevices);
@@ -381,6 +393,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             {
                 existing.Update(device, nameStyle);
                 existing.IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId);
+                existing.IsPinned = _pinnedIds.Contains(device.DeviceId);
 
                 var currentIndex = Devices.IndexOf(existing);
                 if (currentIndex >= 0 && currentIndex != target && target < Devices.Count)
@@ -390,9 +403,10 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             }
             else
             {
-                var item = new DeviceItemViewModel(device, nameStyle)
+                var item = new DeviceItemViewModel(device, nameStyle, TogglePin)
                 {
                     IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId),
+                    IsPinned = _pinnedIds.Contains(device.DeviceId),
                 };
                 _index[device.DeviceId] = item;
                 Devices.Insert(Math.Min(target, Devices.Count), item);
@@ -504,6 +518,47 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         // Routed through IWindowService (rather than depending on MainViewModel
         // directly) so the two view models do not depend on each other.
         _windows.ShowAlertsForDevice(device.Model.Hostname ?? device.Name);
+    }
+
+    /// <summary>
+    /// Pins or unpins a device (star icon in the grid's leftmost column).
+    /// Only changes sort order via <see cref="_pinnedIds"/> and <see cref="DevicesView"/>'s
+    /// SortDescriptions - a pinned device still disappears under the current
+    /// filters like any other row, it just sorts first among what remains
+    /// visible.
+    /// </summary>
+    private void TogglePin(int deviceId)
+    {
+        var pinned = _settings.Current.PinnedDevices;
+        var existingIndex = pinned.FindIndex(p => p.DeviceId == deviceId);
+
+        if (existingIndex >= 0)
+        {
+            pinned.RemoveAt(existingIndex);
+        }
+        else
+        {
+            var name = _index.TryGetValue(deviceId, out var item) ? item.Name : null;
+            pinned.Insert(0, new PinnedDevice { DeviceId = deviceId, DisplayName = name, PinnedAt = DateTimeOffset.Now });
+        }
+
+        // Raises Changed, picked up by OnSettingsChanged below - the same
+        // reactive path RecordRecentlyViewed relies on for the recently-viewed
+        // strip, so a pin toggled from the Dashboard widget's Unpin button
+        // shows up here live too.
+        _settings.Save();
+    }
+
+    private void RefreshPinnedState(IReadOnlyList<PinnedDevice> pinned)
+    {
+        _pinnedIds = pinned.Select(p => p.DeviceId).ToHashSet();
+
+        foreach (var device in Devices)
+        {
+            device.IsPinned = _pinnedIds.Contains(device.DeviceId);
+        }
+
+        DevicesView.Refresh();
     }
 
     private void ShowFiltersDialog()
@@ -689,6 +744,8 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         // DeviceDetailViewModel.RecordRecentlyViewed), so this is how the
         // strip picks up a new entry live rather than only on the next poll.
         RebuildRecentlyViewed(settings.RecentlyViewedDevices);
+
+        RefreshPinnedState(settings.PinnedDevices);
     }
 
     private void RebuildRecentlyViewed(IReadOnlyList<RecentlyViewedDevice> entries)

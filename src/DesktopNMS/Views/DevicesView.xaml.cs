@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -47,5 +48,37 @@ public partial class DevicesView : UserControl
 
         vm.IsolateState(state);
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Overrides the DataGrid's default column-click sorting so pinned
+    /// devices stay on top no matter which column is sorted: the default
+    /// behaviour would otherwise replace DeviceListViewModel's IsPinned
+    /// SortDescription with just the clicked column's, since a DataGrid
+    /// bound to an ICollectionView normally manages SortDescriptions itself.
+    /// </summary>
+    private void DeviceGrid_Sorting(object sender, DataGridSortingEventArgs e)
+    {
+        if (DataContext is not DeviceListViewModel vm || string.IsNullOrEmpty(e.Column.SortMemberPath))
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        var direction = e.Column.SortDirection == ListSortDirection.Ascending
+            ? ListSortDirection.Descending
+            : ListSortDirection.Ascending;
+
+        vm.DevicesView.SortDescriptions.Clear();
+        vm.DevicesView.SortDescriptions.Add(new SortDescription(nameof(DeviceItemViewModel.IsPinned), ListSortDirection.Descending));
+        vm.DevicesView.SortDescriptions.Add(new SortDescription(e.Column.SortMemberPath, direction));
+
+        foreach (var column in DeviceGrid.Columns)
+        {
+            column.SortDirection = null;
+        }
+
+        e.Column.SortDirection = direction;
     }
 }

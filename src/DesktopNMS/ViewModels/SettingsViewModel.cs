@@ -1281,14 +1281,16 @@ public sealed class SettingsViewModel : ObservableObject
     {
         _startup.SetEnabled(_draft.StartWithWindows);
 
-        // Keep the window placement, filter chips, dashboard layout and
-        // recently-viewed list the running app has, rather than the copies
-        // taken when this dialog opened - a device viewed while Settings was
-        // open would otherwise be silently discarded on save.
+        // Keep the window placement, filter chips, dashboard layout,
+        // recently-viewed list and pinned devices the running app has, rather
+        // than the copies taken when this dialog opened - a device viewed or
+        // pinned while Settings was open would otherwise be silently
+        // discarded on save.
         _draft.Window = _store.Current.Window;
         _draft.Filter = _store.Current.Filter;
         _draft.DashboardWidgets = _store.Current.DashboardWidgets;
         _draft.RecentlyViewedDevices = _store.Current.RecentlyViewedDevices;
+        _draft.PinnedDevices = _store.Current.PinnedDevices;
 
         _store.Replace(_draft);
         RequestClose?.Invoke(this, true);
