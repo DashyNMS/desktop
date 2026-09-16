@@ -96,74 +96,99 @@
                     <StackPanel Visibility="{Binding IsPollingSectionSelected, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="Polling" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
-                        <TextBlock Text="Refresh interval" Style="{StaticResource SectionHeaderStyle}" />
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Slider Grid.Column="0"
-                                    Minimum="15"
-                                    Maximum="600"
-                                    TickFrequency="15"
-                                    IsSnapToTickEnabled="True"
-                                    VerticalAlignment="Center"
-                                    Value="{Binding PollIntervalSeconds}" />
-                            <TextBlock Grid.Column="1"
-                                       Text="{Binding PollIntervalSeconds, StringFormat={}{0} s}"
-                                       Style="{StaticResource SubtleTextStyle}"
-                                       VerticalAlignment="Center"
-                                       MinWidth="52"
-                                       TextAlignment="Right"
-                                       Margin="12,0,0,0" />
-                        </Grid>
-                        <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,6,0,0"
-                                   Text="Also used for the Devices and Health tabs, once each has been opened at least once - both show a countdown to their next refresh." />
+                        <!-- Same card treatment as Appearance: each card is a
+                             self-contained topic with its own heading(s) and
+                             explanatory text, ordered so related settings
+                             (both timing sliders; both data-fetching toggles)
+                             sit together rather than reading as five
+                             unrelated items in one flat list. -->
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Refresh interval" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0"
+                                            Minimum="15"
+                                            Maximum="600"
+                                            TickFrequency="15"
+                                            IsSnapToTickEnabled="True"
+                                            VerticalAlignment="Center"
+                                            Value="{Binding PollIntervalSeconds}" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding PollIntervalSeconds, StringFormat={}{0} s}"
+                                               Style="{StaticResource SubtleTextStyle}"
+                                               VerticalAlignment="Center"
+                                               MinWidth="52"
+                                               TextAlignment="Right"
+                                               Margin="12,0,0,0" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Also used for the Devices and Health tabs, once each has been opened at least once - both show a countdown to their next refresh." />
 
-                        <TextBlock Text="Request timeout" Style="{StaticResource SectionHeaderStyle}" />
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Slider Grid.Column="0"
-                                    Minimum="5"
-                                    Maximum="120"
-                                    TickFrequency="5"
-                                    IsSnapToTickEnabled="True"
-                                    VerticalAlignment="Center"
-                                    Value="{Binding TimeoutSeconds}" />
-                            <TextBlock Grid.Column="1"
-                                       Text="{Binding TimeoutSeconds, StringFormat={}{0} s}"
-                                       Style="{StaticResource SubtleTextStyle}"
-                                       VerticalAlignment="Center"
-                                       MinWidth="52"
-                                       TextAlignment="Right"
-                                       Margin="12,0,0,0" />
-                        </Grid>
+                                <TextBlock Text="Request timeout" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0"
+                                            Minimum="5"
+                                            Maximum="120"
+                                            TickFrequency="5"
+                                            IsSnapToTickEnabled="True"
+                                            VerticalAlignment="Center"
+                                            Value="{Binding TimeoutSeconds}" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding TimeoutSeconds, StringFormat={}{0} s}"
+                                               Style="{StaticResource SubtleTextStyle}"
+                                               VerticalAlignment="Center"
+                                               MinWidth="52"
+                                               TextAlignment="Right"
+                                               Margin="12,0,0,0" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
 
-                        <CheckBox Content="Also fetch recovered alerts"
-                                  IsChecked="{Binding IncludeRecoveredAlerts}"
-                                  Margin="0,14,0,0" />
-                        <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Text="LibreNMS keeps a row for every rule and device that has ever fired, so this can return a lot of history." />
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16">
+                            <StackPanel>
+                                <CheckBox Content="Also fetch recovered alerts"
+                                          IsChecked="{Binding IncludeRecoveredAlerts}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="LibreNMS keeps a row for every rule and device that has ever fired, so this can return a lot of history." />
 
-                        <CheckBox Content="The LibreNMS server stores timestamps in UTC"
-                                  IsChecked="{Binding ServerTimestampsAreUtc}"
-                                  Margin="0,10,0,0" />
-                        <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Text="Leave this off unless alert ages look wrong by a fixed number of hours." />
+                                <CheckBox Content="The LibreNMS server stores timestamps in UTC"
+                                          IsChecked="{Binding ServerTimestampsAreUtc}"
+                                          Margin="0,16,0,0" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Leave this off unless alert ages look wrong by a fixed number of hours." />
+                            </StackPanel>
+                        </Border>
 
-                        <CheckBox Content="Allow an untrusted or self-signed certificate"
-                                  IsChecked="{Binding AllowUntrustedCertificate}"
-                                  Margin="0,10,0,0" />
-                        <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Text="Takes effect the next time you sign in." />
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
+                            <StackPanel>
+                                <CheckBox Content="Allow an untrusted or self-signed certificate"
+                                          IsChecked="{Binding AllowUntrustedCertificate}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Takes effect the next time you sign in." />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- ==================== Alert display ==================== -->
