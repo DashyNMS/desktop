@@ -66,6 +66,18 @@
                                       IsChecked="{Binding IsNotificationsSectionSelected, Mode=OneWay}"
                                       Command="{Binding SelectNotificationsSectionCommand}" />
 
+                        <!-- Its own group, not folded into Alerts & Health or
+                             Window & Appearance, even with only one page in
+                             it today - more Devices-tab settings are already
+                             planned (pinning, column layout, bulk-action
+                             defaults), so this is where they land rather than
+                             needing another reorganisation later. -->
+                        <TextBlock Text="DEVICES" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
+                        <ToggleButton Content="Devices"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsDevicesSectionSelected, Mode=OneWay}"
+                                      Command="{Binding SelectDevicesSectionCommand}" />
+
                         <TextBlock Text="WINDOW &amp; APPEARANCE" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
                         <ToggleButton Content="Window and start-up"
                                       Style="{StaticResource SettingsNavItemStyle}"
@@ -496,6 +508,45 @@
                                           IsChecked="{Binding QuietHoursAllowCritical}"
                                           IsEnabled="{Binding QuietHoursEnabled}"
                                           Margin="0,10,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Devices ==================== -->
+                    <StackPanel Visibility="{Binding IsDevicesSectionSelected, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Devices" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
+
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
+                            <StackPanel>
+                                <TextBlock Text="Recently viewed" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <CheckBox Content="Show recently viewed devices on the Devices tab"
+                                          IsChecked="{Binding ShowRecentlyViewedDevices}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="A quick way back into a device you were just looking at. Also available as its own Dashboard widget regardless of this setting." />
+
+                                <TextBlock Text="How many to remember" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0"
+                                            Minimum="1"
+                                            Maximum="25"
+                                            TickFrequency="1"
+                                            IsSnapToTickEnabled="True"
+                                            VerticalAlignment="Center"
+                                            Value="{Binding RecentlyViewedDeviceCount}" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding RecentlyViewedDeviceCount, StringFormat={}{0} devices}"
+                                               Style="{StaticResource SubtleTextStyle}"
+                                               VerticalAlignment="Center"
+                                               MinWidth="86"
+                                               TextAlignment="Right"
+                                               Margin="12,0,0,0" />
+                                </Grid>
                             </StackPanel>
                         </Border>
                     </StackPanel>

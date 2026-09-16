@@ -528,6 +528,37 @@
             </Grid>
         </DataTemplate>
 
+        <!-- ======================== Recently viewed widget body ======================== -->
+        <!-- Same data as the Devices tab's own recently-viewed strip, just a
+             vertical list here rather than a horizontal row of chips - reads
+             better in a typically-tall-rather-than-wide widget. -->
+        <DataTemplate DataType="{x:Type vm:RecentlyViewedWidgetViewModel}">
+            <Grid>
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}}">
+                    <ItemsControl ItemsSource="{Binding Devices}" Margin="8">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding DisplayName}"
+                                        Command="{Binding OpenCommand}"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Left"
+                                        Padding="10,7"
+                                        Margin="0,0,0,4" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <TextBlock Text="No devices viewed yet."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+            </Grid>
+        </DataTemplate>
+
         <!-- ======================== Widget chrome ======================== -->
         <!-- Shared by every widget type: title bar (drag handle + rename box +
              remove button, the last two only while editing), body, and a
@@ -722,6 +753,16 @@
                                     <StackPanel Margin="0,2">
                                         <TextBlock Text="Device status" FontWeight="SemiBold" />
                                         <TextBlock Text="Up, down, maintenance and disabled counts at a glance"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11" />
+                                    </StackPanel>
+                                </MenuItem.Header>
+                            </MenuItem>
+                            <MenuItem Command="{Binding AddRecentlyViewedWidgetCommand}">
+                                <MenuItem.Header>
+                                    <StackPanel Margin="0,2">
+                                        <TextBlock Text="Recently viewed" FontWeight="SemiBold" />
+                                        <TextBlock Text="A quick way back into devices you were just looking at"
                                                    Style="{StaticResource SubtleTextStyle}"
                                                    FontSize="11" />
                                     </StackPanel>

@@ -20,6 +20,7 @@ public enum SettingsSection
     AlertDisplay,
     HealthThresholds,
     Notifications,
+    Devices,
     Window,
     Appearance,
     Server,
@@ -134,6 +135,7 @@ public sealed class SettingsViewModel : ObservableObject
         SelectAlertDisplaySectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.AlertDisplay);
         SelectHealthThresholdsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.HealthThresholds);
         SelectNotificationsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Notifications);
+        SelectDevicesSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Devices);
         SelectWindowSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Window);
         SelectAppearanceSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Appearance);
         SelectServerSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Server);
@@ -171,6 +173,8 @@ public sealed class SettingsViewModel : ObservableObject
 
     public RelayCommand SelectNotificationsSectionCommand { get; }
 
+    public RelayCommand SelectDevicesSectionCommand { get; }
+
     public RelayCommand SelectWindowSectionCommand { get; }
 
     public RelayCommand SelectAppearanceSectionCommand { get; }
@@ -190,6 +194,7 @@ public sealed class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsAlertDisplaySectionSelected));
                 OnPropertyChanged(nameof(IsHealthThresholdsSectionSelected));
                 OnPropertyChanged(nameof(IsNotificationsSectionSelected));
+                OnPropertyChanged(nameof(IsDevicesSectionSelected));
                 OnPropertyChanged(nameof(IsWindowSectionSelected));
                 OnPropertyChanged(nameof(IsAppearanceSectionSelected));
                 OnPropertyChanged(nameof(IsServerSectionSelected));
@@ -205,6 +210,8 @@ public sealed class SettingsViewModel : ObservableObject
     public bool IsHealthThresholdsSectionSelected => SelectedSection == SettingsSection.HealthThresholds;
 
     public bool IsNotificationsSectionSelected => SelectedSection == SettingsSection.Notifications;
+
+    public bool IsDevicesSectionSelected => SelectedSection == SettingsSection.Devices;
 
     public bool IsWindowSectionSelected => SelectedSection == SettingsSection.Window;
 
@@ -910,6 +917,38 @@ public sealed class SettingsViewModel : ObservableObject
         OnPropertyChanged(propertyName);
     }
 
+    // -------------------------------------------------------------- devices
+
+    public bool ShowRecentlyViewedDevices
+    {
+        get => _draft.ShowRecentlyViewedDevices;
+        set
+        {
+            if (_draft.ShowRecentlyViewedDevices == value)
+            {
+                return;
+            }
+
+            _draft.ShowRecentlyViewedDevices = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int RecentlyViewedDeviceCount
+    {
+        get => _draft.RecentlyViewedDeviceCount;
+        set
+        {
+            if (_draft.RecentlyViewedDeviceCount == value)
+            {
+                return;
+            }
+
+            _draft.RecentlyViewedDeviceCount = value;
+            OnPropertyChanged();
+        }
+    }
+
     // --------------------------------------------------------------- window
 
     public bool MinimiseToTrayOnClose
@@ -1242,11 +1281,14 @@ public sealed class SettingsViewModel : ObservableObject
     {
         _startup.SetEnabled(_draft.StartWithWindows);
 
-        // Keep the window placement, filter chips and dashboard layout the
-        // running app has, rather than the copies taken when this dialog opened.
+        // Keep the window placement, filter chips, dashboard layout and
+        // recently-viewed list the running app has, rather than the copies
+        // taken when this dialog opened - a device viewed while Settings was
+        // open would otherwise be silently discarded on save.
         _draft.Window = _store.Current.Window;
         _draft.Filter = _store.Current.Filter;
         _draft.DashboardWidgets = _store.Current.DashboardWidgets;
+        _draft.RecentlyViewedDevices = _store.Current.RecentlyViewedDevices;
 
         _store.Replace(_draft);
         RequestClose?.Invoke(this, true);
