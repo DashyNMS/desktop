@@ -468,6 +468,19 @@
                                    Text="Needs a restart to fully apply - unlike the accent colour below, changing this while DashyNMS is running does not repaint what's already open."
                                    Visibility="{Binding ThemeChangeRequiresRestart, Converter={StaticResource BoolToVisibility}}" />
 
+                        <!-- Ahead of Accent colour deliberately: that section's
+                             sliders/hex/preview make it the tallest thing on
+                             this page, which pushed this one-line checkbox
+                             below the fold where it was easy to miss
+                             entirely without scrolling. -->
+                        <TextBlock Text="Server logo" Style="{StaticResource SectionHeaderStyle}" Margin="0,20,0,6" />
+                        <CheckBox Content="Show the connected server's own logo in the header"
+                                  IsChecked="{Binding ShowServerLogo}" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Text="Off shows DashyNMS's own icon there instead - handy if a server's branding isn't to your taste, or you'd rather not see a shared/demo instance's mark every time you open the app." />
+
                         <TextBlock Text="Accent colour" Style="{StaticResource SectionHeaderStyle}" Margin="0,20,0,6" />
                         <TextBlock Style="{StaticResource SubtleTextStyle}"
                                    TextWrapping="Wrap"
@@ -529,14 +542,6 @@
                                    TextWrapping="Wrap"
                                    Margin="0,14,0,0"
                                    Text="Takes effect as soon as you save - no restart needed." />
-
-                        <TextBlock Text="Server logo" Style="{StaticResource SectionHeaderStyle}" Margin="0,20,0,6" />
-                        <CheckBox Content="Show the connected server's own logo in the header"
-                                  IsChecked="{Binding ShowServerLogo}" />
-                        <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,6,0,0"
-                                   Text="Off shows DashyNMS's own icon there instead - handy if a server's branding isn't to your taste, or you'd rather not see a shared/demo instance's mark every time you open the app." />
                     </StackPanel>
 
                     <!-- ==================== Server ==================== -->
