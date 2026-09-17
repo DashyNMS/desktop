@@ -116,6 +116,13 @@
             </StackPanel>
         </Grid>
 
+        <TextBlock Text="Poller group (optional)" Style="{StaticResource SectionHeaderStyle}" Margin="0,10,0,6" />
+        <TextBox Text="{Binding PollerGroup, UpdateSourceTrigger=PropertyChanged}" />
+        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                   TextWrapping="Wrap"
+                   Margin="0,4,0,0"
+                   Text="For a distributed-poller setup - leave blank for the default (0, the main poller). A device left on the wrong poller group never gets polled by whichever poller is actually watching for it." />
+
         <CheckBox Content="Skip duplicate/reachability checks (force add)"
                   IsChecked="{Binding ForceAdd}"
                   Margin="0,16,0,0" />

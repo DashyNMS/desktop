@@ -65,6 +65,11 @@ public sealed class AddDeviceRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Transport { get; init; }
 
+    /// <summary>Which poller in a distributed-poller setup should own this device. Defaults to 0 (the main poller) when omitted.</summary>
+    [JsonPropertyName("poller_group")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PollerGroup { get; init; }
+
     /// <summary>Skips the duplicate-device and SNMP-reachability checks - needed to add a device that cannot answer SNMP right now but should still be added.</summary>
     [JsonPropertyName("force_add")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

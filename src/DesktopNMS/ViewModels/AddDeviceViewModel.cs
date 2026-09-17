@@ -32,6 +32,7 @@ public sealed class AddDeviceViewModel : ObservableObject
     private string _cryptoAlgo = "AES";
     private string _port = string.Empty;
     private string _transport = string.Empty;
+    private string _pollerGroup = string.Empty;
     private bool _forceAdd;
     private bool _pingFallback = true;
     private bool _isBusy;
@@ -172,6 +173,20 @@ public sealed class AddDeviceViewModel : ObservableObject
         set => SetProperty(ref _transport, value);
     }
 
+    /// <summary>
+    /// Which poller in a distributed-poller setup should own this device -
+    /// blank leaves it to LibreNMS's own default (group 0, the main poller).
+    /// Easy to miss but not optional in practice for any instance that
+    /// actually runs more than one poller: a device added to the wrong group
+    /// (or left on the default when it should not be) never gets polled by
+    /// the poller that's actually watching for it.
+    /// </summary>
+    public string PollerGroup
+    {
+        get => _pollerGroup;
+        set => SetProperty(ref _pollerGroup, value);
+    }
+
     /// <summary>Skips duplicate/reachability checks - for a device that cannot answer SNMP right now but should still be added.</summary>
     public bool ForceAdd
     {
@@ -239,6 +254,7 @@ public sealed class AddDeviceViewModel : ObservableObject
     {
         var port = int.TryParse(Port, out var parsedPort) && parsedPort > 0 ? parsedPort : (int?)null;
         var transport = string.IsNullOrWhiteSpace(Transport) ? null : Transport.Trim();
+        var pollerGroup = int.TryParse(PollerGroup, out var parsedPollerGroup) && parsedPollerGroup >= 0 ? parsedPollerGroup : (int?)null;
         var forceAdd = ForceAdd ? true : (bool?)null;
         var pingFallback = PingFallback ? true : (bool?)null;
 
@@ -250,6 +266,7 @@ public sealed class AddDeviceViewModel : ObservableObject
                 SnmpDisabled = true,
                 Port = port,
                 Transport = transport,
+                PollerGroup = pollerGroup,
                 ForceAdd = forceAdd,
                 PingFallback = pingFallback,
             };
@@ -269,6 +286,7 @@ public sealed class AddDeviceViewModel : ObservableObject
                 CryptoAlgo = CryptoAlgo,
                 Port = port,
                 Transport = transport,
+                PollerGroup = pollerGroup,
                 ForceAdd = forceAdd,
                 PingFallback = pingFallback,
             };
@@ -281,6 +299,7 @@ public sealed class AddDeviceViewModel : ObservableObject
             Community = string.IsNullOrWhiteSpace(Community) ? null : Community.Trim(),
             Port = port,
             Transport = transport,
+            PollerGroup = pollerGroup,
             ForceAdd = forceAdd,
             PingFallback = pingFallback,
         };
