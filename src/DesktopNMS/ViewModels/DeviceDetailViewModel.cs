@@ -203,17 +203,17 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SensorGroups = new ObservableCollection<SensorGroupViewModel>();
         AlertHistory = new ObservableCollection<AlertLogItemViewModel>();
         ActiveAlerts = new ObservableCollection<ActiveAlertItemViewModel>();
-        Ports = new ObservableCollection<PortItemViewModel>();
+        Ports = new BatchObservableCollection<PortItemViewModel>();
         Processors = new ObservableCollection<ProcessorItemViewModel>();
         Mempools = new ObservableCollection<MempoolItemViewModel>();
         Storage = new ObservableCollection<StorageItemViewModel>();
         Outages = new ObservableCollection<OutageItemViewModel>();
         AvailabilityTimeline = new ObservableCollection<OutageDayViewModel>();
         DeviceGroups = new ObservableCollection<DeviceGroupItemViewModel>();
-        VlanEntries = new ObservableCollection<VlanItemViewModel>();
-        FdbEntries = new ObservableCollection<FdbItemViewModel>();
-        ArpEntries = new ObservableCollection<ArpItemViewModel>();
-        EventLog = new ObservableCollection<EventLogItemViewModel>();
+        VlanEntries = new BatchObservableCollection<VlanItemViewModel>();
+        FdbEntries = new BatchObservableCollection<FdbItemViewModel>();
+        ArpEntries = new BatchObservableCollection<ArpItemViewModel>();
+        EventLog = new BatchObservableCollection<EventLogItemViewModel>();
         PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
 
         PortsView = CollectionViewSource.GetDefaultView(Ports);
@@ -356,12 +356,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<ActiveAlertItemViewModel> ActiveAlerts { get; }
 
-    public ObservableCollection<PortItemViewModel> Ports { get; }
+    public BatchObservableCollection<PortItemViewModel> Ports { get; }
 
     /// <summary>Ports, filtered by <see cref="PortSearchText"/>. What the Ports tab actually binds to.</summary>
     public ICollectionView PortsView { get; }
 
-    public ObservableCollection<VlanItemViewModel> VlanEntries { get; }
+    public BatchObservableCollection<VlanItemViewModel> VlanEntries { get; }
 
     /// <summary>The VLANs, filtered by <see cref="VlanSearchText"/>. What the VLANs tab actually binds to.</summary>
     public ICollectionView VlansView { get; }
@@ -392,17 +392,17 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// <summary>Whether the Overview's Device Groups card has anything to show at all - it should not appear for a device in no groups.</summary>
     public bool HasDeviceGroups => DeviceGroups.Count > 0;
 
-    public ObservableCollection<FdbItemViewModel> FdbEntries { get; }
+    public BatchObservableCollection<FdbItemViewModel> FdbEntries { get; }
 
     /// <summary>The FDB, filtered by <see cref="FdbSearchText"/>. What the FDB tab actually binds to.</summary>
     public ICollectionView FdbView { get; }
 
-    public ObservableCollection<ArpItemViewModel> ArpEntries { get; }
+    public BatchObservableCollection<ArpItemViewModel> ArpEntries { get; }
 
     /// <summary>The ARP table, filtered by <see cref="ArpSearchText"/>. What the ARP tab actually binds to.</summary>
     public ICollectionView ArpView { get; }
 
-    public ObservableCollection<EventLogItemViewModel> EventLog { get; }
+    public BatchObservableCollection<EventLogItemViewModel> EventLog { get; }
 
     /// <summary>The event log, filtered by <see cref="EventLogSearchText"/>. What the Event log tab actually binds to.</summary>
     public ICollectionView EventLogView { get; }
@@ -1675,15 +1675,17 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 .GroupBy(a => a.PortId)
                 .ToDictionary(g => g.Key, g => (IReadOnlyList<DeviceIpAddress>)g.ToList());
 
-            Ports.Clear();
             _portNamesByPortId.Clear();
+            var portItems = new List<PortItemViewModel>();
             foreach (var port in ports.OrderBy(p => p.IfIndex ?? int.MaxValue))
             {
                 linksByPort.TryGetValue(port.PortId, out var link);
                 addressesByPort.TryGetValue(port.PortId, out var addresses);
-                Ports.Add(new PortItemViewModel(port, link, addresses ?? Array.Empty<DeviceIpAddress>(), _windows));
+                portItems.Add(new PortItemViewModel(port, link, addresses ?? Array.Empty<DeviceIpAddress>(), _windows));
                 _portNamesByPortId[port.PortId] = port.DisplayName;
             }
+
+            Ports.ReplaceAll(portItems);
 
             // FDB/ARP may well have already loaded (this call fetches
             // neighbours and IP addresses too, so it is not reliably the
@@ -1807,11 +1809,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 _vlansById[vlan.VlanId] = vlan;
             }
 
-            VlanEntries.Clear();
-            foreach (var vlan in mine)
-            {
-                VlanEntries.Add(new VlanItemViewModel(vlan, Ports));
-            }
+            VlanEntries.ReplaceAll(mine.Select(vlan => new VlanItemViewModel(vlan, Ports)));
 
             // FDB rows built before this finished resolved against whatever
             // was in _vlansById at the time (likely nothing) - tell them to
@@ -1856,11 +1854,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             var entries = await _client.Fdb.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
 
-            FdbEntries.Clear();
-            foreach (var entry in entries.OrderBy(e => e.MacAddress, StringComparer.OrdinalIgnoreCase))
-            {
-                FdbEntries.Add(new FdbItemViewModel(entry, _portNamesByPortId, _vlansById));
-            }
+            FdbEntries.ReplaceAll(entries
+                .OrderBy(e => e.MacAddress, StringComparer.OrdinalIgnoreCase)
+                .Select(entry => new FdbItemViewModel(entry, _portNamesByPortId, _vlansById)));
 
             OnPropertyChanged(nameof(HasFdbEntries));
             OnPropertyChanged(nameof(HasVisibleFdbEntries));
@@ -1892,11 +1888,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             var entries = await _client.Arp.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
 
-            ArpEntries.Clear();
-            foreach (var entry in entries.OrderBy(e => e.Ipv4Address, StringComparer.OrdinalIgnoreCase))
-            {
-                ArpEntries.Add(new ArpItemViewModel(entry, _portNamesByPortId));
-            }
+            ArpEntries.ReplaceAll(entries
+                .OrderBy(e => e.Ipv4Address, StringComparer.OrdinalIgnoreCase)
+                .Select(entry => new ArpItemViewModel(entry, _portNamesByPortId)));
 
             OnPropertyChanged(nameof(HasArpEntries));
             OnPropertyChanged(nameof(HasVisibleArpEntries));
@@ -2139,14 +2133,15 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             var entries = await _client.Logs.ListEventLogAsync(_deviceId, _eventLogLimit).ConfigureAwait(true);
 
-            EventLog.Clear();
             _loadedEventLogIds.Clear();
-
+            var eventLogItems = new List<EventLogItemViewModel>();
             foreach (var entry in entries)
             {
-                EventLog.Add(new EventLogItemViewModel(entry));
+                eventLogItems.Add(new EventLogItemViewModel(entry));
                 _loadedEventLogIds.Add(entry.Id);
             }
+
+            EventLog.ReplaceAll(eventLogItems);
 
             HasMoreEventLog = entries.Count >= _eventLogLimit;
 
