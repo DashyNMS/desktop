@@ -189,7 +189,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         ShowAlertsCommand = new RelayCommand(() => _windows.ShowAlertsForDevice(_device?.Hostname ?? Name));
         ShowDevicesForLocationCommand = new RelayCommand(ShowDevicesForLocation, () => HasLocation);
 
-        OpenWebCommand = new RelayCommand(() => OpenExternal("http"), () => CanOpenExternally);
+        OpenWebHttpCommand = new RelayCommand(() => OpenExternal("http"), () => CanOpenExternally);
+        OpenWebHttpsCommand = new RelayCommand(() => OpenExternal("https"), () => CanOpenExternally);
         OpenTelnetCommand = new RelayCommand(() => OpenExternal("telnet"), () => CanOpenExternally);
         OpenSshCommand = new RelayCommand(() => OpenExternal("ssh"), () => CanOpenExternally);
 
@@ -341,7 +342,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public RelayCommand ShowDevicesForLocationCommand { get; }
 
     /// <summary>"Open in" header buttons - see <see cref="OpenExternal"/> for how the target address is picked.</summary>
-    public RelayCommand OpenWebCommand { get; }
+    public RelayCommand OpenWebHttpCommand { get; }
+
+    public RelayCommand OpenWebHttpsCommand { get; }
 
     public RelayCommand OpenTelnetCommand { get; }
 
@@ -1852,7 +1855,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         ShowDevicesForLocationCommand.RaiseCanExecuteChanged();
 
         OnPropertyChanged(nameof(CanOpenExternally));
-        OpenWebCommand.RaiseCanExecuteChanged();
+        OpenWebHttpCommand.RaiseCanExecuteChanged();
+        OpenWebHttpsCommand.RaiseCanExecuteChanged();
         OpenTelnetCommand.RaiseCanExecuteChanged();
         OpenSshCommand.RaiseCanExecuteChanged();
     }
