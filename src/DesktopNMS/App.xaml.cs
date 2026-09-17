@@ -224,10 +224,12 @@ public partial class App : Application
         services.AddSingleton<HealthViewModel>();
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<GroupsViewModel>();
+        services.AddSingleton<LocationsViewModel>();
         services.AddTransient<ConnectionViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AddDeviceViewModel>();
         services.AddTransient<DeviceGroupEditorViewModel>();
+        services.AddTransient<LocationEditorViewModel>();
 
         return services.BuildServiceProvider();
     }

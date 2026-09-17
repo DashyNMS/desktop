@@ -1,0 +1,76 @@
+<Window x:Class="DesktopNMS.Views.LocationEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:LocationEditorViewModel}"
+        Title="{Binding Title}"
+        Width="380"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Background="{StaticResource BackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+
+    <StackPanel Margin="24">
+
+        <TextBlock Text="{Binding Title}" Style="{StaticResource HeadingTextStyle}" />
+
+        <TextBlock Text="Name" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
+        <TextBox x:Name="NameBox"
+                 Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                 IsEnabled="{Binding IsNameEditable}" />
+        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                   TextWrapping="Wrap"
+                   Margin="0,4,0,0"
+                   Text="LibreNMS does not support renaming a location once created."
+                   Visibility="{Binding IsNameEditable, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+
+        <Grid Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Latitude" Style="{StaticResource SectionHeaderStyle}" />
+                <TextBox Text="{Binding Latitude, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Longitude" Style="{StaticResource SectionHeaderStyle}" />
+                <TextBox Text="{Binding Longitude, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+        </Grid>
+
+        <CheckBox Content="Keep coordinates fixed"
+                  IsChecked="{Binding FixedCoordinates}"
+                  ToolTip="Off lets a device's own reported coordinates overwrite these"
+                  Margin="0,16,0,0" />
+
+        <Border Background="#33DA3633"
+                BorderBrush="{StaticResource CriticalBrush}"
+                BorderThickness="1"
+                CornerRadius="5"
+                Padding="12,10"
+                Margin="0,14,0,0"
+                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <TextBlock Text="Saving..."
+                       Style="{StaticResource SubtleTextStyle}"
+                       VerticalAlignment="Center"
+                       Margin="0,0,12,0"
+                       Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+            <Button Content="Cancel" IsCancel="True" Margin="0,0,8,0" />
+            <Button Content="Save"
+                    Command="{Binding SaveCommand}"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    IsDefault="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>

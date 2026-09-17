@@ -16,6 +16,38 @@
         Background="{StaticResource BackgroundBrush}"
         WindowStartupLocation="CenterScreen">
 
+    <Window.Resources>
+        <!-- A plain, full-width menu-item look for the Devices hover flyout
+             (see #118) - scoped here rather than promoted to Dark.xaml since
+             nothing else uses it yet. -->
+        <Style x:Key="FlyoutMenuItemStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
     <Window.InputBindings>
         <KeyBinding Key="F5" Command="{Binding RefreshCurrentTabCommand}" />
         <KeyBinding Key="A" Modifiers="Control" Command="{Binding AcknowledgeCommand}" />
@@ -81,14 +113,62 @@
                                       Style="{StaticResource NavTabButtonStyle}"
                                       IsChecked="{Binding IsDashboardTabSelected, Mode=OneWay}"
                                       Command="{Binding SelectDashboardTabCommand}" />
-                        <ToggleButton Content="Devices"
-                                      Style="{StaticResource NavTabButtonStyle}"
-                                      IsChecked="{Binding IsDevicesTabSelected, Mode=OneWay}"
-                                      Command="{Binding SelectDevicesTabCommand}" />
-                        <ToggleButton Content="Groups"
-                                      Style="{StaticResource NavTabButtonStyle}"
-                                      IsChecked="{Binding IsGroupsTabSelected, Mode=OneWay}"
-                                      Command="{Binding SelectGroupsTabCommand}" />
+                        <!-- Devices' own click still goes straight to the
+                             Devices tab; hovering reveals Groups/Locations as
+                             a flyout below it, since both are facets of
+                             device/inventory management rather than peers of
+                             Devices/Health/Alerts (see #118). The flyout's
+                             open/close is debounced in code-behind
+                             (DevicesTabButton_MouseEnter/Leave,
+                             DevicesFlyoutContent_MouseEnter/Leave) so
+                             crossing the small gap between the button and
+                             the popup below it does not flicker it shut. -->
+                        <Grid>
+                            <ToggleButton x:Name="DevicesTabButton"
+                                          Style="{StaticResource NavTabButtonStyle}"
+                                          IsChecked="{Binding IsDevicesFamilyTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectDevicesTabCommand}"
+                                          MouseEnter="DevicesTabButton_MouseEnter"
+                                          MouseLeave="DevicesTabButton_MouseLeave">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Devices" />
+                                    <TextBlock Text="&#xE70D;"
+                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                               FontSize="9"
+                                               Margin="5,0,0,0"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ToggleButton>
+
+                            <Popup x:Name="DevicesFlyout"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   StaysOpen="True">
+                                <Border x:Name="DevicesFlyoutContent"
+                                        Background="{StaticResource SurfaceBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="4"
+                                        Margin="0,4,0,0"
+                                        MouseEnter="DevicesFlyoutContent_MouseEnter"
+                                        MouseLeave="DevicesFlyoutContent_MouseLeave">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
+                                    </Border.Effect>
+                                    <StackPanel MinWidth="120">
+                                        <Button Content="Groups"
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding SelectGroupsTabCommand}"
+                                                Click="DevicesFlyoutItem_Click" />
+                                        <Button Content="Locations"
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding SelectLocationsTabCommand}"
+                                                Click="DevicesFlyoutItem_Click" />
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
                         <ToggleButton Content="Health"
                                       Style="{StaticResource NavTabButtonStyle}"
                                       IsChecked="{Binding IsHealthTabSelected, Mode=OneWay}"
@@ -151,6 +231,10 @@
 
             <Grid Visibility="{Binding IsGroupsTabSelected, Converter={StaticResource BoolToVisibility}}">
                 <views:GroupsView x:Name="GroupsViewControl" DataContext="{Binding Groups}" />
+            </Grid>
+
+            <Grid Visibility="{Binding IsLocationsTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:LocationsView x:Name="LocationsViewControl" DataContext="{Binding Locations}" />
             </Grid>
         </Grid>
     </Grid>

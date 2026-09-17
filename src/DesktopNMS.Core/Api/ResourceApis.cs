@@ -469,6 +469,65 @@ internal sealed class DeviceGroupWriteRequest
     public int[] Devices { get; set; } = Array.Empty<int>();
 }
 
+/// <summary>Implementation of <see cref="ILocationsApi"/>.</summary>
+internal sealed class LocationsApi : ILocationsApi
+{
+    private readonly ILibreNmsTransport _transport;
+
+    public LocationsApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<Location>> ListAsync(CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<Location>("resources/locations", "locations", cancellationToken);
+
+    public async Task CreateAsync(string name, double lat, double lng, bool fixedCoordinates, CancellationToken cancellationToken = default)
+    {
+        var request = new LocationWriteRequest
+        {
+            Name = name,
+            Latitude = lat,
+            Longitude = lng,
+            FixedCoordinates = fixedCoordinates ? 1 : 0,
+        };
+
+        using var _ = await _transport.SendAsync(HttpMethod.Post, "locations/", body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task UpdateAsync(int id, double lat, double lng, bool fixedCoordinates, CancellationToken cancellationToken = default)
+    {
+        var url = "locations/" + id.ToString(CultureInfo.InvariantCulture);
+        var request = new LocationWriteRequest
+        {
+            Latitude = lat,
+            Longitude = lng,
+            FixedCoordinates = fixedCoordinates ? 1 : 0,
+        };
+
+        using var _ = await _transport.SendAsync(HttpMethod.Patch, url, body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var url = "locations/" + id.ToString(CultureInfo.InvariantCulture);
+        using var _ = await _transport.SendAsync(HttpMethod.Delete, url, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+}
+
+/// <summary>Body for creating/updating a location. Name is omitted (left null) on an update - LibreNMS's own edit_location endpoint does not document a rename parameter.</summary>
+internal sealed class LocationWriteRequest
+{
+    [System.Text.Json.Serialization.JsonPropertyName("location")]
+    public string? Name { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("lat")]
+    public double Latitude { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("lng")]
+    public double Longitude { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("fixed_coordinates")]
+    public int FixedCoordinates { get; set; }
+}
+
 /// <summary>Implementation of <see cref="IPollerGroupsApi"/>.</summary>
 internal sealed class PollerGroupsApi : IPollerGroupsApi
 {
