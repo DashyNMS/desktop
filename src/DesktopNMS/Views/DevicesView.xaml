@@ -109,8 +109,7 @@
 
                         <Button Content="Add device"
                                 Command="{Binding AddDeviceCommand}"
-                                Style="{StaticResource PrimaryButtonStyle}"
-                                Padding="12,7" />
+                                Style="{StaticResource ChipButtonStyle}" />
                     </StackPanel>
                 </Grid>
 

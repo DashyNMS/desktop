@@ -132,7 +132,16 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         ShowAlertsCommand = new RelayCommand(ShowAlertsForSelected, () => SelectedDevice is not null);
         ClearFiltersCommand = new RelayCommand(ClearFilters);
         ShowFiltersCommand = new RelayCommand(ShowFiltersDialog);
-        AddDeviceCommand = new RelayCommand(AddDevice, () => _session.IsConnected);
+        // No CanExecute gate on _session.IsConnected: RelayCommand only
+        // re-evaluates when RaiseCanExecuteChanged() is explicitly called
+        // (unlike WPF's own RoutedCommand, there is no automatic requery), and
+        // nothing here would ever call it once the session connects after
+        // this view model is constructed - unlike RefreshCommand below, which
+        // only happens to stay in sync because IsBusy's own setter already
+        // raises it for an unrelated reason. Same as Filters/Clear beside it,
+        // AddDevice has nothing to gate: a failed add while disconnected
+        // surfaces as an inline error in the dialog itself.
+        AddDeviceCommand = new RelayCommand(AddDevice);
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
