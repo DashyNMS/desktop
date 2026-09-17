@@ -533,9 +533,17 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="5">
+                        <!-- TemplateBinding VerticalContentAlignment, not a
+                             hardcoded Center - a multi-line TextBox (Notes,
+                             AcceptsReturn+fixed Height) setting
+                             VerticalContentAlignment="Top" had no effect
+                             while this was hardcoded, the same "instance
+                             property ignored because the template never
+                             forwards it" bug as ComboBox's DisplayMemberPath
+                             and SelectionBoxItem earlier this cycle. -->
                         <ScrollViewer x:Name="PART_ContentHost"
                                       Margin="{TemplateBinding Padding}"
-                                      VerticalAlignment="Center" />
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
