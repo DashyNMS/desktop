@@ -166,6 +166,12 @@ internal sealed class DevicesApi : IDevicesApi
         // non-success HTTP status.
         using var _ = await _transport.SendAsync(HttpMethod.Patch, url, body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
+
+    public async Task RenameAsync(int deviceId, string newHostname, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/rename/" + Uri.EscapeDataString(newHostname);
+        using var _ = await _transport.SendAsync(HttpMethod.Patch, url, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
 }
 
 internal sealed class UpdateDeviceFieldsRequest

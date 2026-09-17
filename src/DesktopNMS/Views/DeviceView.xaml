@@ -1395,10 +1395,16 @@
             </Grid>
 
             <!-- ==================== Edit ==================== -->
-            <StackPanel Margin="24"
-                        MaxWidth="700"
-                        HorizontalAlignment="Left"
-                        Visibility="{Binding IsEditSelected, Converter={StaticResource BoolToVisibility}}">
+            <!-- Full-width rather than pinned to a narrow left-aligned
+                 column - a card with three or four short fields looked lost
+                 in a sea of empty space on anything wider than a laptop
+                 screen. Each card still caps its own internal field rows via
+                 2-3 star-width columns so a very wide window doesn't stretch
+                 a single TextBox absurdly, but the cards themselves now use
+                 the space the window actually offers. -->
+            <ScrollViewer Visibility="{Binding IsEditSelected, Converter={StaticResource BoolToVisibility}}"
+                          VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24">
                 <TextBlock Text="Edit device" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
                 <Border Background="{StaticResource SurfaceAltBrush}"
@@ -1415,44 +1421,245 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="16" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Location" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBox Text="{Binding EditLocation, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Text="Hostname" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding EditHostname, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="The address LibreNMS actually polls - changing this renames the device rather than just relabelling it." />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Display name" Style="{StaticResource SectionHeaderStyle}" />
                                 <TextBox Text="{Binding EditDisplayName, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="Type" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding EditType, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
                         </Grid>
-                        <CheckBox Content="Override sysLocation with the Location above"
-                                  IsChecked="{Binding EditOverrideSysLocation}"
-                                  Margin="0,10,0,0" />
 
-                        <Grid Margin="0,14,0,0">
+                        <TextBlock Text="Purpose" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,0" />
+                        <TextBox Text="{Binding EditPurpose, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Background="{StaticResource SurfaceAltBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="14,12"
+                        Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Location &amp; contact" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+
+                        <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="24" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Purpose" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBox Text="{Binding EditPurpose, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Text="Location" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding EditLocation, UpdateSourceTrigger=PropertyChanged}" />
+                                <CheckBox Content="Override sysLocation"
+                                          IsChecked="{Binding EditOverrideSysLocation}"
+                                          Margin="0,8,0,0" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
+                                <TextBlock Text="Contact" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBox Text="{Binding EditContact, UpdateSourceTrigger=PropertyChanged}" />
+                                <CheckBox Content="Override sysContact"
+                                          IsChecked="{Binding EditOverrideSysContact}"
+                                          Margin="0,8,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="{StaticResource SurfaceAltBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="14,12"
+                        Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Poller &amp; status" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="24" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
                                 <TextBlock Text="Poller group" Style="{StaticResource SectionHeaderStyle}" />
                                 <ComboBox ItemsSource="{Binding PollerGroups}"
                                           SelectedItem="{Binding SelectedPollerGroup}"
                                           DisplayMemberPath="GroupName" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="For a distributed-poller setup." />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Status" Style="{StaticResource SectionHeaderStyle}" />
+                                <CheckBox Content="Disabled (stops polling and alerting)" IsChecked="{Binding EditDisabled}" Margin="0,4,0,0" />
+                                <CheckBox Content="Ignore (keeps polling, suppresses alerts)" IsChecked="{Binding EditIgnore}" Margin="0,8,0,0" />
+                                <CheckBox Content="Ignore status (excludes from availability figures)" IsChecked="{Binding EditIgnoreStatus}" Margin="0,8,0,0" />
                             </StackPanel>
                         </Grid>
+                    </StackPanel>
+                </Border>
 
-                        <TextBlock Text="Notes" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,0" />
+                <Border Background="{StaticResource SurfaceAltBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="14,12"
+                        Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Notes" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
                         <TextBox Text="{Binding EditNotes, UpdateSourceTrigger=PropertyChanged}"
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
-                                 Height="80"
+                                 Height="90"
                                  VerticalScrollBarVisibility="Auto" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ==================== SNMP ==================== -->
+                <Border Background="{StaticResource SurfaceAltBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="14,12"
+                        Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="SNMP" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+
+                        <!-- LibreNMS's read API never returns stored SNMP
+                             credentials, so this can only set new ones, not
+                             show current ones - unchecked by default every
+                             time Edit opens, so saving the rest of this form
+                             can never accidentally touch SNMP at all. -->
+                        <CheckBox Content="Change SNMP settings" IsChecked="{Binding EditChangeSnmp}" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Text="LibreNMS does not return stored credentials, so this only sets new ones - leave unchecked to leave SNMP untouched."
+                                   Visibility="{Binding ShowSnmpEditFields, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+
+                        <StackPanel Visibility="{Binding ShowSnmpEditFields, Converter={StaticResource BoolToVisibility}}" Margin="0,14,0,0">
+                            <Border Style="{StaticResource NavTabTrackStyle}" HorizontalAlignment="Left">
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleButton Content="Yes" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding EditIsSnmpEnabled}" />
+                                    <ToggleButton Content="No (ping only)" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding EditIsPingOnly}" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ==================== SNMP enabled ==================== -->
+                            <StackPanel Visibility="{Binding ShowEditSnmpFields, Converter={StaticResource BoolToVisibility}}">
+                                <Border Style="{StaticResource NavTabTrackStyle}" HorizontalAlignment="Left" Margin="0,14,0,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ToggleButton Content="v2c" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding EditIsSnmpV2c}" />
+                                        <ToggleButton Content="v1" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding EditIsSnmpV1}" />
+                                        <ToggleButton Content="v3" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding EditIsSnmpV3}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <StackPanel Visibility="{Binding ShowEditCommunity, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Community" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
+                                    <TextBox Text="{Binding EditCommunity, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Visibility="{Binding ShowEditV3Fields, Converter={StaticResource BoolToVisibility}}">
+                                    <Grid Margin="0,14,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="16" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Auth level" Style="{StaticResource SectionHeaderStyle}" />
+                                            <ComboBox SelectedValuePath="Content" SelectedValue="{Binding EditAuthLevel}">
+                                                <ComboBoxItem Content="noAuthNoPriv" />
+                                                <ComboBoxItem Content="authNoPriv" />
+                                                <ComboBoxItem Content="authPriv" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Auth algorithm" Style="{StaticResource SectionHeaderStyle}" />
+                                            <ComboBox SelectedValuePath="Content" SelectedValue="{Binding EditAuthAlgo}">
+                                                <ComboBoxItem Content="MD5" />
+                                                <ComboBoxItem Content="SHA" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <TextBlock Text="Auth username" Style="{StaticResource SectionHeaderStyle}" Margin="0,10,0,6" />
+                                    <TextBox Text="{Binding EditAuthName, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <TextBlock Text="Auth password" Style="{StaticResource SectionHeaderStyle}" Margin="0,10,0,6" />
+                                    <PasswordBox x:Name="EditAuthPassBox" PasswordChanged="OnEditAuthPassChanged" />
+
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="16" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Privacy algorithm" Style="{StaticResource SectionHeaderStyle}" />
+                                            <ComboBox SelectedValuePath="Content" SelectedValue="{Binding EditCryptoAlgo}">
+                                                <ComboBoxItem Content="AES" />
+                                                <ComboBoxItem Content="DES" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Privacy password" Style="{StaticResource SectionHeaderStyle}" />
+                                            <PasswordBox x:Name="EditCryptoPassBox" PasswordChanged="OnEditCryptoPassChanged" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="16" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Port (optional)" Style="{StaticResource SectionHeaderStyle}" />
+                                        <TextBox Text="{Binding EditPort, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Transport (optional)" Style="{StaticResource SectionHeaderStyle}" />
+                                        <ComboBox SelectedValuePath="Content" SelectedValue="{Binding EditTransport}">
+                                            <ComboBoxItem Content="" />
+                                            <ComboBoxItem Content="udp" />
+                                            <ComboBoxItem Content="tcp" />
+                                            <ComboBoxItem Content="udp6" />
+                                            <ComboBoxItem Content="tcp6" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- ==================== Ping only ==================== -->
+                            <StackPanel Visibility="{Binding ShowEditPingOnlyFields, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="sysName" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
+                                <TextBox Text="{Binding EditSysNameOverride, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Hardware" Style="{StaticResource SectionHeaderStyle}" Margin="0,10,0,6" />
+                                <TextBox Text="{Binding EditHardwareOverride, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="OS" Style="{StaticResource SectionHeaderStyle}" Margin="0,10,0,6" />
+                                <ComboBox IsEditable="True"
+                                          Text="{Binding EditSnmpOs, UpdateSourceTrigger=PropertyChanged}"
+                                          ItemsSource="{Binding KnownOperatingSystems}" />
+                            </StackPanel>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
@@ -1507,6 +1714,7 @@
                     </StackPanel>
                 </Border>
             </StackPanel>
+            </ScrollViewer>
             </Grid>
         </Grid>
 
