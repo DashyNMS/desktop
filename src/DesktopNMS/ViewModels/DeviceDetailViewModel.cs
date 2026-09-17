@@ -93,6 +93,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private Device? _device;
     private bool _isUnderMaintenance;
     private bool _isBusy;
+    private bool _isRediscovering;
     private string? _errorMessage;
     private DeviceDetailSection _selectedSection = DeviceDetailSection.Overview;
     private string _eventLogSearchText = string.Empty;
@@ -195,6 +196,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OpenSshCommand = new RelayCommand(() => OpenExternal("ssh"), () => CanOpenExternally);
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => _session.IsConnected && !IsBusy);
+        RediscoverCommand = new AsyncRelayCommand(RediscoverAsync, () => _session.IsConnected && !IsRediscovering);
 
         SelectOverviewCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Overview);
         SelectSensorsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Sensors);
@@ -351,6 +353,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public RelayCommand OpenSshCommand { get; }
 
     public AsyncRelayCommand RefreshCommand { get; }
+
+    /// <summary>Queues an on-demand LibreNMS rediscovery of this device - see <see cref="RediscoverAsync"/>.</summary>
+    public AsyncRelayCommand RediscoverCommand { get; }
 
     public RelayCommand SelectOverviewCommand { get; }
 
@@ -902,6 +907,24 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _isBusy, value))
             {
                 RefreshCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// True while a rediscover request is in flight - separate from
+    /// <see cref="IsBusy"/>, which tracks the section-load spinners, since
+    /// rediscovering does not touch any of that data itself (LibreNMS applies
+    /// the result on its own schedule, not synchronously in the response).
+    /// </summary>
+    public bool IsRediscovering
+    {
+        get => _isRediscovering;
+        private set
+        {
+            if (SetProperty(ref _isRediscovering, value))
+            {
+                RediscoverCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -1819,6 +1842,31 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         return Task.WhenAll(
             LoadAlertHistoryAsync(), LoadPortsAsync(), LoadResourcesAsync(), LoadAvailabilityAsync(),
             LoadDeviceGroupsAsync(), LoadVlansAsync(), LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync());
+    }
+
+    /// <summary>
+    /// Asks LibreNMS to rediscover this device now (see <see cref="IDevicesApi.DiscoverAsync"/>).
+    /// LibreNMS applies the result on its own schedule - this only confirms
+    /// the request was queued, it does not wait for or reload anything here.
+    /// </summary>
+    private async Task RediscoverAsync()
+    {
+        IsRediscovering = true;
+
+        try
+        {
+            var message = await _client.Devices.DiscoverAsync(_deviceId).ConfigureAwait(true);
+            _windows.ShowInformation("Rediscover requested", message);
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not trigger rediscovery for device {DeviceId}", _deviceId);
+            _windows.ShowError("Rediscover failed", ex.ToUserMessage());
+        }
+        finally
+        {
+            IsRediscovering = false;
+        }
     }
 
     private void RaiseDeviceChanged()

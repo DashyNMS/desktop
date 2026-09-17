@@ -113,6 +113,21 @@ internal sealed class DevicesApi : IDevicesApi
         var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/outages";
         return _transport.GetCollectionAsync<DeviceOutage>(url, "outages", cancellationToken);
     }
+
+    public async Task<string> DiscoverAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/discover";
+        using var document = await _transport.SendAsync(HttpMethod.Get, url, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        if (document.RootElement.TryGetProperty("result", out var result)
+            && result.TryGetProperty("message", out var message)
+            && message.GetString() is { Length: > 0 } text)
+        {
+            return text;
+        }
+
+        return "Device will be rediscovered.";
+    }
 }
 
 /// <summary>Implementation of <see cref="ISensorsApi"/>.</summary>

@@ -113,6 +113,12 @@
                         </Button.ContextMenu>
                     </Button>
 
+                    <Button Content="Rediscover"
+                            Style="{StaticResource ChipButtonStyle}"
+                            Margin="0,0,8,0"
+                            Command="{Binding RediscoverCommand}"
+                            ToolTip="Ask LibreNMS to rediscover this device now" />
+
                     <Button Command="{Binding RefreshCommand}"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Refresh now">
