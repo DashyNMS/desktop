@@ -71,7 +71,8 @@
 
         <!-- ======================== Grid ======================== -->
         <Grid Grid.Row="1">
-            <DataGrid ItemsSource="{Binding SensorsView}"
+            <DataGrid x:Name="SensorsGrid"
+                      ItemsSource="{Binding SensorsView}"
                       SelectedItem="{Binding SelectedSensor}">
                 <DataGrid.Columns>
 

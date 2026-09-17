@@ -642,7 +642,8 @@
                          Margin="0,0,0,10" />
 
                 <Grid Grid.Row="1">
-                <DataGrid ItemsSource="{Binding PortsView}"
+                <DataGrid x:Name="PortsGrid"
+                          ItemsSource="{Binding PortsView}"
                           Visibility="{Binding HasVisiblePorts, Converter={StaticResource BoolToVisibility}}"
                           IsReadOnly="True"
                           HeadersVisibility="Column">
@@ -816,7 +817,8 @@
                          Margin="0,0,0,10" />
 
                 <Grid Grid.Row="1">
-                    <DataGrid ItemsSource="{Binding VlansView}"
+                    <DataGrid x:Name="VlansGrid"
+                              ItemsSource="{Binding VlansView}"
                               Visibility="{Binding HasVisibleVlans, Converter={StaticResource BoolToVisibility}}"
                               IsReadOnly="True"
                               HeadersVisibility="Column">
@@ -892,7 +894,8 @@
                          Margin="0,0,0,10" />
 
                 <Grid Grid.Row="1">
-                    <DataGrid ItemsSource="{Binding FdbView}"
+                    <DataGrid x:Name="FdbGrid"
+                              ItemsSource="{Binding FdbView}"
                               Visibility="{Binding HasVisibleFdbEntries, Converter={StaticResource BoolToVisibility}}"
                               IsReadOnly="True"
                               HeadersVisibility="Column">
@@ -962,7 +965,8 @@
                          Margin="0,0,0,10" />
 
                 <Grid Grid.Row="1">
-                    <DataGrid ItemsSource="{Binding ArpView}"
+                    <DataGrid x:Name="ArpGrid"
+                              ItemsSource="{Binding ArpView}"
                               Visibility="{Binding HasVisibleArpEntries, Converter={StaticResource BoolToVisibility}}"
                               IsReadOnly="True"
                               HeadersVisibility="Column">
@@ -1240,7 +1244,8 @@
                 <TextBlock Grid.Row="1" Text="{Binding AlertHistory.Count, StringFormat=History ({0})}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
 
                 <Grid Grid.Row="2">
-                    <DataGrid ItemsSource="{Binding AlertHistory}"
+                    <DataGrid x:Name="AlertHistoryGrid"
+                              ItemsSource="{Binding AlertHistory}"
                               Visibility="{Binding HasAlertHistory, Converter={StaticResource BoolToVisibility}}"
                               IsReadOnly="True"
                               HeadersVisibility="Column">

@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using DesktopNMS.Core.Configuration;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views;
@@ -16,8 +18,12 @@ public partial class DeviceView : Window
     /// <summary>How close to the bottom (in pixels) triggers loading the next page, so it fires a little before the user actually hits the end.</summary>
     private const double EventLogLoadMoreThreshold = 200;
 
-    public DeviceView(DeviceDetailViewModel viewModel)
+    private readonly ISettingsStore _settings;
+
+    public DeviceView(DeviceDetailViewModel viewModel, ISettingsStore settings)
     {
+        _settings = settings;
+
         InitializeComponent();
         DataContext = viewModel;
 
@@ -27,6 +33,60 @@ public partial class DeviceView : Window
         EventLogGrid.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(OnEventLogScrollChanged));
 
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
+
+        ApplyGridLayouts();
+    }
+
+    /// <summary>
+    /// Restores each sub-table's remembered column widths/order/sort (issue
+    /// #15) - a shared preference across every device window, not per-device
+    /// data, so a newly opened window for a different device still reflects
+    /// whatever was last saved.
+    /// </summary>
+    private void ApplyGridLayouts()
+    {
+        var layouts = _settings.Current.GridLayouts;
+
+        DataGridLayoutHelper.Apply(PortsGrid, layouts.GetValueOrDefault("DeviceDetail.Ports"));
+        DataGridLayoutHelper.Apply(VlansGrid, layouts.GetValueOrDefault("DeviceDetail.Vlans"));
+        DataGridLayoutHelper.Apply(FdbGrid, layouts.GetValueOrDefault("DeviceDetail.Fdb"));
+        DataGridLayoutHelper.Apply(ArpGrid, layouts.GetValueOrDefault("DeviceDetail.Arp"));
+        DataGridLayoutHelper.Apply(AlertHistoryGrid, layouts.GetValueOrDefault("DeviceDetail.AlertHistory"));
+        DataGridLayoutHelper.Apply(EventLogGrid, layouts.GetValueOrDefault("DeviceDetail.EventLog"));
+    }
+
+    /// <summary>
+    /// Captures each sub-table's current layout - mirrors MainWindow's own
+    /// SavePlacement, called at the same lifecycle point (closing). Only
+    /// whichever section is actually selected when the window closes has a
+    /// real layout to capture (every other section's DataGrid is
+    /// Visibility=Collapsed at that moment) - DataGridLayoutHelper.Capture
+    /// returns null for those, which is skipped, leaving that section's
+    /// previously saved layout untouched rather than overwriting it with
+    /// garbage read from an unrendered grid.
+    /// </summary>
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        var layouts = _settings.Current.GridLayouts;
+
+        SetIfCaptured(layouts, "DeviceDetail.Ports", DataGridLayoutHelper.Capture(PortsGrid));
+        SetIfCaptured(layouts, "DeviceDetail.Vlans", DataGridLayoutHelper.Capture(VlansGrid));
+        SetIfCaptured(layouts, "DeviceDetail.Fdb", DataGridLayoutHelper.Capture(FdbGrid));
+        SetIfCaptured(layouts, "DeviceDetail.Arp", DataGridLayoutHelper.Capture(ArpGrid));
+        SetIfCaptured(layouts, "DeviceDetail.AlertHistory", DataGridLayoutHelper.Capture(AlertHistoryGrid));
+        SetIfCaptured(layouts, "DeviceDetail.EventLog", DataGridLayoutHelper.Capture(EventLogGrid));
+
+        _settings.Save();
+
+        base.OnClosing(e);
+    }
+
+    private static void SetIfCaptured(Dictionary<string, GridLayout> layouts, string key, GridLayout? captured)
+    {
+        if (captured is not null)
+        {
+            layouts[key] = captured;
+        }
     }
 
     /// <summary>

@@ -1,6 +1,8 @@
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using DesktopNMS.Core.Configuration;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views;
@@ -17,6 +19,10 @@ public partial class GroupsView : UserControl
         SearchBox.Focus();
         SearchBox.SelectAll();
     }
+
+    public void ApplyGridLayout(GridLayout? layout) => DataGridLayoutHelper.Apply(GroupsGrid, layout);
+
+    public GridLayout? CaptureGridLayout() => DataGridLayoutHelper.Capture(GroupsGrid);
 
     /// <summary>
     /// Shift-clicking a type badge isolates that type instead of toggling it

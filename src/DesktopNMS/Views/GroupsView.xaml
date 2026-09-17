@@ -101,7 +101,7 @@
 
         <!-- ======================== Group list ======================== -->
         <Grid Grid.Row="2">
-            <DataGrid ItemsSource="{Binding GroupsView}" IsReadOnly="True">
+            <DataGrid x:Name="GroupsGrid" ItemsSource="{Binding GroupsView}" IsReadOnly="True">
                 <DataGrid.Columns>
 
                     <DataGridTemplateColumn Header="Name" Width="200" SortMemberPath="Name">
