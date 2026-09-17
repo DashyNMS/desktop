@@ -150,6 +150,31 @@ internal sealed class DevicesApi : IDevicesApi
 
         return new AddDeviceResult(message, deviceId);
     }
+
+    public async Task UpdateFieldsAsync(int deviceId, IReadOnlyDictionary<string, string?> fields, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture);
+        var request = new UpdateDeviceFieldsRequest
+        {
+            Field = fields.Keys.ToArray(),
+            Data = fields.Values.ToArray(),
+        };
+
+        // Response is a bare JSON array (unlike almost every other endpoint's
+        // object envelope), e.g. [{"status":"ok","message":"..."}] - nothing
+        // here needs its content, since SendAsync already throws on a
+        // non-success HTTP status.
+        using var _ = await _transport.SendAsync(HttpMethod.Patch, url, body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+}
+
+internal sealed class UpdateDeviceFieldsRequest
+{
+    [System.Text.Json.Serialization.JsonPropertyName("field")]
+    public string[] Field { get; set; } = Array.Empty<string>();
+
+    [System.Text.Json.Serialization.JsonPropertyName("data")]
+    public string?[] Data { get; set; } = Array.Empty<string?>();
 }
 
 /// <summary>Implementation of <see cref="ISensorsApi"/>.</summary>

@@ -31,6 +31,9 @@ public enum DeviceDetailSection
     /// <summary>Both this device's currently active alerts and its historical alert log - see <see cref="Views.DeviceView"/>.</summary>
     Alerts,
     EventLog,
+
+    /// <summary>Editable fields plus device-management actions (Rediscover now, Delete eventually) - a home for "change this device" rather than "view its data".</summary>
+    Edit,
 }
 
 /// <summary>
@@ -95,6 +98,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private bool _isBusy;
     private bool _isRediscovering;
     private string? _errorMessage;
+    private string _editLocation = string.Empty;
+    private string _editPurpose = string.Empty;
+    private string _editNotes = string.Empty;
+    private bool _isSavingEdit;
+    private string? _editErrorMessage;
+    private string? _editSuccessMessage;
     private DeviceDetailSection _selectedSection = DeviceDetailSection.Overview;
     private string _eventLogSearchText = string.Empty;
     private string _fdbSearchText = string.Empty;
@@ -207,6 +216,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectArpCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Arp);
         SelectAlertsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Alerts);
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
+        SelectEditCommand = new RelayCommand(SelectEdit);
+
+        SaveEditCommand = new AsyncRelayCommand(SaveEditAsync, () => !IsSavingEdit);
 
         LoadMoreEventLogCommand = new AsyncRelayCommand(LoadMoreEventLogAsync, () => HasMoreEventLog && !IsLoadingMoreEventLog);
 
@@ -375,7 +387,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectEventLogCommand { get; }
 
+    /// <summary>Navigates to the Edit section and refreshes its draft fields from the current device - see <see cref="SelectEdit"/>.</summary>
+    public RelayCommand SelectEditCommand { get; }
+
     public AsyncRelayCommand LoadMoreEventLogCommand { get; }
+
+    /// <summary>Saves whichever Edit fields actually changed - see <see cref="SaveEditAsync"/>.</summary>
+    public AsyncRelayCommand SaveEditCommand { get; }
 
     /// <summary>Free-text filter over a port's name, description and alias.</summary>
     public string PortSearchText
@@ -511,6 +529,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsArpSelected));
                 OnPropertyChanged(nameof(IsAlertsSelected));
                 OnPropertyChanged(nameof(IsEventLogSelected));
+                OnPropertyChanged(nameof(IsEditSelected));
             }
         }
     }
@@ -532,6 +551,75 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsAlertsSelected => SelectedSection == DeviceDetailSection.Alerts;
 
     public bool IsEventLogSelected => SelectedSection == DeviceDetailSection.EventLog;
+
+    public bool IsEditSelected => SelectedSection == DeviceDetailSection.Edit;
+
+    // -------------------------------------------------------------------- edit
+
+    /// <summary>
+    /// A draft copy of the fields LibreNMS lets you change via update_device_field,
+    /// separate from the live <see cref="Location"/>/etc. so switching to the
+    /// Edit section always starts from the current values (see
+    /// <see cref="SelectEdit"/>) without the raw device text properties
+    /// elsewhere in this view model needing to become editable themselves.
+    /// </summary>
+    public string EditLocation
+    {
+        get => _editLocation;
+        set => SetProperty(ref _editLocation, value);
+    }
+
+    public string EditPurpose
+    {
+        get => _editPurpose;
+        set => SetProperty(ref _editPurpose, value);
+    }
+
+    public string EditNotes
+    {
+        get => _editNotes;
+        set => SetProperty(ref _editNotes, value);
+    }
+
+    public bool IsSavingEdit
+    {
+        get => _isSavingEdit;
+        private set
+        {
+            if (SetProperty(ref _isSavingEdit, value))
+            {
+                SaveEditCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? EditErrorMessage
+    {
+        get => _editErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _editErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasEditError));
+            }
+        }
+    }
+
+    public bool HasEditError => !string.IsNullOrEmpty(_editErrorMessage);
+
+    public string? EditSuccessMessage
+    {
+        get => _editSuccessMessage;
+        private set
+        {
+            if (SetProperty(ref _editSuccessMessage, value))
+            {
+                OnPropertyChanged(nameof(HasEditSuccess));
+            }
+        }
+    }
+
+    public bool HasEditSuccess => !string.IsNullOrEmpty(_editSuccessMessage);
 
     // ------------------------------------------------------------------ device
 
@@ -1866,6 +1954,85 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         finally
         {
             IsRediscovering = false;
+        }
+    }
+
+    /// <summary>
+    /// Navigates to the Edit section, resetting its draft fields from the
+    /// current device every time - switching away and back discards an
+    /// unsaved edit rather than leaving stale text sitting there.
+    /// </summary>
+    private void SelectEdit()
+    {
+        EditLocation = _device?.Location ?? string.Empty;
+        EditPurpose = _device?.Purpose ?? string.Empty;
+        EditNotes = _device?.Notes ?? string.Empty;
+        EditErrorMessage = null;
+        EditSuccessMessage = null;
+
+        SelectedSection = DeviceDetailSection.Edit;
+    }
+
+    /// <summary>
+    /// Saves only the fields that actually changed from what LibreNMS
+    /// already has - an unchanged field is left out of the request entirely
+    /// rather than round-tripping its current value back to itself.
+    /// </summary>
+    private async Task SaveEditAsync()
+    {
+        var fields = new Dictionary<string, string?>();
+
+        if (EditLocation.Trim() != (_device?.Location ?? string.Empty))
+        {
+            fields["location"] = string.IsNullOrWhiteSpace(EditLocation) ? null : EditLocation.Trim();
+        }
+
+        if (EditPurpose.Trim() != (_device?.Purpose ?? string.Empty))
+        {
+            fields["purpose"] = string.IsNullOrWhiteSpace(EditPurpose) ? null : EditPurpose.Trim();
+        }
+
+        if (EditNotes.Trim() != (_device?.Notes ?? string.Empty))
+        {
+            fields["notes"] = string.IsNullOrWhiteSpace(EditNotes) ? null : EditNotes.Trim();
+        }
+
+        if (fields.Count == 0)
+        {
+            EditSuccessMessage = "Nothing to save.";
+            EditErrorMessage = null;
+            return;
+        }
+
+        EditErrorMessage = null;
+        EditSuccessMessage = null;
+        IsSavingEdit = true;
+
+        try
+        {
+            await _client.Devices.UpdateFieldsAsync(_deviceId, fields).ConfigureAwait(true);
+            EditSuccessMessage = "Saved.";
+
+            // Applied locally immediately rather than waiting for the next
+            // shared poll, so Overview and the header reflect the edit right
+            // away instead of looking like it silently did nothing.
+            if (_device is not null)
+            {
+                if (fields.TryGetValue("location", out var location)) _device.Location = location;
+                if (fields.TryGetValue("purpose", out var purpose)) _device.Purpose = purpose;
+                if (fields.TryGetValue("notes", out var notes)) _device.Notes = notes;
+            }
+
+            RaiseDeviceChanged();
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not update device {DeviceId}", _deviceId);
+            EditErrorMessage = ex.ToUserMessage();
+        }
+        finally
+        {
+            IsSavingEdit = false;
         }
     }
 

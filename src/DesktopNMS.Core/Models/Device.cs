@@ -42,6 +42,9 @@ public sealed class Device
     [JsonPropertyName("purpose")]
     public string? Purpose { get; set; }
 
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+
     /// <summary>The raw SNMP system description, e.g. "Onyx,SN2010M,SWv3.10.4408" - a one-line hardware/firmware summary LibreNMS's own device page shows prominently at the top.</summary>
     [JsonPropertyName("sysDescr")]
     public string? SysDescr { get; set; }
