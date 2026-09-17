@@ -100,6 +100,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private bool _isUnderMaintenance;
     private bool _isBusy;
     private bool _isRediscovering;
+    private bool _isDeleting;
     private string? _errorMessage;
     private string _editHostname = string.Empty;
     private string _editLocation = string.Empty;
@@ -242,6 +243,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => _session.IsConnected && !IsBusy);
         RediscoverCommand = new AsyncRelayCommand(RediscoverAsync, () => _session.IsConnected && !IsRediscovering);
+        DeleteCommand = new AsyncRelayCommand(DeleteAsync, () => _session.IsConnected && !IsDeleting);
 
         SelectOverviewCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Overview);
         SelectSensorsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Sensors);
@@ -316,6 +318,25 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
 
         _settings.Save();
+    }
+
+    /// <summary>
+    /// Strips this device out of Settings > RecentlyViewedDevices and
+    /// PinnedDevices after it has been deleted from LibreNMS - both are
+    /// stored by device id, so a deleted device would otherwise keep
+    /// appearing on the Devices tab and dashboard widgets that read them
+    /// until the id happened to get reused for something else.
+    /// </summary>
+    private void ForgetPinnedAndRecentlyViewed()
+    {
+        var current = _settings.Current;
+        var removedRecent = current.RecentlyViewedDevices.RemoveAll(d => d.DeviceId == _deviceId) > 0;
+        var removedPinned = current.PinnedDevices.RemoveAll(p => p.DeviceId == _deviceId) > 0;
+
+        if (removedRecent || removedPinned)
+        {
+            _settings.Save();
+        }
     }
 
     public ObservableCollection<SensorItemViewModel> Sensors { get; }
@@ -404,6 +425,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>Queues an on-demand LibreNMS rediscovery of this device - see <see cref="RediscoverAsync"/>.</summary>
     public AsyncRelayCommand RediscoverCommand { get; }
+
+    /// <summary>Permanently removes this device from LibreNMS, after confirmation - see <see cref="DeleteAsync"/>.</summary>
+    public AsyncRelayCommand DeleteCommand { get; }
 
     public RelayCommand SelectOverviewCommand { get; }
 
@@ -1311,6 +1335,19 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _isRediscovering, value))
             {
                 RediscoverCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>True while a delete request is in flight - see <see cref="DeleteAsync"/>.</summary>
+    public bool IsDeleting
+    {
+        get => _isDeleting;
+        private set
+        {
+            if (SetProperty(ref _isDeleting, value))
+            {
+                DeleteCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -2252,6 +2289,45 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         finally
         {
             IsRediscovering = false;
+        }
+    }
+
+    /// <summary>
+    /// Permanently removes this device from LibreNMS (LibreNMS itself does
+    /// not support a "soft" delete/undelete for devices, only <see cref="Device.Ignore"/>/
+    /// <see cref="Device.Disabled"/>, which are separate operations), after an
+    /// explicit confirmation naming the device. On success, closes this
+    /// window and refreshes the device list so the removed device disappears
+    /// from it immediately rather than on the next timed poll.
+    /// </summary>
+    private async Task DeleteAsync()
+    {
+        var name = _device?.BestName ?? _editHostname;
+        if (!_windows.Confirm(
+                "Delete device",
+                $"Permanently delete '{name}' from LibreNMS? This cannot be undone."))
+        {
+            return;
+        }
+
+        IsDeleting = true;
+
+        try
+        {
+            var message = await _client.Devices.DeleteAsync(_deviceId).ConfigureAwait(true);
+            ForgetPinnedAndRecentlyViewed();
+            _deviceMonitor.RequestRefresh();
+            _windows.ShowInformation("Device deleted", message);
+            _windows.CloseDeviceDetail(_deviceId);
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not delete device {DeviceId}", _deviceId);
+            _windows.ShowError("Delete failed", ex.ToUserMessage());
+        }
+        finally
+        {
+            IsDeleting = false;
         }
     }
 

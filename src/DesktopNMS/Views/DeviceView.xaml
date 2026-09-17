@@ -1404,10 +1404,9 @@
                 <TextBlock Text="Edit device" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
                 <!-- Device-management actions come first - a single home for
-                     "change this device" (Rediscover now, Delete eventually)
-                     that's the first thing you see, rather than scattering
-                     them across the header or burying them under every field
-                     card below. -->
+                     "change this device" (Rediscover, Delete) that's the
+                     first thing you see, rather than scattering them across
+                     the header or burying them under every field card below. -->
                 <Border Background="{StaticResource SurfaceAltBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1"
@@ -1416,11 +1415,21 @@
                         Margin="0,0,0,16">
                     <StackPanel>
                         <TextBlock Text="Device management" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
-                        <Button Content="Rediscover"
-                                Command="{Binding RediscoverCommand}"
-                                ToolTip="Ask LibreNMS to rediscover this device now"
-                                HorizontalAlignment="Left"
-                                Padding="12,7" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Rediscover"
+                                    Command="{Binding RediscoverCommand}"
+                                    ToolTip="Ask LibreNMS to rediscover this device now"
+                                    HorizontalAlignment="Left"
+                                    Padding="12,7" />
+                            <Button Content="Delete device"
+                                    Command="{Binding DeleteCommand}"
+                                    ToolTip="Permanently remove this device from LibreNMS"
+                                    Foreground="{StaticResource CriticalBrush}"
+                                    BorderBrush="{StaticResource CriticalBrush}"
+                                    HorizontalAlignment="Left"
+                                    Padding="12,7"
+                                    Margin="10,0,0,0" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

@@ -213,6 +213,21 @@ internal sealed class DevicesApi : IDevicesApi
             }
         }
     }
+
+    public async Task<string> DeleteAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture);
+        using var document = await _transport.SendAsync(HttpMethod.Delete, url, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        if (document.RootElement.TryGetProperty("message", out var messageElement)
+            && messageElement.ValueKind == JsonValueKind.String
+            && messageElement.GetString() is { Length: > 0 } text)
+        {
+            return text;
+        }
+
+        return "Device deleted.";
+    }
 }
 
 internal sealed class UpdateDeviceFieldsRequest
