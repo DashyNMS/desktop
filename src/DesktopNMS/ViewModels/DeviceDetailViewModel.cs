@@ -86,6 +86,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private const int MaxOutagesShown = 10;
     private const int AvailabilityTimelineDays = 30;
 
+    /// <summary>Always present regardless of what (if anything) the server returns - see AddDeviceViewModel's own copy of this same idea.</summary>
+    private static readonly PollerGroup DefaultPollerGroup = new() { Id = 0, GroupName = "Default (poller 0)" };
+
     private int _eventLogLimit = EventLogPageSize;
 
     private double? _availability1Day;
@@ -99,8 +102,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private bool _isRediscovering;
     private string? _errorMessage;
     private string _editLocation = string.Empty;
+    private string _editDisplayName = string.Empty;
     private string _editPurpose = string.Empty;
+    private bool _editOverrideSysLocation;
     private string _editNotes = string.Empty;
+    private PollerGroup _selectedPollerGroup = DefaultPollerGroup;
+    private bool _hasLoadedPollerGroupsOnce;
     private bool _isSavingEdit;
     private string? _editErrorMessage;
     private string? _editSuccessMessage;
@@ -178,6 +185,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         FdbEntries = new ObservableCollection<FdbItemViewModel>();
         ArpEntries = new ObservableCollection<ArpItemViewModel>();
         EventLog = new ObservableCollection<EventLogItemViewModel>();
+        PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
 
         PortsView = CollectionViewSource.GetDefaultView(Ports);
         PortsView.Filter = FilterPortEntry;
@@ -569,16 +577,44 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         set => SetProperty(ref _editLocation, value);
     }
 
+    /// <summary>Overrides the display name shown throughout the app - see <see cref="DeviceNameStyle"/>, which already prefers this over sysName/hostname once set.</summary>
+    public string EditDisplayName
+    {
+        get => _editDisplayName;
+        set => SetProperty(ref _editDisplayName, value);
+    }
+
     public string EditPurpose
     {
         get => _editPurpose;
         set => SetProperty(ref _editPurpose, value);
     }
 
+    /// <summary>Forces <see cref="EditLocation"/> to win over the device's own reported sysLocation.</summary>
+    public bool EditOverrideSysLocation
+    {
+        get => _editOverrideSysLocation;
+        set => SetProperty(ref _editOverrideSysLocation, value);
+    }
+
     public string EditNotes
     {
         get => _editNotes;
         set => SetProperty(ref _editNotes, value);
+    }
+
+    /// <summary>
+    /// Always has at least <see cref="DefaultPollerGroup"/>; whatever else
+    /// LibreNMS reports gets appended the first time the Edit section is
+    /// opened (see <see cref="SelectEdit"/>) - loaded lazily rather than for
+    /// every Device Details window, since most opens never visit Edit.
+    /// </summary>
+    public ObservableCollection<PollerGroup> PollerGroups { get; }
+
+    public PollerGroup SelectedPollerGroup
+    {
+        get => _selectedPollerGroup;
+        set => SetProperty(ref _selectedPollerGroup, value);
     }
 
     public bool IsSavingEdit
@@ -1965,12 +2001,49 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private void SelectEdit()
     {
         EditLocation = _device?.Location ?? string.Empty;
+        EditDisplayName = _device?.Display ?? string.Empty;
         EditPurpose = _device?.Purpose ?? string.Empty;
+        EditOverrideSysLocation = _device?.OverrideSysLocation ?? false;
         EditNotes = _device?.Notes ?? string.Empty;
+        SelectedPollerGroup = PollerGroups.FirstOrDefault(g => g.Id == _device?.PollerGroup) ?? DefaultPollerGroup;
         EditErrorMessage = null;
         EditSuccessMessage = null;
 
+        if (!_hasLoadedPollerGroupsOnce)
+        {
+            _hasLoadedPollerGroupsOnce = true;
+            _ = LoadPollerGroupsAsync();
+        }
+
         SelectedSection = DeviceDetailSection.Edit;
+    }
+
+    private async Task LoadPollerGroupsAsync()
+    {
+        try
+        {
+            var groups = await _client.PollerGroups.ListAsync().ConfigureAwait(true);
+
+            foreach (var group in groups)
+            {
+                // Skip a real id-0 row rather than showing two "poller 0"
+                // entries side by side - LibreNMS itself treats 0 as the
+                // implicit default regardless of whether a row exists for it.
+                if (group.Id != 0)
+                {
+                    PollerGroups.Add(group);
+                }
+            }
+
+            // The device's own poller group may only now be resolvable to a
+            // real entry (rather than the synthetic default) now that the
+            // full list has arrived.
+            SelectedPollerGroup = PollerGroups.FirstOrDefault(g => g.Id == _device?.PollerGroup) ?? DefaultPollerGroup;
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load poller groups");
+        }
     }
 
     /// <summary>
@@ -1987,14 +2060,29 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             fields["location"] = string.IsNullOrWhiteSpace(EditLocation) ? null : EditLocation.Trim();
         }
 
+        if (EditDisplayName.Trim() != (_device?.Display ?? string.Empty))
+        {
+            fields["display"] = string.IsNullOrWhiteSpace(EditDisplayName) ? null : EditDisplayName.Trim();
+        }
+
         if (EditPurpose.Trim() != (_device?.Purpose ?? string.Empty))
         {
             fields["purpose"] = string.IsNullOrWhiteSpace(EditPurpose) ? null : EditPurpose.Trim();
         }
 
+        if (EditOverrideSysLocation != (_device?.OverrideSysLocation ?? false))
+        {
+            fields["override_sysLocation"] = EditOverrideSysLocation ? "1" : "0";
+        }
+
         if (EditNotes.Trim() != (_device?.Notes ?? string.Empty))
         {
             fields["notes"] = string.IsNullOrWhiteSpace(EditNotes) ? null : EditNotes.Trim();
+        }
+
+        if (SelectedPollerGroup.Id != (_device?.PollerGroup ?? 0))
+        {
+            fields["poller_group"] = SelectedPollerGroup.Id.ToString(CultureInfo.InvariantCulture);
         }
 
         if (fields.Count == 0)
@@ -2019,8 +2107,11 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             if (_device is not null)
             {
                 if (fields.TryGetValue("location", out var location)) _device.Location = location;
+                if (fields.TryGetValue("display", out var display)) _device.Display = display;
                 if (fields.TryGetValue("purpose", out var purpose)) _device.Purpose = purpose;
+                if (fields.ContainsKey("override_sysLocation")) _device.OverrideSysLocation = EditOverrideSysLocation;
                 if (fields.TryGetValue("notes", out var notes)) _device.Notes = notes;
+                if (fields.ContainsKey("poller_group")) _device.PollerGroup = SelectedPollerGroup.Id;
             }
 
             RaiseDeviceChanged();

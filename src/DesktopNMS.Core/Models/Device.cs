@@ -45,6 +45,14 @@ public sealed class Device
     [JsonPropertyName("notes")]
     public string? Notes { get; set; }
 
+    /// <summary>Forces <see cref="Location"/> to win over whatever the device's own sysLocation reports, instead of LibreNMS preferring sysLocation.</summary>
+    [JsonPropertyName("override_sysLocation")]
+    public bool OverrideSysLocation { get; set; }
+
+    /// <summary>Which poller in a distributed-poller setup owns this device - see <see cref="Api.AddDeviceRequest.PollerGroup"/>.</summary>
+    [JsonPropertyName("poller_group")]
+    public int PollerGroup { get; set; }
+
     /// <summary>The raw SNMP system description, e.g. "Onyx,SN2010M,SWv3.10.4408" - a one-line hardware/firmware summary LibreNMS's own device page shows prominently at the top.</summary>
     [JsonPropertyName("sysDescr")]
     public string? SysDescr { get; set; }
