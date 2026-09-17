@@ -41,4 +41,15 @@ public partial class DeviceView : Window
             viewModel.LoadMoreEventLogCommand.Execute(null);
         }
     }
+
+    /// <summary>"Open in" opens its Web/Telnet/SSH picker menu on a left click, not just the usual right click.</summary>
+    private void OnOpenInClick(object sender, RoutedEventArgs e)
+    {
+        var button = (Button)sender;
+        if (button.ContextMenu is { } menu)
+        {
+            menu.PlacementTarget = button;
+            menu.IsOpen = true;
+        }
+    }
 }
