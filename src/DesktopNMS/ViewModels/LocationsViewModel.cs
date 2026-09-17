@@ -72,6 +72,7 @@ public sealed class LocationsViewModel : ObservableObject
             {
                 LocationsView.Refresh();
                 OnPropertyChanged(nameof(HasAnyFilterApplied));
+                LoadState.UpdateVisibleCount(LocationsView.Cast<object>().Count());
             }
         }
     }
@@ -106,6 +107,9 @@ public sealed class LocationsViewModel : ObservableObject
 
     public bool HasLocations => Locations.Count > 0;
 
+    /// <summary>Drives the loading/empty/no-matches split on the grid (issue #16).</summary>
+    public ListLoadState LoadState { get; } = new();
+
     /// <summary>Loads the location list once, lazily, the first time the tab is actually shown - same convention as every other tab.</summary>
     public void OnShown()
     {
@@ -122,6 +126,7 @@ public sealed class LocationsViewModel : ObservableObject
     {
         IsBusy = true;
         ErrorMessage = null;
+        LoadState.BeginLoad();
 
         try
         {
@@ -167,6 +172,7 @@ public sealed class LocationsViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            LoadState.CompleteLoad(Locations.Count, LocationsView.Cast<object>().Count());
         }
     }
 

@@ -127,8 +127,8 @@ public sealed class SensorCategoryViewModel : ObservableObject
 
     public int VisibleCount => SensorsView.Cast<object>().Count();
 
-    /// <summary>True when sensors exist but the current filters hide all of them.</summary>
-    public bool HasSensorsButNoneVisible => TotalCount > 0 && VisibleCount == 0;
+    /// <summary>Drives the loading/empty/no-matches split on the grid (issue #16) - replaces the old TotalCount==0/HasSensorsButNoneVisible pair with the same shared shape every other rolled-out section uses, adding the loading state neither of those covered.</summary>
+    public ListLoadState LoadState { get; } = new();
 
     // --------------------------------------------------------------- updates
 
@@ -258,7 +258,7 @@ public sealed class SensorCategoryViewModel : ObservableObject
     {
         SensorsView.Refresh();
         OnPropertyChanged(nameof(VisibleCount));
-        OnPropertyChanged(nameof(HasSensorsButNoneVisible));
+        LoadState.UpdateVisibleCount(VisibleCount);
     }
 
     private void RaiseCountsChanged()
@@ -269,7 +269,7 @@ public sealed class SensorCategoryViewModel : ObservableObject
         OnPropertyChanged(nameof(UnknownCount));
         OnPropertyChanged(nameof(TotalCount));
         OnPropertyChanged(nameof(VisibleCount));
-        OnPropertyChanged(nameof(HasSensorsButNoneVisible));
+        LoadState.CompleteLoad(TotalCount, VisibleCount);
 
         // A threshold change can move rows in or out of the current filter
         // without the ObservableCollection itself changing.

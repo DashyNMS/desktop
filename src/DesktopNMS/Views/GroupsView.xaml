@@ -101,7 +101,10 @@
 
         <!-- ======================== Group list ======================== -->
         <Grid Grid.Row="2">
-            <DataGrid x:Name="GroupsGrid" ItemsSource="{Binding GroupsView}" IsReadOnly="True">
+            <DataGrid x:Name="GroupsGrid"
+                      ItemsSource="{Binding GroupsView}"
+                      IsReadOnly="True"
+                      Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
                 <DataGrid.Columns>
 
                     <DataGridTemplateColumn Header="Name" Width="200" SortMemberPath="Name">
@@ -178,11 +181,23 @@
                 </DataGrid.Columns>
             </DataGrid>
 
+            <TextBlock Text="Loading groups..."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
+
             <TextBlock Text="No device groups yet - use + to create one."
                        Style="{StaticResource SubtleTextStyle}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       Visibility="{Binding HasGroups, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                       Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+
+            <TextBlock Text="No groups match your search or filters."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}" />
         </Grid>
     </Grid>
 </UserControl>

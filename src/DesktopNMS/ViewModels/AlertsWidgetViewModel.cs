@@ -80,7 +80,8 @@ public sealed class AlertsWidgetViewModel : DashboardWidgetViewModel, IDisposabl
 
     public ObservableCollection<AlertItemViewModel> Alerts { get; }
 
-    public bool HasAlerts => Alerts.Count > 0;
+    /// <summary>Drives the loading/empty/no-matches split on this widget (issue #16) - IsNoMatches is meaningful here, unlike most other widgets, since this one has its own severity/acknowledged filter.</summary>
+    public ListLoadState LoadState { get; } = new();
 
     public RelayCommand OpenAlertCommand { get; }
 
@@ -212,7 +213,12 @@ public sealed class AlertsWidgetViewModel : DashboardWidgetViewModel, IDisposabl
             }
         }
 
-        OnPropertyChanged(nameof(HasAlerts));
+        // Recovered alerts are never shown here regardless of the severity/
+        // acknowledged toggles, so they don't count as "there's data the
+        // filter is hiding" - only non-recovered alerts count toward the
+        // empty-vs-no-matches distinction.
+        var totalCount = _lastAlerts.Count(a => a.State != AlertState.Recovered);
+        LoadState.CompleteLoad(totalCount, Alerts.Count);
     }
 
     private bool PassesFilter(Alert alert)

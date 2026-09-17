@@ -73,7 +73,7 @@
                     <Grid Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
                         <DataGrid x:Name="SensorGrid"
                                   ItemsSource="{Binding Sensors}"
-                                  Visibility="{Binding HasSensors, Converter={StaticResource BoolToVisibility}}"
+                                  Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}"
                                   IsReadOnly="True"
                                   HeadersVisibility="Column">
                             <DataGrid.Columns>
@@ -108,6 +108,13 @@
                             </DataGrid.ContextMenu>
                         </DataGrid>
 
+                        <TextBlock Text="Loading..."
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   IsHitTestVisible="False"
+                                   Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}"
+                                   Style="{StaticResource SubtleTextStyle}" />
+
                         <TextBlock Text="Nothing added yet. Click the pencil icon above to add sensors."
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
@@ -115,7 +122,17 @@
                                    MaxWidth="240"
                                    TextAlignment="Center"
                                    IsHitTestVisible="False"
-                                   Visibility="{Binding HasSensors, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                                   Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}"
+                                   Style="{StaticResource SubtleTextStyle}" />
+
+                        <TextBlock Text="The sensors added to this widget were not found - they may have been removed."
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="240"
+                                   TextAlignment="Center"
+                                   IsHitTestVisible="False"
+                                   Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}"
                                    Style="{StaticResource SubtleTextStyle}" />
                     </Grid>
 
@@ -125,7 +142,7 @@
                             <ListBox ItemsSource="{Binding Sensors}"
                                      BorderThickness="0"
                                      Background="Transparent"
-                                     Visibility="{Binding HasSensors, Converter={StaticResource BoolToVisibility}}">
+                                     Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="4,4">
@@ -159,7 +176,7 @@
                                        MaxWidth="240"
                                        TextAlignment="Center"
                                        IsHitTestVisible="False"
-                                       Visibility="{Binding HasSensors, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                                       Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
                                        Style="{StaticResource SubtleTextStyle}" />
                         </Grid>
 
@@ -244,7 +261,7 @@
                 <Grid Grid.Row="1">
                     <DataGrid x:Name="AlertsGrid"
                               ItemsSource="{Binding Alerts}"
-                              Visibility="{Binding HasAlerts, Converter={StaticResource BoolToVisibility}}"
+                              Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}"
                               IsReadOnly="True"
                               HeadersVisibility="Column">
                         <DataGrid.Columns>
@@ -282,11 +299,25 @@
                         </DataGrid.ContextMenu>
                     </DataGrid>
 
-                    <TextBlock Text="No matching alerts."
+                    <TextBlock Text="Loading alerts..."
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                IsHitTestVisible="False"
-                               Visibility="{Binding HasAlerts, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                               Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
+                    <TextBlock Text="No alerts."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
+                    <TextBlock Text="No alerts match the current filters."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}"
                                Style="{StaticResource SubtleTextStyle}" />
                 </Grid>
             </Grid>
@@ -410,7 +441,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0">
+                <Grid Grid.Row="0" Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
@@ -512,17 +543,24 @@
                 </Grid>
 
                 <TextBlock Grid.Row="1"
+                           Text="Loading..."
+                           HorizontalAlignment="Center"
+                           Margin="0,12,0,0"
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
+
+                <TextBlock Grid.Row="1"
                            Text="No devices."
                            HorizontalAlignment="Center"
                            Margin="0,12,0,0"
                            Style="{StaticResource SubtleTextStyle}"
-                           Visibility="{Binding HasNoDevices, Converter={StaticResource BoolToVisibility}}" />
+                           Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}" />
 
                 <TextBlock Grid.Row="1"
                            HorizontalAlignment="Center"
                            Margin="0,12,0,0"
                            Style="{StaticResource SubtleTextStyle}"
-                           Visibility="{Binding HasNoDevices, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                           Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
                     <Run Text="{Binding TotalCount, Mode=OneWay}" /><Run Text=" device(s) total" />
                 </TextBlock>
             </Grid>

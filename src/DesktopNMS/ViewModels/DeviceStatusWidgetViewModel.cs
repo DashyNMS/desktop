@@ -2,6 +2,7 @@ using System;
 using System.Windows.Threading;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 
 namespace DesktopNMS.ViewModels;
@@ -39,6 +40,9 @@ public sealed class DeviceStatusWidgetViewModel : DashboardWidgetViewModel, IDis
         _monitor.RequestRefresh();
     }
 
+    /// <summary>Drives the loading/empty split on this widget (issue #16) - there is no search/filter on a widget's own display, so IsNoMatches never applies here.</summary>
+    public ListLoadState LoadState { get; } = new();
+
     public int UpCount => _upCount;
 
     public int DownCount => _downCount;
@@ -57,8 +61,6 @@ public sealed class DeviceStatusWidgetViewModel : DashboardWidgetViewModel, IDis
     public double MaintenanceFraction => _totalCount > 0 ? (double)_maintenanceCount / _totalCount : 0;
 
     public double DisabledFraction => _totalCount > 0 ? (double)_disabledCount / _totalCount : 0;
-
-    public bool HasNoDevices => _totalCount == 0;
 
     private void OnPolled(object? sender, DevicePollResult result)
     {
@@ -116,7 +118,7 @@ public sealed class DeviceStatusWidgetViewModel : DashboardWidgetViewModel, IDis
         OnPropertyChanged(nameof(DownFraction));
         OnPropertyChanged(nameof(MaintenanceFraction));
         OnPropertyChanged(nameof(DisabledFraction));
-        OnPropertyChanged(nameof(HasNoDevices));
+        LoadState.CompleteLoad(_totalCount, _totalCount);
     }
 
     public void Dispose() => _monitor.Polled -= OnPolled;
