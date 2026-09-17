@@ -1,5 +1,6 @@
 using System;
 using System.Text.Json.Serialization;
+using DesktopNMS.Core.Json;
 
 namespace DesktopNMS.Core.Models;
 
@@ -15,9 +16,23 @@ public sealed class DeviceGroup
     [JsonPropertyName("desc")]
     public string? Description { get; set; }
 
-    /// <summary>"static" or "dynamic" - confirmed present on every row against a live instance. Dynamic groups also return a "rules" query-builder object, not modelled here since nothing in this app reads it yet.</summary>
+    /// <summary>"static" or "dynamic" - confirmed present on every row against a live instance.</summary>
     [JsonPropertyName("type")]
     public string? Type { get; set; }
+
+    /// <summary>
+    /// A dynamic group's query-builder condition, shown as raw/unparsed JSON
+    /// for read-only display only (no editor - see
+    /// <see cref="IsEditableAsStatic"/>). LooseStringConverter because this
+    /// arrives as a nested JSON object, not a string - confirmed against a
+    /// live instance, same shape mismatch as <see cref="Device.Location"/>'s
+    /// geocoding object. LibreNMS's older "pattern" field is superseded by
+    /// this and comes back empty on a modern instance, so this is what
+    /// actually varies per dynamic group.
+    /// </summary>
+    [JsonPropertyName("rules")]
+    [JsonConverter(typeof(LooseStringConverter))]
+    public string? Rules { get; set; }
 
     /// <summary>
     /// True only when this app can positively confirm the group is a plain

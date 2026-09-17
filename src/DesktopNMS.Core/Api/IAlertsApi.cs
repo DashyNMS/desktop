@@ -226,6 +226,9 @@ public interface IDeviceGroupsApi
     /// <summary>GET /api/v0/devicegroups/{id}. The device ids belonging to one specific group - used to pre-check a static group's members when opening it for editing.</summary>
     Task<IReadOnlyList<int>> GetMemberDeviceIdsAsync(int groupId, CancellationToken cancellationToken = default);
 
+    /// <summary>Member count per group id, one <see cref="GetMemberDeviceIdsAsync"/> call per group with bounded concurrency - for the Groups tab's Devices column.</summary>
+    Task<IReadOnlyDictionary<int, int>> GetMemberCountsAsync(IReadOnlyList<DeviceGroup> groups, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// POST /api/v0/devicegroups. Creates a new static (explicit device-list)
     /// group - this app has no UI for a dynamic group's rules, so

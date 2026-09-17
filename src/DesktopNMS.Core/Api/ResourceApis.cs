@@ -354,26 +354,10 @@ internal sealed class DeviceGroupsApi : IDeviceGroupsApi
             return new Dictionary<int, IReadOnlyList<string>>();
         }
 
-        using var gate = new SemaphoreSlim(MaxConcurrency);
-
-        var memberTasks = groups.Select(async group =>
-        {
-            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                var deviceIds = await GetMemberDeviceIdsAsync(group.Id, cancellationToken).ConfigureAwait(false);
-                return (group.Name, DeviceIds: deviceIds);
-            }
-            finally
-            {
-                gate.Release();
-            }
-        });
-
-        var results = await Task.WhenAll(memberTasks).ConfigureAwait(false);
+        var results = await FetchAllMembershipsAsync(groups, cancellationToken).ConfigureAwait(false);
 
         var membership = new Dictionary<int, List<string>>();
-        foreach (var (name, deviceIds) in results)
+        foreach (var (group, deviceIds) in results)
         {
             foreach (var deviceId in deviceIds)
             {
@@ -383,11 +367,22 @@ internal sealed class DeviceGroupsApi : IDeviceGroupsApi
                     membership[deviceId] = names;
                 }
 
-                names.Add(name);
+                names.Add(group.Name);
             }
         }
 
         return membership.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value);
+    }
+
+    public async Task<IReadOnlyDictionary<int, int>> GetMemberCountsAsync(IReadOnlyList<DeviceGroup> groups, CancellationToken cancellationToken = default)
+    {
+        if (groups.Count == 0)
+        {
+            return new Dictionary<int, int>();
+        }
+
+        var results = await FetchAllMembershipsAsync(groups, cancellationToken).ConfigureAwait(false);
+        return results.ToDictionary(r => r.Group.Id, r => r.DeviceIds.Count);
     }
 
     public async Task<IReadOnlyList<int>> GetMemberDeviceIdsAsync(int groupId, CancellationToken cancellationToken = default)
@@ -395,6 +390,28 @@ internal sealed class DeviceGroupsApi : IDeviceGroupsApi
         var url = "devicegroups/" + groupId.ToString(CultureInfo.InvariantCulture);
         var members = await _transport.GetCollectionAsync<DeviceGroupMember>(url, "devices", cancellationToken).ConfigureAwait(false);
         return members.Select(m => m.DeviceId).ToArray();
+    }
+
+    /// <summary>Shared by <see cref="GetMembershipByDeviceAsync"/> and <see cref="GetMemberCountsAsync"/> - one bounded-concurrency pass over every group's own membership call.</summary>
+    private async Task<IReadOnlyList<(DeviceGroup Group, IReadOnlyList<int> DeviceIds)>> FetchAllMembershipsAsync(IReadOnlyList<DeviceGroup> groups, CancellationToken cancellationToken)
+    {
+        using var gate = new SemaphoreSlim(MaxConcurrency);
+
+        var tasks = groups.Select(async group =>
+        {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var deviceIds = await GetMemberDeviceIdsAsync(group.Id, cancellationToken).ConfigureAwait(false);
+                return (Group: group, DeviceIds: deviceIds);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        return await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
     public async Task CreateAsync(string name, string? description, IReadOnlyList<int> deviceIds, CancellationToken cancellationToken = default)

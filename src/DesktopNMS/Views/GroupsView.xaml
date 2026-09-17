@@ -15,7 +15,13 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- ======================== Search + Add + Refresh ======================== -->
+        <!-- ======================== Type pills + search + Add ======================== -->
+        <!-- Same rhythm as DevicesView's own toolbar: badges on the left
+             (here Static/Dynamic instead of Up/Down/...), search immediately
+             before the separator/Add button on the right. Refresh is
+             deliberately not duplicated here: the main tab bar's Refresh
+             button (RefreshCurrentTabCommand) already covers whichever tab
+             is showing. -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
@@ -29,7 +35,33 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <ToggleButton IsChecked="{Binding ShowStatic}"
+                                  Tag="static"
+                                  PreviewMouseLeftButtonDown="TypeBadge_PreviewMouseLeftButtonDown"
+                                  Style="{StaticResource CountBadgeToggleStyle}"
+                                  ToolTip="Show/hide static groups (shift-click to show only static)"
+                                  Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding StaticCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="static" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton IsChecked="{Binding ShowDynamic}"
+                                  Tag="dynamic"
+                                  PreviewMouseLeftButtonDown="TypeBadge_PreviewMouseLeftButtonDown"
+                                  Style="{StaticResource CountBadgeToggleStyle}"
+                                  ToolTip="Show/hide dynamic groups (shift-click to show only dynamic)">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding DynamicCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="dynamic" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBox x:Name="SearchBox"
                              Width="240"
                              Style="{StaticResource SearchTextBoxStyle}"
@@ -40,18 +72,11 @@
 
                     <Button Command="{Binding ClearFiltersCommand}"
                             Style="{StaticResource IconButtonStyle}"
-                            ToolTip="Clear search"
-                            Visibility="{Binding SearchText, Converter={StaticResource StringToVisibility}}">
+                            ToolTip="Clear search and type filters"
+                            Visibility="{Binding HasAnyFilterApplied, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
                     </Button>
                 </StackPanel>
-
-                <Button Grid.Column="1"
-                        Command="{Binding RefreshCommand}"
-                        Style="{StaticResource IconButtonStyle}"
-                        ToolTip="Refresh">
-                    <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" />
-                </Button>
 
                 <Rectangle Grid.Column="2" Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
 
@@ -79,31 +104,55 @@
             <DataGrid ItemsSource="{Binding GroupsView}" IsReadOnly="True">
                 <DataGrid.Columns>
 
-                    <DataGridTemplateColumn Header="Name" Width="260" SortMemberPath="Name">
+                    <DataGridTemplateColumn Header="Name" Width="200" SortMemberPath="Name">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <StackPanel Margin="10,0" VerticalAlignment="Center">
-                                    <TextBlock Cursor="Hand" TextTrimming="CharacterEllipsis">
-                                        <Hyperlink Command="{Binding ViewDevicesCommand}" ToolTip="Show this group's devices on the Devices tab">
-                                            <Run Text="{Binding Name, Mode=OneWay}" />
-                                        </Hyperlink>
-                                    </TextBlock>
-                                    <TextBlock Text="Dynamic"
-                                               Style="{StaticResource SubtleTextStyle}"
-                                               FontSize="11"
-                                               ToolTip="A rule-based group - its rules can only be viewed/edited from LibreNMS's own web UI"
-                                               Visibility="{Binding IsEditableAsStatic, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
-                                </StackPanel>
+                                <TextBlock Margin="10,0" VerticalAlignment="Center" Cursor="Hand" TextTrimming="CharacterEllipsis">
+                                    <Hyperlink Command="{Binding ViewDevicesCommand}" ToolTip="Show this group's devices on the Devices tab">
+                                        <Run Text="{Binding Name, Mode=OneWay}" />
+                                    </Hyperlink>
+                                </TextBlock>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTextColumn Header="Description" Width="*" Binding="{Binding Description}" />
+                    <DataGridTextColumn Header="Description" Width="1*" Binding="{Binding Description}" />
 
-                    <DataGridTemplateColumn Header="" Width="90" CanUserSort="False">
+                    <DataGridTextColumn Header="Type" Width="80" Binding="{Binding TypeText}" SortMemberPath="TypeText" />
+
+                    <DataGridTextColumn Header="Devices" Width="70" Binding="{Binding MemberCountText}" SortMemberPath="MemberCount">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="TextAlignment" Value="Right" />
+                                <Setter Property="Margin" Value="0,0,10,0" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+
+                    <DataGridTemplateColumn Header="Pattern" Width="2*" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Pattern}"
+                                           Margin="10,0"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding Pattern}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="" Width="130" CanUserSort="False">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" Margin="6,0">
+                                    <Button Command="{Binding RediscoverCommand}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Width="28"
+                                            Height="28"
+                                            FontSize="13"
+                                            ToolTip="Rediscover every device in this group">
+                                        <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                                    </Button>
                                     <Button Command="{Binding EditCommand}"
                                             Style="{StaticResource IconButtonStyle}"
                                             Width="28"
