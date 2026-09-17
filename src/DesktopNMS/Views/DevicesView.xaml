@@ -109,20 +109,24 @@
                                 Padding="10,7" />
                     </StackPanel>
 
-                    <!-- Set apart from the filter cluster by a divider and its
-                         own primary styling, rather than chained onto the end
-                         of it as just another chip - a create action reads as
-                         secondary/easy to miss otherwise (the same convention
-                         GitHub/Linear/Jira and this app's own Dashboard "Add
-                         widget" button already use). -->
+                    <!-- Set apart from the filter cluster by a divider rather
+                         than chained onto the end of it as just another chip -
+                         a create action reads as secondary/easy to miss
+                         otherwise. Neutral IconButtonStyle rather than the
+                         accent colour: accent is reserved elsewhere in the app
+                         for "selected" or "needs attention" (the active-filter
+                         dot, selected tabs, ...), not just "important button" -
+                         reusing it here would blur that meaning. Same
+                         treatment as the Refresh icon button: a plain glyph
+                         with a tooltip, no accent fill. -->
                     <Rectangle Grid.Column="2" Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
 
                     <Button Grid.Column="3"
-                            Content="+ Add device"
                             Command="{Binding AddDeviceCommand}"
-                            Style="{StaticResource PrimaryButtonStyle}"
-                            Padding="12,7"
-                            VerticalAlignment="Center" />
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Add device">
+                        <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                    </Button>
                 </Grid>
 
                 <!-- A quick way back into something you were just looking at -
