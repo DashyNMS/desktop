@@ -13,6 +13,7 @@ public enum StartupTab
     Devices,
     Health,
     Alerts,
+    Groups,
 }
 
 /// <summary>

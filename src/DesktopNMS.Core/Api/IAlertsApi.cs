@@ -222,6 +222,29 @@ public interface IDeviceGroupsApi
     /// once per group (see <see cref="ListAsync"/>) and merges the results.
     /// </summary>
     Task<IReadOnlyDictionary<int, IReadOnlyList<string>>> GetMembershipByDeviceAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>GET /api/v0/devicegroups/{id}. The device ids belonging to one specific group - used to pre-check a static group's members when opening it for editing.</summary>
+    Task<IReadOnlyList<int>> GetMemberDeviceIdsAsync(int groupId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// POST /api/v0/devicegroups. Creates a new static (explicit device-list)
+    /// group - this app has no UI for a dynamic group's rules, so
+    /// <paramref name="deviceIds"/> is always required and "type" is always
+    /// sent as "static".
+    /// </summary>
+    Task CreateAsync(string name, string? description, IReadOnlyList<int> deviceIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// PATCH /api/v0/devicegroups/{currentName}. Addressed by the group's
+    /// current name - <paramref name="newName"/> renames it via the request
+    /// body, same convention as <see cref="IDevicesApi.RenameAsync"/> using a
+    /// separate identifier for "where" versus "what it becomes". Like
+    /// <see cref="CreateAsync"/>, always a static-group update.
+    /// </summary>
+    Task UpdateAsync(string currentName, string newName, string? description, IReadOnlyList<int> deviceIds, CancellationToken cancellationToken = default);
+
+    /// <summary>DELETE /api/v0/devicegroups/{name}. Works for a group of either type - deleting does not require understanding its rules.</summary>
+    Task DeleteAsync(string name, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

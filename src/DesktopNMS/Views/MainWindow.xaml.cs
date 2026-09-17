@@ -63,6 +63,10 @@ public partial class MainWindow : Window
         {
             AlertsViewControl.FocusSearch();
         }
+        else if (_viewModel.IsGroupsTabSelected)
+        {
+            GroupsViewControl.FocusSearch();
+        }
 
         // Dashboard has no search box yet.
     }

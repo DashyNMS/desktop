@@ -361,9 +361,8 @@ internal sealed class DeviceGroupsApi : IDeviceGroupsApi
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var url = "devicegroups/" + group.Id.ToString(CultureInfo.InvariantCulture);
-                var members = await _transport.GetCollectionAsync<DeviceGroupMember>(url, "devices", cancellationToken).ConfigureAwait(false);
-                return (group.Name, Members: members);
+                var deviceIds = await GetMemberDeviceIdsAsync(group.Id, cancellationToken).ConfigureAwait(false);
+                return (group.Name, DeviceIds: deviceIds);
             }
             finally
             {
@@ -374,14 +373,14 @@ internal sealed class DeviceGroupsApi : IDeviceGroupsApi
         var results = await Task.WhenAll(memberTasks).ConfigureAwait(false);
 
         var membership = new Dictionary<int, List<string>>();
-        foreach (var (name, members) in results)
+        foreach (var (name, deviceIds) in results)
         {
-            foreach (var member in members)
+            foreach (var deviceId in deviceIds)
             {
-                if (!membership.TryGetValue(member.DeviceId, out var names))
+                if (!membership.TryGetValue(deviceId, out var names))
                 {
                     names = new List<string>();
-                    membership[member.DeviceId] = names;
+                    membership[deviceId] = names;
                 }
 
                 names.Add(name);
@@ -391,12 +390,66 @@ internal sealed class DeviceGroupsApi : IDeviceGroupsApi
         return membership.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value);
     }
 
+    public async Task<IReadOnlyList<int>> GetMemberDeviceIdsAsync(int groupId, CancellationToken cancellationToken = default)
+    {
+        var url = "devicegroups/" + groupId.ToString(CultureInfo.InvariantCulture);
+        var members = await _transport.GetCollectionAsync<DeviceGroupMember>(url, "devices", cancellationToken).ConfigureAwait(false);
+        return members.Select(m => m.DeviceId).ToArray();
+    }
+
+    public async Task CreateAsync(string name, string? description, IReadOnlyList<int> deviceIds, CancellationToken cancellationToken = default)
+    {
+        var request = new DeviceGroupWriteRequest
+        {
+            Name = name,
+            Description = description,
+            Devices = deviceIds.ToArray(),
+        };
+
+        using var _ = await _transport.SendAsync(HttpMethod.Post, "devicegroups", body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task UpdateAsync(string currentName, string newName, string? description, IReadOnlyList<int> deviceIds, CancellationToken cancellationToken = default)
+    {
+        var url = "devicegroups/" + Uri.EscapeDataString(currentName);
+        var request = new DeviceGroupWriteRequest
+        {
+            Name = newName,
+            Description = description,
+            Devices = deviceIds.ToArray(),
+        };
+
+        using var _ = await _transport.SendAsync(HttpMethod.Patch, url, body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task DeleteAsync(string name, CancellationToken cancellationToken = default)
+    {
+        var url = "devicegroups/" + Uri.EscapeDataString(name);
+        using var _ = await _transport.SendAsync(HttpMethod.Delete, url, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>The membership call's own shape - just enough to know which device this row is.</summary>
     private sealed class DeviceGroupMember
     {
         [System.Text.Json.Serialization.JsonPropertyName("device_id")]
         public int DeviceId { get; set; }
     }
+}
+
+/// <summary>Body for creating/updating a static device group - always sends "type": "static" since this app has no UI for a dynamic group's rules.</summary>
+internal sealed class DeviceGroupWriteRequest
+{
+    [System.Text.Json.Serialization.JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [System.Text.Json.Serialization.JsonPropertyName("desc")]
+    public string? Description { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("type")]
+    public string Type { get; set; } = "static";
+
+    [System.Text.Json.Serialization.JsonPropertyName("devices")]
+    public int[] Devices { get; set; } = Array.Empty<int>();
 }
 
 /// <summary>Implementation of <see cref="IPollerGroupsApi"/>.</summary>

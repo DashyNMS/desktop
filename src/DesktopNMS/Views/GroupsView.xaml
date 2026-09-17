@@ -1,0 +1,139 @@
+<UserControl x:Class="DesktopNMS.Views.GroupsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:GroupsViewModel}"
+             d:DesignHeight="600" d:DesignWidth="1100">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ======================== Search + Add + Refresh ======================== -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox x:Name="SearchBox"
+                             Width="240"
+                             Style="{StaticResource SearchTextBoxStyle}"
+                             Tag="Search groups"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                             ToolTip="Filter by name or description"
+                             Margin="0,0,8,0" />
+
+                    <Button Command="{Binding ClearFiltersCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Clear search"
+                            Visibility="{Binding SearchText, Converter={StaticResource StringToVisibility}}">
+                        <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                    </Button>
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Command="{Binding RefreshCommand}"
+                        Style="{StaticResource IconButtonStyle}"
+                        ToolTip="Refresh">
+                    <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" />
+                </Button>
+
+                <Rectangle Grid.Column="2" Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
+
+                <Button Grid.Column="3"
+                        Command="{Binding AddGroupCommand}"
+                        Style="{StaticResource IconButtonStyle}"
+                        ToolTip="Add device group">
+                    <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1"
+                Background="#33DA3633"
+                BorderBrush="{StaticResource CriticalBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,10"
+                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Group list ======================== -->
+        <Grid Grid.Row="2">
+            <DataGrid ItemsSource="{Binding GroupsView}" IsReadOnly="True">
+                <DataGrid.Columns>
+
+                    <DataGridTemplateColumn Header="Name" Width="260" SortMemberPath="Name">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="10,0" VerticalAlignment="Center">
+                                    <TextBlock Cursor="Hand" TextTrimming="CharacterEllipsis">
+                                        <Hyperlink Command="{Binding ViewDevicesCommand}" ToolTip="Show this group's devices on the Devices tab">
+                                            <Run Text="{Binding Name, Mode=OneWay}" />
+                                        </Hyperlink>
+                                    </TextBlock>
+                                    <TextBlock Text="Dynamic"
+                                               Style="{StaticResource SubtleTextStyle}"
+                                               FontSize="11"
+                                               ToolTip="A rule-based group - its rules can only be viewed/edited from LibreNMS's own web UI"
+                                               Visibility="{Binding IsEditableAsStatic, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="Description" Width="*" Binding="{Binding Description}" />
+
+                    <DataGridTemplateColumn Header="" Width="90" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="6,0">
+                                    <Button Command="{Binding EditCommand}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Width="28"
+                                            Height="28"
+                                            FontSize="13"
+                                            ToolTip="Edit this group">
+                                        <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                                    </Button>
+                                    <Button Command="{Binding DeleteCommand}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Width="28"
+                                            Height="28"
+                                            FontSize="13"
+                                            ToolTip="Delete this group"
+                                            Foreground="{StaticResource CriticalBrush}">
+                                        <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                                    </Button>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <TextBlock Text="No device groups yet - use + to create one."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding HasGroups, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+        </Grid>
+    </Grid>
+</UserControl>
