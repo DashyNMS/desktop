@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Windows;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
@@ -190,6 +191,35 @@ public sealed class WindowService : IWindowService
         {
             _logger.LogWarning(ex, "Could not open {Url}", url);
             ShowError("Could not open the browser", ex.Message);
+        }
+    }
+
+    private static readonly string[] ExternalToolSchemes = { Uri.UriSchemeHttp, Uri.UriSchemeHttps, "telnet", "ssh" };
+
+    public void OpenExternalTool(Uri uri)
+    {
+        if (!ExternalToolSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Refused to open an unsupported external tool scheme: {Uri}", uri);
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = uri.ToString(),
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not open external tool for {Uri}", uri);
+            ShowError(
+                "Could not open",
+                uri.Scheme is "telnet" or "ssh"
+                    ? $"No application is registered to handle {uri.Scheme}:// links. Install a client (e.g. PuTTY) that registers one, or enable Windows' Telnet Client feature."
+                    : ex.Message);
         }
     }
 

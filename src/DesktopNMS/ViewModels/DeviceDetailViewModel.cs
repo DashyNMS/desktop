@@ -189,6 +189,11 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         ShowAlertsCommand = new RelayCommand(() => _windows.ShowAlertsForDevice(_device?.Hostname ?? Name));
         ShowDevicesForLocationCommand = new RelayCommand(ShowDevicesForLocation, () => HasLocation);
 
+        OpenWebHttpCommand = new RelayCommand(() => OpenExternal("http"), () => CanOpenExternally);
+        OpenWebHttpsCommand = new RelayCommand(() => OpenExternal("https"), () => CanOpenExternally);
+        OpenTelnetCommand = new RelayCommand(() => OpenExternal("telnet"), () => CanOpenExternally);
+        OpenSshCommand = new RelayCommand(() => OpenExternal("ssh"), () => CanOpenExternally);
+
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => _session.IsConnected && !IsBusy);
 
         SelectOverviewCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Overview);
@@ -335,6 +340,15 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>Closes this window and shows the Devices tab isolated down to this device's own location - see <see cref="IWindowService.ShowDevicesFilteredByLocation"/>.</summary>
     public RelayCommand ShowDevicesForLocationCommand { get; }
+
+    /// <summary>"Open in" header buttons - see <see cref="OpenExternal"/> for how the target address is picked.</summary>
+    public RelayCommand OpenWebHttpCommand { get; }
+
+    public RelayCommand OpenWebHttpsCommand { get; }
+
+    public RelayCommand OpenTelnetCommand { get; }
+
+    public RelayCommand OpenSshCommand { get; }
 
     public AsyncRelayCommand RefreshCommand { get; }
 
@@ -539,6 +553,19 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public string Ip => Blank(_device?.Ip);
 
+    /// <summary>
+    /// What "Open in" (<see cref="OpenExternal"/>) targets: the device's own
+    /// IP if LibreNMS has one, falling back to its hostname - never the
+    /// display <see cref="Name"/>, which can be a sysName or custom display
+    /// string that would not resolve as a network address at all.
+    /// </summary>
+    private string? OpenTarget => !string.IsNullOrWhiteSpace(_device?.Ip)
+        ? _device!.Ip
+        : (!string.IsNullOrWhiteSpace(_device?.Hostname) ? _device!.Hostname : null);
+
+    /// <summary>Gates the three "Open in" commands - nothing to open in without a real address.</summary>
+    public bool CanOpenExternally => OpenTarget is not null;
+
     public string Os => Blank(_device?.Os);
 
     public string Hardware => Blank(_device?.Hardware);
@@ -615,6 +642,21 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
         _windows.ShowDevicesFilteredByLocation(_device.Location);
         _windows.CloseDeviceDetail(_deviceId);
+    }
+
+    /// <summary>
+    /// Builds a "{scheme}://{OpenTarget}" URI and hands it to whatever the OS
+    /// has registered for that scheme (see <see cref="IWindowService.OpenExternalTool"/>)
+    /// - DashyNMS does not bundle a web/telnet/ssh client of its own.
+    /// </summary>
+    private void OpenExternal(string scheme)
+    {
+        if (OpenTarget is not { } target || !Uri.TryCreate($"{scheme}://{target}", UriKind.Absolute, out var uri))
+        {
+            return;
+        }
+
+        _windows.OpenExternalTool(uri);
     }
 
     /// <summary>True once the shared device monitor has actually reported on this device at least once.</summary>
@@ -1811,6 +1853,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasTechnicalDetails));
         OnPropertyChanged(nameof(HasLocation));
         ShowDevicesForLocationCommand.RaiseCanExecuteChanged();
+
+        OnPropertyChanged(nameof(CanOpenExternally));
+        OpenWebHttpCommand.RaiseCanExecuteChanged();
+        OpenWebHttpsCommand.RaiseCanExecuteChanged();
+        OpenTelnetCommand.RaiseCanExecuteChanged();
+        OpenSshCommand.RaiseCanExecuteChanged();
     }
 
     private static string Blank(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value!;

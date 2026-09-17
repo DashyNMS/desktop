@@ -91,6 +91,28 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Web/Telnet/SSH launch this device's own address via
+                         whatever the OS has registered for that URI scheme -
+                         see DeviceDetailViewModel.OpenExternal. Hidden by
+                         IsEnabled rather than Visibility when the device has
+                         neither an IP nor a hostname, so the button stays put
+                         and the tooltip still explains why. -->
+                    <Button Content="Open in"
+                            Style="{StaticResource ChipButtonStyle}"
+                            Margin="0,0,8,0"
+                            IsEnabled="{Binding CanOpenExternally}"
+                            Click="OnOpenInClick"
+                            ToolTip="Launch this device's address in an external tool">
+                        <Button.ContextMenu>
+                            <ContextMenu Placement="Bottom">
+                                <MenuItem Header="Web (HTTP)" Command="{Binding OpenWebHttpCommand}" />
+                                <MenuItem Header="Web (HTTPS)" Command="{Binding OpenWebHttpsCommand}" />
+                                <MenuItem Header="Telnet" Command="{Binding OpenTelnetCommand}" />
+                                <MenuItem Header="SSH" Command="{Binding OpenSshCommand}" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+
                     <Button Command="{Binding RefreshCommand}"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Refresh now">

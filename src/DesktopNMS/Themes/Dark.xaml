@@ -988,14 +988,20 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContextMenu">
+                    <!-- No DropShadowEffect here - it used to be applied to this
+                         Border, but a Popup's content is a brand new visual
+                         every time it opens (nothing to cache across opens),
+                         so WPF was rasterising and blurring it from scratch on
+                         every single open. That was the actual cause of the
+                         "popover takes ages to load" lag (issue #91) - visible
+                         even on a 3-item menu, since it had nothing to do with
+                         how much content the menu held. The border/background
+                         alone is still enough to read as a distinct surface. -->
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="6"
                             SnapsToDevicePixels="True">
-                        <Border.Effect>
-                            <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.35" Color="Black" />
-                        </Border.Effect>
                         <StackPanel Margin="{TemplateBinding Padding}" IsItemsHost="True" />
                     </Border>
                 </ControlTemplate>

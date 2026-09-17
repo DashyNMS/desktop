@@ -64,6 +64,15 @@ public interface IWindowService
     /// <summary>Opens a URL in the default browser.</summary>
     void OpenUrl(Uri url);
 
+    /// <summary>
+    /// "Open in" on Device Details: hands a web/telnet/ssh URI to whatever the
+    /// OS has registered for its scheme (a browser, PuTTY, the built-in
+    /// Telnet client if enabled, ...). Unlike <see cref="OpenUrl"/>, the URI
+    /// here is one DashyNMS built itself from the device's own address, not a
+    /// link handed over as-is from the LibreNMS server.
+    /// </summary>
+    void OpenExternalTool(Uri uri);
+
     void ShowError(string title, string message);
 
     void ShowInformation(string title, string message);
