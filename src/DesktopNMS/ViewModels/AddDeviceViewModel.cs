@@ -39,7 +39,7 @@ public sealed class AddDeviceViewModel : ObservableObject
     private string _cryptoAlgo = "AES";
     private string _port = string.Empty;
     private string _transport = string.Empty;
-    private int _selectedPollerGroupId;
+    private PollerGroup _selectedPollerGroup = DefaultPollerGroup;
     private bool _forceAdd;
     private bool _pingFallback = true;
     private bool _isBusy;
@@ -227,10 +227,10 @@ public sealed class AddDeviceViewModel : ObservableObject
     /// added to the wrong group (or left on the default when it should not
     /// be) never gets polled by the poller that's actually watching for it.
     /// </summary>
-    public int SelectedPollerGroupId
+    public PollerGroup SelectedPollerGroup
     {
-        get => _selectedPollerGroupId;
-        set => SetProperty(ref _selectedPollerGroupId, value);
+        get => _selectedPollerGroup;
+        set => SetProperty(ref _selectedPollerGroup, value);
     }
 
     /// <summary>Skips duplicate/reachability checks - for a device that cannot answer SNMP right now but should still be added.</summary>
@@ -300,7 +300,7 @@ public sealed class AddDeviceViewModel : ObservableObject
     {
         var port = int.TryParse(Port, out var parsedPort) && parsedPort > 0 ? parsedPort : (int?)null;
         var transport = string.IsNullOrWhiteSpace(Transport) ? null : Transport.Trim();
-        var pollerGroup = SelectedPollerGroupId == 0 ? null : (int?)SelectedPollerGroupId;
+        var pollerGroup = SelectedPollerGroup.Id == 0 ? null : (int?)SelectedPollerGroup.Id;
         var forceAdd = ForceAdd ? true : (bool?)null;
         var pingFallback = PingFallback ? true : (bool?)null;
 
