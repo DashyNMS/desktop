@@ -1439,7 +1439,7 @@
                             </StackPanel>
                         </Grid>
 
-                        <TextBlock Text="Purpose" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,0" />
+                        <TextBlock Text="Description" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,0" />
                         <TextBox Text="{Binding EditPurpose, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                 </Border>
@@ -1524,6 +1524,7 @@
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
                                  Height="90"
+                                 VerticalContentAlignment="Top"
                                  VerticalScrollBarVisibility="Auto" />
                     </StackPanel>
                 </Border>
