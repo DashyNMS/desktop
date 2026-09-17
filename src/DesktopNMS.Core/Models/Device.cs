@@ -33,7 +33,16 @@ public sealed class Device
     [JsonPropertyName("version")]
     public string? Version { get; set; }
 
+    /// <summary>
+    /// LooseStringConverter because LibreNMS's geocoding feature can return
+    /// this as a nested object (resolved coordinates) instead of a plain
+    /// string, depending on server configuration - confirmed against a live
+    /// instance, where a plain string-typed read of this field threw and
+    /// broke every call that touches this device's row, not just Location's
+    /// own display.
+    /// </summary>
     [JsonPropertyName("location")]
+    [JsonConverter(typeof(DesktopNMS.Core.Json.LooseStringConverter))]
     public string? Location { get; set; }
 
     [JsonPropertyName("type")]
@@ -42,12 +51,31 @@ public sealed class Device
     [JsonPropertyName("purpose")]
     public string? Purpose { get; set; }
 
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+
+    /// <summary>Forces <see cref="Location"/> to win over whatever the device's own sysLocation reports, instead of LibreNMS preferring sysLocation.</summary>
+    [JsonPropertyName("override_sysLocation")]
+    public bool OverrideSysLocation { get; set; }
+
+    /// <summary>Which poller in a distributed-poller setup owns this device - see <see cref="Api.AddDeviceRequest.PollerGroup"/>.</summary>
+    [JsonPropertyName("poller_group")]
+    public int PollerGroup { get; set; }
+
     /// <summary>The raw SNMP system description, e.g. "Onyx,SN2010M,SWv3.10.4408" - a one-line hardware/firmware summary LibreNMS's own device page shows prominently at the top.</summary>
     [JsonPropertyName("sysDescr")]
     public string? SysDescr { get; set; }
 
     [JsonPropertyName("sysContact")]
     public string? Contact { get; set; }
+
+    /// <summary>Forces <see cref="Contact"/> to win over whatever the device's own sysContact reports, mirroring <see cref="OverrideSysLocation"/>.</summary>
+    [JsonPropertyName("override_sysContact")]
+    public bool OverrideSysContact { get; set; }
+
+    /// <summary>Excludes this device from fleet-wide up/down availability figures without disabling polling or alerting for it - distinct from <see cref="Ignore"/>.</summary>
+    [JsonPropertyName("ignore_status")]
+    public bool IgnoreStatus { get; set; }
 
     /// <summary>The device's SNMP sysObjectID, e.g. ".1.3.6.1.4.1.33049.1.1.1.201015" - identifies the vendor/model MIB, mainly useful for cross-referencing against vendor documentation.</summary>
     [JsonPropertyName("sysObjectID")]

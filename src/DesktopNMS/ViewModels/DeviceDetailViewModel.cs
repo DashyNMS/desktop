@@ -31,6 +31,9 @@ public enum DeviceDetailSection
     /// <summary>Both this device's currently active alerts and its historical alert log - see <see cref="Views.DeviceView"/>.</summary>
     Alerts,
     EventLog,
+
+    /// <summary>Editable fields plus device-management actions (Rediscover now, Delete eventually) - a home for "change this device" rather than "view its data".</summary>
+    Edit,
 }
 
 /// <summary>
@@ -83,6 +86,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private const int MaxOutagesShown = 10;
     private const int AvailabilityTimelineDays = 30;
 
+    /// <summary>Always present regardless of what (if anything) the server returns - see AddDeviceViewModel's own copy of this same idea.</summary>
+    private static readonly PollerGroup DefaultPollerGroup = new() { Id = 0, GroupName = "Default (poller 0)" };
+
     private int _eventLogLimit = EventLogPageSize;
 
     private double? _availability1Day;
@@ -95,6 +101,44 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private bool _isBusy;
     private bool _isRediscovering;
     private string? _errorMessage;
+    private string _editHostname = string.Empty;
+    private string _editLocation = string.Empty;
+    private string _editDisplayName = string.Empty;
+    private string _editType = string.Empty;
+    private string _editPurpose = string.Empty;
+    private bool _editOverrideSysLocation;
+    private string _editContact = string.Empty;
+    private bool _editOverrideSysContact;
+    private string _editNotes = string.Empty;
+    private bool _editDisabled;
+    private bool _editIgnore;
+    private bool _editIgnoreStatus;
+    private PollerGroup _selectedPollerGroup = DefaultPollerGroup;
+    private bool _hasLoadedPollerGroupsOnce;
+
+    // SNMP editing is opt-in (EditChangeSnmp) and never pre-filled from the
+    // current device - see EditChangeSnmp's own remarks for why.
+    private bool _editChangeSnmp;
+    private bool _editIsPingOnly;
+    private bool _editIsSnmpV2c = true;
+    private bool _editIsSnmpV1;
+    private bool _editIsSnmpV3;
+    private string _editCommunity = string.Empty;
+    private string _editAuthLevel = "authPriv";
+    private string _editAuthName = string.Empty;
+    private string _editAuthPass = string.Empty;
+    private string _editAuthAlgo = "SHA";
+    private string _editCryptoPass = string.Empty;
+    private string _editCryptoAlgo = "AES";
+    private string _editSnmpOs = "ping";
+    private string _editSysNameOverride = string.Empty;
+    private string _editHardwareOverride = string.Empty;
+    private string _editPort = string.Empty;
+    private string _editTransport = string.Empty;
+
+    private bool _isSavingEdit;
+    private string? _editErrorMessage;
+    private string? _editSuccessMessage;
     private DeviceDetailSection _selectedSection = DeviceDetailSection.Overview;
     private string _eventLogSearchText = string.Empty;
     private string _fdbSearchText = string.Empty;
@@ -169,6 +213,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         FdbEntries = new ObservableCollection<FdbItemViewModel>();
         ArpEntries = new ObservableCollection<ArpItemViewModel>();
         EventLog = new ObservableCollection<EventLogItemViewModel>();
+        PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
 
         PortsView = CollectionViewSource.GetDefaultView(Ports);
         PortsView.Filter = FilterPortEntry;
@@ -207,6 +252,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectArpCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Arp);
         SelectAlertsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Alerts);
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
+        SelectEditCommand = new RelayCommand(SelectEdit);
+
+        SaveEditCommand = new AsyncRelayCommand(SaveEditAsync, () => !IsSavingEdit);
 
         LoadMoreEventLogCommand = new AsyncRelayCommand(LoadMoreEventLogAsync, () => HasMoreEventLog && !IsLoadingMoreEventLog);
 
@@ -375,7 +423,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectEventLogCommand { get; }
 
+    /// <summary>Navigates to the Edit section and refreshes its draft fields from the current device - see <see cref="SelectEdit"/>.</summary>
+    public RelayCommand SelectEditCommand { get; }
+
     public AsyncRelayCommand LoadMoreEventLogCommand { get; }
+
+    /// <summary>Saves whichever Edit fields actually changed - see <see cref="SaveEditAsync"/>.</summary>
+    public AsyncRelayCommand SaveEditCommand { get; }
 
     /// <summary>Free-text filter over a port's name, description and alias.</summary>
     public string PortSearchText
@@ -511,6 +565,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsArpSelected));
                 OnPropertyChanged(nameof(IsAlertsSelected));
                 OnPropertyChanged(nameof(IsEventLogSelected));
+                OnPropertyChanged(nameof(IsEditSelected));
             }
         }
     }
@@ -532,6 +587,337 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsAlertsSelected => SelectedSection == DeviceDetailSection.Alerts;
 
     public bool IsEventLogSelected => SelectedSection == DeviceDetailSection.EventLog;
+
+    public bool IsEditSelected => SelectedSection == DeviceDetailSection.Edit;
+
+    // -------------------------------------------------------------------- edit
+
+    /// <summary>
+    /// A draft copy of the fields LibreNMS lets you change via update_device_field
+    /// (plus a rename, a distinct operation - see <see cref="SaveEditAsync"/>),
+    /// separate from the live <see cref="Location"/>/etc. so switching to the
+    /// Edit section always starts from the current values (see
+    /// <see cref="SelectEdit"/>) without the raw device text properties
+    /// elsewhere in this view model needing to become editable themselves.
+    /// </summary>
+    public string EditHostname
+    {
+        get => _editHostname;
+        set => SetProperty(ref _editHostname, value);
+    }
+
+    /// <summary>
+    /// Changing this away from the device's current Location automatically
+    /// ticks <see cref="EditOverrideSysLocation"/> - editing the field is a
+    /// clear signal you want it to actually take effect, and forgetting to
+    /// also tick the override otherwise means the typed value is silently
+    /// ignored in favour of the device's own reported sysLocation. Never
+    /// auto-unticks: once on, staying on is the safer default.
+    /// </summary>
+    public string EditLocation
+    {
+        get => _editLocation;
+        set
+        {
+            if (SetProperty(ref _editLocation, value) && value.Trim() != (_device?.Location ?? string.Empty))
+            {
+                EditOverrideSysLocation = true;
+            }
+        }
+    }
+
+    /// <summary>Overrides the display name shown throughout the app - see <see cref="DeviceNameStyle"/>, which already prefers this over sysName/hostname once set.</summary>
+    public string EditDisplayName
+    {
+        get => _editDisplayName;
+        set => SetProperty(ref _editDisplayName, value);
+    }
+
+    public string EditType
+    {
+        get => _editType;
+        set => SetProperty(ref _editType, value);
+    }
+
+    public string EditPurpose
+    {
+        get => _editPurpose;
+        set => SetProperty(ref _editPurpose, value);
+    }
+
+    /// <summary>Forces <see cref="EditLocation"/> to win over the device's own reported sysLocation.</summary>
+    public bool EditOverrideSysLocation
+    {
+        get => _editOverrideSysLocation;
+        set => SetProperty(ref _editOverrideSysLocation, value);
+    }
+
+    /// <summary>Same auto-tick behaviour as <see cref="EditLocation"/>/<see cref="EditOverrideSysLocation"/>, for the sysContact equivalent.</summary>
+    public string EditContact
+    {
+        get => _editContact;
+        set
+        {
+            if (SetProperty(ref _editContact, value) && value.Trim() != (_device?.Contact ?? string.Empty))
+            {
+                EditOverrideSysContact = true;
+            }
+        }
+    }
+
+    /// <summary>Forces <see cref="EditContact"/> to win over the device's own reported sysContact, mirroring <see cref="EditOverrideSysLocation"/>.</summary>
+    public bool EditOverrideSysContact
+    {
+        get => _editOverrideSysContact;
+        set => SetProperty(ref _editOverrideSysContact, value);
+    }
+
+    public string EditNotes
+    {
+        get => _editNotes;
+        set => SetProperty(ref _editNotes, value);
+    }
+
+    /// <summary>Stops polling (and therefore alerting) for this device entirely.</summary>
+    public bool EditDisabled
+    {
+        get => _editDisabled;
+        set => SetProperty(ref _editDisabled, value);
+    }
+
+    /// <summary>Keeps polling, but suppresses alerts for this device.</summary>
+    public bool EditIgnore
+    {
+        get => _editIgnore;
+        set => SetProperty(ref _editIgnore, value);
+    }
+
+    /// <summary>Excludes this device from fleet-wide up/down availability figures without affecting polling or alerting.</summary>
+    public bool EditIgnoreStatus
+    {
+        get => _editIgnoreStatus;
+        set => SetProperty(ref _editIgnoreStatus, value);
+    }
+
+    /// <summary>
+    /// Always has at least <see cref="DefaultPollerGroup"/>; whatever else
+    /// LibreNMS reports gets appended the first time the Edit section is
+    /// opened (see <see cref="SelectEdit"/>) - loaded lazily rather than for
+    /// every Device Details window, since most opens never visit Edit.
+    /// </summary>
+    public ObservableCollection<PollerGroup> PollerGroups { get; }
+
+    public PollerGroup SelectedPollerGroup
+    {
+        get => _selectedPollerGroup;
+        set => SetProperty(ref _selectedPollerGroup, value);
+    }
+
+    /// <summary>Suggestions for <see cref="EditSnmpOs"/> - see AddDeviceViewModel.KnownOperatingSystems for the same idea/reasoning.</summary>
+    public ObservableCollection<string> KnownOperatingSystems { get; } = new() { "ping" };
+
+    // ---------------------------------------------------------- SNMP editing
+
+    /// <summary>
+    /// Gates the whole SNMP sub-form: unchecked (the default every time Edit
+    /// opens), none of the SNMP fields below are sent on Save regardless of
+    /// their values. LibreNMS's read API does not return stored SNMP
+    /// credentials (nor should a UI echo secrets back), so this form can only
+    /// ever set new values, never show current ones - without this gate,
+    /// saving the Edit form for an unrelated reason (e.g. just Location)
+    /// could silently blank out or reset a device's working SNMP config.
+    /// </summary>
+    public bool EditChangeSnmp
+    {
+        get => _editChangeSnmp;
+        set
+        {
+            if (SetProperty(ref _editChangeSnmp, value))
+            {
+                OnPropertyChanged(nameof(ShowSnmpEditFields));
+            }
+        }
+    }
+
+    public bool ShowSnmpEditFields => EditChangeSnmp;
+
+    public bool EditIsSnmpEnabled
+    {
+        get => !_editIsPingOnly;
+        set { if (value) SetEditPingOnly(false); }
+    }
+
+    public bool EditIsPingOnly
+    {
+        get => _editIsPingOnly;
+        set { if (value) SetEditPingOnly(true); }
+    }
+
+    public bool ShowEditSnmpFields => EditIsSnmpEnabled;
+
+    public bool ShowEditPingOnlyFields => EditIsPingOnly;
+
+    private void SetEditPingOnly(bool pingOnly)
+    {
+        if (_editIsPingOnly == pingOnly)
+        {
+            return;
+        }
+
+        _editIsPingOnly = pingOnly;
+        OnPropertyChanged(nameof(EditIsSnmpEnabled));
+        OnPropertyChanged(nameof(EditIsPingOnly));
+        OnPropertyChanged(nameof(ShowEditSnmpFields));
+        OnPropertyChanged(nameof(ShowEditPingOnlyFields));
+    }
+
+    public bool EditIsSnmpV2c
+    {
+        get => _editIsSnmpV2c;
+        set { if (value) SetEditSnmpVersion(v2c: true); }
+    }
+
+    public bool EditIsSnmpV1
+    {
+        get => _editIsSnmpV1;
+        set { if (value) SetEditSnmpVersion(v1: true); }
+    }
+
+    public bool EditIsSnmpV3
+    {
+        get => _editIsSnmpV3;
+        set { if (value) SetEditSnmpVersion(v3: true); }
+    }
+
+    public bool ShowEditCommunity => EditIsSnmpV1 || EditIsSnmpV2c;
+
+    public bool ShowEditV3Fields => EditIsSnmpV3;
+
+    private void SetEditSnmpVersion(bool v2c = false, bool v1 = false, bool v3 = false)
+    {
+        _editIsSnmpV2c = v2c;
+        _editIsSnmpV1 = v1;
+        _editIsSnmpV3 = v3;
+
+        OnPropertyChanged(nameof(EditIsSnmpV2c));
+        OnPropertyChanged(nameof(EditIsSnmpV1));
+        OnPropertyChanged(nameof(EditIsSnmpV3));
+        OnPropertyChanged(nameof(ShowEditCommunity));
+        OnPropertyChanged(nameof(ShowEditV3Fields));
+    }
+
+    public string EditCommunity
+    {
+        get => _editCommunity;
+        set => SetProperty(ref _editCommunity, value);
+    }
+
+    public string EditAuthLevel
+    {
+        get => _editAuthLevel;
+        set => SetProperty(ref _editAuthLevel, value);
+    }
+
+    public string EditAuthName
+    {
+        get => _editAuthName;
+        set => SetProperty(ref _editAuthName, value);
+    }
+
+    public string EditAuthPass
+    {
+        get => _editAuthPass;
+        set => SetProperty(ref _editAuthPass, value);
+    }
+
+    public string EditAuthAlgo
+    {
+        get => _editAuthAlgo;
+        set => SetProperty(ref _editAuthAlgo, value);
+    }
+
+    public string EditCryptoPass
+    {
+        get => _editCryptoPass;
+        set => SetProperty(ref _editCryptoPass, value);
+    }
+
+    public string EditCryptoAlgo
+    {
+        get => _editCryptoAlgo;
+        set => SetProperty(ref _editCryptoAlgo, value);
+    }
+
+    /// <summary>Ping-only OS short name - see AddDeviceViewModel.Os for the same idea at add time.</summary>
+    public string EditSnmpOs
+    {
+        get => _editSnmpOs;
+        set => SetProperty(ref _editSnmpOs, value);
+    }
+
+    public string EditSysNameOverride
+    {
+        get => _editSysNameOverride;
+        set => SetProperty(ref _editSysNameOverride, value);
+    }
+
+    public string EditHardwareOverride
+    {
+        get => _editHardwareOverride;
+        set => SetProperty(ref _editHardwareOverride, value);
+    }
+
+    public string EditPort
+    {
+        get => _editPort;
+        set => SetProperty(ref _editPort, value);
+    }
+
+    public string EditTransport
+    {
+        get => _editTransport;
+        set => SetProperty(ref _editTransport, value);
+    }
+
+    public bool IsSavingEdit
+    {
+        get => _isSavingEdit;
+        private set
+        {
+            if (SetProperty(ref _isSavingEdit, value))
+            {
+                SaveEditCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? EditErrorMessage
+    {
+        get => _editErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _editErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasEditError));
+            }
+        }
+    }
+
+    public bool HasEditError => !string.IsNullOrEmpty(_editErrorMessage);
+
+    public string? EditSuccessMessage
+    {
+        get => _editSuccessMessage;
+        private set
+        {
+            if (SetProperty(ref _editSuccessMessage, value))
+            {
+                OnPropertyChanged(nameof(HasEditSuccess));
+            }
+        }
+    }
+
+    public bool HasEditSuccess => !string.IsNullOrEmpty(_editSuccessMessage);
 
     // ------------------------------------------------------------------ device
 
@@ -1867,6 +2253,319 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             IsRediscovering = false;
         }
+    }
+
+    /// <summary>
+    /// Navigates to the Edit section, resetting its draft fields from the
+    /// current device every time - switching away and back discards an
+    /// unsaved edit rather than leaving stale text sitting there.
+    /// </summary>
+    private void SelectEdit()
+    {
+        EditHostname = _device?.Hostname ?? string.Empty;
+        EditLocation = _device?.Location ?? string.Empty;
+        EditDisplayName = _device?.Display ?? string.Empty;
+        EditType = _device?.Type ?? string.Empty;
+        EditPurpose = _device?.Purpose ?? string.Empty;
+        EditOverrideSysLocation = _device?.OverrideSysLocation ?? false;
+        EditContact = _device?.Contact ?? string.Empty;
+        EditOverrideSysContact = _device?.OverrideSysContact ?? false;
+        EditNotes = _device?.Notes ?? string.Empty;
+        EditDisabled = _device?.Disabled ?? false;
+        EditIgnore = _device?.Ignore ?? false;
+        EditIgnoreStatus = _device?.IgnoreStatus ?? false;
+        SelectedPollerGroup = PollerGroups.FirstOrDefault(g => g.Id == _device?.PollerGroup) ?? DefaultPollerGroup;
+
+        // Never pre-filled from the device - see EditChangeSnmp's remarks.
+        EditChangeSnmp = false;
+        SetEditPingOnly(false);
+        SetEditSnmpVersion(v2c: true);
+        EditCommunity = string.Empty;
+        EditAuthLevel = "authPriv";
+        EditAuthName = string.Empty;
+        EditAuthPass = string.Empty;
+        EditAuthAlgo = "SHA";
+        EditCryptoPass = string.Empty;
+        EditCryptoAlgo = "AES";
+        EditSnmpOs = "ping";
+        EditSysNameOverride = string.Empty;
+        EditHardwareOverride = string.Empty;
+        EditPort = string.Empty;
+        EditTransport = string.Empty;
+
+        EditErrorMessage = null;
+        EditSuccessMessage = null;
+
+        if (!_hasLoadedPollerGroupsOnce)
+        {
+            _hasLoadedPollerGroupsOnce = true;
+            _ = LoadPollerGroupsAsync();
+            _ = LoadKnownOperatingSystemsAsync();
+        }
+
+        SelectedSection = DeviceDetailSection.Edit;
+    }
+
+    private async Task LoadPollerGroupsAsync()
+    {
+        try
+        {
+            var groups = await _client.PollerGroups.ListAsync().ConfigureAwait(true);
+
+            foreach (var group in groups)
+            {
+                // Skip a real id-0 row rather than showing two "poller 0"
+                // entries side by side - LibreNMS itself treats 0 as the
+                // implicit default regardless of whether a row exists for it.
+                if (group.Id != 0)
+                {
+                    PollerGroups.Add(group);
+                }
+            }
+
+            // The device's own poller group may only now be resolvable to a
+            // real entry (rather than the synthetic default) now that the
+            // full list has arrived.
+            SelectedPollerGroup = PollerGroups.FirstOrDefault(g => g.Id == _device?.PollerGroup) ?? DefaultPollerGroup;
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load poller groups");
+        }
+    }
+
+    private async Task LoadKnownOperatingSystemsAsync()
+    {
+        try
+        {
+            var devices = await _client.Devices.ListAsync().ConfigureAwait(true);
+
+            var distinctOperatingSystems = devices
+                .Select(d => d.Os)
+                .Where(os => !string.IsNullOrWhiteSpace(os))
+                .Select(os => os!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(os => !os.Equals("ping", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(os => os, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var os in distinctOperatingSystems)
+            {
+                KnownOperatingSystems.Add(os);
+            }
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load the known OS list from the device fleet");
+        }
+    }
+
+    /// <summary>
+    /// Saves only the fields that actually changed from what LibreNMS
+    /// already has - an unchanged field is left out of the request entirely
+    /// rather than round-tripping its current value back to itself. A
+    /// hostname change is a separate rename call (the polled identifier
+    /// itself, not a stored column), sent first so the rest of the batch
+    /// still targets the same device id regardless of the new hostname.
+    /// </summary>
+    private async Task SaveEditAsync()
+    {
+        var fields = new Dictionary<string, string?>();
+        var newHostname = EditHostname.Trim();
+        var hostnameChanged = newHostname.Length > 0 && newHostname != (_device?.Hostname ?? string.Empty);
+
+        if (EditLocation.Trim() != (_device?.Location ?? string.Empty))
+        {
+            fields["location"] = string.IsNullOrWhiteSpace(EditLocation) ? null : EditLocation.Trim();
+        }
+
+        if (EditDisplayName.Trim() != (_device?.Display ?? string.Empty))
+        {
+            fields["display"] = string.IsNullOrWhiteSpace(EditDisplayName) ? null : EditDisplayName.Trim();
+        }
+
+        if (EditType.Trim() != (_device?.Type ?? string.Empty))
+        {
+            fields["type"] = string.IsNullOrWhiteSpace(EditType) ? null : EditType.Trim();
+        }
+
+        if (EditPurpose.Trim() != (_device?.Purpose ?? string.Empty))
+        {
+            fields["purpose"] = string.IsNullOrWhiteSpace(EditPurpose) ? null : EditPurpose.Trim();
+        }
+
+        if (EditOverrideSysLocation != (_device?.OverrideSysLocation ?? false))
+        {
+            fields["override_sysLocation"] = EditOverrideSysLocation ? "1" : "0";
+        }
+
+        if (EditContact.Trim() != (_device?.Contact ?? string.Empty))
+        {
+            fields["sysContact"] = string.IsNullOrWhiteSpace(EditContact) ? null : EditContact.Trim();
+        }
+
+        if (EditOverrideSysContact != (_device?.OverrideSysContact ?? false))
+        {
+            fields["override_sysContact"] = EditOverrideSysContact ? "1" : "0";
+        }
+
+        if (EditNotes.Trim() != (_device?.Notes ?? string.Empty))
+        {
+            fields["notes"] = string.IsNullOrWhiteSpace(EditNotes) ? null : EditNotes.Trim();
+        }
+
+        if (EditDisabled != (_device?.Disabled ?? false))
+        {
+            fields["disabled"] = EditDisabled ? "1" : "0";
+        }
+
+        if (EditIgnore != (_device?.Ignore ?? false))
+        {
+            fields["ignore"] = EditIgnore ? "1" : "0";
+        }
+
+        if (EditIgnoreStatus != (_device?.IgnoreStatus ?? false))
+        {
+            fields["ignore_status"] = EditIgnoreStatus ? "1" : "0";
+        }
+
+        if (SelectedPollerGroup.Id != (_device?.PollerGroup ?? 0))
+        {
+            fields["poller_group"] = SelectedPollerGroup.Id.ToString(CultureInfo.InvariantCulture);
+        }
+
+        // Only included when explicitly opted into (EditChangeSnmp) - see its
+        // own remarks for why this can never be an accidental side effect of
+        // saving the rest of the form.
+        if (EditChangeSnmp)
+        {
+            if (EditIsPingOnly)
+            {
+                fields["snmp_disable"] = "1";
+                fields["os"] = string.IsNullOrWhiteSpace(EditSnmpOs) ? "ping" : EditSnmpOs.Trim();
+                fields["sysName"] = string.IsNullOrWhiteSpace(EditSysNameOverride) ? null : EditSysNameOverride.Trim();
+                fields["hardware"] = string.IsNullOrWhiteSpace(EditHardwareOverride) ? null : EditHardwareOverride.Trim();
+            }
+            else
+            {
+                fields["snmp_disable"] = "0";
+                fields["snmpver"] = EditIsSnmpV3 ? "v3" : EditIsSnmpV1 ? "v1" : "v2c";
+
+                if (EditIsSnmpV3)
+                {
+                    fields["authlevel"] = EditAuthLevel;
+                    fields["authname"] = string.IsNullOrWhiteSpace(EditAuthName) ? null : EditAuthName.Trim();
+                    fields["authpass"] = string.IsNullOrWhiteSpace(EditAuthPass) ? null : EditAuthPass;
+                    fields["authalgo"] = EditAuthAlgo;
+                    fields["cryptopass"] = string.IsNullOrWhiteSpace(EditCryptoPass) ? null : EditCryptoPass;
+                    fields["cryptoalgo"] = EditCryptoAlgo;
+                }
+                else
+                {
+                    fields["community"] = string.IsNullOrWhiteSpace(EditCommunity) ? null : EditCommunity.Trim();
+                }
+            }
+
+            if (int.TryParse(EditPort, out var port) && port > 0)
+            {
+                fields["port"] = port.ToString(CultureInfo.InvariantCulture);
+            }
+
+            if (!string.IsNullOrWhiteSpace(EditTransport))
+            {
+                fields["transport"] = EditTransport.Trim();
+            }
+        }
+
+        if (!hostnameChanged && fields.Count == 0)
+        {
+            EditSuccessMessage = "Nothing to save.";
+            EditErrorMessage = null;
+            return;
+        }
+
+        EditErrorMessage = null;
+        EditSuccessMessage = null;
+        IsSavingEdit = true;
+
+        // Rename and the field-update batch are independent LibreNMS calls,
+        // so one failing must not silently swallow the other - a rename
+        // failure used to abort the whole save before the rest of the
+        // batch (e.g. Display name) was even attempted, since both used to
+        // share one try/catch.
+        string? renameError = null;
+        string? fieldsError = null;
+
+        if (hostnameChanged)
+        {
+            try
+            {
+                await _client.Devices.RenameAsync(_deviceId, newHostname).ConfigureAwait(true);
+                if (_device is not null)
+                {
+                    _device.Hostname = newHostname;
+                }
+            }
+            catch (LibreNmsApiException ex)
+            {
+                _logger.LogWarning(ex, "Could not rename device {DeviceId} to {NewHostname}", _deviceId, newHostname);
+                renameError = ex.ToUserMessage();
+            }
+        }
+
+        if (fields.Count > 0)
+        {
+            try
+            {
+                await _client.Devices.UpdateFieldsAsync(_deviceId, fields).ConfigureAwait(true);
+
+                // Applied locally immediately rather than waiting for the
+                // next shared poll, so Overview and the header reflect the
+                // edit right away instead of looking like it did nothing.
+                if (_device is not null)
+                {
+                    if (fields.TryGetValue("location", out var location)) _device.Location = location;
+                    if (fields.TryGetValue("display", out var display)) _device.Display = display;
+                    if (fields.TryGetValue("type", out var type)) _device.Type = type;
+                    if (fields.TryGetValue("purpose", out var purpose)) _device.Purpose = purpose;
+                    if (fields.ContainsKey("override_sysLocation")) _device.OverrideSysLocation = EditOverrideSysLocation;
+                    if (fields.TryGetValue("sysContact", out var contact)) _device.Contact = contact;
+                    if (fields.ContainsKey("override_sysContact")) _device.OverrideSysContact = EditOverrideSysContact;
+                    if (fields.TryGetValue("notes", out var notes)) _device.Notes = notes;
+                    if (fields.ContainsKey("disabled")) _device.Disabled = EditDisabled;
+                    if (fields.ContainsKey("ignore")) _device.Ignore = EditIgnore;
+                    if (fields.ContainsKey("ignore_status")) _device.IgnoreStatus = EditIgnoreStatus;
+                    if (fields.ContainsKey("poller_group")) _device.PollerGroup = SelectedPollerGroup.Id;
+                }
+            }
+            catch (LibreNmsApiException ex)
+            {
+                _logger.LogWarning(ex, "Could not update device {DeviceId}", _deviceId);
+                fieldsError = ex.ToUserMessage();
+            }
+        }
+
+        RaiseDeviceChanged();
+
+        if (renameError is null && fieldsError is null)
+        {
+            EditSuccessMessage = "Saved.";
+        }
+        else if (renameError is not null && fieldsError is not null)
+        {
+            EditErrorMessage = $"Rename failed: {renameError} Other fields also failed: {fieldsError}";
+        }
+        else if (renameError is not null)
+        {
+            EditErrorMessage = $"Rename failed: {renameError}";
+            EditSuccessMessage = fields.Count > 0 ? "The rest of the form saved." : null;
+        }
+        else
+        {
+            EditErrorMessage = $"Save failed: {fieldsError}";
+            EditSuccessMessage = hostnameChanged ? "The rename saved." : null;
+        }
+
+        IsSavingEdit = false;
     }
 
     private void RaiseDeviceChanged()

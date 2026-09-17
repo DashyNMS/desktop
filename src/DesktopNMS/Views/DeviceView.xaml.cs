@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using DesktopNMS.ViewModels;
@@ -24,6 +25,25 @@ public partial class DeviceView : Window
         // ScrollViewer as a routed event, so this catches it without needing
         // to reach into the DataGrid's template to find that ScrollViewer.
         EventLogGrid.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(OnEventLogScrollChanged));
+
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
+    }
+
+    /// <summary>
+    /// PasswordBox's own text survives navigating away from and back to Edit
+    /// even though SelectEdit() resets the view model's own EditAuthPass/
+    /// EditCryptoPass to empty - a PasswordBox is not bindable, so nothing
+    /// else would ever clear what it visibly shows. Clearing it here keeps
+    /// the box honest about the (reset) state the view model is actually in.
+    /// </summary>
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DeviceDetailViewModel.IsEditSelected)
+            && DataContext is DeviceDetailViewModel { IsEditSelected: true })
+        {
+            EditAuthPassBox.Password = string.Empty;
+            EditCryptoPassBox.Password = string.Empty;
+        }
     }
 
     private void OnEventLogScrollChanged(object sender, ScrollChangedEventArgs e)
@@ -50,6 +70,27 @@ public partial class DeviceView : Window
         {
             menu.PlacementTarget = button;
             menu.IsOpen = true;
+        }
+    }
+
+    /// <summary>
+    /// PasswordBox does not expose a bindable password, by design, so the
+    /// value is pushed to the view model here instead - same as
+    /// AddDeviceWindow's own SNMP v3 password fields.
+    /// </summary>
+    private void OnEditAuthPassChanged(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.EditAuthPass = EditAuthPassBox.Password;
+        }
+    }
+
+    private void OnEditCryptoPassChanged(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.EditCryptoPass = EditCryptoPassBox.Password;
         }
     }
 }

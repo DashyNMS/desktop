@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using DesktopNMS.Core.Json;
 using DesktopNMS.Core.Models;
@@ -150,6 +151,77 @@ internal sealed class DevicesApi : IDevicesApi
 
         return new AddDeviceResult(message, deviceId);
     }
+
+    public async Task UpdateFieldsAsync(int deviceId, IReadOnlyDictionary<string, string?> fields, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture);
+        var request = new UpdateDeviceFieldsRequest
+        {
+            Field = fields.Keys.ToArray(),
+            Data = fields.Values.ToArray(),
+        };
+
+        // Response is a bare JSON array (unlike almost every other endpoint's
+        // object envelope), e.g. [{"status":"ok","message":"..."}] - nothing
+        // here needs its content, since SendAsync already throws on a
+        // non-success HTTP status.
+        using var _ = await _transport.SendAsync(HttpMethod.Patch, url, body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task RenameAsync(int deviceId, string newHostname, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/rename/" + Uri.EscapeDataString(newHostname);
+
+        try
+        {
+            using var _ = await _transport.SendAsync(HttpMethod.Patch, url, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+        catch (LibreNmsApiException renameException)
+        {
+            // Confirmed against a live instance: this endpoint sometimes
+            // renames the device successfully while still reporting failure
+            // to this client - a malformed (non-JSON) body on an otherwise
+            // successful request, or even an HTTP 500 after the rename had
+            // already committed server-side. Guessing from the status code
+            // alone was not reliable enough (both shapes have been observed
+            // for a rename that did go through), so this re-reads the device
+            // directly and only re-throws if the hostname genuinely did not
+            // change to what was requested.
+            //
+            // The verification read can itself fail for an unrelated reason
+            // (also confirmed live: a device whose Location LibreNMS's own
+            // geocoding feature had resolved to an object instead of a plain
+            // string, tripping a completely different deserialisation error)
+            // - caught explicitly by name (renameException, not a bare
+            // throw;) so a failure here re-raises the original rename
+            // failure rather than a confusing second error about something
+            // the caller never asked about.
+            Device? confirmed;
+            try
+            {
+                confirmed = await GetAsync(deviceId.ToString(CultureInfo.InvariantCulture), cancellationToken).ConfigureAwait(false);
+            }
+            catch (LibreNmsApiException)
+            {
+                ExceptionDispatchInfo.Capture(renameException).Throw();
+                return;
+            }
+
+            if (confirmed is null || !string.Equals(confirmed.Hostname, newHostname, StringComparison.OrdinalIgnoreCase))
+            {
+                ExceptionDispatchInfo.Capture(renameException).Throw();
+            }
+        }
+    }
+}
+
+internal sealed class UpdateDeviceFieldsRequest
+{
+    [System.Text.Json.Serialization.JsonPropertyName("field")]
+    public string[] Field { get; set; } = Array.Empty<string>();
+
+    [System.Text.Json.Serialization.JsonPropertyName("data")]
+    public string?[] Data { get; set; } = Array.Empty<string?>();
 }
 
 /// <summary>Implementation of <see cref="ISensorsApi"/>.</summary>

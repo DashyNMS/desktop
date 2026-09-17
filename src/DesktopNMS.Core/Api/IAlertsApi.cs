@@ -83,6 +83,23 @@ public interface IDevicesApi
     /// turn when none are given on the request itself.
     /// </summary>
     Task<AddDeviceResult> AddAsync(AddDeviceRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// PATCH /api/v0/devices/{id}. Updates one or more columns on the device
+    /// (LibreNMS's own "update_device_field" endpoint) - e.g. location,
+    /// purpose, notes. <paramref name="fields"/> maps LibreNMS's own column
+    /// name to the new value; a null value clears that field.
+    /// </summary>
+    Task UpdateFieldsAsync(int deviceId, IReadOnlyDictionary<string, string?> fields, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// PATCH /api/v0/devices/{id}/rename/{newHostname}. Changes the polled
+    /// hostname/address itself - a distinct operation from
+    /// <see cref="UpdateFieldsAsync"/>, since this is the identifier LibreNMS
+    /// actually polls, not just a stored column. The device id is unchanged
+    /// by a rename.
+    /// </summary>
+    Task RenameAsync(int deviceId, string newHostname, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Distributed-poller group endpoints - see <see cref="AddDeviceRequest.PollerGroup"/>.</summary>
