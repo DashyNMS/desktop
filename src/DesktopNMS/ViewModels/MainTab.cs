@@ -7,4 +7,5 @@ public enum MainTab
     Devices,
     Health,
     Alerts,
+    Groups,
 }

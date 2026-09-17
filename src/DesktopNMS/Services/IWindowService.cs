@@ -1,4 +1,5 @@
 using System;
+using DesktopNMS.Core.Models;
 
 namespace DesktopNMS.Services;
 
@@ -63,6 +64,12 @@ public interface IWindowService
 
     /// <summary>Shows the "Add device" dialog. Returns true if a device was added.</summary>
     bool ShowAddDeviceDialog();
+
+    /// <summary>Shows the "Add device group" dialog. Returns true if a group was created.</summary>
+    bool ShowAddDeviceGroupDialog();
+
+    /// <summary>Shows the "Edit device group" dialog for an existing static group. Returns true if it was saved.</summary>
+    bool ShowEditDeviceGroupDialog(DeviceGroup group);
 
     /// <summary>Opens a URL in the default browser.</summary>
     void OpenUrl(Uri url);

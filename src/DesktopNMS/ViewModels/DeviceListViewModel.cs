@@ -482,6 +482,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// updating on first tab load or an explicit user-triggered refresh,
     /// which could otherwise leave it stale for a whole session.
     /// </summary>
+    /// <summary>Forces an immediate re-fetch of group membership rather than waiting for <see cref="_groupMembershipRefreshTimer"/> - called by the Groups tab after it creates/edits/deletes a group, so this tab's own Group filter does not look stale.</summary>
+    public void RequestGroupsRefresh() => _ = LoadDeviceGroupsAsync();
+
     private async Task LoadDeviceGroupsAsync()
     {
         if (!_session.IsConnected)

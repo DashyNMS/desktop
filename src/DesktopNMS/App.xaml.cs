@@ -223,9 +223,11 @@ public partial class App : Application
         services.AddSingleton<DeviceListViewModel>();
         services.AddSingleton<HealthViewModel>();
         services.AddSingleton<DashboardViewModel>();
+        services.AddSingleton<GroupsViewModel>();
         services.AddTransient<ConnectionViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AddDeviceViewModel>();
+        services.AddTransient<DeviceGroupEditorViewModel>();
 
         return services.BuildServiceProvider();
     }

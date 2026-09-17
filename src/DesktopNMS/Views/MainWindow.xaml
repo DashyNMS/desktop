@@ -85,6 +85,10 @@
                                       Style="{StaticResource NavTabButtonStyle}"
                                       IsChecked="{Binding IsDevicesTabSelected, Mode=OneWay}"
                                       Command="{Binding SelectDevicesTabCommand}" />
+                        <ToggleButton Content="Groups"
+                                      Style="{StaticResource NavTabButtonStyle}"
+                                      IsChecked="{Binding IsGroupsTabSelected, Mode=OneWay}"
+                                      Command="{Binding SelectGroupsTabCommand}" />
                         <ToggleButton Content="Health"
                                       Style="{StaticResource NavTabButtonStyle}"
                                       IsChecked="{Binding IsHealthTabSelected, Mode=OneWay}"
@@ -144,6 +148,10 @@
 
             <views:AlertsView x:Name="AlertsViewControl"
                                Visibility="{Binding IsAlertsTabSelected, Converter={StaticResource BoolToVisibility}}" />
+
+            <Grid Visibility="{Binding IsGroupsTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:GroupsView x:Name="GroupsViewControl" DataContext="{Binding Groups}" />
+            </Grid>
         </Grid>
     </Grid>
 </Window>

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
+using DesktopNMS.Core.Models;
 using DesktopNMS.ViewModels;
 using DesktopNMS.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -256,6 +257,31 @@ public sealed class WindowService : IWindowService
     {
         var viewModel = _services.GetRequiredService<AddDeviceViewModel>();
         var window = new AddDeviceWindow(viewModel);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        return window.ShowDialog() == true;
+    }
+
+    public bool ShowAddDeviceGroupDialog()
+    {
+        var viewModel = _services.GetRequiredService<DeviceGroupEditorViewModel>();
+        return ShowDeviceGroupEditorDialog(viewModel);
+    }
+
+    public bool ShowEditDeviceGroupDialog(DeviceGroup group)
+    {
+        var viewModel = _services.GetRequiredService<DeviceGroupEditorViewModel>();
+        viewModel.Initialize(group);
+        return ShowDeviceGroupEditorDialog(viewModel);
+    }
+
+    private bool ShowDeviceGroupEditorDialog(DeviceGroupEditorViewModel viewModel)
+    {
+        var window = new DeviceGroupEditorWindow(viewModel);
 
         if (_mainWindow is { IsVisible: true })
         {
