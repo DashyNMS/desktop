@@ -230,14 +230,10 @@
                             <TextBlock Text="{Binding EventLog.Count, Mode=OneWay, StringFormat=Event log ({0})}" />
                         </ToggleButton>
 
-                        <!-- "Change this device" rather than "view its data" -
-                             kept as its own group so Delete has an obvious
-                             home to join Edit/Rediscover once it exists. -->
-                        <TextBlock Text="MANAGE" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
-                        <ToggleButton Content="Edit device"
-                                      Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsEditSelected, Mode=OneWay}"
-                                      Command="{Binding SelectEditCommand}" />
+                        <!-- No sidebar entry for Edit - the header's own Edit
+                             button (next to Refresh) is the one way in, so
+                             there is only one place to look for it rather
+                             than two that both have to stay in sync. -->
                     </StackPanel>
                 </ScrollViewer>
             </Border>
@@ -1407,6 +1403,27 @@
             <StackPanel Margin="24">
                 <TextBlock Text="Edit device" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
+                <!-- Device-management actions come first - a single home for
+                     "change this device" (Rediscover now, Delete eventually)
+                     that's the first thing you see, rather than scattering
+                     them across the header or burying them under every field
+                     card below. -->
+                <Border Background="{StaticResource SurfaceAltBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="14,12"
+                        Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Device management" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+                        <Button Content="Rediscover"
+                                Command="{Binding RediscoverCommand}"
+                                ToolTip="Ask LibreNMS to rediscover this device now"
+                                HorizontalAlignment="Left"
+                                Padding="12,7" />
+                    </StackPanel>
+                </Border>
+
                 <Border Background="{StaticResource SurfaceAltBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1"
@@ -1425,7 +1442,7 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Hostname" Style="{StaticResource SectionHeaderStyle}" />
+                                <TextBlock Text="Hostname / IP" Style="{StaticResource SectionHeaderStyle}" />
                                 <TextBox Text="{Binding EditHostname, UpdateSourceTrigger=PropertyChanged}"
                                          ToolTip="The address LibreNMS actually polls - changing this renames the device rather than just relabelling it." />
                             </StackPanel>
@@ -1695,25 +1712,6 @@
                             Style="{StaticResource PrimaryButtonStyle}"
                             Padding="16,7" />
                 </StackPanel>
-
-                <!-- Device-management actions - a single home for "change
-                     this device" (Rediscover now, Delete eventually) rather
-                     than scattering them across the header. -->
-                <Border Background="{StaticResource SurfaceAltBrush}"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="6"
-                        Padding="14,12"
-                        Margin="0,28,0,0">
-                    <StackPanel>
-                        <TextBlock Text="Device management" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
-                        <Button Content="Rediscover"
-                                Command="{Binding RediscoverCommand}"
-                                ToolTip="Ask LibreNMS to rediscover this device now"
-                                HorizontalAlignment="Left"
-                                Padding="12,7" />
-                    </StackPanel>
-                </Border>
             </StackPanel>
             </ScrollViewer>
             </Grid>

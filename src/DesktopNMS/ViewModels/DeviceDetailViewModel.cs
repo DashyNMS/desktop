@@ -606,10 +606,24 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         set => SetProperty(ref _editHostname, value);
     }
 
+    /// <summary>
+    /// Changing this away from the device's current Location automatically
+    /// ticks <see cref="EditOverrideSysLocation"/> - editing the field is a
+    /// clear signal you want it to actually take effect, and forgetting to
+    /// also tick the override otherwise means the typed value is silently
+    /// ignored in favour of the device's own reported sysLocation. Never
+    /// auto-unticks: once on, staying on is the safer default.
+    /// </summary>
     public string EditLocation
     {
         get => _editLocation;
-        set => SetProperty(ref _editLocation, value);
+        set
+        {
+            if (SetProperty(ref _editLocation, value) && value.Trim() != (_device?.Location ?? string.Empty))
+            {
+                EditOverrideSysLocation = true;
+            }
+        }
     }
 
     /// <summary>Overrides the display name shown throughout the app - see <see cref="DeviceNameStyle"/>, which already prefers this over sysName/hostname once set.</summary>
@@ -638,10 +652,17 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         set => SetProperty(ref _editOverrideSysLocation, value);
     }
 
+    /// <summary>Same auto-tick behaviour as <see cref="EditLocation"/>/<see cref="EditOverrideSysLocation"/>, for the sysContact equivalent.</summary>
     public string EditContact
     {
         get => _editContact;
-        set => SetProperty(ref _editContact, value);
+        set
+        {
+            if (SetProperty(ref _editContact, value) && value.Trim() != (_device?.Contact ?? string.Empty))
+            {
+                EditOverrideSysContact = true;
+            }
+        }
     }
 
     /// <summary>Forces <see cref="EditContact"/> to win over the device's own reported sysContact, mirroring <see cref="EditOverrideSysLocation"/>.</summary>
@@ -2466,9 +2487,17 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         EditSuccessMessage = null;
         IsSavingEdit = true;
 
-        try
+        // Rename and the field-update batch are independent LibreNMS calls,
+        // so one failing must not silently swallow the other - a rename
+        // failure used to abort the whole save before the rest of the
+        // batch (e.g. Display name) was even attempted, since both used to
+        // share one try/catch.
+        string? renameError = null;
+        string? fieldsError = null;
+
+        if (hostnameChanged)
         {
-            if (hostnameChanged)
+            try
             {
                 await _client.Devices.RenameAsync(_deviceId, newHostname).ConfigureAwait(true);
                 if (_device is not null)
@@ -2476,44 +2505,67 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                     _device.Hostname = newHostname;
                 }
             }
+            catch (LibreNmsApiException ex)
+            {
+                _logger.LogWarning(ex, "Could not rename device {DeviceId} to {NewHostname}", _deviceId, newHostname);
+                renameError = ex.ToUserMessage();
+            }
+        }
 
-            if (fields.Count > 0)
+        if (fields.Count > 0)
+        {
+            try
             {
                 await _client.Devices.UpdateFieldsAsync(_deviceId, fields).ConfigureAwait(true);
+
+                // Applied locally immediately rather than waiting for the
+                // next shared poll, so Overview and the header reflect the
+                // edit right away instead of looking like it did nothing.
+                if (_device is not null)
+                {
+                    if (fields.TryGetValue("location", out var location)) _device.Location = location;
+                    if (fields.TryGetValue("display", out var display)) _device.Display = display;
+                    if (fields.TryGetValue("type", out var type)) _device.Type = type;
+                    if (fields.TryGetValue("purpose", out var purpose)) _device.Purpose = purpose;
+                    if (fields.ContainsKey("override_sysLocation")) _device.OverrideSysLocation = EditOverrideSysLocation;
+                    if (fields.TryGetValue("sysContact", out var contact)) _device.Contact = contact;
+                    if (fields.ContainsKey("override_sysContact")) _device.OverrideSysContact = EditOverrideSysContact;
+                    if (fields.TryGetValue("notes", out var notes)) _device.Notes = notes;
+                    if (fields.ContainsKey("disabled")) _device.Disabled = EditDisabled;
+                    if (fields.ContainsKey("ignore")) _device.Ignore = EditIgnore;
+                    if (fields.ContainsKey("ignore_status")) _device.IgnoreStatus = EditIgnoreStatus;
+                    if (fields.ContainsKey("poller_group")) _device.PollerGroup = SelectedPollerGroup.Id;
+                }
             }
-
-            EditSuccessMessage = "Saved.";
-
-            // Applied locally immediately rather than waiting for the next
-            // shared poll, so Overview and the header reflect the edit right
-            // away instead of looking like it silently did nothing.
-            if (_device is not null)
+            catch (LibreNmsApiException ex)
             {
-                if (fields.TryGetValue("location", out var location)) _device.Location = location;
-                if (fields.TryGetValue("display", out var display)) _device.Display = display;
-                if (fields.TryGetValue("type", out var type)) _device.Type = type;
-                if (fields.TryGetValue("purpose", out var purpose)) _device.Purpose = purpose;
-                if (fields.ContainsKey("override_sysLocation")) _device.OverrideSysLocation = EditOverrideSysLocation;
-                if (fields.TryGetValue("sysContact", out var contact)) _device.Contact = contact;
-                if (fields.ContainsKey("override_sysContact")) _device.OverrideSysContact = EditOverrideSysContact;
-                if (fields.TryGetValue("notes", out var notes)) _device.Notes = notes;
-                if (fields.ContainsKey("disabled")) _device.Disabled = EditDisabled;
-                if (fields.ContainsKey("ignore")) _device.Ignore = EditIgnore;
-                if (fields.ContainsKey("ignore_status")) _device.IgnoreStatus = EditIgnoreStatus;
-                if (fields.ContainsKey("poller_group")) _device.PollerGroup = SelectedPollerGroup.Id;
+                _logger.LogWarning(ex, "Could not update device {DeviceId}", _deviceId);
+                fieldsError = ex.ToUserMessage();
             }
+        }
 
-            RaiseDeviceChanged();
-        }
-        catch (LibreNmsApiException ex)
+        RaiseDeviceChanged();
+
+        if (renameError is null && fieldsError is null)
         {
-            _logger.LogWarning(ex, "Could not update device {DeviceId}", _deviceId);
-            EditErrorMessage = ex.ToUserMessage();
+            EditSuccessMessage = "Saved.";
         }
-        finally
+        else if (renameError is not null && fieldsError is not null)
         {
-            IsSavingEdit = false;
+            EditErrorMessage = $"Rename failed: {renameError} Other fields also failed: {fieldsError}";
         }
+        else if (renameError is not null)
+        {
+            EditErrorMessage = $"Rename failed: {renameError}";
+            EditSuccessMessage = fields.Count > 0 ? "The rest of the form saved." : null;
+        }
+        else
+        {
+            EditErrorMessage = $"Save failed: {fieldsError}";
+            EditSuccessMessage = hostnameChanged ? "The rename saved." : null;
+        }
+
+        IsSavingEdit = false;
     }
 
     private void RaiseDeviceChanged()
