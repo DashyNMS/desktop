@@ -25,6 +25,7 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
         Arp = new ArpApi(transport);
         Vlans = new VlansApi(transport);
         DeviceGroups = new DeviceGroupsApi(transport);
+        PollerGroups = new PollerGroupsApi(transport);
         Logs = new LogsApi(transport);
         System = new SystemApi(transport);
     }
@@ -50,6 +51,8 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
     public IVlansApi Vlans { get; }
 
     public IDeviceGroupsApi DeviceGroups { get; }
+
+    public IPollerGroupsApi PollerGroups { get; }
 
     public ILogsApi Logs { get; }
 

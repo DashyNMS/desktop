@@ -312,6 +312,17 @@ internal sealed class DeviceGroupsApi : IDeviceGroupsApi
     }
 }
 
+/// <summary>Implementation of <see cref="IPollerGroupsApi"/>.</summary>
+internal sealed class PollerGroupsApi : IPollerGroupsApi
+{
+    private readonly ILibreNmsTransport _transport;
+
+    public PollerGroupsApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<PollerGroup>> ListAsync(CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<PollerGroup>("poller_group", "get_poller_group", cancellationToken);
+}
+
 /// <summary>Implementation of <see cref="IVlansApi"/>.</summary>
 internal sealed class VlansApi : IVlansApi
 {

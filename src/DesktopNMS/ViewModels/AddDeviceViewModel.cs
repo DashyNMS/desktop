@@ -1,8 +1,11 @@
 using System;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using DesktopNMS.Core.Api;
+using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
+using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.ViewModels;
 
@@ -17,6 +20,10 @@ public sealed class AddDeviceViewModel : ObservableObject
 {
     private readonly ILibreNmsClient _client;
     private readonly IWindowService _windows;
+    private readonly ILogger<AddDeviceViewModel> _logger;
+
+    /// <summary>Always present regardless of what (if anything) the server returns - represents "don't set poller_group at all", which LibreNMS itself defaults to group 0.</summary>
+    private static readonly PollerGroup DefaultPollerGroup = new() { Id = 0, GroupName = "Default (poller 0)" };
 
     private string _hostname = string.Empty;
     private bool _isSnmpV2c = true;
@@ -32,18 +39,57 @@ public sealed class AddDeviceViewModel : ObservableObject
     private string _cryptoAlgo = "AES";
     private string _port = string.Empty;
     private string _transport = string.Empty;
-    private string _pollerGroup = string.Empty;
+    private int _selectedPollerGroupId;
     private bool _forceAdd;
     private bool _pingFallback = true;
     private bool _isBusy;
     private string? _errorMessage;
 
-    public AddDeviceViewModel(ILibreNmsClient client, IWindowService windows)
+    public AddDeviceViewModel(ILibreNmsClient client, IWindowService windows, ILogger<AddDeviceViewModel> logger)
     {
         _client = client;
         _windows = windows;
+        _logger = logger;
+
+        PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
 
         AddCommand = new AsyncRelayCommand(AddAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(Hostname));
+
+        _ = LoadPollerGroupsAsync();
+    }
+
+    /// <summary>
+    /// Always has at least <see cref="DefaultPollerGroup"/>; whatever else
+    /// LibreNMS reports gets appended once <see cref="LoadPollerGroupsAsync"/>
+    /// completes. A single-poller instance with none configured just leaves
+    /// this at one entry, which is the correct thing to show either way.
+    /// </summary>
+    public ObservableCollection<PollerGroup> PollerGroups { get; }
+
+    private async Task LoadPollerGroupsAsync()
+    {
+        try
+        {
+            var groups = await _client.PollerGroups.ListAsync().ConfigureAwait(true);
+
+            foreach (var group in groups)
+            {
+                // Skip a real id-0 row rather than showing two "poller 0"
+                // entries side by side - LibreNMS itself treats 0 as the
+                // implicit default regardless of whether a row exists for it.
+                if (group.Id != 0)
+                {
+                    PollerGroups.Add(group);
+                }
+            }
+        }
+        catch (LibreNmsApiException ex)
+        {
+            // Best-effort: the dropdown just falls back to the one synthetic
+            // "Default" entry - still enough to add a device, on a server
+            // where this endpoint is unavailable or unauthorized.
+            _logger.LogWarning(ex, "Could not load poller groups");
+        }
     }
 
     /// <summary>Raised with true once a device has been added. Cancelling is handled by the dialog itself.</summary>
@@ -175,16 +221,16 @@ public sealed class AddDeviceViewModel : ObservableObject
 
     /// <summary>
     /// Which poller in a distributed-poller setup should own this device -
-    /// blank leaves it to LibreNMS's own default (group 0, the main poller).
-    /// Easy to miss but not optional in practice for any instance that
-    /// actually runs more than one poller: a device added to the wrong group
-    /// (or left on the default when it should not be) never gets polled by
-    /// the poller that's actually watching for it.
+    /// <see cref="DefaultPollerGroup"/> leaves it to LibreNMS's own default
+    /// (group 0, the main poller). Easy to miss but not optional in practice
+    /// for any instance that actually runs more than one poller: a device
+    /// added to the wrong group (or left on the default when it should not
+    /// be) never gets polled by the poller that's actually watching for it.
     /// </summary>
-    public string PollerGroup
+    public int SelectedPollerGroupId
     {
-        get => _pollerGroup;
-        set => SetProperty(ref _pollerGroup, value);
+        get => _selectedPollerGroupId;
+        set => SetProperty(ref _selectedPollerGroupId, value);
     }
 
     /// <summary>Skips duplicate/reachability checks - for a device that cannot answer SNMP right now but should still be added.</summary>
@@ -254,7 +300,7 @@ public sealed class AddDeviceViewModel : ObservableObject
     {
         var port = int.TryParse(Port, out var parsedPort) && parsedPort > 0 ? parsedPort : (int?)null;
         var transport = string.IsNullOrWhiteSpace(Transport) ? null : Transport.Trim();
-        var pollerGroup = int.TryParse(PollerGroup, out var parsedPollerGroup) && parsedPollerGroup >= 0 ? parsedPollerGroup : (int?)null;
+        var pollerGroup = SelectedPollerGroupId == 0 ? null : (int?)SelectedPollerGroupId;
         var forceAdd = ForceAdd ? true : (bool?)null;
         var pingFallback = PingFallback ? true : (bool?)null;
 

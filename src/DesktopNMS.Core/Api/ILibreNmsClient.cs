@@ -34,6 +34,8 @@ public interface ILibreNmsClient
 
     IDeviceGroupsApi DeviceGroups { get; }
 
+    IPollerGroupsApi PollerGroups { get; }
+
     ILogsApi Logs { get; }
 
     ISystemApi System { get; }

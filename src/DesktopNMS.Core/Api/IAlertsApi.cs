@@ -85,6 +85,13 @@ public interface IDevicesApi
     Task<AddDeviceResult> AddAsync(AddDeviceRequest request, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Distributed-poller group endpoints - see <see cref="AddDeviceRequest.PollerGroup"/>.</summary>
+public interface IPollerGroupsApi
+{
+    /// <summary>GET /api/v0/poller_group. Every poller group configured on the instance - empty on a single-poller setup with none defined.</summary>
+    Task<IReadOnlyList<PollerGroup>> ListAsync(CancellationToken cancellationToken = default);
+}
+
 /// <summary>Instance-level endpoints.</summary>
 public interface ISystemApi
 {
