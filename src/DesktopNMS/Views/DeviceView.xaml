@@ -666,7 +666,7 @@
 
                         <DataGridTextColumn Header="#" Width="36" Binding="{Binding Model.IfIndex}" />
 
-                        <DataGridTemplateColumn Header="Interface" Width="*" SortMemberPath="DisplayName">
+                        <DataGridTemplateColumn Header="Interface" Width="*" MinWidth="140" SortMemberPath="DisplayName">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel Margin="8,4" VerticalAlignment="Center">

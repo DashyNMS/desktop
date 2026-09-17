@@ -960,6 +960,13 @@
         <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
         <Setter Property="FontFamily" Value="Segoe UI" />
         <Setter Property="FontSize" Value="13" />
+        <!-- This Style has no BasedOn, so it replaces the OS theme's default
+             DataGrid Style outright (only the ControlTemplate itself still
+             falls back to the theme) - the theme's own horizontal-scrolling
+             setter is lost along with it, so a grid whose columns don't fit
+             the window (issue #112) silently clips the rightmost ones
+             instead of scrolling to them. -->
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
     </Style>
 
     <!-- ============================ Cards ============================== -->
