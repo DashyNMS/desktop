@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Threading;
@@ -60,6 +61,15 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, SensorItemViewModel> _sensorIndex = new();
     private readonly HashSet<int> _loadedEventLogIds = new();
+
+    /// <summary>
+    /// Cancelled (and disposed) in <see cref="Dispose"/> - closing this
+    /// device's window stops every in-flight section load (Ports/VLANs/FDB/
+    /// ARP/Resources/Availability/Device groups/Event log/Alert history/
+    /// Poller groups/Known OS list) instead of letting them run to
+    /// completion and update a view model nothing is bound to anymore.
+    /// </summary>
+    private readonly CancellationTokenSource _loadCts = new();
 
     /// <summary>
     /// Port id -&gt; display name, populated whenever <see cref="Ports"/>
@@ -1598,7 +1608,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
         try
         {
-            var entries = await _client.Logs.ListAlertLogAsync(_deviceId, 30).ConfigureAwait(true);
+            var entries = await _client.Logs.ListAlertLogAsync(_deviceId, 30, _loadCts.Token).ConfigureAwait(true);
             var ruleIds = entries.Select(e => e.RuleId).Distinct().ToList();
 
             // The rule tells us its name and which columns its condition
@@ -1610,8 +1620,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             var fieldsByRule = new Dictionary<int, IReadOnlySet<string>>();
             foreach (var ruleId in ruleIds)
             {
-                rulesByRule[ruleId] = await _ruleFields.GetRuleAsync(ruleId).ConfigureAwait(true);
-                fieldsByRule[ruleId] = await _ruleFields.GetConditionFieldsAsync(ruleId).ConfigureAwait(true);
+                rulesByRule[ruleId] = await _ruleFields.GetRuleAsync(ruleId, _loadCts.Token).ConfigureAwait(true);
+                fieldsByRule[ruleId] = await _ruleFields.GetConditionFieldsAsync(ruleId, _loadCts.Token).ConfigureAwait(true);
             }
 
             AlertHistory.Clear();
@@ -1625,6 +1635,11 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
             OnPropertyChanged(nameof(HasAlertHistory));
             ErrorMessage = null;
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up
+            // rather than log a spurious "could not load" warning.
         }
         catch (LibreNmsApiException ex)
         {
@@ -1656,7 +1671,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var ports = await _client.Ports.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
+            var ports = await _client.Ports.ListForDeviceAsync(_deviceId, _loadCts.Token).ConfigureAwait(true);
 
             // Neighbours and IP addresses are fetched independently and each
             // tolerate their own failure - a problem with one endpoint
@@ -1718,6 +1733,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(PortsUpCount));
             OnPropertyChanged(nameof(PortsDownCount));
         }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
+        }
         catch (LibreNmsApiException ex)
         {
             // Warning, not Debug: a genuine fetch failure (bad request, timeout,
@@ -1746,7 +1765,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            return await _client.Links.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
+            return await _client.Links.ListForDeviceAsync(_deviceId, _loadCts.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // Propagate rather than swallow-and-return-empty like the
+            // catches below - the caller's own Task.WhenAll should see this
+            // as cancelled, not as "this device just has no neighbours".
+            throw;
         }
         catch (LibreNmsApiException ex)
         {
@@ -1764,7 +1790,11 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            return await _client.Ports.ListIpAddressesAsync(_deviceId).ConfigureAwait(true);
+            return await _client.Ports.ListIpAddressesAsync(_deviceId, _loadCts.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (LibreNmsApiException ex)
         {
@@ -1791,7 +1821,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var vlans = await _client.Vlans.ListAsync().ConfigureAwait(true);
+            var vlans = await _client.Vlans.ListAsync(_loadCts.Token).ConfigureAwait(true);
 
             var mine = vlans
                 .Where(v => v.DeviceId == _deviceId)
@@ -1824,6 +1854,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(ShowVlansEmptyMessage));
             OnPropertyChanged(nameof(ShowVlansNoMatchesMessage));
         }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
+        }
         catch (LibreNmsApiException ex)
         {
             _logger.LogWarning(ex, "Could not load VLANs for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
@@ -1852,7 +1886,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var entries = await _client.Fdb.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
+            var entries = await _client.Fdb.ListForDeviceAsync(_deviceId, _loadCts.Token).ConfigureAwait(true);
 
             FdbEntries.ReplaceAll(entries
                 .OrderBy(e => e.MacAddress, StringComparer.OrdinalIgnoreCase)
@@ -1862,6 +1896,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(HasVisibleFdbEntries));
             OnPropertyChanged(nameof(ShowFdbEmptyMessage));
             OnPropertyChanged(nameof(ShowFdbNoMatchesMessage));
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
         }
         catch (LibreNmsApiException ex)
         {
@@ -1886,7 +1924,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var entries = await _client.Arp.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
+            var entries = await _client.Arp.ListForDeviceAsync(_deviceId, _loadCts.Token).ConfigureAwait(true);
 
             ArpEntries.ReplaceAll(entries
                 .OrderBy(e => e.Ipv4Address, StringComparer.OrdinalIgnoreCase)
@@ -1896,6 +1934,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(HasVisibleArpEntries));
             OnPropertyChanged(nameof(ShowArpEmptyMessage));
             OnPropertyChanged(nameof(ShowArpNoMatchesMessage));
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
         }
         catch (LibreNmsApiException ex)
         {
@@ -1925,9 +1967,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var processorsTask = _client.Health.ListProcessorsAsync(_deviceId);
-            var mempoolsTask = _client.Health.ListMempoolsAsync(_deviceId);
-            var storageTask = _client.Health.ListStorageAsync(_deviceId);
+            var processorsTask = _client.Health.ListProcessorsAsync(_deviceId, _loadCts.Token);
+            var mempoolsTask = _client.Health.ListMempoolsAsync(_deviceId, _loadCts.Token);
+            var storageTask = _client.Health.ListStorageAsync(_deviceId, _loadCts.Token);
             await Task.WhenAll(processorsTask, mempoolsTask, storageTask).ConfigureAwait(true);
 
             Processors.Clear();
@@ -1957,6 +1999,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(DiskUsagePercent));
             OnPropertyChanged(nameof(ResourceSummaryText));
         }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
+        }
         catch (LibreNmsApiException ex)
         {
             _logger.LogWarning(ex, "Could not load resources for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
@@ -1983,8 +2029,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var availabilityTask = _client.Devices.GetAvailabilityAsync(_deviceId);
-            var outagesTask = _client.Devices.GetOutagesAsync(_deviceId);
+            var availabilityTask = _client.Devices.GetAvailabilityAsync(_deviceId, _loadCts.Token);
+            var outagesTask = _client.Devices.GetOutagesAsync(_deviceId, _loadCts.Token);
             await Task.WhenAll(availabilityTask, outagesTask).ConfigureAwait(true);
 
             // Identified by duration rather than array position - LibreNMS's
@@ -2019,6 +2065,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(Availability1YearText));
             OnPropertyChanged(nameof(HasOutages));
         }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
+        }
         catch (LibreNmsApiException ex)
         {
             _logger.LogWarning(ex, "Could not load availability for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
@@ -2039,7 +2089,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var groups = await _client.DeviceGroups.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
+            var groups = await _client.DeviceGroups.ListForDeviceAsync(_deviceId, _loadCts.Token).ConfigureAwait(true);
 
             DeviceGroups.Clear();
             foreach (var group in groups.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase))
@@ -2048,6 +2098,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             }
 
             OnPropertyChanged(nameof(HasDeviceGroups));
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
         }
         catch (LibreNmsApiException ex)
         {
@@ -2131,7 +2185,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
         try
         {
-            var entries = await _client.Logs.ListEventLogAsync(_deviceId, _eventLogLimit).ConfigureAwait(true);
+            var entries = await _client.Logs.ListEventLogAsync(_deviceId, _eventLogLimit, _loadCts.Token).ConfigureAwait(true);
 
             _loadedEventLogIds.Clear();
             var eventLogItems = new List<EventLogItemViewModel>();
@@ -2149,6 +2203,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(HasVisibleEventLog));
             OnPropertyChanged(nameof(ShowEventLogEmptyMessage));
             OnPropertyChanged(nameof(ShowEventLogNoMatchesMessage));
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
         }
         catch (LibreNmsApiException ex)
         {
@@ -2184,7 +2242,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
         try
         {
-            var entries = await _client.Logs.ListEventLogAsync(_deviceId, newLimit).ConfigureAwait(true);
+            var entries = await _client.Logs.ListEventLogAsync(_deviceId, newLimit, _loadCts.Token).ConfigureAwait(true);
 
             var added = 0;
             foreach (var entry in entries)
@@ -2201,6 +2259,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(HasEventLog));
             OnPropertyChanged(nameof(HasVisibleEventLog));
             OnPropertyChanged(nameof(ShowEventLogNoMatchesMessage));
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
+            // Unlike the catches below, cancellation doesn't mean "no more
+            // results exist", so HasMoreEventLog is deliberately left as-is.
         }
         catch (LibreNmsApiException ex)
         {
@@ -2381,7 +2445,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var groups = await _client.PollerGroups.ListAsync().ConfigureAwait(true);
+            var groups = await _client.PollerGroups.ListAsync(_loadCts.Token).ConfigureAwait(true);
 
             foreach (var group in groups)
             {
@@ -2399,6 +2463,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             // full list has arrived.
             SelectedPollerGroup = PollerGroups.FirstOrDefault(g => g.Id == _device?.PollerGroup) ?? DefaultPollerGroup;
         }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
+        }
         catch (LibreNmsApiException ex)
         {
             _logger.LogWarning(ex, "Could not load poller groups");
@@ -2409,7 +2477,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var devices = await _client.Devices.ListAsync().ConfigureAwait(true);
+            var devices = await _client.Devices.ListAsync(_loadCts.Token).ConfigureAwait(true);
 
             var distinctOperatingSystems = devices
                 .Select(d => d.Os)
@@ -2423,6 +2491,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             {
                 KnownOperatingSystems.Add(os);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
         }
         catch (LibreNmsApiException ex)
         {
@@ -2708,6 +2780,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _loadCts.Cancel();
+        _loadCts.Dispose();
         _deviceMonitor.Polled -= OnDevicePolled;
         _sensorMonitor.Polled -= OnSensorPolled;
         _alertMonitor.Polled -= OnAlertsPolled;
