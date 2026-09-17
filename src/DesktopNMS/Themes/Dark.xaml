@@ -757,11 +757,19 @@
                                           IsHitTestVisible="False"
                                           Content="{TemplateBinding SelectionBoxItem}"
                                           ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" />
+                        <!-- No PopupAnimation: fading requires alpha-blending the
+                             whole layered popup window every frame of the
+                             transition, which is exactly the same "expensive on
+                             every open, regardless of content size" pattern
+                             that made ContextMenu's DropShadowEffect laggy
+                             (issue #91) - it just showed up here as a fade
+                             instead of a shadow. AllowsTransparency stays,
+                             since that part is what gives the popup its
+                             rounded corners rather than a square window edge. -->
                         <Popup x:Name="PART_Popup"
                                AllowsTransparency="True"
                                Placement="Bottom"
                                Focusable="False"
-                               PopupAnimation="Fade"
                                IsOpen="{TemplateBinding IsDropDownOpen}">
                             <Border Background="{StaticResource SurfaceBrush}"
                                     BorderBrush="{StaticResource BorderBrush}"
