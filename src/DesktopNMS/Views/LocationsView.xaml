@@ -73,7 +73,10 @@
 
         <!-- ======================== Location list ======================== -->
         <Grid Grid.Row="2">
-            <DataGrid x:Name="LocationsGrid" ItemsSource="{Binding LocationsView}" IsReadOnly="True">
+            <DataGrid x:Name="LocationsGrid"
+                      ItemsSource="{Binding LocationsView}"
+                      IsReadOnly="True"
+                      Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
                 <DataGrid.Columns>
 
                     <DataGridTemplateColumn Header="Name" Width="*" SortMemberPath="Name">
@@ -147,11 +150,23 @@
                 </DataGrid.Columns>
             </DataGrid>
 
+            <TextBlock Text="Loading locations..."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
+
             <TextBlock Text="No locations yet - use + to create one."
                        Style="{StaticResource SubtleTextStyle}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       Visibility="{Binding HasLocations, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                       Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+
+            <TextBlock Text="No locations match your search."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}" />
         </Grid>
     </Grid>
 </UserControl>

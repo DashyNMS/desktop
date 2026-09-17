@@ -69,7 +69,18 @@ public sealed class SensorWidgetViewModel : DashboardWidgetViewModel
 
     public ObservableCollection<SensorItemViewModel> Sensors { get; }
 
-    public bool HasSensors => Sensors.Count > 0;
+    /// <summary>
+    /// Drives the loading/empty/no-matches split on this widget (issue #16).
+    /// "Total" is how many sensors this widget has been configured with
+    /// (<see cref="_ownedSensorIds"/>, known immediately - not itself a
+    /// fetch result), "visible" is how many were actually found in the most
+    /// recent fleet fetch. So IsEmpty means "nothing added to this widget
+    /// yet" (a permanent, user-chosen state), and IsNoMatches means sensors
+    /// are configured but none resolved in the fleet (e.g. a since-deleted
+    /// device) - not the widget's own separate "Add sensor" picker, which
+    /// has its own search box tracked by <see cref="HasPickerResults"/>.
+    /// </summary>
+    public ListLoadState LoadState { get; } = new();
 
     public RelayCommand OpenDeviceCommand => _openDeviceCommand;
 
@@ -131,6 +142,7 @@ public sealed class SensorWidgetViewModel : DashboardWidgetViewModel
 
         if (settings is null)
         {
+            LoadState.CompleteLoad(_ownedSensorIds.Count, Sensors.Count);
             return;
         }
 
@@ -181,7 +193,7 @@ public sealed class SensorWidgetViewModel : DashboardWidgetViewModel
             }
         }
 
-        OnPropertyChanged(nameof(HasSensors));
+        LoadState.CompleteLoad(_ownedSensorIds.Count, Sensors.Count);
     }
 
     /// <summary>Re-evaluates every row's severity, e.g. after the thresholds changed in Settings.</summary>

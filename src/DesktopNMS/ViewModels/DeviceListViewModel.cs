@@ -318,6 +318,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     public int VisibleCount => DevicesView.Cast<object>().Count();
 
+    /// <summary>Drives the loading/empty/no-matches split on the grid itself (issue #16) - distinct from <see cref="IsBusy"/>, which only covers whether a refresh is in flight after the first load.</summary>
+    public ListLoadState LoadState { get; } = new();
+
     // --------------------------------------------------------------- lifetime
 
     /// <summary>
@@ -363,6 +366,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         {
             ErrorMessage = result.ErrorMessage;
             StatusMessage = "Last refresh failed.";
+            LoadState.CompleteLoad(Devices.Count, VisibleCount);
             return;
         }
 
@@ -377,6 +381,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             ? $"{UpCount} up, {DownCount} down, {MaintenanceCount} in maintenance, {TotalCount} total."
             : $"{UpCount} up, {DownCount} down, {TotalCount} total.";
         OnPropertyChanged(nameof(LastUpdatedText));
+        LoadState.CompleteLoad(Devices.Count, VisibleCount);
     }
 
     private void ApplyDevices(IReadOnlyList<Device> devices, IReadOnlySet<int> maintenanceIds)
@@ -735,6 +740,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         DevicesView.Refresh();
         OnPropertyChanged(nameof(VisibleCount));
         OnPropertyChanged(nameof(HasAnyFilterApplied));
+        LoadState.UpdateVisibleCount(VisibleCount);
     }
 
     /// <summary>

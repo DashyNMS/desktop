@@ -187,6 +187,7 @@
                           x:Name="DeviceGrid"
                           ItemsSource="{Binding DevicesView}"
                           SelectedItem="{Binding SelectedDevice}"
+                          Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}"
                           MouseDoubleClick="OnGridDoubleClick"
                           Sorting="DeviceGrid_Sorting">
                     <DataGrid.Columns>
@@ -267,21 +268,28 @@
                 </DataGrid>
 
                 <TextBlock Grid.Column="0"
+                           Text="Loading devices..."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
+
+                <TextBlock Grid.Column="0"
+                           Text="No devices in the fleet yet."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+
+                <TextBlock Grid.Column="0"
                            Text="Nothing matches the current filters."
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
-                           IsHitTestVisible="False">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding VisibleCount}" Value="0">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                           IsHitTestVisible="False"
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}" />
 
                 <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}" />
 

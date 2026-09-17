@@ -145,6 +145,9 @@ public sealed class GroupsViewModel : ObservableObject
 
     public bool HasGroups => Groups.Count > 0;
 
+    /// <summary>Drives the loading/empty/no-matches split on the grid (issue #16).</summary>
+    public ListLoadState LoadState { get; } = new();
+
     /// <summary>Loads the group list once, lazily, the first time the tab is actually shown - same convention as every other tab.</summary>
     public void OnShown()
     {
@@ -161,6 +164,7 @@ public sealed class GroupsViewModel : ObservableObject
     {
         IsBusy = true;
         ErrorMessage = null;
+        LoadState.BeginLoad();
 
         try
         {
@@ -204,6 +208,7 @@ public sealed class GroupsViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            LoadState.CompleteLoad(Groups.Count, GroupsView.Cast<object>().Count());
         }
     }
 
@@ -351,6 +356,7 @@ public sealed class GroupsViewModel : ObservableObject
     {
         GroupsView.Refresh();
         OnPropertyChanged(nameof(HasAnyFilterApplied));
+        LoadState.UpdateVisibleCount(GroupsView.Cast<object>().Count());
     }
 
     private bool FilterGroup(object item)

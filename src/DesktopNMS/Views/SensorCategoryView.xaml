@@ -73,7 +73,8 @@
         <Grid Grid.Row="1">
             <DataGrid x:Name="SensorsGrid"
                       ItemsSource="{Binding SensorsView}"
-                      SelectedItem="{Binding SelectedSensor}">
+                      SelectedItem="{Binding SelectedSensor}"
+                      Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
                 <DataGrid.Columns>
 
                     <DataGridTemplateColumn Header="Status" Width="110" SortMemberPath="Severity">
@@ -105,27 +106,25 @@
                 </DataGrid.ContextMenu>
             </DataGrid>
 
+            <TextBlock Text="Loading sensors..."
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False"
+                       Style="{StaticResource SubtleTextStyle}"
+                       Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
+
             <TextBlock Text="{Binding NoneFoundMessage}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       IsHitTestVisible="False">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding TotalCount}" Value="0">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
+                       IsHitTestVisible="False"
+                       Style="{StaticResource SubtleTextStyle}"
+                       Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}" />
 
             <TextBlock Text="Nothing matches the current filters."
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        IsHitTestVisible="False"
-                       Visibility="{Binding HasSensorsButNoneVisible, Converter={StaticResource BoolToVisibility}}"
+                       Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}"
                        Style="{StaticResource SubtleTextStyle}" />
         </Grid>
     </Grid>

@@ -539,6 +539,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public int VisibleCount => AlertsView.Cast<object>().Count();
 
+    /// <summary>Drives the loading/empty/no-matches split on the Alerts grid (issue #16).</summary>
+    public ListLoadState LoadState { get; } = new();
+
     // --------------------------------------------------------------- lifetime
 
     /// <summary>Called by the app once the session is established.</summary>
@@ -684,6 +687,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 StatusMessage = "The API token was rejected. Sign in again.";
             }
 
+            LoadState.CompleteLoad(TotalCount, VisibleCount);
             return;
         }
 
@@ -698,6 +702,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         OnPropertyChanged(nameof(LastUpdatedText));
         OnPropertyChanged(nameof(NextRefreshText));
+        LoadState.CompleteLoad(TotalCount, VisibleCount);
     }
 
     private void ApplyAlerts(IReadOnlyList<Alert> alerts)
@@ -1210,6 +1215,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         AlertsView.Refresh();
         OnPropertyChanged(nameof(VisibleCount));
+        LoadState.UpdateVisibleCount(VisibleCount);
 
         if (!_suppressFilterPersistence)
         {
