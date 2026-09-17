@@ -73,7 +73,7 @@
 
         <!-- ======================== Location list ======================== -->
         <Grid Grid.Row="2">
-            <DataGrid ItemsSource="{Binding LocationsView}" IsReadOnly="True">
+            <DataGrid x:Name="LocationsGrid" ItemsSource="{Binding LocationsView}" IsReadOnly="True">
                 <DataGrid.Columns>
 
                     <DataGridTemplateColumn Header="Name" Width="*" SortMemberPath="Name">

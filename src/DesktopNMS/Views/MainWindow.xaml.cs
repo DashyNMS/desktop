@@ -42,6 +42,7 @@ public partial class MainWindow : Window
         DevicesFlyout.PlacementTarget = DevicesTabButton;
 
         RestorePlacement();
+        ApplyGridLayouts();
     }
 
     private void DevicesTabButton_MouseEnter(object sender, MouseEventArgs e)
@@ -75,6 +76,7 @@ public partial class MainWindow : Window
     protected override void OnClosing(CancelEventArgs e)
     {
         SavePlacement();
+        SaveGridLayouts();
 
         if (!_allowClose && _settings.Current.MinimiseToTrayOnClose)
         {
@@ -174,6 +176,54 @@ public partial class MainWindow : Window
         catch (Exception)
         {
             // Never let a placement problem block closing the window.
+        }
+    }
+
+    /// <summary>Restores each MainWindow-hosted grid's remembered column widths/order/sort (issue #15) - see DataGridLayoutHelper.</summary>
+    private void ApplyGridLayouts()
+    {
+        var layouts = _settings.Current.GridLayouts;
+
+        DevicesViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Devices"));
+        AlertsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Alerts"));
+        GroupsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Groups"));
+        LocationsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Locations"));
+        HealthViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Health.Sensors"));
+    }
+
+    /// <summary>
+    /// Only whichever tab is actually showing when the window closes has a
+    /// real layout to capture - every other tab's DataGrid is Visibility=Collapsed
+    /// at that moment (WPF never lays out a collapsed element), so
+    /// DataGridLayoutHelper.Capture returns null for it rather than the
+    /// garbage its ActualWidth would otherwise read back as. A null result
+    /// is skipped, leaving that tab's previously saved layout untouched.
+    /// </summary>
+    private void SaveGridLayouts()
+    {
+        try
+        {
+            var layouts = _settings.Current.GridLayouts;
+
+            SetIfCaptured(layouts, "Devices", DevicesViewControl.CaptureGridLayout());
+            SetIfCaptured(layouts, "Alerts", AlertsViewControl.CaptureGridLayout());
+            SetIfCaptured(layouts, "Groups", GroupsViewControl.CaptureGridLayout());
+            SetIfCaptured(layouts, "Locations", LocationsViewControl.CaptureGridLayout());
+            SetIfCaptured(layouts, "Health.Sensors", HealthViewControl.CaptureGridLayout());
+
+            _settings.Save();
+        }
+        catch (Exception)
+        {
+            // Never let a grid-layout problem block closing the window.
+        }
+    }
+
+    private static void SetIfCaptured(Dictionary<string, GridLayout> layouts, string key, GridLayout? captured)
+    {
+        if (captured is not null)
+        {
+            layouts[key] = captured;
         }
     }
 }

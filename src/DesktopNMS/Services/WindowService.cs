@@ -76,6 +76,7 @@ public sealed class WindowService : IWindowService
             return;
         }
 
+        var settings = _services.GetRequiredService<ISettingsStore>();
         var viewModel = new DeviceDetailViewModel(
             deviceId,
             _services.GetRequiredService<DeviceMonitor>(),
@@ -85,11 +86,11 @@ public sealed class WindowService : IWindowService
             _services.GetRequiredService<ILibreNmsClient>(),
             _services.GetRequiredService<IAlertRuleCache>(),
             _services.GetRequiredService<ISessionService>(),
-            _services.GetRequiredService<ISettingsStore>(),
+            settings,
             this,
             _services.GetRequiredService<ILogger<DeviceDetailViewModel>>());
 
-        var window = new DeviceView(viewModel);
+        var window = new DeviceView(viewModel, settings);
 
         if (_mainWindow is { IsVisible: true })
         {

@@ -857,6 +857,23 @@
 
     <!-- ============================ DataGrid =========================== -->
 
+    <!-- A hit-testable strip a header's own template exposes so DataGridColumnHeader's
+         own code (which looks for these two exact part names in OnApplyTemplate) can
+         wire up drag-to-resize - transparent rather than a visible grip line, since the
+         column separator itself already reads as the boundary. -->
+    <Style x:Key="ColumnHeaderGripperStyle" TargetType="Thumb">
+        <Setter Property="Width" Value="8" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Cursor" Value="SizeWE" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border Background="{TemplateBinding Background}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style TargetType="DataGridColumnHeader">
         <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
@@ -869,14 +886,23 @@
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="Template">
             <Setter.Value>
+                <!-- Column resizing (issue #15) relies on DataGridColumnHeader
+                     itself finding PART_LeftHeaderGripper/PART_RightHeaderGripper
+                     by name in this template - without them (the previous
+                     version of this template had neither) there is nothing to
+                     drag, even though CanUserResizeColumns is on. -->
                 <ControlTemplate TargetType="DataGridColumnHeader">
-                    <Border Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}">
-                        <ContentPresenter Margin="{TemplateBinding Padding}"
-                                          VerticalAlignment="Center"
-                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
-                    </Border>
+                    <Grid>
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        </Border>
+                        <Thumb x:Name="PART_LeftHeaderGripper" HorizontalAlignment="Left" Style="{StaticResource ColumnHeaderGripperStyle}" />
+                        <Thumb x:Name="PART_RightHeaderGripper" HorizontalAlignment="Right" Style="{StaticResource ColumnHeaderGripperStyle}" />
+                    </Grid>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

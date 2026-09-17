@@ -180,6 +180,9 @@ public sealed class AppSettings
 
     public WindowPlacement? Window { get; set; }
 
+    /// <summary>Remembered column widths/order and sort per DataGrid, keyed by a stable per-grid name (e.g. "Devices", "DeviceDetail.Ports") - see DataGridLayoutHelper.</summary>
+    public Dictionary<string, GridLayout> GridLayouts { get; set; } = new();
+
     public AppSettings Clone() => new()
     {
         ServerUrl = ServerUrl,
@@ -214,6 +217,7 @@ public sealed class AppSettings
         Theme = Theme,
         ShowServerLogo = ShowServerLogo,
         Window = Window?.Clone(),
+        GridLayouts = GridLayouts.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
     };
 
     /// <summary>Clamps anything a hand-edited settings file could have made nonsensical.</summary>
@@ -237,6 +241,7 @@ public sealed class AppSettings
             RecentlyViewedDevices = RecentlyViewedDevices.Take(RecentlyViewedDeviceCount).ToList();
         }
         PinnedDevices ??= new List<PinnedDevice>();
+        GridLayouts ??= new Dictionary<string, GridLayout>();
         DbmThresholds ??= new DbmThresholdSettings();
         SignalThresholds ??= new SignalThresholdSettings();
         TemperatureThresholds ??= BandThresholdSettings.TemperatureDefaults();
@@ -957,4 +962,46 @@ public sealed class WindowPlacement
         Height = Height,
         Maximised = Maximised,
     };
+}
+
+/// <summary>
+/// Remembered column widths and sort for one DataGrid - see
+/// DataGridLayoutHelper. Columns are matched by position (list index =
+/// the column's original XAML declaration order) rather than a separately
+/// invented string id; a saved layout with a different column count than
+/// the live grid (e.g. after a future column-set change) is simply
+/// ignored rather than mis-applied, since this is a remembered preference,
+/// not data. Column order is not persisted - live drag-to-reorder still
+/// works, but DataGridColumn.DisplayIndex cannot safely be reassigned one
+/// column at a time from code (WPF validates the whole column set as a
+/// permutation at every intermediate assignment, and a naive restore loop
+/// can throw ArgumentOutOfRangeException by passing through an invalid
+/// in-between state - confirmed against a live crash).
+/// </summary>
+public sealed class GridLayout
+{
+    public List<GridColumnLayout> Columns { get; set; } = new();
+
+    public int? SortColumnIndex { get; set; }
+
+    public bool SortDescending { get; set; }
+
+    public GridLayout Clone() => new()
+    {
+        Columns = Columns.Select(c => c.Clone()).ToList(),
+        SortColumnIndex = SortColumnIndex,
+        SortDescending = SortDescending,
+    };
+}
+
+/// <summary>One column's remembered width within a <see cref="GridLayout"/>.</summary>
+public sealed class GridColumnLayout
+{
+    /// <summary>A pixel width, or - when <see cref="IsStarWidth"/> - the star factor (e.g. 1, 2) rather than a pixel count.</summary>
+    public double Width { get; set; }
+
+    /// <summary>True when this column was originally star-sized ("fill remaining space") - <see cref="Width"/> is then its star factor, not a pixel count, so it never gets pinned to a fixed size just because its layout was saved once.</summary>
+    public bool IsStarWidth { get; set; }
+
+    public GridColumnLayout Clone() => new() { Width = Width, IsStarWidth = IsStarWidth };
 }

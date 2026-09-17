@@ -4,7 +4,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views;
@@ -24,6 +26,10 @@ public partial class AlertsView : UserControl
         SearchBox.Focus();
         SearchBox.SelectAll();
     }
+
+    public void ApplyGridLayout(GridLayout? layout) => DataGridLayoutHelper.Apply(AlertGrid, layout);
+
+    public GridLayout? CaptureGridLayout() => DataGridLayoutHelper.Capture(AlertGrid);
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {

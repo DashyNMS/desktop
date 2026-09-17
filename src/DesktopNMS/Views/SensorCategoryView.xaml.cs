@@ -1,7 +1,9 @@
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views;
@@ -19,6 +21,11 @@ public partial class SensorCategoryView : UserControl
         SearchBox.Focus();
         SearchBox.SelectAll();
     }
+
+    /// <summary>All four Health categories share one "Health.Sensors" layout key (see HealthView.xaml.cs) - their columns are identical, just filtered differently.</summary>
+    public void ApplyGridLayout(GridLayout? layout) => DataGridLayoutHelper.Apply(SensorsGrid, layout);
+
+    public GridLayout? CaptureGridLayout() => DataGridLayoutHelper.Capture(SensorsGrid);
 
     /// <summary>
     /// Shift-clicking a status badge isolates that status instead of toggling
