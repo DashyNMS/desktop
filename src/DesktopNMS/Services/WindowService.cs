@@ -291,6 +291,31 @@ public sealed class WindowService : IWindowService
         return window.ShowDialog() == true;
     }
 
+    public bool ShowAddLocationDialog()
+    {
+        var viewModel = _services.GetRequiredService<LocationEditorViewModel>();
+        return ShowLocationEditorDialog(viewModel);
+    }
+
+    public bool ShowEditLocationDialog(Location location)
+    {
+        var viewModel = _services.GetRequiredService<LocationEditorViewModel>();
+        viewModel.Initialize(location);
+        return ShowLocationEditorDialog(viewModel);
+    }
+
+    private bool ShowLocationEditorDialog(LocationEditorViewModel viewModel)
+    {
+        var window = new LocationEditorWindow(viewModel);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        return window.ShowDialog() == true;
+    }
+
     /// <summary>
     /// The same themed dialog as <see cref="ShowConfirmDialog"/>, in OK-only
     /// mode, for a plain notice - see <see cref="ShowError"/>/<see cref="ShowInformation"/>.

@@ -40,6 +40,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly HealthViewModel _health;
     private readonly DashboardViewModel _dashboard;
     private readonly GroupsViewModel _groups;
+    private readonly LocationsViewModel _locations;
     private readonly IServerBrandingService _branding;
     private readonly ISelfActionTracker _selfActions;
     private readonly ILogger<MainViewModel> _logger;
@@ -93,6 +94,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         HealthViewModel health,
         DashboardViewModel dashboard,
         GroupsViewModel groups,
+        LocationsViewModel locations,
         IServerBrandingService branding,
         ISelfActionTracker selfActions,
         ILogger<MainViewModel> logger)
@@ -108,6 +110,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _health = health;
         _dashboard = dashboard;
         _groups = groups;
+        _locations = locations;
         _branding = branding;
         _selfActions = selfActions;
         _logger = logger;
@@ -133,6 +136,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectHealthTabCommand = new RelayCommand(() => SelectedTab = MainTab.Health);
         SelectAlertsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Alerts);
         SelectGroupsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Groups);
+        SelectLocationsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Locations);
         RefreshCurrentTabCommand = new RelayCommand(RefreshCurrentTab);
         ClearCurrentTabFiltersCommand = new RelayCommand(ClearCurrentTabFilters);
         SettingsCommand = new RelayCommand(OpenSettings);
@@ -199,6 +203,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectGroupsTabCommand { get; }
 
+    public RelayCommand SelectLocationsTabCommand { get; }
+
     /// <summary>F5: refreshes whichever tab is currently showing.</summary>
     public RelayCommand RefreshCurrentTabCommand { get; }
 
@@ -222,6 +228,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The device group list, for the Groups tab's content to bind to.</summary>
     public GroupsViewModel Groups => _groups;
+
+    /// <summary>The location list, for the Locations tab's content to bind to.</summary>
+    public LocationsViewModel Locations => _locations;
 
     /// <summary>The connected server's favicon, shown next to the tabs. Null until it loads, or if there isn't one.</summary>
     public BitmapImage? ServerLogo => _branding.Logo;
@@ -258,9 +267,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             {
                 OnPropertyChanged(nameof(IsDashboardTabSelected));
                 OnPropertyChanged(nameof(IsDevicesTabSelected));
+                OnPropertyChanged(nameof(IsDevicesFamilyTabSelected));
                 OnPropertyChanged(nameof(IsHealthTabSelected));
                 OnPropertyChanged(nameof(IsAlertsTabSelected));
                 OnPropertyChanged(nameof(IsGroupsTabSelected));
+                OnPropertyChanged(nameof(IsLocationsTabSelected));
 
                 // Loaded once, lazily, the first time a tab is actually looked at.
                 if (value == MainTab.Devices)
@@ -279,6 +290,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 {
                     _groups.OnShown();
                 }
+                else if (value == MainTab.Locations)
+                {
+                    _locations.OnShown();
+                }
             }
         }
     }
@@ -287,11 +302,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public bool IsDevicesTabSelected => SelectedTab == MainTab.Devices;
 
+    /// <summary>True for Devices itself or either of its hover-flyout sub-tabs (Groups, Locations) - keeps the Devices nav button highlighted while browsing either, since they are facets of device/inventory management rather than peers of it.</summary>
+    public bool IsDevicesFamilyTabSelected => SelectedTab is MainTab.Devices or MainTab.Groups or MainTab.Locations;
+
     public bool IsHealthTabSelected => SelectedTab == MainTab.Health;
 
     public bool IsAlertsTabSelected => SelectedTab == MainTab.Alerts;
 
     public bool IsGroupsTabSelected => SelectedTab == MainTab.Groups;
+
+    public bool IsLocationsTabSelected => SelectedTab == MainTab.Locations;
 
     // -------------------------------------------------------------- filtering
 
@@ -546,6 +566,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             _groups.OnShown();
         }
+        else if (SelectedTab == MainTab.Locations)
+        {
+            _locations.OnShown();
+        }
     }
 
     private static MainTab MapStartupTab(StartupTab tab) => tab switch
@@ -554,6 +578,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         StartupTab.Health => MainTab.Health,
         StartupTab.Alerts => MainTab.Alerts,
         StartupTab.Groups => MainTab.Groups,
+        StartupTab.Locations => MainTab.Locations,
         _ => MainTab.Dashboard,
     };
 
@@ -1022,6 +1047,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
                 break;
 
+            case MainTab.Locations:
+                if (_locations.RefreshCommand.CanExecute(null))
+                {
+                    _locations.RefreshCommand.Execute(null);
+                }
+
+                break;
+
             default:
                 break;
         }
@@ -1045,6 +1078,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
             case MainTab.Groups:
                 _groups.ClearFiltersCommand.Execute(null);
+                break;
+
+            case MainTab.Locations:
+                _locations.ClearFiltersCommand.Execute(null);
                 break;
 
             case MainTab.Dashboard:

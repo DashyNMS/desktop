@@ -14,6 +14,7 @@ public enum StartupTab
     Health,
     Alerts,
     Groups,
+    Locations,
 }
 
 /// <summary>

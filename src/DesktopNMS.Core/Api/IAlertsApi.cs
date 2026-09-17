@@ -251,6 +251,34 @@ public interface IDeviceGroupsApi
 }
 
 /// <summary>
+/// LibreNMS's own Locations resource - a named, geocoded site (see
+/// <see cref="Location"/>). Distinct from <see cref="Device.Location"/>,
+/// which is just a free-text column on the device itself: LibreNMS has no
+/// bulk "assign these devices to this location" endpoint, so a device only
+/// ends up "at" a location by having that exact name typed into its own
+/// Location field (see <see cref="IDevicesApi.UpdateFieldsAsync"/>).
+/// </summary>
+public interface ILocationsApi
+{
+    /// <summary>GET /api/v0/resources/locations. Every location LibreNMS knows about.</summary>
+    Task<IReadOnlyList<Location>> ListAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>POST /api/v0/locations/. Requires coordinates - LibreNMS has no "location with no coordinates" concept.</summary>
+    Task CreateAsync(string name, double lat, double lng, bool fixedCoordinates, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// PATCH /api/v0/locations/{id}. Addressed by id, not name (unlike
+    /// <see cref="IDeviceGroupsApi.UpdateAsync"/>) - LibreNMS's own docs only
+    /// list lat/lng as editable here, no rename parameter, so there is
+    /// nothing to rename anyway.
+    /// </summary>
+    Task UpdateAsync(int id, double lat, double lng, bool fixedCoordinates, CancellationToken cancellationToken = default);
+
+    /// <summary>DELETE /api/v0/locations/{id}.</summary>
+    Task DeleteAsync(int id, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// CPU/memory/disk endpoints. LibreNMS keeps these in separate tables from
 /// <see cref="Sensor"/> and has no fleet-wide listing for them either - like
 /// <see cref="ILinksApi"/> and <see cref="IPortsApi"/>, each is fetched on

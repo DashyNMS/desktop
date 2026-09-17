@@ -71,6 +71,12 @@ public interface IWindowService
     /// <summary>Shows the "Edit device group" dialog for an existing static group. Returns true if it was saved.</summary>
     bool ShowEditDeviceGroupDialog(DeviceGroup group);
 
+    /// <summary>Shows the "Add location" dialog. Returns true if a location was created.</summary>
+    bool ShowAddLocationDialog();
+
+    /// <summary>Shows the "Edit location" dialog for an existing location. Returns true if it was saved.</summary>
+    bool ShowEditLocationDialog(Location location);
+
     /// <summary>Opens a URL in the default browser.</summary>
     void OpenUrl(Uri url);
 

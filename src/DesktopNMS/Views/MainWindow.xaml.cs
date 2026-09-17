@@ -1,6 +1,8 @@
 using System;
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Input;
+using System.Windows.Threading;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.ViewModels;
 
@@ -10,6 +12,15 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
     private readonly ISettingsStore _settings;
+
+    /// <summary>
+    /// Delays closing the Devices hover flyout (see #118) so moving the
+    /// mouse from the Devices button down into the flyout, across the small
+    /// gap between them, does not flicker it shut - both the button and the
+    /// flyout's own content restart/cancel this same timer on
+    /// MouseEnter/Leave.
+    /// </summary>
+    private readonly DispatcherTimer _devicesFlyoutCloseTimer;
 
     private bool _allowClose;
 
@@ -22,7 +33,33 @@ public partial class MainWindow : Window
 
         DataContext = viewModel;
 
+        _devicesFlyoutCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        _devicesFlyoutCloseTimer.Tick += (_, _) =>
+        {
+            _devicesFlyoutCloseTimer.Stop();
+            DevicesFlyout.IsOpen = false;
+        };
+        DevicesFlyout.PlacementTarget = DevicesTabButton;
+
         RestorePlacement();
+    }
+
+    private void DevicesTabButton_MouseEnter(object sender, MouseEventArgs e)
+    {
+        _devicesFlyoutCloseTimer.Stop();
+        DevicesFlyout.IsOpen = true;
+    }
+
+    private void DevicesTabButton_MouseLeave(object sender, MouseEventArgs e) => _devicesFlyoutCloseTimer.Start();
+
+    private void DevicesFlyoutContent_MouseEnter(object sender, MouseEventArgs e) => _devicesFlyoutCloseTimer.Stop();
+
+    private void DevicesFlyoutContent_MouseLeave(object sender, MouseEventArgs e) => _devicesFlyoutCloseTimer.Start();
+
+    private void DevicesFlyoutItem_Click(object sender, RoutedEventArgs e)
+    {
+        _devicesFlyoutCloseTimer.Stop();
+        DevicesFlyout.IsOpen = false;
     }
 
     /// <summary>
@@ -66,6 +103,10 @@ public partial class MainWindow : Window
         else if (_viewModel.IsGroupsTabSelected)
         {
             GroupsViewControl.FocusSearch();
+        }
+        else if (_viewModel.IsLocationsTabSelected)
+        {
+            LocationsViewControl.FocusSearch();
         }
 
         // Dashboard has no search box yet.

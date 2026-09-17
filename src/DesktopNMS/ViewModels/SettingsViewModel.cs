@@ -589,6 +589,7 @@ public sealed class SettingsViewModel : ObservableObject
         new StartupTabOption(StartupTab.Health, "Health"),
         new StartupTabOption(StartupTab.Alerts, "Alerts"),
         new StartupTabOption(StartupTab.Groups, "Device Groups"),
+        new StartupTabOption(StartupTab.Locations, "Locations"),
     };
 
     public IReadOnlyList<DeviceNameOption> DeviceNameOptions { get; } = new[]

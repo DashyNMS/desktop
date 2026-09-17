@@ -8,4 +8,5 @@ public enum MainTab
     Health,
     Alerts,
     Groups,
+    Locations,
 }
