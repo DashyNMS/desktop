@@ -104,7 +104,13 @@
                         <Button Content="Clear"
                                 Command="{Binding ClearFiltersCommand}"
                                 IsEnabled="{Binding HasAnyFilterApplied}"
-                                Padding="10,7" />
+                                Padding="10,7"
+                                Margin="0,0,14,0" />
+
+                        <Button Content="Add device"
+                                Command="{Binding AddDeviceCommand}"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Padding="12,7" />
                     </StackPanel>
                 </Grid>
 

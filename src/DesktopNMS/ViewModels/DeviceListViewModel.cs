@@ -132,6 +132,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         ShowAlertsCommand = new RelayCommand(ShowAlertsForSelected, () => SelectedDevice is not null);
         ClearFiltersCommand = new RelayCommand(ClearFilters);
         ShowFiltersCommand = new RelayCommand(ShowFiltersDialog);
+        AddDeviceCommand = new RelayCommand(AddDevice, () => _session.IsConnected);
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
@@ -201,6 +202,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     /// <summary>Opens the centered Type/Location/Group filter dialog (see <see cref="IWindowService.ShowDeviceFiltersDialog"/>).</summary>
     public RelayCommand ShowFiltersCommand { get; }
+
+    /// <summary>Opens the "Add device" dialog - see <see cref="AddDevice"/>.</summary>
+    public RelayCommand AddDeviceCommand { get; }
 
     /// <summary>A short "45s" / "2:05" countdown to the next automatic refresh.</summary>
     public string NextRefreshText => PollAlignment.FormatRemaining(_deviceMonitor.SecondsUntilNextPoll());
@@ -559,6 +563,19 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         }
 
         DevicesView.Refresh();
+    }
+
+    /// <summary>
+    /// Opens the "Add device" dialog and, once it reports a device was
+    /// actually added, requests a refresh so the new device shows up without
+    /// waiting for the next scheduled poll.
+    /// </summary>
+    private void AddDevice()
+    {
+        if (_windows.ShowAddDeviceDialog())
+        {
+            _deviceMonitor.RequestRefresh();
+        }
     }
 
     private void ShowFiltersDialog()

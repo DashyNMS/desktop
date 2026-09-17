@@ -75,6 +75,14 @@ public interface IDevicesApi
     /// rediscovery itself to finish, which happens asynchronously on LibreNMS's side.
     /// </summary>
     Task<string> DiscoverAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// POST /api/v0/devices. Adds a new device - see <see cref="AddDeviceRequest"/>
+    /// for what can be set. Only <see cref="AddDeviceRequest.Hostname"/> is
+    /// required; LibreNMS tries each configured system SNMP credential in
+    /// turn when none are given on the request itself.
+    /// </summary>
+    Task<AddDeviceResult> AddAsync(AddDeviceRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Instance-level endpoints.</summary>

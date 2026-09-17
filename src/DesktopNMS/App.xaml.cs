@@ -225,6 +225,7 @@ public partial class App : Application
         services.AddSingleton<DashboardViewModel>();
         services.AddTransient<ConnectionViewModel>();
         services.AddTransient<SettingsViewModel>();
+        services.AddTransient<AddDeviceViewModel>();
 
         return services.BuildServiceProvider();
     }

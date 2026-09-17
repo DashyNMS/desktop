@@ -61,6 +61,9 @@ public interface IWindowService
     /// <summary>Shows the sign-in dialog. Returns true if a session was established.</summary>
     bool ShowSignInDialog();
 
+    /// <summary>Shows the "Add device" dialog. Returns true if a device was added.</summary>
+    bool ShowAddDeviceDialog();
+
     /// <summary>Opens a URL in the default browser.</summary>
     void OpenUrl(Uri url);
 

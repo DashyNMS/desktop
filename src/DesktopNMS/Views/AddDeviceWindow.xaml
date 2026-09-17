@@ -1,0 +1,150 @@
+<Window x:Class="DesktopNMS.Views.AddDeviceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:AddDeviceViewModel}"
+        Title="Add device"
+        Width="460"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Background="{StaticResource BackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+
+    <StackPanel Margin="24">
+
+        <TextBlock Text="Add device" Style="{StaticResource HeadingTextStyle}" />
+        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                   TextWrapping="Wrap"
+                   Margin="0,6,0,14"
+                   Text="Most fields are optional - leave the SNMP credentials blank to try each configured system credential in turn." />
+
+        <TextBlock Text="Hostname or IP" Style="{StaticResource SectionHeaderStyle}" />
+        <TextBox x:Name="HostnameBox" Text="{Binding Hostname, UpdateSourceTrigger=PropertyChanged}" />
+
+        <TextBlock Text="SNMP" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
+        <Border Style="{StaticResource NavTabTrackStyle}" HorizontalAlignment="Left">
+            <StackPanel Orientation="Horizontal">
+                <ToggleButton Content="v2c" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsSnmpV2c}" />
+                <ToggleButton Content="v1" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsSnmpV1}" />
+                <ToggleButton Content="v3" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsSnmpV3}" />
+                <ToggleButton Content="Disabled" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsSnmpDisabled}" ToolTip="ICMP/ping only - no SNMP" />
+            </StackPanel>
+        </Border>
+
+        <!-- v1/v2c -->
+        <StackPanel Visibility="{Binding ShowCommunity, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="Community" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
+            <TextBox Text="{Binding Community, UpdateSourceTrigger=PropertyChanged}" />
+        </StackPanel>
+
+        <!-- v3 -->
+        <StackPanel Visibility="{Binding ShowV3Fields, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="0,14,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Auth level" Style="{StaticResource SectionHeaderStyle}" />
+                    <ComboBox SelectedValuePath="Content" SelectedValue="{Binding AuthLevel}">
+                        <ComboBoxItem Content="noAuthNoPriv" />
+                        <ComboBoxItem Content="authNoPriv" />
+                        <ComboBoxItem Content="authPriv" />
+                    </ComboBox>
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Auth algorithm" Style="{StaticResource SectionHeaderStyle}" />
+                    <ComboBox SelectedValuePath="Content" SelectedValue="{Binding AuthAlgo}">
+                        <ComboBoxItem Content="MD5" />
+                        <ComboBoxItem Content="SHA" />
+                    </ComboBox>
+                </StackPanel>
+            </Grid>
+
+            <TextBlock Text="Auth username" Style="{StaticResource SectionHeaderStyle}" Margin="0,10,0,6" />
+            <TextBox Text="{Binding AuthName, UpdateSourceTrigger=PropertyChanged}" />
+
+            <TextBlock Text="Auth password" Style="{StaticResource SectionHeaderStyle}" Margin="0,10,0,6" />
+            <PasswordBox x:Name="AuthPassBox" PasswordChanged="OnAuthPassChanged" />
+
+            <Grid Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Privacy algorithm" Style="{StaticResource SectionHeaderStyle}" />
+                    <ComboBox SelectedValuePath="Content" SelectedValue="{Binding CryptoAlgo}">
+                        <ComboBoxItem Content="AES" />
+                        <ComboBoxItem Content="DES" />
+                    </ComboBox>
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Privacy password" Style="{StaticResource SectionHeaderStyle}" />
+                    <PasswordBox x:Name="CryptoPassBox" PasswordChanged="OnCryptoPassChanged" />
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+
+        <!-- Transport -->
+        <Grid Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Port (optional)" Style="{StaticResource SectionHeaderStyle}" />
+                <TextBox Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Transport (optional)" Style="{StaticResource SectionHeaderStyle}" />
+                <ComboBox SelectedValuePath="Content" SelectedValue="{Binding Transport}">
+                    <ComboBoxItem Content="" />
+                    <ComboBoxItem Content="udp" />
+                    <ComboBoxItem Content="tcp" />
+                    <ComboBoxItem Content="udp6" />
+                    <ComboBoxItem Content="tcp6" />
+                </ComboBox>
+            </StackPanel>
+        </Grid>
+
+        <CheckBox Content="Skip duplicate/reachability checks (force add)"
+                  IsChecked="{Binding ForceAdd}"
+                  Margin="0,16,0,0" />
+        <CheckBox Content="Add as ICMP-only if SNMP checks fail"
+                  IsChecked="{Binding PingFallback}" />
+
+        <Border Background="#33DA3633"
+                BorderBrush="{StaticResource CriticalBrush}"
+                BorderThickness="1"
+                CornerRadius="5"
+                Padding="12,10"
+                Margin="0,14,0,0"
+                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <TextBlock Text="Adding..."
+                       Style="{StaticResource SubtleTextStyle}"
+                       VerticalAlignment="Center"
+                       Margin="0,0,12,0"
+                       Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+            <Button Content="Cancel"
+                    IsCancel="True"
+                    Margin="0,0,8,0" />
+            <Button Content="Add device"
+                    Command="{Binding AddCommand}"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    IsDefault="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>
