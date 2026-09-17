@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Models;
@@ -26,10 +27,10 @@ public sealed class AddDeviceViewModel : ObservableObject
     private static readonly PollerGroup DefaultPollerGroup = new() { Id = 0, GroupName = "Default (poller 0)" };
 
     private string _hostname = string.Empty;
+    private bool _isPingOnly;
     private bool _isSnmpV2c = true;
     private bool _isSnmpV1;
     private bool _isSnmpV3;
-    private bool _isSnmpDisabled;
     private string _community = "public";
     private string _authLevel = "authPriv";
     private string _authName = string.Empty;
@@ -39,6 +40,9 @@ public sealed class AddDeviceViewModel : ObservableObject
     private string _cryptoAlgo = "AES";
     private string _port = string.Empty;
     private string _transport = string.Empty;
+    private string _sysName = string.Empty;
+    private string _hardware = string.Empty;
+    private string _os = "ping";
     private PollerGroup _selectedPollerGroup = DefaultPollerGroup;
     private bool _forceAdd;
     private bool _pingFallback = true;
@@ -52,10 +56,12 @@ public sealed class AddDeviceViewModel : ObservableObject
         _logger = logger;
 
         PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
+        KnownOperatingSystems = new ObservableCollection<string> { "ping" };
 
         AddCommand = new AsyncRelayCommand(AddAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(Hostname));
 
         _ = LoadPollerGroupsAsync();
+        _ = LoadKnownOperatingSystemsAsync();
     }
 
     /// <summary>
@@ -92,6 +98,43 @@ public sealed class AddDeviceViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Suggestions for the ping-only "OS" field (see <see cref="Os"/>), drawn
+    /// from whatever OS short names are already in use on this instance's
+    /// fleet - there is no dedicated "list valid OS names" endpoint in the
+    /// versioned LibreNMS API, but the device list already has to know them.
+    /// Always seeded with "ping", LibreNMS's own default when the field is
+    /// left unset, regardless of whether any device already uses it.
+    /// </summary>
+    public ObservableCollection<string> KnownOperatingSystems { get; }
+
+    private async Task LoadKnownOperatingSystemsAsync()
+    {
+        try
+        {
+            var devices = await _client.Devices.ListAsync().ConfigureAwait(true);
+
+            var distinctOperatingSystems = devices
+                .Select(d => d.Os)
+                .Where(os => !string.IsNullOrWhiteSpace(os))
+                .Select(os => os!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(os => !os.Equals("ping", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(os => os, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var os in distinctOperatingSystems)
+            {
+                KnownOperatingSystems.Add(os);
+            }
+        }
+        catch (LibreNmsApiException ex)
+        {
+            // Best-effort: the field is still free text either way, this just
+            // loses the autocomplete suggestions from the existing fleet.
+            _logger.LogWarning(ex, "Could not load the known OS list from the device fleet");
+        }
+    }
+
     /// <summary>Raised with true once a device has been added. Cancelling is handled by the dialog itself.</summary>
     public event EventHandler<bool>? RequestClose;
 
@@ -109,31 +152,63 @@ public sealed class AddDeviceViewModel : ObservableObject
         }
     }
 
+    // ------------------------------------------------------------ SNMP y/n
+
+    /// <summary>
+    /// Top-level choice, separate from which SNMP version - flipping this to
+    /// "No" swaps the whole middle of the form over to the ping-only fields
+    /// (<see cref="ShowPingOnlyFields"/>) instead of tucking a fourth option
+    /// into the version picker, since "no SNMP at all" is a different kind of
+    /// choice to "which SNMP version" and deserves its own toggle.
+    /// </summary>
+    public bool IsSnmpEnabled
+    {
+        get => !_isPingOnly;
+        set { if (value) SetPingOnly(false); }
+    }
+
+    public bool IsPingOnly
+    {
+        get => _isPingOnly;
+        set { if (value) SetPingOnly(true); }
+    }
+
+    public bool ShowSnmpFields => IsSnmpEnabled;
+
+    public bool ShowPingOnlyFields => IsPingOnly;
+
+    private void SetPingOnly(bool pingOnly)
+    {
+        if (_isPingOnly == pingOnly)
+        {
+            return;
+        }
+
+        _isPingOnly = pingOnly;
+        OnPropertyChanged(nameof(IsSnmpEnabled));
+        OnPropertyChanged(nameof(IsPingOnly));
+        OnPropertyChanged(nameof(ShowSnmpFields));
+        OnPropertyChanged(nameof(ShowPingOnlyFields));
+    }
+
     // ---------------------------------------------------------- SNMP version
 
     public bool IsSnmpV2c
     {
         get => _isSnmpV2c;
-        set { if (value) SetSnmpMode(v2c: true); }
+        set { if (value) SetSnmpVersion(v2c: true); }
     }
 
     public bool IsSnmpV1
     {
         get => _isSnmpV1;
-        set { if (value) SetSnmpMode(v1: true); }
+        set { if (value) SetSnmpVersion(v1: true); }
     }
 
     public bool IsSnmpV3
     {
         get => _isSnmpV3;
-        set { if (value) SetSnmpMode(v3: true); }
-    }
-
-    /// <summary>ICMP-only: no SNMP credentials at all.</summary>
-    public bool IsSnmpDisabled
-    {
-        get => _isSnmpDisabled;
-        set { if (value) SetSnmpMode(disabled: true); }
+        set { if (value) SetSnmpVersion(v3: true); }
     }
 
     /// <summary>Shows the community field - v1 and v2c both use it.</summary>
@@ -141,17 +216,15 @@ public sealed class AddDeviceViewModel : ObservableObject
 
     public bool ShowV3Fields => IsSnmpV3;
 
-    private void SetSnmpMode(bool v2c = false, bool v1 = false, bool v3 = false, bool disabled = false)
+    private void SetSnmpVersion(bool v2c = false, bool v1 = false, bool v3 = false)
     {
         _isSnmpV2c = v2c;
         _isSnmpV1 = v1;
         _isSnmpV3 = v3;
-        _isSnmpDisabled = disabled;
 
         OnPropertyChanged(nameof(IsSnmpV2c));
         OnPropertyChanged(nameof(IsSnmpV1));
         OnPropertyChanged(nameof(IsSnmpV3));
-        OnPropertyChanged(nameof(IsSnmpDisabled));
         OnPropertyChanged(nameof(ShowCommunity));
         OnPropertyChanged(nameof(ShowV3Fields));
     }
@@ -201,6 +274,33 @@ public sealed class AddDeviceViewModel : ObservableObject
     {
         get => _cryptoAlgo;
         set => SetProperty(ref _cryptoAlgo, value);
+    }
+
+    // -------------------------------------------------------------- ping-only
+
+    /// <summary>There is nothing to discover this from without SNMP, so it has to be typed.</summary>
+    public string SysName
+    {
+        get => _sysName;
+        set => SetProperty(ref _sysName, value);
+    }
+
+    public string Hardware
+    {
+        get => _hardware;
+        set => SetProperty(ref _hardware, value);
+    }
+
+    /// <summary>
+    /// Free text with autocomplete suggestions from <see cref="KnownOperatingSystems"/>
+    /// rather than a closed list - LibreNMS accepts any short name here, and
+    /// the fleet's existing OSes are a starting point, not the full set of
+    /// ones it understands.
+    /// </summary>
+    public string Os
+    {
+        get => _os;
+        set => SetProperty(ref _os, value);
     }
 
     // --------------------------------------------------------------- options
@@ -298,25 +398,26 @@ public sealed class AddDeviceViewModel : ObservableObject
 
     private AddDeviceRequest BuildRequest()
     {
-        var port = int.TryParse(Port, out var parsedPort) && parsedPort > 0 ? parsedPort : (int?)null;
-        var transport = string.IsNullOrWhiteSpace(Transport) ? null : Transport.Trim();
         var pollerGroup = SelectedPollerGroup.Id == 0 ? null : (int?)SelectedPollerGroup.Id;
         var forceAdd = ForceAdd ? true : (bool?)null;
-        var pingFallback = PingFallback ? true : (bool?)null;
 
-        if (IsSnmpDisabled)
+        if (IsPingOnly)
         {
             return new AddDeviceRequest
             {
                 Hostname = Hostname.Trim(),
                 SnmpDisabled = true,
-                Port = port,
-                Transport = transport,
+                Os = string.IsNullOrWhiteSpace(Os) ? null : Os.Trim(),
+                SysName = string.IsNullOrWhiteSpace(SysName) ? null : SysName.Trim(),
+                Hardware = string.IsNullOrWhiteSpace(Hardware) ? null : Hardware.Trim(),
                 PollerGroup = pollerGroup,
                 ForceAdd = forceAdd,
-                PingFallback = pingFallback,
             };
         }
+
+        var port = int.TryParse(Port, out var parsedPort) && parsedPort > 0 ? parsedPort : (int?)null;
+        var transport = string.IsNullOrWhiteSpace(Transport) ? null : Transport.Trim();
+        var pingFallback = PingFallback ? true : (bool?)null;
 
         if (IsSnmpV3)
         {

@@ -56,6 +56,21 @@ public sealed class AddDeviceRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? SnmpDisabled { get; init; }
 
+    /// <summary>ICMP-only: OS short name, e.g. "ping" (the default) or a specific one LibreNMS already knows about.</summary>
+    [JsonPropertyName("os")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Os { get; init; }
+
+    /// <summary>ICMP-only: sysName for the device - there is nothing to discover it from without SNMP.</summary>
+    [JsonPropertyName("sysName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SysName { get; init; }
+
+    /// <summary>ICMP-only: free-text hardware description.</summary>
+    [JsonPropertyName("hardware")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Hardware { get; init; }
+
     [JsonPropertyName("port")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? Port { get; init; }
