@@ -1113,4 +1113,36 @@
         <Setter Property="Margin" Value="4,4" />
     </Style>
 
+    <!-- ============================ ToolTip ============================= -->
+    <!-- Implicit (no x:Key) so every `ToolTip="..."` in the app picks this up
+         automatically - previously there was no style at all here, so every
+         tooltip fell back to the plain OS-default rendering (issue #103),
+         which stood out against the rest of the dark theme the same way the
+         old MessageBox/ContextMenu did. HasDropShadow is explicitly off, same
+         reasoning as removing ContextMenu's DropShadowEffect and ComboBox's
+         PopupAnimation (issue #91) - a shadow here would be the same
+         "re-rendered from scratch on every single show" cost, and a tooltip
+         is shown far more often than either of those. -->
+    <Style TargetType="ToolTip">
+        <Setter Property="HasDropShadow" Value="False" />
+        <Setter Property="MaxWidth" Value="320" />
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <Border Background="{StaticResource SurfaceAltBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="8,5">
+                        <TextBlock Text="{TemplateBinding Content}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>
