@@ -170,7 +170,28 @@ internal sealed class DevicesApi : IDevicesApi
     public async Task RenameAsync(int deviceId, string newHostname, CancellationToken cancellationToken = default)
     {
         var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/rename/" + Uri.EscapeDataString(newHostname);
-        using var _ = await _transport.SendAsync(HttpMethod.Patch, url, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            using var _ = await _transport.SendAsync(HttpMethod.Patch, url, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+        catch (LibreNmsApiException)
+        {
+            // Confirmed against a live instance: this endpoint sometimes
+            // renames the device successfully while still reporting failure
+            // to this client - a malformed (non-JSON) body on an otherwise
+            // successful request, or even an HTTP 500 after the rename had
+            // already committed server-side. Guessing from the status code
+            // alone was not reliable enough (both shapes have been observed
+            // for a rename that did go through), so this re-reads the device
+            // directly and only re-throws if the hostname genuinely did not
+            // change to what was requested.
+            var confirmed = await GetAsync(deviceId.ToString(CultureInfo.InvariantCulture), cancellationToken).ConfigureAwait(false);
+            if (confirmed is null || !string.Equals(confirmed.Hostname, newHostname, StringComparison.OrdinalIgnoreCase))
+            {
+                throw;
+            }
+        }
     }
 }
 
