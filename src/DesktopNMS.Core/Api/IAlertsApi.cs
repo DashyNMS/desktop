@@ -100,6 +100,13 @@ public interface IDevicesApi
     /// by a rename.
     /// </summary>
     Task RenameAsync(int deviceId, string newHostname, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// DELETE /api/v0/devices/{id}. Permanently removes the device and its
+    /// history from LibreNMS - there is no undo. Returns the server's own
+    /// confirmation message.
+    /// </summary>
+    Task<string> DeleteAsync(int deviceId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Distributed-poller group endpoints - see <see cref="AddDeviceRequest.PollerGroup"/>.</summary>
