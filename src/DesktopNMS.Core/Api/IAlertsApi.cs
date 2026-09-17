@@ -65,6 +65,16 @@ public interface IDevicesApi
 
     /// <summary>GET /api/v0/devices/{id}/outages. Every downtime incident LibreNMS has recorded for the device.</summary>
     Task<IReadOnlyList<DeviceOutage>> GetOutagesAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/devices/{id}/discover. Queues an on-demand rediscovery of
+    /// the device - a GET despite the side effect, per LibreNMS's own API.
+    /// There is no separate "poll now" endpoint; discovery is the closest the
+    /// versioned API exposes. Returns the server's own confirmation message
+    /// (e.g. "Device will be rediscovered") rather than waiting for the
+    /// rediscovery itself to finish, which happens asynchronously on LibreNMS's side.
+    /// </summary>
+    Task<string> DiscoverAsync(int deviceId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Instance-level endpoints.</summary>
