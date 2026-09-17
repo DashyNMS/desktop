@@ -33,7 +33,16 @@ public sealed class Device
     [JsonPropertyName("version")]
     public string? Version { get; set; }
 
+    /// <summary>
+    /// LooseStringConverter because LibreNMS's geocoding feature can return
+    /// this as a nested object (resolved coordinates) instead of a plain
+    /// string, depending on server configuration - confirmed against a live
+    /// instance, where a plain string-typed read of this field threw and
+    /// broke every call that touches this device's row, not just Location's
+    /// own display.
+    /// </summary>
     [JsonPropertyName("location")]
+    [JsonConverter(typeof(DesktopNMS.Core.Json.LooseStringConverter))]
     public string? Location { get; set; }
 
     [JsonPropertyName("type")]

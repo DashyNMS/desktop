@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using DesktopNMS.Core.Json;
 using DesktopNMS.Core.Models;
@@ -175,7 +176,7 @@ internal sealed class DevicesApi : IDevicesApi
         {
             using var _ = await _transport.SendAsync(HttpMethod.Patch, url, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
-        catch (LibreNmsApiException)
+        catch (LibreNmsApiException renameException)
         {
             // Confirmed against a live instance: this endpoint sometimes
             // renames the device successfully while still reporting failure
@@ -186,10 +187,29 @@ internal sealed class DevicesApi : IDevicesApi
             // for a rename that did go through), so this re-reads the device
             // directly and only re-throws if the hostname genuinely did not
             // change to what was requested.
-            var confirmed = await GetAsync(deviceId.ToString(CultureInfo.InvariantCulture), cancellationToken).ConfigureAwait(false);
+            //
+            // The verification read can itself fail for an unrelated reason
+            // (also confirmed live: a device whose Location LibreNMS's own
+            // geocoding feature had resolved to an object instead of a plain
+            // string, tripping a completely different deserialisation error)
+            // - caught explicitly by name (renameException, not a bare
+            // throw;) so a failure here re-raises the original rename
+            // failure rather than a confusing second error about something
+            // the caller never asked about.
+            Device? confirmed;
+            try
+            {
+                confirmed = await GetAsync(deviceId.ToString(CultureInfo.InvariantCulture), cancellationToken).ConfigureAwait(false);
+            }
+            catch (LibreNmsApiException)
+            {
+                ExceptionDispatchInfo.Capture(renameException).Throw();
+                return;
+            }
+
             if (confirmed is null || !string.Equals(confirmed.Hostname, newHostname, StringComparison.OrdinalIgnoreCase))
             {
-                throw;
+                ExceptionDispatchInfo.Capture(renameException).Throw();
             }
         }
     }
