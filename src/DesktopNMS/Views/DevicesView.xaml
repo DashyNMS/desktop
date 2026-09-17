@@ -85,28 +85,35 @@
                              this costs the same one button's width regardless of
                              how many types, locations or groups exist. The dot
                              is the only always-visible sign that a facet is
-                             actively hiding something, since the dialog's own
+                             actively hiding something (a legitimate use of the
+                             accent colour - it marks "active/selected", not
+                             just "here's a button"), since the dialog's own
                              checkboxes are not visible until it's opened. -->
-                        <Grid Margin="0,0,14,0">
-                            <Button Content="Filters"
-                                    Command="{Binding ShowFiltersCommand}"
-                                    Style="{StaticResource ChipButtonStyle}"
-                                    Margin="0"
-                                    ToolTip="Filter by type, location or device group" />
+                        <Grid Margin="0,0,4,0">
+                            <Button Command="{Binding ShowFiltersCommand}"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    ToolTip="Filter by type, location or device group">
+                                <TextBlock Text="&#xE71C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                            </Button>
                             <Ellipse Width="7"
                                      Height="7"
                                      Fill="{DynamicResource AccentBrush}"
                                      HorizontalAlignment="Right"
                                      VerticalAlignment="Top"
-                                     Margin="0,-2,-2,0"
+                                     Margin="0,4,4,0"
                                      IsHitTestVisible="False"
                                      Visibility="{Binding IsFiltersActive, Converter={StaticResource BoolToVisibility}}" />
                         </Grid>
 
-                        <Button Content="Clear"
-                                Command="{Binding ClearFiltersCommand}"
-                                IsEnabled="{Binding HasAnyFilterApplied}"
-                                Padding="10,7" />
+                        <!-- Hidden rather than just disabled once nothing is
+                             applied - previously sat there doing nothing most
+                             of the time. -->
+                        <Button Command="{Binding ClearFiltersCommand}"
+                                Style="{StaticResource IconButtonStyle}"
+                                ToolTip="Clear all filters and search"
+                                Visibility="{Binding HasAnyFilterApplied, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                        </Button>
                     </StackPanel>
 
                     <!-- Set apart from the filter cluster by a divider rather
