@@ -22,7 +22,17 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="24,24,24,10">
-            <TextBlock Text="{Binding Title}" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,10" />
+            <TextBlock Text="{Binding Title}" Margin="0,0,0,10">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource HeadingTextStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsError}" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource CriticalBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
             <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
             <CheckBox Content="{Binding DontAskAgainLabel}"
                       IsChecked="{Binding DontAskAgain}"
@@ -40,12 +50,26 @@
                         Command="{Binding CancelCommand}"
                         IsCancel="True"
                         Padding="16,7"
-                        Margin="0,0,8,0" />
-                <Button Content="Confirm"
+                        Margin="0,0,8,0"
+                        Visibility="{Binding ShowCancel, Converter={StaticResource BoolToVisibility}}" />
+                <Button Content="{Binding ConfirmLabel}"
                         Command="{Binding ConfirmCommand}"
-                        Style="{StaticResource PrimaryButtonStyle}"
                         IsDefault="True"
-                        Padding="16,7" />
+                        Padding="16,7">
+                    <Button.Style>
+                        <!-- No Cancel button to claim Escape when ShowCancel is
+                             false (a plain OK-only notice) - this becomes the
+                             Escape target too, so the dialog isn't stuck open
+                             without a keyboard way to dismiss it. -->
+                        <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowCancel}" Value="False">
+                                    <Setter Property="IsCancel" Value="True" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
             </StackPanel>
         </Border>
     </Grid>

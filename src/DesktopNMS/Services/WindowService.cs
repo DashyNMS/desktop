@@ -223,11 +223,9 @@ public sealed class WindowService : IWindowService
         }
     }
 
-    public void ShowError(string title, string message)
-        => ShowMessage(title, message, MessageBoxButton.OK, MessageBoxImage.Error);
+    public void ShowError(string title, string message) => ShowNotice(title, message, isError: true);
 
-    public void ShowInformation(string title, string message)
-        => ShowMessage(title, message, MessageBoxButton.OK, MessageBoxImage.Information);
+    public void ShowInformation(string title, string message) => ShowNotice(title, message, isError: false);
 
     public bool Confirm(string title, string message)
         => ShowConfirmDialog(title, message, showDontAskAgain: false, dontAskAgainLabel: string.Empty).Confirmed;
@@ -254,13 +252,27 @@ public sealed class WindowService : IWindowService
         return (confirmed, viewModel.DontAskAgain);
     }
 
-    private MessageBoxResult ShowMessage(string title, string message, MessageBoxButton button, MessageBoxImage image)
+    /// <summary>
+    /// The same themed dialog as <see cref="ShowConfirmDialog"/>, in OK-only
+    /// mode, for a plain notice - see <see cref="ShowError"/>/<see cref="ShowInformation"/>.
+    /// Used in place of <see cref="MessageBox"/> so it doesn't stand out
+    /// against the app's own dark/light theme the way the OS's plain system
+    /// dialog does.
+    /// </summary>
+    private void ShowNotice(string title, string message, bool isError)
     {
-        // A message box with no owner is the right thing when the window is
-        // hidden in the tray; passing a hidden window would make it invisible.
-        return _mainWindow is { IsVisible: true } owner
-            ? MessageBox.Show(owner, message, title, button, image)
-            : MessageBox.Show(message, title, button, image);
+        var viewModel = new ConfirmDialogViewModel(
+            title, message,
+            showDontAskAgain: false, dontAskAgainLabel: string.Empty,
+            showCancel: false, confirmLabel: "OK", isError: isError);
+        var window = new ConfirmDialog(viewModel);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        window.ShowDialog();
     }
 
     public void Exit()
