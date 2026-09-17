@@ -252,6 +252,19 @@ public sealed class WindowService : IWindowService
         return (confirmed, viewModel.DontAskAgain);
     }
 
+    public bool ShowAddDeviceDialog()
+    {
+        var viewModel = _services.GetRequiredService<AddDeviceViewModel>();
+        var window = new AddDeviceWindow(viewModel);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        return window.ShowDialog() == true;
+    }
+
     /// <summary>
     /// The same themed dialog as <see cref="ShowConfirmDialog"/>, in OK-only
     /// mode, for a plain notice - see <see cref="ShowError"/>/<see cref="ShowInformation"/>.

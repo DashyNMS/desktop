@@ -132,6 +132,16 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         ShowAlertsCommand = new RelayCommand(ShowAlertsForSelected, () => SelectedDevice is not null);
         ClearFiltersCommand = new RelayCommand(ClearFilters);
         ShowFiltersCommand = new RelayCommand(ShowFiltersDialog);
+        // No CanExecute gate on _session.IsConnected: RelayCommand only
+        // re-evaluates when RaiseCanExecuteChanged() is explicitly called
+        // (unlike WPF's own RoutedCommand, there is no automatic requery), and
+        // nothing here would ever call it once the session connects after
+        // this view model is constructed - unlike RefreshCommand below, which
+        // only happens to stay in sync because IsBusy's own setter already
+        // raises it for an unrelated reason. Same as Filters/Clear beside it,
+        // AddDevice has nothing to gate: a failed add while disconnected
+        // surfaces as an inline error in the dialog itself.
+        AddDeviceCommand = new RelayCommand(AddDevice);
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
@@ -201,6 +211,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     /// <summary>Opens the centered Type/Location/Group filter dialog (see <see cref="IWindowService.ShowDeviceFiltersDialog"/>).</summary>
     public RelayCommand ShowFiltersCommand { get; }
+
+    /// <summary>Opens the "Add device" dialog - see <see cref="AddDevice"/>.</summary>
+    public RelayCommand AddDeviceCommand { get; }
 
     /// <summary>A short "45s" / "2:05" countdown to the next automatic refresh.</summary>
     public string NextRefreshText => PollAlignment.FormatRemaining(_deviceMonitor.SecondsUntilNextPoll());
@@ -559,6 +572,19 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         }
 
         DevicesView.Refresh();
+    }
+
+    /// <summary>
+    /// Opens the "Add device" dialog and, once it reports a device was
+    /// actually added, requests a refresh so the new device shows up without
+    /// waiting for the next scheduled poll.
+    /// </summary>
+    private void AddDevice()
+    {
+        if (_windows.ShowAddDeviceDialog())
+        {
+            _deviceMonitor.RequestRefresh();
+        }
     }
 
     private void ShowFiltersDialog()

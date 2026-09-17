@@ -128,6 +128,28 @@ internal sealed class DevicesApi : IDevicesApi
 
         return "Device will be rediscovered.";
     }
+
+    public async Task<AddDeviceResult> AddAsync(AddDeviceRequest request, CancellationToken cancellationToken = default)
+    {
+        using var document = await _transport.SendAsync(HttpMethod.Post, "devices", body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        var message = document.RootElement.TryGetProperty("message", out var messageElement)
+            && messageElement.ValueKind == JsonValueKind.String
+            && messageElement.GetString() is { Length: > 0 } text
+                ? text
+                : "Device added.";
+
+        int? deviceId = null;
+        if (document.RootElement.TryGetProperty("devices", out var devices)
+            && devices.ValueKind == JsonValueKind.Array
+            && devices.GetArrayLength() > 0
+            && devices[0].TryGetProperty("device_id", out var idElement))
+        {
+            deviceId = JsonSerializer.Deserialize<int?>(idElement.GetRawText(), LibreNmsJson.Options);
+        }
+
+        return new AddDeviceResult(message, deviceId);
+    }
 }
 
 /// <summary>Implementation of <see cref="ISensorsApi"/>.</summary>
@@ -288,6 +310,17 @@ internal sealed class DeviceGroupsApi : IDeviceGroupsApi
         [System.Text.Json.Serialization.JsonPropertyName("device_id")]
         public int DeviceId { get; set; }
     }
+}
+
+/// <summary>Implementation of <see cref="IPollerGroupsApi"/>.</summary>
+internal sealed class PollerGroupsApi : IPollerGroupsApi
+{
+    private readonly ILibreNmsTransport _transport;
+
+    public PollerGroupsApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<PollerGroup>> ListAsync(CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<PollerGroup>("poller_group", "get_poller_group", cancellationToken);
 }
 
 /// <summary>Implementation of <see cref="IVlansApi"/>.</summary>
