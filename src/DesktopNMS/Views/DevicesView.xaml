@@ -28,6 +28,8 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -104,13 +106,23 @@
                         <Button Content="Clear"
                                 Command="{Binding ClearFiltersCommand}"
                                 IsEnabled="{Binding HasAnyFilterApplied}"
-                                Padding="10,7"
-                                Margin="0,0,14,0" />
-
-                        <Button Content="Add device"
-                                Command="{Binding AddDeviceCommand}"
-                                Style="{StaticResource ChipButtonStyle}" />
+                                Padding="10,7" />
                     </StackPanel>
+
+                    <!-- Set apart from the filter cluster by a divider and its
+                         own primary styling, rather than chained onto the end
+                         of it as just another chip - a create action reads as
+                         secondary/easy to miss otherwise (the same convention
+                         GitHub/Linear/Jira and this app's own Dashboard "Add
+                         widget" button already use). -->
+                    <Rectangle Grid.Column="2" Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
+
+                    <Button Grid.Column="3"
+                            Content="+ Add device"
+                            Command="{Binding AddDeviceCommand}"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Padding="12,7"
+                            VerticalAlignment="Center" />
                 </Grid>
 
                 <!-- A quick way back into something you were just looking at -
