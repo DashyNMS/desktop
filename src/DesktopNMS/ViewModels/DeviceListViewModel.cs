@@ -303,6 +303,27 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     public string SelectedCountText => SelectedCount == 1 ? "1 device selected" : $"{SelectedCount} devices selected";
 
+    /// <summary>Pin (single selection) or Pin all (multiple) - only shown at all when at least one selected device isn't already pinned.</summary>
+    public string PinSelectedLabel => HasMultipleSelection ? "Pin all" : "Pin";
+
+    /// <summary>Unpin (single selection) or Unpin all (multiple) - only shown at all when at least one selected device is already pinned.</summary>
+    public string UnpinSelectedLabel => HasMultipleSelection ? "Unpin all" : "Unpin";
+
+    public string RediscoverSelectedLabel => HasMultipleSelection ? "Rediscover all" : "Rediscover";
+
+    /// <summary>
+    /// True when pinning would do something - at least one selected device
+    /// isn't pinned yet. Pin/Unpin show one at a time based on this and
+    /// <see cref="ShowUnpinSelectedAction"/> rather than always both, so
+    /// picking a fully-pinned (or fully-unpinned) selection doesn't offer an
+    /// action that would be a no-op for every device in it. A mixed
+    /// selection shows both, since either one still does something.
+    /// </summary>
+    public bool ShowPinSelectedAction => _selectedDevices.Any(d => !d.IsPinned);
+
+    /// <summary>True when unpinning would do something - see <see cref="ShowPinSelectedAction"/>.</summary>
+    public bool ShowUnpinSelectedAction => _selectedDevices.Any(d => d.IsPinned);
+
     /// <summary>
     /// Forwards the grid's multi-selection from code-behind - DataGrid.SelectedItems
     /// is not a dependency property, so it cannot be bound directly (same
@@ -318,10 +339,26 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasMultipleSelection));
         OnPropertyChanged(nameof(IsSingleSelection));
         OnPropertyChanged(nameof(SelectedCountText));
+        RaiseSelectedPinStateChanged();
         PinSelectedCommand.RaiseCanExecuteChanged();
         UnpinSelectedCommand.RaiseCanExecuteChanged();
         AddSelectedToGroupCommand.RaiseCanExecuteChanged();
         RediscoverSelectedCommand.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Re-raises everything Pin/Unpin's visibility and labels depend on -
+    /// called after the selection itself changes, and after
+    /// <see cref="RefreshPinnedState"/> in case a still-selected device's
+    /// own pin state changed elsewhere (e.g. the Dashboard's Unpin button).
+    /// </summary>
+    private void RaiseSelectedPinStateChanged()
+    {
+        OnPropertyChanged(nameof(PinSelectedLabel));
+        OnPropertyChanged(nameof(UnpinSelectedLabel));
+        OnPropertyChanged(nameof(RediscoverSelectedLabel));
+        OnPropertyChanged(nameof(ShowPinSelectedAction));
+        OnPropertyChanged(nameof(ShowUnpinSelectedAction));
     }
 
     public string StatusMessage
@@ -728,6 +765,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         }
 
         DevicesView.Refresh();
+        RaiseSelectedPinStateChanged();
     }
 
     /// <summary>
