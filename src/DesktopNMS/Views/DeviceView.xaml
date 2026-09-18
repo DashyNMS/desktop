@@ -364,12 +364,22 @@
                         </Border>
                     </UniformGrid>
 
-                    <Border Margin="0,16,0,0"
+                    <!-- Same 5-card-wide proportions as the row above -
+                         outage tracker at 4 cards, the ping thumbnail at 1 -
+                         rather than two separate full-width rows. -->
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="4*" />
+                            <ColumnDefinition Width="1*" />
+                        </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
                             Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="20"
+                            Margin="0,0,6,0"
                             Visibility="{Binding HasAvailability, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
                             <TextBlock Text="Availability" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
@@ -452,6 +462,47 @@
                             </Expander>
                         </StackPanel>
                     </Border>
+
+                    <!-- "At a glance" ping response over the last day (issue
+                         #11) - ping is the one graph essentially every
+                         monitored device has, unlike processor/storage,
+                         which only some do. Clicking it jumps to the same
+                         graph on the Graphs tab, same as the Resources/
+                         Sensors quick links. LibreNMS's graph endpoint
+                         ignores only_graph/no_legend, so axes/legend always
+                         render regardless of size (confirmed live) - rather
+                         than fighting that by shrinking to an illegible
+                         thumbnail, this fills the same height as the
+                         Availability card next to it (both are auto-sized
+                         Grid siblings, so the row's height is whichever is
+                         taller, and Stretch=Fill below fills that height in
+                         full) and stretches to fill its column's width, so
+                         the legend/values stay readable and the graph scales
+                         with the window instead of a fixed pixel size.
+                         Silently collapses rather than showing an error if
+                         this device happens to have no ping data - this is a
+                         nice-to-have summary, not a section worth an error
+                         banner of its own. -->
+                    <Button Grid.Column="1"
+                            Command="{Binding ShowPingGraphCommand}"
+                            Style="{StaticResource OverviewCardButtonStyle}"
+                            Margin="6,0,0,0"
+                            Visibility="{Binding OverviewGraph.Svg, Converter={StaticResource NullToVisibility}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="Ping response (24h)" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+                            <svgc:SvgViewbox Grid.Row="1"
+                                             SvgSource="{Binding OverviewGraph.Svg}"
+                                             Stretch="Uniform"
+                                             HorizontalAlignment="Stretch"
+                                             VerticalAlignment="Stretch"
+                                             IsHitTestVisible="False" />
+                        </Grid>
+                    </Button>
+                    </Grid>
 
                     <!-- UniformGrid sizes itself from its visible children only, so the
                          Ports tile - hidden entirely on a device with no

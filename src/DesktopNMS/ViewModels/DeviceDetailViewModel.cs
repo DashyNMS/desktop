@@ -228,6 +228,16 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
         Graphs = new GraphsSectionViewModel(deviceId, client, logger);
 
+        // Ping response is the one graph essentially every monitored
+        // device has (unlike processor/storage, which only some do), so
+        // it's the natural "at a glance" default for Overview's sparkline
+        // (issue #11) - a fixed last-day range, no picker. Fetched at a size
+        // close to its actual display size (it now fills the Availability
+        // card's row height rather than a small fixed thumbnail) so
+        // LibreNMS's own legend/axis text renders at a legible size instead
+        // of being scaled down into illegibility.
+        OverviewGraph = new SingleGraphViewModel(deviceId, "device_icmp_perf", GraphTimeRange.LastDay, width: 420, height: 160, client, logger);
+
         PortsView = CollectionViewSource.GetDefaultView(Ports);
         PortsView.Filter = FilterPortEntry;
 
@@ -272,6 +282,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         ShowProcessorGraphCommand = new RelayCommand(() => ShowGraph("device_processor"));
         ShowMempoolGraphCommand = new RelayCommand(() => ShowGraph("device_mempool"));
         ShowStorageGraphCommand = new RelayCommand(() => ShowGraph("device_storage"));
+        ShowPingGraphCommand = new RelayCommand(() => ShowGraph("device_icmp_perf"));
         SelectAlertsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Alerts);
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
         SelectEditCommand = new RelayCommand(SelectEdit);
@@ -311,6 +322,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _ = LoadFdbAsync();
         _ = LoadArpAsync();
         _ = LoadEventLogAsync();
+        _ = OverviewGraph.LoadAsync(_loadCts.Token);
     }
 
     /// <summary>
@@ -472,6 +484,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// <summary>Device-wide graphs (issues #14/#13/#17/#20) - see <see cref="GraphsSectionViewModel"/>.</summary>
     public GraphsSectionViewModel Graphs { get; }
 
+    /// <summary>Overview's "at a glance" ping-response graph (issue #11) - see <see cref="SingleGraphViewModel"/>.</summary>
+    public SingleGraphViewModel OverviewGraph { get; }
+
     /// <summary>"View graph" quick link on the Resources tab's Processor card - see <see cref="ShowGraph"/>.</summary>
     public RelayCommand ShowProcessorGraphCommand { get; }
 
@@ -480,6 +495,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>"View graph" quick link on the Resources tab's Storage card - see <see cref="ShowGraph"/>.</summary>
     public RelayCommand ShowStorageGraphCommand { get; }
+
+    /// <summary>Clicking Overview's ping-response thumbnail jumps to the same graph on the Graphs tab - see <see cref="ShowGraph"/>.</summary>
+    public RelayCommand ShowPingGraphCommand { get; }
 
     public RelayCommand SelectAlertsCommand { get; }
 
