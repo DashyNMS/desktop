@@ -83,7 +83,8 @@ public sealed class DeviceItemViewModel : ObservableObject
 
     public string Location => Blank(_device.Location);
 
-    public string Type => Blank(_device.Type);
+    /// <summary>LibreNMS's own type values are lowercase ("network", "wireless", ...) - capitalised here, same as the Devices tab's type filter and Device Details' own Overview card.</summary>
+    public string Type => TitleCase(_device.Type);
 
     public string Contact => Blank(_device.Contact);
 
@@ -127,6 +128,9 @@ public sealed class DeviceItemViewModel : ObservableObject
     }
 
     private static string Blank(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value!;
+
+    private static string TitleCase(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "-" : char.ToUpperInvariant(value[0]) + value[1..];
 
     private static string FormatUptime(long seconds)
     {
