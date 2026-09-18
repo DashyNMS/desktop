@@ -29,6 +29,7 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
         PollerGroups = new PollerGroupsApi(transport);
         Logs = new LogsApi(transport);
         System = new SystemApi(transport);
+        Graphs = new GraphsApi(transport);
     }
 
     public IAlertsApi Alerts { get; }
@@ -60,6 +61,8 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
     public ILogsApi Logs { get; }
 
     public ISystemApi System { get; }
+
+    public IGraphsApi Graphs { get; }
 
     public LibreNmsConnection? Connection => _transport.Connection;
 

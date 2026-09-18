@@ -28,6 +28,7 @@ public enum DeviceDetailSection
     Vlans,
     Fdb,
     Arp,
+    Graphs,
 
     /// <summary>Both this device's currently active alerts and its historical alert log - see <see cref="Views.DeviceView"/>.</summary>
     Alerts,
@@ -225,6 +226,17 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         ArpEntries = new BatchObservableCollection<ArpItemViewModel>();
         EventLog = new BatchObservableCollection<EventLogItemViewModel>();
         PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
+        Graphs = new GraphsSectionViewModel(deviceId, client, logger);
+
+        // Ping response is the one graph essentially every monitored
+        // device has (unlike processor/storage, which only some do), so
+        // it's the natural "at a glance" default for Overview's sparkline
+        // (issue #11) - a fixed last-day range, no picker. Fetched at a size
+        // close to its actual display size (it now fills the Availability
+        // card's row height rather than a small fixed thumbnail) so
+        // LibreNMS's own legend/axis text renders at a legible size instead
+        // of being scaled down into illegibility.
+        OverviewGraph = new SingleGraphViewModel(deviceId, "device_icmp_perf", GraphTimeRange.LastDay, width: 420, height: 160, client, logger);
 
         PortsView = CollectionViewSource.GetDefaultView(Ports);
         PortsView.Filter = FilterPortEntry;
@@ -262,6 +274,15 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectVlansCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Vlans);
         SelectFdbCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Fdb);
         SelectArpCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Arp);
+        SelectGraphsCommand = new RelayCommand(() =>
+        {
+            SelectedSection = DeviceDetailSection.Graphs;
+            Graphs.EnsureLoaded();
+        });
+        ShowProcessorGraphCommand = new RelayCommand(() => ShowGraph("device_processor"));
+        ShowMempoolGraphCommand = new RelayCommand(() => ShowGraph("device_mempool"));
+        ShowStorageGraphCommand = new RelayCommand(() => ShowGraph("device_storage"));
+        ShowPingGraphCommand = new RelayCommand(() => ShowGraph("device_icmp_perf"));
         SelectAlertsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Alerts);
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
         SelectEditCommand = new RelayCommand(SelectEdit);
@@ -301,6 +322,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _ = LoadFdbAsync();
         _ = LoadArpAsync();
         _ = LoadEventLogAsync();
+        _ = OverviewGraph.LoadAsync(_loadCts.Token);
     }
 
     /// <summary>
@@ -361,6 +383,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// fight, and this list needs no sorting or selection to justify one.
     /// </summary>
     public ObservableCollection<SensorGroupViewModel> SensorGroups { get; }
+
+    /// <summary>One "View graph" quick link per distinct sensor class this device reports (issue #9) - see <see cref="RebuildSensorGraphLinks"/>.</summary>
+    public ObservableCollection<SensorGraphLinkViewModel> SensorGraphLinks { get; } = new();
 
     public ObservableCollection<AlertLogItemViewModel> AlertHistory { get; }
 
@@ -452,6 +477,27 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public RelayCommand SelectFdbCommand { get; }
 
     public RelayCommand SelectArpCommand { get; }
+
+    /// <summary>Navigates to the Graphs section, loading its available graph types on first visit only - see <see cref="GraphsSectionViewModel.EnsureLoaded"/>.</summary>
+    public RelayCommand SelectGraphsCommand { get; }
+
+    /// <summary>Device-wide graphs (issues #14/#13/#17/#20) - see <see cref="GraphsSectionViewModel"/>.</summary>
+    public GraphsSectionViewModel Graphs { get; }
+
+    /// <summary>Overview's "at a glance" ping-response graph (issue #11) - see <see cref="SingleGraphViewModel"/>.</summary>
+    public SingleGraphViewModel OverviewGraph { get; }
+
+    /// <summary>"View graph" quick link on the Resources tab's Processor card - see <see cref="ShowGraph"/>.</summary>
+    public RelayCommand ShowProcessorGraphCommand { get; }
+
+    /// <summary>"View graph" quick link on the Resources tab's Memory card - see <see cref="ShowGraph"/>.</summary>
+    public RelayCommand ShowMempoolGraphCommand { get; }
+
+    /// <summary>"View graph" quick link on the Resources tab's Storage card - see <see cref="ShowGraph"/>.</summary>
+    public RelayCommand ShowStorageGraphCommand { get; }
+
+    /// <summary>Clicking Overview's ping-response thumbnail jumps to the same graph on the Graphs tab - see <see cref="ShowGraph"/>.</summary>
+    public RelayCommand ShowPingGraphCommand { get; }
 
     public RelayCommand SelectAlertsCommand { get; }
 
@@ -597,6 +643,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsVlansSelected));
                 OnPropertyChanged(nameof(IsFdbSelected));
                 OnPropertyChanged(nameof(IsArpSelected));
+                OnPropertyChanged(nameof(IsGraphsSelected));
                 OnPropertyChanged(nameof(IsAlertsSelected));
                 OnPropertyChanged(nameof(IsEventLogSelected));
                 OnPropertyChanged(nameof(IsEditSelected));
@@ -617,6 +664,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsFdbSelected => SelectedSection == DeviceDetailSection.Fdb;
 
     public bool IsArpSelected => SelectedSection == DeviceDetailSection.Arp;
+
+    public bool IsGraphsSelected => SelectedSection == DeviceDetailSection.Graphs;
 
     public bool IsAlertsSelected => SelectedSection == DeviceDetailSection.Alerts;
 
@@ -1576,6 +1625,36 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
 
         OnPropertyChanged(nameof(HasVisibleSensorGroups));
+        RebuildSensorGraphLinks();
+    }
+
+    /// <summary>
+    /// One "View graph" quick link per distinct sensor class this device
+    /// actually reports (issue #9) - e.g. Temperature, Voltage, Fan speed -
+    /// jumping to that class's aggregate health graph (LibreNMS names it
+    /// "device_" + the raw sensor class, confirmed live against every class
+    /// tried so far). Built from the full sensor list, not whatever the
+    /// search box currently filters to - which classes exist doesn't depend
+    /// on a search term.
+    /// </summary>
+    private void RebuildSensorGraphLinks()
+    {
+        SensorGraphLinks.Clear();
+
+        // Grouped by class (not Distinct()) so ClassDisplayText - a
+        // per-item computed property, since SensorClassDisplay's own
+        // lookup is private to SensorItemViewModel.cs - can be read off
+        // one representative sensor rather than needing that lookup here.
+        var classes = Sensors
+            .Where(s => !string.IsNullOrWhiteSpace(s.Model.SensorClass))
+            .GroupBy(s => s.Model.SensorClass!, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in classes)
+        {
+            var graphName = "device_" + group.Key;
+            SensorGraphLinks.Add(new SensorGraphLinkViewModel(group.First().ClassDisplayText, new RelayCommand(() => ShowGraph(graphName))));
+        }
     }
 
     private bool MatchesCurrentGroups(IReadOnlyList<SensorGroupViewModel> candidate)
@@ -2401,6 +2480,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// current device every time - switching away and back discards an
     /// unsaved edit rather than leaving stale text sitting there.
     /// </summary>
+    /// <summary>Jumps to the Graphs section with a specific graph pre-selected - see <see cref="GraphsSectionViewModel.SelectGraphByNameAsync"/>.</summary>
+    private void ShowGraph(string graphName)
+    {
+        SelectedSection = DeviceDetailSection.Graphs;
+        _ = Graphs.SelectGraphByNameAsync(graphName);
+    }
+
     private void SelectEdit()
     {
         EditHostname = _device?.Hostname ?? string.Empty;
@@ -2917,6 +3003,20 @@ public sealed class SensorGroupViewModel
     public AlertSeverity WorstSeverity => Sensors.Count == 0
         ? AlertSeverity.Unknown
         : Sensors.OrderByDescending(s => s.Severity.SortRank()).First().Severity;
+}
+
+/// <summary>One "View graph" quick link on the Sensors tab, for one distinct sensor class the device reports - see <see cref="DeviceDetailViewModel.RebuildSensorGraphLinks"/>.</summary>
+public sealed class SensorGraphLinkViewModel
+{
+    public SensorGraphLinkViewModel(string label, RelayCommand command)
+    {
+        Label = label;
+        Command = command;
+    }
+
+    public string Label { get; }
+
+    public RelayCommand Command { get; }
 }
 
 /// <summary>One row in a device's event log - a general audit entry, not necessarily tied to any alert.</summary>

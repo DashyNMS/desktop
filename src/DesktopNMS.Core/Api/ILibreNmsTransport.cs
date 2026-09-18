@@ -31,4 +31,13 @@ public interface ILibreNmsTransport
         string relativeUrl,
         string collectionProperty,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Issues a GET and returns the raw response body, unparsed - for an
+    /// endpoint whose response isn't LibreNMS's usual JSON envelope (e.g. an
+    /// SVG graph). Still gets the same connection/timeout/transient-retry
+    /// handling as <see cref="SendAsync"/>; only the "parse a JSON envelope"
+    /// step is skipped, since there is no envelope to parse.
+    /// </summary>
+    Task<string> SendRawAsync(string relativeUrl, CancellationToken cancellationToken = default);
 }

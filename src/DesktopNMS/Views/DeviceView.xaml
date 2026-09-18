@@ -4,6 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        xmlns:views="clr-namespace:DesktopNMS.Views"
+        xmlns:svgc="clr-namespace:SharpVectors.Converters;assembly=SharpVectors.Converters.Wpf"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:DeviceDetailViewModel}"
         Title="{Binding Name}"
@@ -181,6 +183,10 @@
                                       IsChecked="{Binding IsResourcesSelected, Mode=OneWay}"
                                       Command="{Binding SelectResourcesCommand}"
                                       Visibility="{Binding ShowResourcesNav, Converter={StaticResource BoolToVisibility}}" />
+                        <ToggleButton Content="Graphs"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsGraphsSelected, Mode=OneWay}"
+                                      Command="{Binding SelectGraphsCommand}" />
 
                         <!-- ShowXNav (not HasX) stays visible while its section
                              is still loading, only disappearing once loading
@@ -358,12 +364,22 @@
                         </Border>
                     </UniformGrid>
 
-                    <Border Margin="0,16,0,0"
+                    <!-- Same 5-card-wide proportions as the row above -
+                         outage tracker at 4 cards, the ping thumbnail at 1 -
+                         rather than two separate full-width rows. -->
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="4*" />
+                            <ColumnDefinition Width="1*" />
+                        </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
                             Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="20"
+                            Margin="0,0,6,0"
                             Visibility="{Binding HasAvailability, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
                             <TextBlock Text="Availability" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
@@ -447,6 +463,47 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- "At a glance" ping response over the last day (issue
+                         #11) - ping is the one graph essentially every
+                         monitored device has, unlike processor/storage,
+                         which only some do. Clicking it jumps to the same
+                         graph on the Graphs tab, same as the Resources/
+                         Sensors quick links. LibreNMS's graph endpoint
+                         ignores only_graph/no_legend, so axes/legend always
+                         render regardless of size (confirmed live) - rather
+                         than fighting that by shrinking to an illegible
+                         thumbnail, this fills the same height as the
+                         Availability card next to it (both are auto-sized
+                         Grid siblings, so the row's height is whichever is
+                         taller, and Stretch=Fill below fills that height in
+                         full) and stretches to fill its column's width, so
+                         the legend/values stay readable and the graph scales
+                         with the window instead of a fixed pixel size.
+                         Silently collapses rather than showing an error if
+                         this device happens to have no ping data - this is a
+                         nice-to-have summary, not a section worth an error
+                         banner of its own. -->
+                    <Button Grid.Column="1"
+                            Command="{Binding ShowPingGraphCommand}"
+                            Style="{StaticResource OverviewCardButtonStyle}"
+                            Margin="6,0,0,0"
+                            Visibility="{Binding OverviewGraph.Svg, Converter={StaticResource NullToVisibility}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="Ping response (24h)" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+                            <svgc:SvgViewbox Grid.Row="1"
+                                             SvgSource="{Binding OverviewGraph.Svg}"
+                                             Stretch="Uniform"
+                                             HorizontalAlignment="Stretch"
+                                             VerticalAlignment="Stretch"
+                                             IsHitTestVisible="False" />
+                        </Grid>
+                    </Button>
+                    </Grid>
+
                     <!-- UniformGrid sizes itself from its visible children only, so the
                          Ports tile - hidden entirely on a device with no
                          interfaces - does not leave a blank gap behind it. -->
@@ -510,14 +567,41 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <TextBox Grid.Row="0"
-                         Style="{StaticResource SearchTextBoxStyle}"
-                         Tag="Search sensors"
-                         Text="{Binding SensorSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                         ToolTip="Search by device name, description or sensor id"
-                         Width="320"
-                         HorizontalAlignment="Left"
-                         Margin="0,0,0,10" />
+                <Grid Grid.Row="0" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox Grid.Column="0"
+                             Style="{StaticResource SearchTextBoxStyle}"
+                             Tag="Search sensors"
+                             Text="{Binding SensorSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                             ToolTip="Search by device name, description or sensor id"
+                             Width="320"
+                             HorizontalAlignment="Left" />
+
+                    <!-- One quick link per sensor class the device actually
+                         reports (issue #9), jumping to that class's
+                         aggregate graph - see DeviceDetailViewModel.RebuildSensorGraphLinks. -->
+                    <ItemsControl Grid.Column="1"
+                                  ItemsSource="{Binding SensorGraphLinks}"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding Label, StringFormat={}{0} graph}"
+                                        Command="{Binding Command}"
+                                        Style="{StaticResource ChipButtonStyle}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
 
                 <Grid Grid.Row="1">
                 <!-- A card per group rather than a grouped DataGrid: this list
@@ -1002,6 +1086,62 @@
                 </Grid>
             </Grid>
 
+            <!-- ==================== Graphs ==================== -->
+            <!-- Device-wide only (issues #14/#13/#17/#20) - LibreNMS's
+                 per-port and per-sensor graph routes 500/404 via the API
+                 token this app authenticates with everywhere else
+                 (confirmed live), so only the device-wide graphs listed by
+                 GET /devices/{id}/graphs are offered here. -->
+            <Grid Margin="24"
+                  Visibility="{Binding IsGraphsSelected, Converter={StaticResource BoolToVisibility}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <views:GraphTimeRangePicker Grid.Column="0"
+                                                 DataContext="{Binding Graphs.TimeRange}"
+                                                 VerticalAlignment="Center" />
+
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding Graphs.AvailableGraphs}"
+                              SelectedItem="{Binding Graphs.SelectedGraph}"
+                              DisplayMemberPath="Description"
+                              Width="280"
+                              Margin="14,0,0,0" />
+                </Grid>
+
+                <Grid Grid.Row="1">
+                    <svgc:SvgViewbox SvgSource="{Binding Graphs.CurrentSvg}"
+                                     Stretch="Uniform"
+                                     HorizontalAlignment="Left"
+                                     VerticalAlignment="Top"
+                                     Visibility="{Binding Graphs.CurrentSvg, Converter={StaticResource NullToVisibility}}" />
+
+                    <TextBlock Text="Loading graph..."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding Graphs.IsLoading, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
+                    <TextBlock Text="{Binding Graphs.ErrorMessage}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxWidth="480"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding Graphs.HasError, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+                </Grid>
+            </Grid>
+
             <!-- ==================== Resources ==================== -->
             <!-- CPU/memory/disk each get their own card rather than one grid:
                  the row shape differs (a disk/pool shows a used/total byte
@@ -1022,7 +1162,16 @@
                             Margin="0,0,0,12"
                             Visibility="{Binding HasProcessors, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
-                            <TextBlock Text="{Binding Processors.Count, StringFormat=Processors ({0})}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Processors.Count, StringFormat=Processors ({0})}" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Cursor="Hand">
+                                    <Hyperlink Command="{Binding ShowProcessorGraphCommand}" ToolTip="View the processor graph">View graph</Hyperlink>
+                                </TextBlock>
+                            </Grid>
                             <ItemsControl ItemsSource="{Binding Processors}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -1063,7 +1212,16 @@
                             Margin="0,0,0,12"
                             Visibility="{Binding HasMempools, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
-                            <TextBlock Text="{Binding Mempools.Count, StringFormat=Memory ({0})}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Mempools.Count, StringFormat=Memory ({0})}" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Cursor="Hand">
+                                    <Hyperlink Command="{Binding ShowMempoolGraphCommand}" ToolTip="View the memory pool graph">View graph</Hyperlink>
+                                </TextBlock>
+                            </Grid>
                             <ItemsControl ItemsSource="{Binding Mempools}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -1105,7 +1263,16 @@
                             Padding="16"
                             Visibility="{Binding HasStorage, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
-                            <TextBlock Text="{Binding Storage.Count, StringFormat=Storage ({0})}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Storage.Count, StringFormat=Storage ({0})}" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Cursor="Hand">
+                                    <Hyperlink Command="{Binding ShowStorageGraphCommand}" ToolTip="View the storage graph">View graph</Hyperlink>
+                                </TextBlock>
+                            </Grid>
                             <ItemsControl ItemsSource="{Binding Storage}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>

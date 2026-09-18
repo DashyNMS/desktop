@@ -233,6 +233,83 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         return false;
     }
 
+    public async Task<string> SendRawAsync(string relativeUrl, CancellationToken cancellationToken = default)
+    {
+        // Same retry shape as SendAsync above - see its own comments for why.
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await SendRawOnceAsync(relativeUrl, cancellationToken).ConfigureAwait(false);
+            }
+            catch (LibreNmsApiException ex) when (attempt == 1 && ex.LooksLikeStaleConnection && !cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogDebug(ex, "Retrying {Url} after a possible stale pooled connection", relativeUrl);
+            }
+            catch (LibreNmsApiException ex) when (
+                attempt <= TransientRetryPolicy.MaxAttempts
+                && TransientRetryPolicy.IsRetryable(HttpMethod.Get)
+                && TransientRetryPolicy.IsTransientFailure(ex)
+                && !cancellationToken.IsCancellationRequested)
+            {
+                var delay = TransientRetryPolicy.ComputeBackoffDelay(attempt);
+                _logger.LogDebug(
+                    ex,
+                    "Retrying {Url} after a transient failure (attempt {Attempt}/{Max}), waiting {DelayMs:0}ms",
+                    relativeUrl,
+                    attempt,
+                    TransientRetryPolicy.MaxAttempts,
+                    delay.TotalMilliseconds);
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task<string> SendRawOnceAsync(string relativeUrl, CancellationToken cancellationToken)
+    {
+        HttpClient http;
+        lock (_sync)
+        {
+            http = _http ?? throw new LibreNmsApiException("Not connected to a LibreNMS server.");
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, relativeUrl);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await http.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException ex)
+        {
+            throw new LibreNmsApiException(
+                $"The request to LibreNMS timed out after {http.Timeout.TotalSeconds:0} seconds.",
+                innerException: ex,
+                looksLikeStaleConnection: IsStaleConnectionFailure(ex));
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new LibreNmsApiException(DescribeTransportFailure(ex), innerException: ex, looksLikeStaleConnection: IsStaleConnectionFailure(ex));
+        }
+
+        using (response)
+        {
+            var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            if (!IsSuccess(response.StatusCode))
+            {
+                throw new LibreNmsApiException(DescribeHttpFailure(response.StatusCode, relativeUrl), response.StatusCode);
+            }
+
+            return content;
+        }
+    }
+
     public async Task<IReadOnlyList<T>> GetCollectionAsync<T>(
         string relativeUrl,
         string collectionProperty,

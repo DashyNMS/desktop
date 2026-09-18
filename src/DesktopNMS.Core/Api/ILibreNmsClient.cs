@@ -42,6 +42,8 @@ public interface ILibreNmsClient
 
     ISystemApi System { get; }
 
+    IGraphsApi Graphs { get; }
+
     /// <summary>The connection in use, or null when not signed in.</summary>
     LibreNmsConnection? Connection { get; }
 
