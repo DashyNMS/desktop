@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
@@ -61,15 +62,33 @@ public partial class DevicesView : UserControl
     }
 
     /// <summary>
-    /// Builds the column show/hide menu fresh on every click, straight from
-    /// DeviceGrid's own live columns (issue #40) - a headerless column (just
-    /// the pin toggle) is skipped, since there is nothing to label it with
-    /// and no reason to hide it. Refuses to hide the last remaining visible
-    /// column so the grid can never end up fully empty.
+    /// Right-clicking a column header opens the show/hide menu (issue #40) -
+    /// the standard place for this in most grid-based apps, rather than a
+    /// separate toolbar button. Right-clicking anywhere else in the grid
+    /// (a row/cell) is left alone, so DataGrid.ContextMenu still shows there
+    /// as normal.
     /// </summary>
-    private void ColumnsButton_Click(object sender, RoutedEventArgs e)
+    private void DeviceGrid_HeaderRightClick(object sender, MouseButtonEventArgs e)
     {
-        var menu = new ContextMenu { PlacementTarget = ColumnsButton };
+        if (FindAncestor<DataGridColumnHeader>(e.OriginalSource as DependencyObject) is not { } header)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ShowColumnsMenu(header);
+    }
+
+    /// <summary>
+    /// Builds the column show/hide menu fresh on every open, straight from
+    /// DeviceGrid's own live columns - a headerless column (just the pin
+    /// toggle) is skipped, since there is nothing to label it with and no
+    /// reason to hide it. Refuses to hide the last remaining visible column
+    /// so the grid can never end up fully empty.
+    /// </summary>
+    private void ShowColumnsMenu(UIElement placementTarget)
+    {
+        var menu = new ContextMenu { PlacementTarget = placementTarget };
 
         foreach (var column in DeviceGrid.Columns)
         {
@@ -100,6 +119,16 @@ public partial class DevicesView : UserControl
         }
 
         menu.IsOpen = true;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? node) where T : DependencyObject
+    {
+        while (node is not null and not T)
+        {
+            node = VisualTreeHelper.GetParent(node);
+        }
+
+        return node as T;
     }
 
     /// <summary>

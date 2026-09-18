@@ -85,6 +85,15 @@ public sealed class DeviceItemViewModel : ObservableObject
 
     public string Type => Blank(_device.Type);
 
+    public string Contact => Blank(_device.Contact);
+
+    public string Serial => Blank(_device.Serial);
+
+    /// <summary>Optional grid column (issue #40) - an absolute timestamp rather than a "X ago" style, since a sortable column reads better as a fixed value than one that keeps re-rendering as time passes.</summary>
+    public string LastDiscoveredText => _device.LastDiscovered is { } t
+        ? t.ToLocalTime().ToString("dd MMM HH:mm", CultureInfo.InvariantCulture)
+        : "-";
+
     public string UptimeText => _device.State == DeviceState.Up ? FormatUptime(_device.Uptime) : "-";
 
     /// <summary>Everything a search box should match against.</summary>
@@ -96,6 +105,8 @@ public sealed class DeviceItemViewModel : ObservableObject
         || Hardware.Contains(term, StringComparison.OrdinalIgnoreCase)
         || Location.Contains(term, StringComparison.OrdinalIgnoreCase)
         || Type.Contains(term, StringComparison.OrdinalIgnoreCase)
+        || Contact.Contains(term, StringComparison.OrdinalIgnoreCase)
+        || Serial.Contains(term, StringComparison.OrdinalIgnoreCase)
         || DeviceId.ToString(CultureInfo.InvariantCulture).Contains(term, StringComparison.Ordinal);
 
     /// <summary>Replaces the underlying device in place so the selection survives a refresh.</summary>
@@ -151,6 +162,9 @@ public sealed class DeviceItemViewModel : ObservableObject
         OnPropertyChanged(nameof(Hardware));
         OnPropertyChanged(nameof(Location));
         OnPropertyChanged(nameof(Type));
+        OnPropertyChanged(nameof(Contact));
+        OnPropertyChanged(nameof(Serial));
+        OnPropertyChanged(nameof(LastDiscoveredText));
         OnPropertyChanged(nameof(UptimeText));
     }
 }

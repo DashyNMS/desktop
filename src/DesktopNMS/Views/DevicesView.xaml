@@ -114,19 +114,6 @@
                                 Visibility="{Binding HasAnyFilterApplied, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
                         </Button>
-
-                        <!-- Column show/hide (issue #40) - the menu itself is
-                             built in code-behind from DeviceGrid.Columns
-                             (ColumnsButton_Click), since it needs live
-                             DataGridColumn objects rather than a view-model
-                             abstraction invented just for this one grid. -->
-                        <Button x:Name="ColumnsButton"
-                                Click="ColumnsButton_Click"
-                                Style="{StaticResource IconButtonStyle}"
-                                ToolTip="Show/hide columns"
-                                Margin="4,0,0,0">
-                            <TextBlock Text="&#xE8AE;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" />
-                        </Button>
                     </StackPanel>
 
                     <!-- Set apart from the filter cluster by a divider rather
@@ -204,6 +191,7 @@
                           Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}"
                           MouseDoubleClick="OnGridDoubleClick"
                           SelectionChanged="OnGridSelectionChanged"
+                          PreviewMouseRightButtonUp="DeviceGrid_HeaderRightClick"
                           Sorting="DeviceGrid_Sorting">
                     <DataGrid.Columns>
 
@@ -271,6 +259,16 @@
                         <DataGridTextColumn Header="Hardware" Width="*" Binding="{Binding Hardware}" />
                         <DataGridTextColumn Header="Location" Width="140" Binding="{Binding Location}" />
                         <DataGridTextColumn Header="Uptime" Width="100" Binding="{Binding UptimeText}" />
+
+                        <!-- Off by default (issue #40) - shown via the column
+                             header's own right-click menu. Appended after the
+                             always-on columns above so an older saved layout
+                             (fewer columns than this) leaves these untouched,
+                             i.e. still hidden, rather than mis-mapping onto them. -->
+                        <DataGridTextColumn Header="Type" Width="110" Binding="{Binding Type}" Visibility="Collapsed" />
+                        <DataGridTextColumn Header="Contact" Width="140" Binding="{Binding Contact}" Visibility="Collapsed" />
+                        <DataGridTextColumn Header="Serial" Width="140" Binding="{Binding Serial}" Visibility="Collapsed" />
+                        <DataGridTextColumn Header="Last discovered" Width="140" Binding="{Binding LastDiscoveredText}" Visibility="Collapsed" />
 
                     </DataGrid.Columns>
 
