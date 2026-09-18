@@ -28,6 +28,7 @@ public enum DeviceDetailSection
     Vlans,
     Fdb,
     Arp,
+    Graphs,
 
     /// <summary>Both this device's currently active alerts and its historical alert log - see <see cref="Views.DeviceView"/>.</summary>
     Alerts,
@@ -225,6 +226,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         ArpEntries = new BatchObservableCollection<ArpItemViewModel>();
         EventLog = new BatchObservableCollection<EventLogItemViewModel>();
         PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
+        Graphs = new GraphsSectionViewModel(deviceId, client, logger);
 
         PortsView = CollectionViewSource.GetDefaultView(Ports);
         PortsView.Filter = FilterPortEntry;
@@ -262,6 +264,11 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectVlansCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Vlans);
         SelectFdbCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Fdb);
         SelectArpCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Arp);
+        SelectGraphsCommand = new RelayCommand(() =>
+        {
+            SelectedSection = DeviceDetailSection.Graphs;
+            Graphs.EnsureLoaded();
+        });
         SelectAlertsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Alerts);
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
         SelectEditCommand = new RelayCommand(SelectEdit);
@@ -453,6 +460,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectArpCommand { get; }
 
+    /// <summary>Navigates to the Graphs section, loading its available graph types on first visit only - see <see cref="GraphsSectionViewModel.EnsureLoaded"/>.</summary>
+    public RelayCommand SelectGraphsCommand { get; }
+
+    /// <summary>Device-wide graphs (issues #14/#13/#17/#20) - see <see cref="GraphsSectionViewModel"/>.</summary>
+    public GraphsSectionViewModel Graphs { get; }
+
     public RelayCommand SelectAlertsCommand { get; }
 
     public RelayCommand SelectEventLogCommand { get; }
@@ -597,6 +610,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsVlansSelected));
                 OnPropertyChanged(nameof(IsFdbSelected));
                 OnPropertyChanged(nameof(IsArpSelected));
+                OnPropertyChanged(nameof(IsGraphsSelected));
                 OnPropertyChanged(nameof(IsAlertsSelected));
                 OnPropertyChanged(nameof(IsEventLogSelected));
                 OnPropertyChanged(nameof(IsEditSelected));
@@ -617,6 +631,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsFdbSelected => SelectedSection == DeviceDetailSection.Fdb;
 
     public bool IsArpSelected => SelectedSection == DeviceDetailSection.Arp;
+
+    public bool IsGraphsSelected => SelectedSection == DeviceDetailSection.Graphs;
 
     public bool IsAlertsSelected => SelectedSection == DeviceDetailSection.Alerts;
 

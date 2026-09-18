@@ -1,0 +1,120 @@
+<UserControl x:Class="DesktopNMS.Views.GraphTimeRangePicker"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:GraphTimeRangeViewModel}">
+
+    <UserControl.Resources>
+        <!-- Same pill shape as the "recently viewed" chips, but with a
+             selected/unselected look instead of just hover - each button
+             below adds its own DataTrigger on its own IsXSelected property,
+             since that binding path differs per button. -->
+        <Style x:Key="RangeChipStyle" TargetType="Button" BasedOn="{StaticResource ChipButtonStyle}">
+            <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Orientation="Horizontal">
+        <Button Content="1h" Command="{Binding SetHourCommand}">
+            <Button.Style>
+                <Style TargetType="Button" BasedOn="{StaticResource RangeChipStyle}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsHourSelected}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Button.Style>
+        </Button>
+
+        <Button Content="1d" Command="{Binding SetDayCommand}">
+            <Button.Style>
+                <Style TargetType="Button" BasedOn="{StaticResource RangeChipStyle}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsDaySelected}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Button.Style>
+        </Button>
+
+        <Button Content="1w" Command="{Binding SetWeekCommand}">
+            <Button.Style>
+                <Style TargetType="Button" BasedOn="{StaticResource RangeChipStyle}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsWeekSelected}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Button.Style>
+        </Button>
+
+        <Button Content="1m" Command="{Binding SetMonthCommand}">
+            <Button.Style>
+                <Style TargetType="Button" BasedOn="{StaticResource RangeChipStyle}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsMonthSelected}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Button.Style>
+        </Button>
+
+        <Button Content="1y" Command="{Binding SetYearCommand}">
+            <Button.Style>
+                <Style TargetType="Button" BasedOn="{StaticResource RangeChipStyle}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsYearSelected}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Button.Style>
+        </Button>
+
+        <Button Content="Custom" Command="{Binding SetCustomCommand}">
+            <Button.Style>
+                <Style TargetType="Button" BasedOn="{StaticResource RangeChipStyle}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsCustomSelected}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Button.Style>
+        </Button>
+
+        <!-- Plain themed TextBoxes rather than DatePicker: no DatePicker
+             appears anywhere else in this app, and its default popup
+             Calendar has no dark styling here - introducing one unstyled
+             would be the same "unthemed OS chrome" issue fixed elsewhere in
+             this app (ComboBox, ToolTip, ContextMenu, ...). A plain date
+             string is enough for a graph's from/to. -->
+        <StackPanel Orientation="Horizontal"
+                    Margin="10,0,0,0"
+                    VerticalAlignment="Center"
+                    Visibility="{Binding IsCustom, Converter={StaticResource BoolToVisibility}}">
+            <TextBox Text="{Binding CustomFrom, StringFormat=dd MMM yyyy}" Width="100" Margin="0,0,6,0" />
+            <TextBlock Text="to" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBox Text="{Binding CustomTo, StringFormat=dd MMM yyyy}" Width="100" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

@@ -4,6 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        xmlns:views="clr-namespace:DesktopNMS.Views"
+        xmlns:svgc="clr-namespace:SharpVectors.Converters;assembly=SharpVectors.Converters.Wpf"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:DeviceDetailViewModel}"
         Title="{Binding Name}"
@@ -217,6 +219,12 @@
                                       Visibility="{Binding ShowArpNav, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="{Binding ArpEntries.Count, Mode=OneWay, StringFormat=ARP ({0})}" />
                         </ToggleButton>
+
+                        <TextBlock Text="GRAPHS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
+                        <ToggleButton Content="Graphs"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsGraphsSelected, Mode=OneWay}"
+                                      Command="{Binding SelectGraphsCommand}" />
 
                         <TextBlock Text="ALERTS &amp; LOGS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
                         <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
@@ -998,6 +1006,57 @@
                                VerticalAlignment="Center"
                                IsHitTestVisible="False"
                                Visibility="{Binding ShowArpNoMatchesMessage, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+                </Grid>
+            </Grid>
+
+            <!-- ==================== Graphs ==================== -->
+            <!-- Device-wide only (issues #14/#13/#17/#20) - LibreNMS's
+                 per-port and per-sensor graph routes 500/404 via the API
+                 token this app authenticates with everywhere else
+                 (confirmed live), so only the device-wide graphs listed by
+                 GET /devices/{id}/graphs are offered here. -->
+            <Grid Margin="24"
+                  Visibility="{Binding IsGraphsSelected, Converter={StaticResource BoolToVisibility}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <ComboBox Grid.Row="0"
+                          ItemsSource="{Binding Graphs.AvailableGraphs}"
+                          SelectedItem="{Binding Graphs.SelectedGraph}"
+                          DisplayMemberPath="Description"
+                          Width="320"
+                          HorizontalAlignment="Left"
+                          Margin="0,0,0,10" />
+
+                <views:GraphTimeRangePicker Grid.Row="1"
+                                             DataContext="{Binding Graphs.TimeRange}"
+                                             Margin="0,0,0,14" />
+
+                <Grid Grid.Row="2">
+                    <svgc:SvgViewbox SvgSource="{Binding Graphs.CurrentSvg}"
+                                     Stretch="Uniform"
+                                     HorizontalAlignment="Left"
+                                     VerticalAlignment="Top"
+                                     Visibility="{Binding Graphs.CurrentSvg, Converter={StaticResource NullToVisibility}}" />
+
+                    <TextBlock Text="Loading graph..."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding Graphs.IsLoading, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
+                    <TextBlock Text="{Binding Graphs.ErrorMessage}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxWidth="480"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding Graphs.HasError, Converter={StaticResource BoolToVisibility}}"
                                Style="{StaticResource SubtleTextStyle}" />
                 </Grid>
             </Grid>

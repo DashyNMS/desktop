@@ -714,3 +714,38 @@ internal sealed class LogsApi : ILogsApi
         return _transport.GetCollectionAsync<EventLogEntry>(url, "logs", cancellationToken);
     }
 }
+
+/// <summary>Implementation of <see cref="IGraphsApi"/>.</summary>
+internal sealed class GraphsApi : IGraphsApi
+{
+    private readonly ILibreNmsTransport _transport;
+
+    public GraphsApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<GraphType>> ListAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/graphs";
+        return _transport.GetCollectionAsync<GraphType>(url, "graphs", cancellationToken);
+    }
+
+    public Task<string> GetSvgAsync(
+        int deviceId,
+        string graphName,
+        GraphTimeRange range,
+        int width,
+        int height,
+        CancellationToken cancellationToken = default)
+    {
+        var from = Uri.EscapeDataString(range.ToFromParameter());
+        var url = string.Create(
+            CultureInfo.InvariantCulture,
+            $"devices/{deviceId}/{Uri.EscapeDataString(graphName)}?from={from}&width={width}&height={height}");
+
+        if (range.ToToParameter() is { } to)
+        {
+            url += "&to=" + Uri.EscapeDataString(to);
+        }
+
+        return _transport.SendRawAsync(url, cancellationToken);
+    }
+}
