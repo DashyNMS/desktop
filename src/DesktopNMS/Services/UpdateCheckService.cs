@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -66,16 +67,31 @@ public sealed class UpdateCheckService : IUpdateCheckService
     /// a plain numeric core - it silently drops any "-preview.N" suffix, so
     /// every preview build of a given release reported the exact same
     /// version here regardless of which preview it actually was (issue
-    /// #107). <see cref="AssemblyInformationalVersionAttribute"/> preserves
-    /// the full version the build was published with instead. The SDK also
-    /// appends a "+&lt;git-sha&gt;" build-metadata suffix to it by default,
-    /// which is stripped here - meaningless for display or comparison.
+    /// #107). The full version the build was published with (preserved via
+    /// <see cref="AssemblyInformationalVersionAttribute"/> at compile time -
+    /// confirmed present in the compiled assembly's own metadata) is read
+    /// back here from the native Win32 version resource on the running
+    /// executable instead of via <see cref="Assembly.GetCustomAttribute"/> -
+    /// this app publishes as a single-file self-contained executable, and
+    /// that attribute could not reliably be read back off
+    /// <see cref="Assembly.GetEntryAssembly"/> at runtime once bundled that
+    /// way (confirmed live: correct in the compiled DLL's IL metadata,
+    /// empty once running as the bundled single-file exe). The Win32
+    /// resource - which every DashyNMS.exe carries regardless of how it was
+    /// published - does not have this problem. The SDK also appends a
+    /// "+&lt;git-sha&gt;" build-metadata suffix to the version, which is
+    /// stripped here - meaningless for display or comparison.
     /// </summary>
     private static string GetCurrentVersion()
     {
-        var informational = Assembly.GetEntryAssembly()?
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
-            .InformationalVersion;
+        var informational = TryGetProductVersion();
+
+        if (string.IsNullOrWhiteSpace(informational))
+        {
+            informational = Assembly.GetEntryAssembly()?
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                .InformationalVersion;
+        }
 
         if (string.IsNullOrWhiteSpace(informational))
         {
@@ -84,6 +100,27 @@ public sealed class UpdateCheckService : IUpdateCheckService
 
         var metadataIndex = informational.IndexOf('+');
         return metadataIndex >= 0 ? informational[..metadataIndex] : informational;
+    }
+
+    private static string? TryGetProductVersion()
+    {
+        var processPath = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(processPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return FileVersionInfo.GetVersionInfo(processPath).ProductVersion;
+        }
+        catch (Exception)
+        {
+            // Falls through to the AssemblyInformationalVersion/AssemblyName
+            // fallbacks below - reading Win32 resource data is not something
+            // that should ever be able to take the app down.
+            return null;
+        }
     }
 
     public async Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, bool? includePreviewBuildsOverride = null, CancellationToken cancellationToken = default)
