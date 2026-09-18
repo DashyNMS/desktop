@@ -660,7 +660,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Overrides the display name shown throughout the app - see <see cref="DeviceNameStyle"/>, which already prefers this over sysName/hostname once set.</summary>
+    /// <summary>
+    /// Saved as <c>display_template</c>, not <c>display</c> - see
+    /// <see cref="Device.DisplayTemplate"/>'s remarks. Overrides the display
+    /// name shown throughout the app - see <see cref="DeviceNameStyle"/>,
+    /// which already prefers <see cref="Device.Display"/> over sysName/hostname
+    /// once set.
+    /// </summary>
     public string EditDisplayName
     {
         get => _editDisplayName;
@@ -2399,7 +2405,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         EditHostname = _device?.Hostname ?? string.Empty;
         EditLocation = _device?.Location ?? string.Empty;
-        EditDisplayName = _device?.Display ?? string.Empty;
+        EditDisplayName = _device?.DisplayTemplate ?? string.Empty;
         EditType = _device?.Type ?? string.Empty;
         EditPurpose = _device?.Purpose ?? string.Empty;
         EditOverrideSysLocation = _device?.OverrideSysLocation ?? false;
@@ -2521,9 +2527,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             fields["location"] = string.IsNullOrWhiteSpace(EditLocation) ? null : EditLocation.Trim();
         }
 
-        if (EditDisplayName.Trim() != (_device?.Display ?? string.Empty))
+        if (EditDisplayName.Trim() != (_device?.DisplayTemplate ?? string.Empty))
         {
-            fields["display"] = string.IsNullOrWhiteSpace(EditDisplayName) ? null : EditDisplayName.Trim();
+            fields["display_template"] = string.IsNullOrWhiteSpace(EditDisplayName) ? null : EditDisplayName.Trim();
         }
 
         if (EditType.Trim() != (_device?.Type ?? string.Empty))
@@ -2667,7 +2673,21 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 if (_device is not null)
                 {
                     if (fields.TryGetValue("location", out var location)) _device.Location = location;
-                    if (fields.TryGetValue("display", out var display)) _device.Display = display;
+                    if (fields.TryGetValue("display_template", out var displayTemplate))
+                    {
+                        _device.DisplayTemplate = displayTemplate;
+
+                        // LibreNMS recomputes Display from this server-side
+                        // (see Device.DisplayTemplate's remarks) rather than
+                        // storing what was sent - mirror a literal value
+                        // locally so the UI doesn't wait for the next poll,
+                        // but leave an actual "{{ ... }}" template for the
+                        // next poll to resolve rather than guessing at it.
+                        if (!string.IsNullOrEmpty(displayTemplate) && !displayTemplate.Contains("{{"))
+                        {
+                            _device.Display = displayTemplate;
+                        }
+                    }
                     if (fields.TryGetValue("type", out var type)) _device.Type = type;
                     if (fields.TryGetValue("purpose", out var purpose)) _device.Purpose = purpose;
                     if (fields.ContainsKey("override_sysLocation")) _device.OverrideSysLocation = EditOverrideSysLocation;

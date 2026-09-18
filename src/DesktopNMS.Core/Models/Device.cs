@@ -21,6 +21,18 @@ public sealed class Device
     [JsonPropertyName("display")]
     public string? Display { get; set; }
 
+    /// <summary>
+    /// The editable override behind <see cref="Display"/> - a literal name or
+    /// a "{{ $hostname }}"-style template LibreNMS itself resolves into
+    /// <see cref="Display"/> server-side (see LibreNMS's own
+    /// Device::regenerateDisplayName) whenever hostname/sysName/ip changes.
+    /// Blank means LibreNMS falls back to its global default template.
+    /// Saving a new <see cref="Display"/> value directly does nothing
+    /// durable - it is recomputed from this field, not the other way round.
+    /// </summary>
+    [JsonPropertyName("display_template")]
+    public string? DisplayTemplate { get; set; }
+
     [JsonPropertyName("ip")]
     public string? Ip { get; set; }
 
