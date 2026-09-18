@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using DesktopNMS.Core.Models;
 
 namespace DesktopNMS.Services;
@@ -70,6 +71,9 @@ public interface IWindowService
 
     /// <summary>Shows the "Edit device group" dialog for an existing static group. Returns true if it was saved.</summary>
     bool ShowEditDeviceGroupDialog(DeviceGroup group);
+
+    /// <summary>Shows the "Add to group" dialog for a Devices-grid multi-selection (issue #39). Returns true if the devices were added.</summary>
+    bool ShowAddDevicesToGroupDialog(IReadOnlyList<int> deviceIds);
 
     /// <summary>Shows the "Add location" dialog. Returns true if a location was created.</summary>
     bool ShowAddLocationDialog();

@@ -48,6 +48,8 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, DeviceItemViewModel> _index = new();
 
+    private readonly List<DeviceItemViewModel> _selectedDevices = new();
+
     private DeviceItemViewModel? _selectedDevice;
     private string _statusMessage = "Not loaded yet.";
     private string? _errorMessage;
@@ -143,6 +145,15 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         // surfaces as an inline error in the dialog itself.
         AddDeviceCommand = new RelayCommand(AddDevice);
 
+        // Bulk actions (issue #39) - mirror MainViewModel's Acknowledge/
+        // Unacknowledge pair for the Alerts grid: both always available for
+        // a multi-selection regardless of each item's own current pin
+        // state, rather than one mixed-state toggle.
+        PinSelectedCommand = new RelayCommand(() => SetSelectedPinned(true), () => _selectedDevices.Count > 0);
+        UnpinSelectedCommand = new RelayCommand(() => SetSelectedPinned(false), () => _selectedDevices.Count > 0);
+        AddSelectedToGroupCommand = new RelayCommand(AddSelectedToGroup, () => _selectedDevices.Count > 0);
+        RediscoverSelectedCommand = new AsyncRelayCommand(RediscoverSelectedAsync, () => _selectedDevices.Count > 0);
+
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
         _groupMembershipRefreshTimer = new DispatcherTimer { Interval = GroupMembershipRefreshInterval() };
@@ -215,6 +226,18 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// <summary>Opens the "Add device" dialog - see <see cref="AddDevice"/>.</summary>
     public RelayCommand AddDeviceCommand { get; }
 
+    /// <summary>Pins every currently-selected device - see <see cref="SetSelectedPinned"/>.</summary>
+    public RelayCommand PinSelectedCommand { get; }
+
+    /// <summary>Unpins every currently-selected device - see <see cref="SetSelectedPinned"/>.</summary>
+    public RelayCommand UnpinSelectedCommand { get; }
+
+    /// <summary>Opens the "Add to group" dialog for every currently-selected device - see <see cref="AddSelectedToGroup"/>.</summary>
+    public RelayCommand AddSelectedToGroupCommand { get; }
+
+    /// <summary>Triggers a LibreNMS rediscovery for every currently-selected device - see <see cref="RediscoverSelectedAsync"/>.</summary>
+    public AsyncRelayCommand RediscoverSelectedCommand { get; }
+
     /// <summary>A short "45s" / "2:05" countdown to the next automatic refresh.</summary>
     public string NextRefreshText => PollAlignment.FormatRemaining(_deviceMonitor.SecondsUntilNextPoll());
 
@@ -268,6 +291,75 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     }
 
     public bool HasSelection => SelectedDevice is not null;
+
+    /// <summary>Every currently-selected device, for the bulk actions (issue #39) - see <see cref="UpdateSelectedDevices"/>.</summary>
+    public IReadOnlyList<DeviceItemViewModel> SelectedDevices => _selectedDevices;
+
+    public int SelectedCount => _selectedDevices.Count;
+
+    public bool HasMultipleSelection => SelectedCount > 1;
+
+    public bool IsSingleSelection => SelectedCount == 1;
+
+    public string SelectedCountText => SelectedCount == 1 ? "1 device selected" : $"{SelectedCount} devices selected";
+
+    /// <summary>Pin (single selection) or Pin all (multiple) - only shown at all when at least one selected device isn't already pinned.</summary>
+    public string PinSelectedLabel => HasMultipleSelection ? "Pin all" : "Pin";
+
+    /// <summary>Unpin (single selection) or Unpin all (multiple) - only shown at all when at least one selected device is already pinned.</summary>
+    public string UnpinSelectedLabel => HasMultipleSelection ? "Unpin all" : "Unpin";
+
+    public string RediscoverSelectedLabel => HasMultipleSelection ? "Rediscover all" : "Rediscover";
+
+    /// <summary>
+    /// True when pinning would do something - at least one selected device
+    /// isn't pinned yet. Pin/Unpin show one at a time based on this and
+    /// <see cref="ShowUnpinSelectedAction"/> rather than always both, so
+    /// picking a fully-pinned (or fully-unpinned) selection doesn't offer an
+    /// action that would be a no-op for every device in it. A mixed
+    /// selection shows both, since either one still does something.
+    /// </summary>
+    public bool ShowPinSelectedAction => _selectedDevices.Any(d => !d.IsPinned);
+
+    /// <summary>True when unpinning would do something - see <see cref="ShowPinSelectedAction"/>.</summary>
+    public bool ShowUnpinSelectedAction => _selectedDevices.Any(d => d.IsPinned);
+
+    /// <summary>
+    /// Forwards the grid's multi-selection from code-behind - DataGrid.SelectedItems
+    /// is not a dependency property, so it cannot be bound directly (same
+    /// bridging AlertsView.xaml.cs uses for MainViewModel.UpdateSelectedAlerts).
+    /// </summary>
+    public void UpdateSelectedDevices(IEnumerable<DeviceItemViewModel> devices)
+    {
+        _selectedDevices.Clear();
+        _selectedDevices.AddRange(devices);
+
+        OnPropertyChanged(nameof(SelectedDevices));
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(HasMultipleSelection));
+        OnPropertyChanged(nameof(IsSingleSelection));
+        OnPropertyChanged(nameof(SelectedCountText));
+        RaiseSelectedPinStateChanged();
+        PinSelectedCommand.RaiseCanExecuteChanged();
+        UnpinSelectedCommand.RaiseCanExecuteChanged();
+        AddSelectedToGroupCommand.RaiseCanExecuteChanged();
+        RediscoverSelectedCommand.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Re-raises everything Pin/Unpin's visibility and labels depend on -
+    /// called after the selection itself changes, and after
+    /// <see cref="RefreshPinnedState"/> in case a still-selected device's
+    /// own pin state changed elsewhere (e.g. the Dashboard's Unpin button).
+    /// </summary>
+    private void RaiseSelectedPinStateChanged()
+    {
+        OnPropertyChanged(nameof(PinSelectedLabel));
+        OnPropertyChanged(nameof(UnpinSelectedLabel));
+        OnPropertyChanged(nameof(RediscoverSelectedLabel));
+        OnPropertyChanged(nameof(ShowPinSelectedAction));
+        OnPropertyChanged(nameof(ShowUnpinSelectedAction));
+    }
 
     public string StatusMessage
     {
@@ -542,32 +634,125 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Pins or unpins a device (star icon in the grid's leftmost column).
-    /// Only changes sort order via <see cref="_pinnedIds"/> and <see cref="DevicesView"/>'s
-    /// SortDescriptions - a pinned device still disappears under the current
-    /// filters like any other row, it just sorts first among what remains
-    /// visible.
+    /// Toggles one device's pin (star icon in the grid's leftmost column) -
+    /// see <see cref="SetPinned"/> for what pinning actually does.
     /// </summary>
-    private void TogglePin(int deviceId)
-    {
-        var pinned = _settings.Current.PinnedDevices;
-        var existingIndex = pinned.FindIndex(p => p.DeviceId == deviceId);
+    private void TogglePin(int deviceId) => SetPinned(deviceId, !_pinnedIds.Contains(deviceId), save: true);
 
-        if (existingIndex >= 0)
+    /// <summary>
+    /// Pins or unpins a device. Only changes sort order via <see cref="_pinnedIds"/>
+    /// and <see cref="DevicesView"/>'s SortDescriptions - a pinned device
+    /// still disappears under the current filters like any other row, it
+    /// just sorts first among what remains visible.
+    /// </summary>
+    /// <param name="save">
+    /// False when called in a loop from <see cref="SetSelectedPinned"/>,
+    /// which saves once itself after every device in the selection has been
+    /// updated, rather than once per device.
+    /// </param>
+    private void SetPinned(int deviceId, bool pinned, bool save)
+    {
+        var pinnedDevices = _settings.Current.PinnedDevices;
+        var existingIndex = pinnedDevices.FindIndex(p => p.DeviceId == deviceId);
+
+        if (!pinned)
         {
-            pinned.RemoveAt(existingIndex);
+            if (existingIndex >= 0)
+            {
+                pinnedDevices.RemoveAt(existingIndex);
+            }
+        }
+        else if (existingIndex < 0)
+        {
+            var name = _index.TryGetValue(deviceId, out var item) ? item.Name : null;
+            pinnedDevices.Insert(0, new PinnedDevice { DeviceId = deviceId, DisplayName = name, PinnedAt = DateTimeOffset.Now });
+        }
+
+        if (save)
+        {
+            // Raises Changed, picked up by OnSettingsChanged below - the same
+            // reactive path RecordRecentlyViewed relies on for the
+            // recently-viewed strip, so a pin toggled from the Dashboard
+            // widget's Unpin button shows up here live too.
+            _settings.Save();
+        }
+    }
+
+    /// <summary>Bulk equivalent of <see cref="TogglePin"/> for the current multi-selection (issue #39) - one settings save for the whole batch, not one per device.</summary>
+    private void SetSelectedPinned(bool pinned)
+    {
+        if (_selectedDevices.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var device in _selectedDevices)
+        {
+            SetPinned(device.DeviceId, pinned, save: false);
+        }
+
+        _settings.Save();
+    }
+
+    /// <summary>Opens the "Add to group" dialog for the current multi-selection (issue #39).</summary>
+    private void AddSelectedToGroup()
+    {
+        if (_selectedDevices.Count == 0)
+        {
+            return;
+        }
+
+        var deviceIds = _selectedDevices.Select(d => d.DeviceId).ToArray();
+        if (_windows.ShowAddDevicesToGroupDialog(deviceIds))
+        {
+            RequestGroupsRefresh();
+        }
+    }
+
+    /// <summary>
+    /// Triggers a LibreNMS rediscovery for every currently-selected device
+    /// (issue #39) - same fire-and-forget request as the single-device
+    /// Rediscover action on Device Details (DeviceDetailViewModel.RediscoverAsync),
+    /// just concurrently for the whole selection. One device failing does
+    /// not stop the others; failures are reported together once every
+    /// request has finished.
+    /// </summary>
+    private async Task RediscoverSelectedAsync()
+    {
+        if (_selectedDevices.Count == 0)
+        {
+            return;
+        }
+
+        var devices = _selectedDevices.ToList();
+        var failedNames = new List<string>();
+
+        await Task.WhenAll(devices.Select(async device =>
+        {
+            try
+            {
+                await _client.Devices.DiscoverAsync(device.DeviceId).ConfigureAwait(true);
+            }
+            catch (LibreNmsApiException ex)
+            {
+                _logger.LogWarning(ex, "Could not trigger rediscovery for device {DeviceId}", device.DeviceId);
+                lock (failedNames)
+                {
+                    failedNames.Add(device.Name);
+                }
+            }
+        })).ConfigureAwait(true);
+
+        if (failedNames.Count == 0)
+        {
+            _windows.ShowInformation("Rediscover requested", $"Rediscovery requested for {devices.Count} device(s).");
         }
         else
         {
-            var name = _index.TryGetValue(deviceId, out var item) ? item.Name : null;
-            pinned.Insert(0, new PinnedDevice { DeviceId = deviceId, DisplayName = name, PinnedAt = DateTimeOffset.Now });
+            _windows.ShowError(
+                "Rediscover failed for some devices",
+                $"Could not request rediscovery for: {string.Join(", ", failedNames)}");
         }
-
-        // Raises Changed, picked up by OnSettingsChanged below - the same
-        // reactive path RecordRecentlyViewed relies on for the recently-viewed
-        // strip, so a pin toggled from the Dashboard widget's Unpin button
-        // shows up here live too.
-        _settings.Save();
     }
 
     private void RefreshPinnedState(IReadOnlyList<PinnedDevice> pinned)
@@ -580,6 +765,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         }
 
         DevicesView.Refresh();
+        RaiseSelectedPinStateChanged();
     }
 
     /// <summary>

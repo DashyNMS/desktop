@@ -187,8 +187,11 @@
                           x:Name="DeviceGrid"
                           ItemsSource="{Binding DevicesView}"
                           SelectedItem="{Binding SelectedDevice}"
+                          SelectionMode="Extended"
                           Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}"
                           MouseDoubleClick="OnGridDoubleClick"
+                          SelectionChanged="OnGridSelectionChanged"
+                          PreviewMouseRightButtonUp="DeviceGrid_HeaderRightClick"
                           Sorting="DeviceGrid_Sorting">
                     <DataGrid.Columns>
 
@@ -257,12 +260,43 @@
                         <DataGridTextColumn Header="Location" Width="140" Binding="{Binding Location}" />
                         <DataGridTextColumn Header="Uptime" Width="100" Binding="{Binding UptimeText}" />
 
+                        <!-- Off by default (issue #40) - shown via the column
+                             header's own right-click menu. Appended after the
+                             always-on columns above so an older saved layout
+                             (fewer columns than this) leaves these untouched,
+                             i.e. still hidden, rather than mis-mapping onto them. -->
+                        <DataGridTextColumn Header="Type" Width="110" Binding="{Binding Type}" Visibility="Collapsed" />
+                        <DataGridTextColumn Header="Contact" Width="140" Binding="{Binding Contact}" Visibility="Collapsed" />
+                        <DataGridTextColumn Header="Serial" Width="140" Binding="{Binding Serial}" Visibility="Collapsed" />
+                        <DataGridTextColumn Header="Last discovered" Width="140" Binding="{Binding LastDiscoveredText}" Visibility="Collapsed" />
+
                     </DataGrid.Columns>
 
                     <DataGrid.ContextMenu>
+                        <!-- "Open device"/"Show alerts" only mean anything for
+                             one device, so they drop out once more than one
+                             row is selected - everything else (issue #39)
+                             works the same for one device or many, since it's
+                             the same PinSelected/AddSelectedToGroup/
+                             RediscoverSelected commands either way. -->
                         <ContextMenu>
-                            <MenuItem Header="Open device" Command="{Binding ShowDeviceDetailCommand}" />
-                            <MenuItem Header="Show alerts for this device" Command="{Binding ShowAlertsCommand}" />
+                            <MenuItem Header="Open device"
+                                      Command="{Binding ShowDeviceDetailCommand}"
+                                      Visibility="{Binding IsSingleSelection, Converter={StaticResource BoolToVisibility}}" />
+                            <MenuItem Header="Show alerts for this device"
+                                      Command="{Binding ShowAlertsCommand}"
+                                      Visibility="{Binding IsSingleSelection, Converter={StaticResource BoolToVisibility}}" />
+
+                            <Separator Visibility="{Binding IsSingleSelection, Converter={StaticResource BoolToVisibility}}" />
+
+                            <MenuItem Header="Add to group..." Command="{Binding AddSelectedToGroupCommand}" />
+                            <MenuItem Header="{Binding PinSelectedLabel}"
+                                      Command="{Binding PinSelectedCommand}"
+                                      Visibility="{Binding ShowPinSelectedAction, Converter={StaticResource BoolToVisibility}}" />
+                            <MenuItem Header="{Binding UnpinSelectedLabel}"
+                                      Command="{Binding UnpinSelectedCommand}"
+                                      Visibility="{Binding ShowUnpinSelectedAction, Converter={StaticResource BoolToVisibility}}" />
+                            <MenuItem Header="{Binding RediscoverSelectedLabel}" Command="{Binding RediscoverSelectedCommand}" />
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                 </DataGrid>
@@ -314,9 +348,26 @@
                                    Margin="24"
                                    Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
 
+                        <!-- Multi-select: a summary instead of one device's detail (issue #39), same treatment as AlertsView's own multi-select block. -->
+                        <StackPanel Grid.Row="0"
+                                    Margin="18"
+                                    Visibility="{Binding HasMultipleSelection, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{Binding SelectedCountText}"
+                                       Style="{StaticResource HeadingTextStyle}"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="Pin, unpin or add them to a device group together below. Per-device detail needs a single selection."
+                                       Style="{StaticResource SubtleTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0" />
+                        </StackPanel>
+
+                        <!-- DataContext is set on the inner StackPanel, not on the
+                             ScrollViewer: bindings on the element that redefines
+                             DataContext resolve against the new one, so Visibility
+                             would look for IsSingleSelection on the device and fail. -->
                         <ScrollViewer Grid.Row="0"
                                       VerticalScrollBarVisibility="Auto"
-                                      Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
+                                      Visibility="{Binding IsSingleSelection, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="18" DataContext="{Binding SelectedDevice}">
 
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
@@ -364,12 +415,35 @@
                                 Padding="18,14"
                                 Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel>
-                                <Button Content="Open device"
-                                        Command="{Binding ShowDeviceDetailCommand}"
-                                        Style="{StaticResource PrimaryButtonStyle}"
+                                <!-- "Open device"/"Show alerts" only mean
+                                     anything for one device - everything
+                                     below works the same for one device or
+                                     many (issue #39), since it's the same
+                                     PinSelected/AddSelectedToGroup/
+                                     RediscoverSelected commands either way. -->
+                                <StackPanel Visibility="{Binding IsSingleSelection, Converter={StaticResource BoolToVisibility}}">
+                                    <Button Content="Open device"
+                                            Command="{Binding ShowDeviceDetailCommand}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Margin="0,0,0,8" />
+                                    <Button Content="Show alerts for this device"
+                                            Command="{Binding ShowAlertsCommand}"
+                                            Margin="0,0,0,8" />
+                                </StackPanel>
+
+                                <Button Content="Add to group..."
+                                        Command="{Binding AddSelectedToGroupCommand}"
                                         Margin="0,0,0,8" />
-                                <Button Content="Show alerts for this device"
-                                        Command="{Binding ShowAlertsCommand}" />
+                                <Button Content="{Binding PinSelectedLabel}"
+                                        Command="{Binding PinSelectedCommand}"
+                                        Margin="0,0,0,8"
+                                        Visibility="{Binding ShowPinSelectedAction, Converter={StaticResource BoolToVisibility}}" />
+                                <Button Content="{Binding UnpinSelectedLabel}"
+                                        Command="{Binding UnpinSelectedCommand}"
+                                        Margin="0,0,0,8"
+                                        Visibility="{Binding ShowUnpinSelectedAction, Converter={StaticResource BoolToVisibility}}" />
+                                <Button Content="{Binding RediscoverSelectedLabel}"
+                                        Command="{Binding RediscoverSelectedCommand}" />
                             </StackPanel>
                         </Border>
                     </Grid>

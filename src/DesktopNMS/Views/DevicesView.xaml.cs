@@ -1,7 +1,10 @@
 using System.ComponentModel;
+using System.Linq;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
@@ -42,6 +45,90 @@ public partial class DevicesView : UserControl
         {
             viewModel.ShowDeviceDetailCommand.Execute(null);
         }
+    }
+
+    /// <summary>
+    /// Forwards the grid's multi-selection to the view model.
+    /// DataGrid.SelectedItems is not a dependency property, so it cannot be
+    /// bound directly - this is the standard way to bridge it into MVVM,
+    /// same as AlertsView.xaml.cs's OnGridSelectionChanged.
+    /// </summary>
+    private void OnGridSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is DeviceListViewModel viewModel)
+        {
+            viewModel.UpdateSelectedDevices(DeviceGrid.SelectedItems.Cast<DeviceItemViewModel>());
+        }
+    }
+
+    /// <summary>
+    /// Right-clicking a column header opens the show/hide menu (issue #40) -
+    /// the standard place for this in most grid-based apps, rather than a
+    /// separate toolbar button. Right-clicking anywhere else in the grid
+    /// (a row/cell) is left alone, so DataGrid.ContextMenu still shows there
+    /// as normal.
+    /// </summary>
+    private void DeviceGrid_HeaderRightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (FindAncestor<DataGridColumnHeader>(e.OriginalSource as DependencyObject) is not { } header)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ShowColumnsMenu(header);
+    }
+
+    /// <summary>
+    /// Builds the column show/hide menu fresh on every open, straight from
+    /// DeviceGrid's own live columns - a headerless column (just the pin
+    /// toggle) is skipped, since there is nothing to label it with and no
+    /// reason to hide it. Refuses to hide the last remaining visible column
+    /// so the grid can never end up fully empty.
+    /// </summary>
+    private void ShowColumnsMenu(UIElement placementTarget)
+    {
+        var menu = new ContextMenu { PlacementTarget = placementTarget };
+
+        foreach (var column in DeviceGrid.Columns)
+        {
+            if (column.Header is not string header || string.IsNullOrEmpty(header))
+            {
+                continue;
+            }
+
+            var item = new MenuItem
+            {
+                Header = header,
+                IsCheckable = true,
+                IsChecked = column.Visibility == Visibility.Visible,
+            };
+
+            item.Click += (_, _) =>
+            {
+                if (!item.IsChecked && DeviceGrid.Columns.Count(c => c.Visibility == Visibility.Visible) <= 1)
+                {
+                    item.IsChecked = true;
+                    return;
+                }
+
+                column.Visibility = item.IsChecked ? Visibility.Visible : Visibility.Collapsed;
+            };
+
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? node) where T : DependencyObject
+    {
+        while (node is not null and not T)
+        {
+            node = VisualTreeHelper.GetParent(node);
+        }
+
+        return node as T;
     }
 
     /// <summary>

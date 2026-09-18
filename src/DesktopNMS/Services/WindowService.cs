@@ -292,6 +292,21 @@ public sealed class WindowService : IWindowService
         return window.ShowDialog() == true;
     }
 
+    public bool ShowAddDevicesToGroupDialog(IReadOnlyList<int> deviceIds)
+    {
+        var viewModel = _services.GetRequiredService<AddDevicesToGroupViewModel>();
+        viewModel.Initialize(deviceIds);
+
+        var window = new AddDevicesToGroupWindow(viewModel);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        return window.ShowDialog() == true;
+    }
+
     public bool ShowAddLocationDialog()
     {
         var viewModel = _services.GetRequiredService<LocationEditorViewModel>();

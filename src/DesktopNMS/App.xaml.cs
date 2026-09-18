@@ -229,6 +229,7 @@ public partial class App : Application
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AddDeviceViewModel>();
         services.AddTransient<DeviceGroupEditorViewModel>();
+        services.AddTransient<AddDevicesToGroupViewModel>();
         services.AddTransient<LocationEditorViewModel>();
 
         return services.BuildServiceProvider();
