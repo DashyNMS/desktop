@@ -1148,7 +1148,17 @@
         </Setter>
     </Style>
 
-    <Style TargetType="Separator">
+    <!-- Keyed by MenuItem.SeparatorStyleKey, not the plain Separator type:
+         WPF resolves a Separator's default style differently depending on
+         its container (Menu/ContextMenu vs. ToolBar vs. standalone), so a
+         `<Style TargetType="Separator">` here is silently ignored for one
+         placed inside a ContextMenu, which instead falls back to the OS
+         default - a plain white line, out of place against the rest of the
+         dark theme (same "un-styled OS chrome" issue as ComboBox/ToolTip/
+         DataGridColumnHeader elsewhere in this file). Both of this app's
+         Separators live inside a ContextMenu, so this is the only key that
+         actually needs styling today. -->
+    <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
         <Setter Property="Background" Value="{StaticResource BorderBrush}" />
         <Setter Property="Height" Value="1" />
         <Setter Property="Margin" Value="4,4" />
