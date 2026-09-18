@@ -4,6 +4,8 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:views="clr-namespace:DesktopNMS.Views"
+             xmlns:svgc="clr-namespace:SharpVectors.Converters;assembly=SharpVectors.Converters.Wpf"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:DashboardViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100"
@@ -642,6 +644,155 @@
             </Grid>
         </DataTemplate>
 
+        <!-- ======================== Graph widget body ======================== -->
+        <!-- A configurable per-device graph (issue #12) - there is no
+             fleet-wide graph endpoint, so several of these side by side is
+             how a fleet-wide view gets built. The toolbar (device/graph/
+             time-range pickers) only shows while editing, mirroring the
+             Sensors widget's own swap between "manage" and its own picker;
+             the rendered graph itself stays visible underneath in both
+             states, so changing the time range or graph gives instant
+             feedback rather than requiring a save-and-close round trip. -->
+        <DataTemplate DataType="{x:Type vm:GraphWidgetViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="8,6"
+                        Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}}">
+                <Grid>
+
+                    <!-- Device picker: candidates to choose from. -->
+                    <Grid Visibility="{Binding IsDevicePickerOpen, Converter={StaticResource BoolToVisibility}}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding DevicePickerSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                                     ToolTip="Search devices"
+                                     Margin="0,0,8,0" />
+                            <Button Grid.Column="1"
+                                    ToolTip="Back"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Command="{Binding ToggleDevicePickerCommand}">
+                                <TextBlock Text="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                            </Button>
+                        </Grid>
+
+                        <ListBox Grid.Row="1"
+                                 ItemsSource="{Binding DevicePickerResults}"
+                                 BorderThickness="0"
+                                 Background="Transparent"
+                                 MaxHeight="180"
+                                 Visibility="{Binding HasDevicePickerResults, Converter={StaticResource BoolToVisibility}}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding DisplayName}"
+                                            Command="{Binding DataContext.SelectDeviceCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}"
+                                            HorizontalAlignment="Stretch"
+                                            HorizontalContentAlignment="Left"
+                                            Padding="8,6"
+                                            Margin="0,0,0,2" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <TextBlock Grid.Row="1"
+                                   Text="No matching devices."
+                                   HorizontalAlignment="Center"
+                                   Margin="0,10,0,0"
+                                   IsHitTestVisible="False"
+                                   Visibility="{Binding HasDevicePickerResults, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                                   Style="{StaticResource SubtleTextStyle}" />
+                    </Grid>
+
+                    <!-- Configuration: which device, which graph, which time range. -->
+                    <StackPanel Visibility="{Binding IsDevicePickerOpen, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                        <Button HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                Padding="8,6"
+                                Margin="0,0,0,6"
+                                Command="{Binding ToggleDevicePickerCommand}"
+                                ToolTip="Choose a device">
+                            <Button.Style>
+                                <!-- BasedOn the app's own themed default (Dark.xaml) - an
+                                     unqualified TargetType="Button" style here would replace
+                                     that implicit style entirely rather than layer on top of
+                                     it, falling back to plain unthemed OS chrome. -->
+                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                    <Setter Property="Content" Value="Choose a device" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasSelectedDevice}" Value="True">
+                                            <Setter Property="Content" Value="{Binding SelectedDeviceName}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+
+                        <ComboBox ItemsSource="{Binding AvailableGraphs}"
+                                  SelectedItem="{Binding SelectedGraph}"
+                                  DisplayMemberPath="Description"
+                                  Margin="0,0,0,6"
+                                  Visibility="{Binding HasSelectedDevice, Converter={StaticResource BoolToVisibility}}" />
+
+                        <Border Visibility="{Binding HasSelectedDevice, Converter={StaticResource BoolToVisibility}}">
+                            <views:GraphTimeRangePicker DataContext="{Binding TimeRange}" />
+                        </Border>
+                    </StackPanel>
+                </Grid>
+                </Border>
+
+                <Grid Grid.Row="1">
+                    <svgc:SvgViewbox SvgSource="{Binding Svg}"
+                                     Stretch="Uniform"
+                                     HorizontalAlignment="Stretch"
+                                     VerticalAlignment="Stretch"
+                                     Visibility="{Binding Svg, Converter={StaticResource NullToVisibility}}" />
+
+                    <TextBlock Text="Loading..."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
+                    <TextBlock Text="{Binding ErrorMessage}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxWidth="240"
+                               TextAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}"
+                               Style="{StaticResource SubtleTextStyle}" />
+
+                    <TextBlock Text="Click the edit icon above to choose a device and graph."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxWidth="240"
+                               TextAlignment="Center"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding IsConfigured, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                               Style="{StaticResource SubtleTextStyle}" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
+
         <!-- ======================== Widget chrome ======================== -->
         <!-- Shared by every widget type: title bar (drag handle + rename box +
              remove button, the last two only while editing), body, and a
@@ -865,6 +1016,16 @@
                                     <StackPanel Margin="0,2">
                                         <TextBlock Text="Pinned devices" FontWeight="SemiBold" />
                                         <TextBlock Text="Devices you've starred on the Devices tab"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11" />
+                                    </StackPanel>
+                                </MenuItem.Header>
+                            </MenuItem>
+                            <MenuItem Command="{Binding AddGraphWidgetCommand}">
+                                <MenuItem.Header>
+                                    <StackPanel Margin="0,2">
+                                        <TextBlock Text="Graph" FontWeight="SemiBold" />
+                                        <TextBlock Text="A configurable graph for any device and time range"
                                                    Style="{StaticResource SubtleTextStyle}"
                                                    FontSize="11" />
                                     </StackPanel>

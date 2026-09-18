@@ -39,6 +39,11 @@ public interface IDashboardLayoutService
 
     /// <summary>Sets which severities an Alerts widget shows and whether acknowledged alerts count.</summary>
     void SetAlertsFilter(string widgetId, bool showCritical, bool showWarning, bool includeAcknowledged);
+
+    /// <summary>Sets a Graph widget's device and graph name (issue #12). Passing a null graphName leaves the device chosen but the graph itself unpicked.</summary>
+    void SetGraph(string widgetId, int? deviceId, string? graphName);
+
+    void SetGraphTimeRange(string widgetId, GraphTimeRangePreset preset, DateTime? customFrom, DateTime? customTo);
 }
 
 public sealed class DashboardLayoutService : IDashboardLayoutService
@@ -229,6 +234,40 @@ public sealed class DashboardLayoutService : IDashboardLayoutService
         widget.AlertsShowCritical = showCritical;
         widget.AlertsShowWarning = showWarning;
         widget.AlertsIncludeAcknowledged = includeAcknowledged;
+        _settings.Save();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetGraph(string widgetId, int? deviceId, string? graphName)
+    {
+        var widget = Find(widgetId);
+        if (widget is null || (widget.GraphDeviceId == deviceId && widget.GraphName == graphName))
+        {
+            return;
+        }
+
+        widget.GraphDeviceId = deviceId;
+        widget.GraphName = graphName;
+        _settings.Save();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetGraphTimeRange(string widgetId, GraphTimeRangePreset preset, DateTime? customFrom, DateTime? customTo)
+    {
+        var widget = Find(widgetId);
+        if (widget is null)
+        {
+            return;
+        }
+
+        if (widget.GraphTimeRangePreset == preset && widget.GraphCustomFrom == customFrom && widget.GraphCustomTo == customTo)
+        {
+            return;
+        }
+
+        widget.GraphTimeRangePreset = preset;
+        widget.GraphCustomFrom = customFrom;
+        widget.GraphCustomTo = customTo;
         _settings.Save();
         Changed?.Invoke(this, EventArgs.Empty);
     }

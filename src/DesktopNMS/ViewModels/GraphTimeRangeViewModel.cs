@@ -11,12 +11,19 @@ namespace DesktopNMS.ViewModels;
 /// </summary>
 public sealed class GraphTimeRangeViewModel : ObservableObject
 {
-    private GraphTimeRangePreset _preset = GraphTimeRangePreset.Day;
-    private DateTime _customFrom = DateTime.Now.AddDays(-1);
-    private DateTime _customTo = DateTime.Now;
+    private GraphTimeRangePreset _preset;
+    private DateTime _customFrom;
+    private DateTime _customTo;
 
-    public GraphTimeRangeViewModel()
+    /// <param name="initialPreset">Defaults to Day - every existing caller relied on that default.</param>
+    /// <param name="initialCustomFrom">Only meaningful when <paramref name="initialPreset"/> is Custom (a Dashboard Graph widget persists this - see issue #12); otherwise defaults as before.</param>
+    public GraphTimeRangeViewModel(GraphTimeRangePreset initialPreset = GraphTimeRangePreset.Day, DateTime? initialCustomFrom = null, DateTime? initialCustomTo = null)
     {
+        _preset = initialPreset;
+        _customFrom = initialCustomFrom ?? DateTime.Now.AddDays(-1);
+        _customTo = initialCustomTo ?? DateTime.Now;
+
+
         SetHourCommand = new RelayCommand(() => Preset = GraphTimeRangePreset.Hour);
         SetDayCommand = new RelayCommand(() => Preset = GraphTimeRangePreset.Day);
         SetWeekCommand = new RelayCommand(() => Preset = GraphTimeRangePreset.Week);

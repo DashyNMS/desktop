@@ -697,6 +697,19 @@ public sealed class DashboardWidget
     /// <summary>For an "Alerts" widget: whether acknowledged alerts count towards the two severities above.</summary>
     public bool AlertsIncludeAcknowledged { get; set; }
 
+    /// <summary>For a "Graph" widget: which device's graph it shows. Unused by other widget types.</summary>
+    public int? GraphDeviceId { get; set; }
+
+    /// <summary>For a "Graph" widget: the graph name (from that device's /graphs or /health listing), null until chosen.</summary>
+    public string? GraphName { get; set; }
+
+    public GraphTimeRangePreset GraphTimeRangePreset { get; set; } = GraphTimeRangePreset.Day;
+
+    /// <summary>For a "Graph" widget with a Custom time range.</summary>
+    public DateTime? GraphCustomFrom { get; set; }
+
+    public DateTime? GraphCustomTo { get; set; }
+
     public DashboardWidget Clone() => new()
     {
         Id = Id,
@@ -710,6 +723,11 @@ public sealed class DashboardWidget
         AlertsShowCritical = AlertsShowCritical,
         AlertsShowWarning = AlertsShowWarning,
         AlertsIncludeAcknowledged = AlertsIncludeAcknowledged,
+        GraphDeviceId = GraphDeviceId,
+        GraphName = GraphName,
+        GraphTimeRangePreset = GraphTimeRangePreset,
+        GraphCustomFrom = GraphCustomFrom,
+        GraphCustomTo = GraphCustomTo,
     };
 
     /// <summary>Clamps anything a hand-edited settings file could have made nonsensical.</summary>

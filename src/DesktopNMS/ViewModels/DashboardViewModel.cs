@@ -24,9 +24,11 @@ namespace DesktopNMS.ViewModels;
 /// the Devices tab), "RecentlyViewed" (reads straight from settings, the
 /// same list the Devices tab's own recently-viewed strip shows), and
 /// "PinnedDevices" (same relationship, but for the Devices tab's pinned/
-/// favourite devices). None of them
-/// trigger a fetch of their own - having any combination open never costs
-/// more than one poll of each kind of data.
+/// favourite devices), and "Graph" (issue #12 - a configurable per-device
+/// graph, reloaded only when this tab is shown or refreshed, since a graph
+/// fetch is its own real API call rather than shared poll data). None of the
+/// others trigger a fetch of their own - having any combination open never
+/// costs more than one poll of each kind of data.
 /// </summary>
 public sealed class DashboardViewModel : ObservableObject, IDisposable
 {
@@ -38,6 +40,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     private readonly IDashboardLayoutService _layout;
     private readonly AlertMonitor _alertMonitor;
     private readonly DeviceMonitor _deviceMonitor;
+    private readonly ILibreNmsClient _client;
     private readonly ILogger<DashboardViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<string, DashboardWidgetViewModel> _widgetIndex = new();
@@ -65,6 +68,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         IDashboardLayoutService layout,
         AlertMonitor alertMonitor,
         DeviceMonitor deviceMonitor,
+        ILibreNmsClient client,
         ILogger<DashboardViewModel> logger)
     {
         _sensorMonitor = sensorMonitor;
@@ -75,6 +79,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         _layout = layout;
         _alertMonitor = alertMonitor;
         _deviceMonitor = deviceMonitor;
+        _client = client;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -83,6 +88,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         RefreshCommand = new AsyncRelayCommand(() =>
         {
             _sensorMonitor.RequestRefresh();
+            ReloadGraphWidgets();
             return Task.CompletedTask;
         }, () => _session.IsConnected && !IsBusy);
 
@@ -100,6 +106,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         AddDeviceStatusWidgetCommand = new RelayCommand(() => _layout.AddWidget("DeviceStatus", "Device status"));
         AddRecentlyViewedWidgetCommand = new RelayCommand(() => _layout.AddWidget("RecentlyViewed", "Recently viewed"));
         AddPinnedDevicesWidgetCommand = new RelayCommand(() => _layout.AddWidget("PinnedDevices", "Pinned devices"));
+        AddGraphWidgetCommand = new RelayCommand(() => _layout.AddWidget("Graph", "Graph"));
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
@@ -125,6 +132,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     public RelayCommand AddRecentlyViewedWidgetCommand { get; }
 
     public RelayCommand AddPinnedDevicesWidgetCommand { get; }
+
+    public RelayCommand AddGraphWidgetCommand { get; }
 
     /// <summary>True while the user is arranging the dashboard: widgets show drag/resize/remove handles.</summary>
     public bool IsEditMode
@@ -192,12 +201,26 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         // starting the countdown and leave it frozen between polls.
         _autoRefresh.Start();
 
+        // Every visit, not gated on _hasLoadedOnce like the sensor refresh
+        // below - a Graph widget has no shared background poll of its own
+        // (see the class doc comment), so "come back to the Dashboard tab"
+        // is the only signal it gets that it might be stale.
+        ReloadGraphWidgets();
+
         if (_hasLoadedOnce)
         {
             return;
         }
 
         _sensorMonitor.RequestRefresh();
+    }
+
+    private void ReloadGraphWidgets()
+    {
+        foreach (var widget in Widgets.OfType<GraphWidgetViewModel>())
+        {
+            widget.Reload();
+        }
     }
 
     /// <summary>
@@ -333,6 +356,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         "DeviceStatus" => new DeviceStatusWidgetViewModel(_layout, model, _deviceMonitor),
         "RecentlyViewed" => new RecentlyViewedWidgetViewModel(_layout, model, _settings, deviceId => _windows.ShowDeviceDetail(deviceId)),
         "PinnedDevices" => new PinnedDevicesWidgetViewModel(_layout, model, _settings, deviceId => _windows.ShowDeviceDetail(deviceId)),
+        "Graph" => new GraphWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger),
         // "Sensors" (and any future/unknown type, so a layout from a newer
         // version does not blow up) fall back to the Sensors widget.
         _ => new SensorWidgetViewModel(_layout, model, OpenDeviceCommand),
