@@ -34,6 +34,26 @@ public class ReleaseVersionTests
         Assert.False(ReleaseVersion.IsNewer(candidateTag, currentVersion));
     }
 
+    // Issue #107: IsNewer used to discard the preview suffix from both sides
+    // before comparing, so a newer preview was never detected as an update
+    // over an older one already running.
+    [Theory]
+    [InlineData("v1.0.0-preview.2", "1.0.0-preview.1")]
+    [InlineData("v1.0.0-preview.10", "1.0.0-preview.2")]
+    [InlineData("v1.0.0", "1.0.0-preview.4")]
+    public void Newer_preview_is_detected_relative_to_current_preview(string candidateTag, string currentVersion)
+    {
+        Assert.True(ReleaseVersion.IsNewer(candidateTag, currentVersion));
+    }
+
+    [Theory]
+    [InlineData("v1.0.0-preview.1", "1.0.0-preview.2")]
+    [InlineData("v1.0.0-preview.2", "1.0.0-preview.2")]
+    public void Older_or_same_preview_is_not_newer(string candidateTag, string currentVersion)
+    {
+        Assert.False(ReleaseVersion.IsNewer(candidateTag, currentVersion));
+    }
+
     [Theory]
     [InlineData("v1.0.0", "v0.9.9")]
     [InlineData("v1.0.0", "v1.0.0-preview.2")]

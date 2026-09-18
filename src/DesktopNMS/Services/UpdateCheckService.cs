@@ -59,8 +59,32 @@ public sealed class UpdateCheckService : IUpdateCheckService
         _logger = logger;
     }
 
-    public string CurrentVersion { get; } =
-        Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
+    public string CurrentVersion { get; } = GetCurrentVersion();
+
+    /// <summary>
+    /// The assembly's own <see cref="AssemblyName.Version"/> can only ever be
+    /// a plain numeric core - it silently drops any "-preview.N" suffix, so
+    /// every preview build of a given release reported the exact same
+    /// version here regardless of which preview it actually was (issue
+    /// #107). <see cref="AssemblyInformationalVersionAttribute"/> preserves
+    /// the full version the build was published with instead. The SDK also
+    /// appends a "+&lt;git-sha&gt;" build-metadata suffix to it by default,
+    /// which is stripped here - meaningless for display or comparison.
+    /// </summary>
+    private static string GetCurrentVersion()
+    {
+        var informational = Assembly.GetEntryAssembly()?
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        if (string.IsNullOrWhiteSpace(informational))
+        {
+            return Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
+        }
+
+        var metadataIndex = informational.IndexOf('+');
+        return metadataIndex >= 0 ? informational[..metadataIndex] : informational;
+    }
 
     public async Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, bool? includePreviewBuildsOverride = null, CancellationToken cancellationToken = default)
     {
