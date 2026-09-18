@@ -183,6 +183,10 @@
                                       IsChecked="{Binding IsResourcesSelected, Mode=OneWay}"
                                       Command="{Binding SelectResourcesCommand}"
                                       Visibility="{Binding ShowResourcesNav, Converter={StaticResource BoolToVisibility}}" />
+                        <ToggleButton Content="Graphs"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsGraphsSelected, Mode=OneWay}"
+                                      Command="{Binding SelectGraphsCommand}" />
 
                         <!-- ShowXNav (not HasX) stays visible while its section
                              is still loading, only disappearing once loading
@@ -219,12 +223,6 @@
                                       Visibility="{Binding ShowArpNav, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="{Binding ArpEntries.Count, Mode=OneWay, StringFormat=ARP ({0})}" />
                         </ToggleButton>
-
-                        <TextBlock Text="GRAPHS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
-                        <ToggleButton Content="Graphs"
-                                      Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsGraphsSelected, Mode=OneWay}"
-                                      Command="{Binding SelectGraphsCommand}" />
 
                         <TextBlock Text="ALERTS &amp; LOGS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
                         <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
@@ -1020,23 +1018,28 @@
                   Visibility="{Binding IsGraphsSelected, Converter={StaticResource BoolToVisibility}}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <ComboBox Grid.Row="0"
-                          ItemsSource="{Binding Graphs.AvailableGraphs}"
-                          SelectedItem="{Binding Graphs.SelectedGraph}"
-                          DisplayMemberPath="Description"
-                          Width="320"
-                          HorizontalAlignment="Left"
-                          Margin="0,0,0,10" />
+                <Grid Grid.Row="0" Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                <views:GraphTimeRangePicker Grid.Row="1"
-                                             DataContext="{Binding Graphs.TimeRange}"
-                                             Margin="0,0,0,14" />
+                    <views:GraphTimeRangePicker Grid.Column="0"
+                                                 DataContext="{Binding Graphs.TimeRange}"
+                                                 VerticalAlignment="Center" />
 
-                <Grid Grid.Row="2">
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding Graphs.AvailableGraphs}"
+                              SelectedItem="{Binding Graphs.SelectedGraph}"
+                              DisplayMemberPath="Description"
+                              Width="280"
+                              Margin="14,0,0,0" />
+                </Grid>
+
+                <Grid Grid.Row="1">
                     <svgc:SvgViewbox SvgSource="{Binding Graphs.CurrentSvg}"
                                      Stretch="Uniform"
                                      HorizontalAlignment="Left"

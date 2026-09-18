@@ -15,4 +15,13 @@ public sealed class GraphType
 
     [JsonPropertyName("desc")]
     public string Description { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The shared ComboBox template's closed/selected display falls back to
+    /// this rather than honouring DisplayMemberPath (a pre-existing WPF
+    /// quirk, not new here) - every other object bound to a ComboBox in
+    /// this app (PollerGroup, DeviceNameOption, ...) already works around
+    /// it the same way.
+    /// </summary>
+    public override string ToString() => Description;
 }
