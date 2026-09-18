@@ -22,6 +22,9 @@ public partial class MainWindow : Window
     /// </summary>
     private readonly DispatcherTimer _devicesFlyoutCloseTimer;
 
+    /// <summary>Same debounced hover-flyout behaviour as <see cref="_devicesFlyoutCloseTimer"/>, for Rules/Templates under the Alerts button.</summary>
+    private readonly DispatcherTimer _alertsFlyoutCloseTimer;
+
     private bool _allowClose;
 
     public MainWindow(MainViewModel viewModel, ISettingsStore settings)
@@ -40,6 +43,14 @@ public partial class MainWindow : Window
             DevicesFlyout.IsOpen = false;
         };
         DevicesFlyout.PlacementTarget = DevicesTabButton;
+
+        _alertsFlyoutCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        _alertsFlyoutCloseTimer.Tick += (_, _) =>
+        {
+            _alertsFlyoutCloseTimer.Stop();
+            AlertsFlyout.IsOpen = false;
+        };
+        AlertsFlyout.PlacementTarget = AlertsTabButton;
 
         RestorePlacement();
         ApplyGridLayouts();
@@ -61,6 +72,24 @@ public partial class MainWindow : Window
     {
         _devicesFlyoutCloseTimer.Stop();
         DevicesFlyout.IsOpen = false;
+    }
+
+    private void AlertsTabButton_MouseEnter(object sender, MouseEventArgs e)
+    {
+        _alertsFlyoutCloseTimer.Stop();
+        AlertsFlyout.IsOpen = true;
+    }
+
+    private void AlertsTabButton_MouseLeave(object sender, MouseEventArgs e) => _alertsFlyoutCloseTimer.Start();
+
+    private void AlertsFlyoutContent_MouseEnter(object sender, MouseEventArgs e) => _alertsFlyoutCloseTimer.Stop();
+
+    private void AlertsFlyoutContent_MouseLeave(object sender, MouseEventArgs e) => _alertsFlyoutCloseTimer.Start();
+
+    private void AlertsFlyoutItem_Click(object sender, RoutedEventArgs e)
+    {
+        _alertsFlyoutCloseTimer.Stop();
+        AlertsFlyout.IsOpen = false;
     }
 
     /// <summary>

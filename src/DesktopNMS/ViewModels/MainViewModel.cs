@@ -2,9 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -15,6 +18,7 @@ using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
 
 namespace DesktopNMS.ViewModels;
 
@@ -41,6 +45,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly DashboardViewModel _dashboard;
     private readonly GroupsViewModel _groups;
     private readonly LocationsViewModel _locations;
+    private readonly RulesViewModel _rulesTab;
+    private readonly TemplatesViewModel _templates;
     private readonly IServerBrandingService _branding;
     private readonly ISelfActionTracker _selfActions;
     private readonly ILogger<MainViewModel> _logger;
@@ -95,6 +101,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         DashboardViewModel dashboard,
         GroupsViewModel groups,
         LocationsViewModel locations,
+        RulesViewModel rulesTab,
+        TemplatesViewModel templates,
         IServerBrandingService branding,
         ISelfActionTracker selfActions,
         ILogger<MainViewModel> logger)
@@ -111,6 +119,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _dashboard = dashboard;
         _groups = groups;
         _locations = locations;
+        _rulesTab = rulesTab;
+        _templates = templates;
         _branding = branding;
         _selfActions = selfActions;
         _logger = logger;
@@ -130,6 +140,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         OpenDeviceCommand = new RelayCommand(OpenSelectedDevice, () => SelectedAlert?.DeviceUrl is not null);
         OpenProcedureCommand = new RelayCommand(OpenSelectedProcedure, () => SelectedAlert?.HasProcedure == true);
         ClearFiltersCommand = new RelayCommand(ClearFilters);
+        CopyAlertsCsvCommand = new RelayCommand(CopyAlertsCsv);
+        ExportAlertsCsvCommand = new RelayCommand(ExportAlertsCsv);
         ReloadDetailCommand = new RelayCommand(() => ReloadDetail(force: true), () => SelectedAlert is not null);
         SelectDashboardTabCommand = new RelayCommand(() => SelectedTab = MainTab.Dashboard);
         SelectDevicesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Devices);
@@ -137,6 +149,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectAlertsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Alerts);
         SelectGroupsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Groups);
         SelectLocationsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Locations);
+        SelectRulesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Rules);
+        SelectTemplatesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Templates);
         RefreshCurrentTabCommand = new RelayCommand(RefreshCurrentTab);
         ClearCurrentTabFiltersCommand = new RelayCommand(ClearCurrentTabFilters);
         SettingsCommand = new RelayCommand(OpenSettings);
@@ -190,6 +204,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand ClearFiltersCommand { get; }
 
+    /// <summary>Copies the currently-filtered/visible alerts to the clipboard as CSV (issue #27).</summary>
+    public RelayCommand CopyAlertsCsvCommand { get; }
+
+    /// <summary>Saves the currently-filtered/visible alerts as a CSV file (issue #27).</summary>
+    public RelayCommand ExportAlertsCsvCommand { get; }
+
     /// <summary>Re-fetches the faults for the selected alert.</summary>
     public RelayCommand ReloadDetailCommand { get; }
 
@@ -204,6 +224,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand SelectGroupsTabCommand { get; }
 
     public RelayCommand SelectLocationsTabCommand { get; }
+
+    public RelayCommand SelectRulesTabCommand { get; }
+
+    public RelayCommand SelectTemplatesTabCommand { get; }
 
     /// <summary>F5: refreshes whichever tab is currently showing.</summary>
     public RelayCommand RefreshCurrentTabCommand { get; }
@@ -231,6 +255,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The location list, for the Locations tab's content to bind to.</summary>
     public LocationsViewModel Locations => _locations;
+
+    /// <summary>The alert rule list, for the Rules tab's content to bind to.</summary>
+    public RulesViewModel Rules => _rulesTab;
+
+    /// <summary>The alert template list, for the Templates tab's content to bind to.</summary>
+    public TemplatesViewModel Templates => _templates;
 
     /// <summary>The connected server's favicon, shown next to the tabs. Null until it loads, or if there isn't one.</summary>
     public BitmapImage? ServerLogo => _branding.Logo;
@@ -270,8 +300,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsDevicesFamilyTabSelected));
                 OnPropertyChanged(nameof(IsHealthTabSelected));
                 OnPropertyChanged(nameof(IsAlertsTabSelected));
+                OnPropertyChanged(nameof(IsAlertsFamilyTabSelected));
                 OnPropertyChanged(nameof(IsGroupsTabSelected));
                 OnPropertyChanged(nameof(IsLocationsTabSelected));
+                OnPropertyChanged(nameof(IsRulesTabSelected));
+                OnPropertyChanged(nameof(IsTemplatesTabSelected));
 
                 // Loaded once, lazily, the first time a tab is actually looked at.
                 if (value == MainTab.Devices)
@@ -294,6 +327,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 {
                     _locations.OnShown();
                 }
+                else if (value == MainTab.Rules)
+                {
+                    _rulesTab.OnShown();
+                }
+                else if (value == MainTab.Templates)
+                {
+                    _templates.OnShown();
+                }
             }
         }
     }
@@ -309,9 +350,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public bool IsAlertsTabSelected => SelectedTab == MainTab.Alerts;
 
+    /// <summary>True for Alerts itself or either of its hover-flyout sub-tabs (Rules, Templates) - same "family" pattern as <see cref="IsDevicesFamilyTabSelected"/>.</summary>
+    public bool IsAlertsFamilyTabSelected => SelectedTab is MainTab.Alerts or MainTab.Rules or MainTab.Templates;
+
     public bool IsGroupsTabSelected => SelectedTab == MainTab.Groups;
 
     public bool IsLocationsTabSelected => SelectedTab == MainTab.Locations;
+
+    public bool IsRulesTabSelected => SelectedTab == MainTab.Rules;
+
+    public bool IsTemplatesTabSelected => SelectedTab == MainTab.Templates;
 
     // -------------------------------------------------------------- filtering
 
@@ -572,6 +620,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         else if (SelectedTab == MainTab.Locations)
         {
             _locations.OnShown();
+        }
+        else if (SelectedTab == MainTab.Rules)
+        {
+            _rulesTab.OnShown();
+        }
+        else if (SelectedTab == MainTab.Templates)
+        {
+            _templates.OnShown();
         }
     }
 
@@ -1060,6 +1116,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
                 break;
 
+            case MainTab.Rules:
+                if (_rulesTab.RefreshCommand.CanExecute(null))
+                {
+                    _rulesTab.RefreshCommand.Execute(null);
+                }
+
+                break;
+
+            case MainTab.Templates:
+                if (_templates.RefreshCommand.CanExecute(null))
+                {
+                    _templates.RefreshCommand.Execute(null);
+                }
+
+                break;
+
             default:
                 break;
         }
@@ -1089,6 +1161,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 _locations.ClearFiltersCommand.Execute(null);
                 break;
 
+            case MainTab.Rules:
+                _rulesTab.ClearFiltersCommand.Execute(null);
+                break;
+
+            case MainTab.Templates:
+                _templates.ClearFiltersCommand.Execute(null);
+                break;
+
             case MainTab.Dashboard:
             default:
                 break;
@@ -1107,6 +1187,41 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         _suppressFilterPersistence = false;
         OnFilterChanged();
+    }
+
+    private static readonly string[] AlertCsvHeaders = { "Severity", "Device", "Alert", "State", "Age", "Note" };
+
+    private string BuildAlertsCsv() => CsvWriter.ToCsv(
+        AlertCsvHeaders,
+        AlertsView.Cast<AlertItemViewModel>().Select(a => (IReadOnlyList<string>)new[]
+        {
+            a.SeverityText, a.DeviceName, a.RuleName, a.StateText, a.AgeText, a.Note ?? string.Empty,
+        }));
+
+    private void CopyAlertsCsv()
+    {
+        try
+        {
+            Clipboard.SetText(BuildAlertsCsv());
+        }
+        catch (ExternalException)
+        {
+            // Another process briefly holds the clipboard - not worth surfacing as an error.
+        }
+    }
+
+    private void ExportAlertsCsv()
+    {
+        var dialog = new SaveFileDialog
+        {
+            Filter = "CSV files (*.csv)|*.csv",
+            FileName = $"alerts-{DateTime.Now:yyyy-MM-dd-HHmmss}.csv",
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            File.WriteAllText(dialog.FileName, BuildAlertsCsv());
+        }
     }
 
     /// <summary>

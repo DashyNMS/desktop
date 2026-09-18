@@ -173,10 +173,58 @@
                                       Style="{StaticResource NavTabButtonStyle}"
                                       IsChecked="{Binding IsHealthTabSelected, Mode=OneWay}"
                                       Command="{Binding SelectHealthTabCommand}" />
-                        <ToggleButton Content="Alerts"
-                                      Style="{StaticResource NavTabButtonStyle}"
-                                      IsChecked="{Binding IsAlertsTabSelected, Mode=OneWay}"
-                                      Command="{Binding SelectAlertsTabCommand}" />
+                        <!-- Alerts' own click still goes straight to the
+                             Alerts tab; hovering reveals Rules/Templates as a
+                             flyout below it, since both are facets of
+                             alerting configuration rather than peers of
+                             Devices/Health/Alerts - same "family" pattern as
+                             the Devices/Groups/Locations flyout above. -->
+                        <Grid>
+                            <ToggleButton x:Name="AlertsTabButton"
+                                          Style="{StaticResource NavTabButtonStyle}"
+                                          IsChecked="{Binding IsAlertsFamilyTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectAlertsTabCommand}"
+                                          MouseEnter="AlertsTabButton_MouseEnter"
+                                          MouseLeave="AlertsTabButton_MouseLeave">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Alerts" />
+                                    <TextBlock Text="&#xE70D;"
+                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                               FontSize="9"
+                                               Margin="5,0,0,0"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ToggleButton>
+
+                            <Popup x:Name="AlertsFlyout"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   StaysOpen="True">
+                                <Border x:Name="AlertsFlyoutContent"
+                                        Background="{StaticResource SurfaceBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="4"
+                                        Margin="0,4,0,0"
+                                        MouseEnter="AlertsFlyoutContent_MouseEnter"
+                                        MouseLeave="AlertsFlyoutContent_MouseLeave">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
+                                    </Border.Effect>
+                                    <StackPanel MinWidth="120">
+                                        <Button Content="Rules"
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding SelectRulesTabCommand}"
+                                                Click="AlertsFlyoutItem_Click" />
+                                        <Button Content="Templates"
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding SelectTemplatesTabCommand}"
+                                                Click="AlertsFlyoutItem_Click" />
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
                     </StackPanel>
                 </Border>
 
@@ -235,6 +283,14 @@
 
             <Grid Visibility="{Binding IsLocationsTabSelected, Converter={StaticResource BoolToVisibility}}">
                 <views:LocationsView x:Name="LocationsViewControl" DataContext="{Binding Locations}" />
+            </Grid>
+
+            <Grid Visibility="{Binding IsRulesTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:RulesView x:Name="RulesViewControl" DataContext="{Binding Rules}" />
+            </Grid>
+
+            <Grid Visibility="{Binding IsTemplatesTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:TemplatesView x:Name="TemplatesViewControl" DataContext="{Binding Templates}" />
             </Grid>
         </Grid>
     </Grid>

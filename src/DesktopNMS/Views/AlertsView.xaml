@@ -113,7 +113,19 @@
                              Margin="0,0,8,0" />
                     <Button Content="Clear"
                             Command="{Binding ClearFiltersCommand}"
-                            Padding="10,7" />
+                            Padding="10,7"
+                            Margin="0,0,8,0" />
+
+                    <Button Content="Export"
+                            Padding="10,7"
+                            Click="OnExportButtonClick">
+                        <Button.ContextMenu>
+                            <ContextMenu Placement="Bottom">
+                                <MenuItem Header="Copy as CSV" Command="{Binding CopyAlertsCsvCommand}" />
+                                <MenuItem Header="Save as CSV..." Command="{Binding ExportAlertsCsvCommand}" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>

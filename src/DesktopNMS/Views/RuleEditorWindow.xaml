@@ -1,0 +1,182 @@
+<Window x:Class="DesktopNMS.Views.RuleEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:RuleEditorViewModel}"
+        Title="{Binding Title}"
+        Width="640"
+        Height="760"
+        MinWidth="560"
+        MinHeight="500"
+        ShowInTaskbar="False"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Background="{StaticResource BackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="{Binding Title}" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,10,0">
+                <TextBlock Text="Name" Style="{StaticResource SectionHeaderStyle}" />
+                <TextBox x:Name="NameBox" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,14" />
+
+                <TextBlock Text="Severity" Style="{StaticResource SectionHeaderStyle}" />
+                <ComboBox ItemsSource="{Binding Severities}" SelectedItem="{Binding SelectedSeverity}" Margin="0,0,0,14" />
+
+                <CheckBox Content="Disabled" IsChecked="{Binding Disabled}" Margin="0,0,0,10" />
+                <CheckBox Content="Invert match (fire when the condition is NOT met)" IsChecked="{Binding InvertMap}" Margin="0,0,0,14" />
+
+                <TextBlock Text="Notes (optional)" Style="{StaticResource SectionHeaderStyle}" />
+                <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,14" />
+
+                <TextBlock Text="Procedure URL (optional)" Style="{StaticResource SectionHeaderStyle}" />
+                <TextBox Text="{Binding Procedure, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,14" />
+
+                <TextBlock Text="Conditions" Style="{StaticResource SectionHeaderStyle}" />
+
+                <StackPanel Visibility="{Binding IsConditionEditable, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="Match" VerticalAlignment="Center" Margin="0,0,8,0" Style="{StaticResource SubtleTextStyle}" />
+                        <RadioButton Content="ALL of these" GroupName="TopLevelOp" IsChecked="{Binding IsTopLevelAnd}" Margin="0,0,14,0" VerticalAlignment="Center" />
+                        <RadioButton Content="ANY of these" GroupName="TopLevelOp" IsChecked="{Binding IsTopLevelOr}" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding ConditionRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="1.2*" />
+                                        <ColumnDefinition Width="1*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox Grid.Column="0" ItemsSource="{Binding Fields}" SelectedItem="{Binding SelectedField}" Margin="0,0,4,0" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding Operators}" SelectedItem="{Binding SelectedOperator}" Margin="0,0,4,0" />
+                                    <TextBox Grid.Column="2" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,4,0" />
+                                    <Button Grid.Column="3"
+                                            Command="{Binding RemoveCommand}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Width="28"
+                                            Height="28"
+                                            ToolTip="Remove condition">
+                                        <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Button Content="+ Add condition"
+                            Command="{Binding AddConditionCommand}"
+                            HorizontalAlignment="Left"
+                            Padding="8,4"
+                            Margin="0,4,0,0" />
+                </StackPanel>
+
+                <StackPanel Visibility="{Binding IsConditionEditable, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                    <TextBlock Style="{StaticResource SubtleTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,8"
+                               Text="This rule's conditions use a nested-group structure this editor can't display or edit safely - change conditions from LibreNMS's own web UI instead. Every other field here can still be changed and saved without affecting the conditions below." />
+                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10" MaxHeight="120">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <TextBlock Text="{Binding RawConditionJson}" TextWrapping="Wrap" FontFamily="Consolas" FontSize="11" />
+                        </ScrollViewer>
+                    </Border>
+                </StackPanel>
+
+                <TextBlock Text="Devices" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
+                <TextBox Style="{StaticResource SearchTextBoxStyle}"
+                         Tag="Search devices"
+                         Text="{Binding DevicesPicker.SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                         Margin="0,0,0,6" />
+                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10,4" MaxHeight="150">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding DevicesPicker.View}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}" Margin="0,5" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+
+                <TextBlock Text="Groups" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
+                <TextBox Style="{StaticResource SearchTextBoxStyle}"
+                         Tag="Search groups"
+                         Text="{Binding GroupsPicker.SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                         Margin="0,0,0,6" />
+                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10,4" MaxHeight="150">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding GroupsPicker.View}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}" Margin="0,5" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+
+                <TextBlock Text="Locations" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
+                <TextBox Style="{StaticResource SearchTextBoxStyle}"
+                         Tag="Search locations"
+                         Text="{Binding LocationsPicker.SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                         Margin="0,0,0,6" />
+                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10,4" MaxHeight="150">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding LocationsPicker.View}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}" Margin="0,5" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+
+                <TextBlock Text="Leave all three empty to target every device (a global rule)."
+                           Style="{StaticResource SubtleTextStyle}"
+                           TextWrapping="Wrap"
+                           Margin="0,8,0,0" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2">
+            <Border Background="#33DA3633"
+                    BorderBrush="{StaticResource CriticalBrush}"
+                    BorderThickness="1"
+                    CornerRadius="5"
+                    Padding="12,10"
+                    Margin="0,14,0,0"
+                    Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+            </Border>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                <TextBlock Text="Saving..."
+                           Style="{StaticResource SubtleTextStyle}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,12,0"
+                           Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+                <Button Content="Cancel" IsCancel="True" Margin="0,0,8,0" />
+                <Button Content="Save"
+                        Command="{Binding SaveCommand}"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        IsDefault="True" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -81,6 +81,18 @@ public interface IWindowService
     /// <summary>Shows the "Edit location" dialog for an existing location. Returns true if it was saved.</summary>
     bool ShowEditLocationDialog(Location location);
 
+    /// <summary>Shows the "Add rule" dialog. Returns true if a rule was created.</summary>
+    bool ShowAddRuleDialog();
+
+    /// <summary>Shows the "Edit rule" dialog for an existing alert rule. Returns true if it was saved.</summary>
+    bool ShowEditRuleDialog(AlertRule rule);
+
+    /// <summary>Shows the "Add alert template" dialog. Returns true if a template was created.</summary>
+    bool ShowAddAlertTemplateDialog();
+
+    /// <summary>Shows the "Edit alert template" dialog for an existing template. Returns true if it was saved.</summary>
+    bool ShowEditAlertTemplateDialog(AlertTemplate template);
+
     /// <summary>Opens a URL in the default browser.</summary>
     void OpenUrl(Uri url);
 

@@ -1478,14 +1478,31 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <TextBox Grid.Row="0"
-                         Style="{StaticResource SearchTextBoxStyle}"
-                         Tag="Search the event log"
-                         Text="{Binding EventLogSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                         ToolTip="Search by message, type or user"
-                         Width="320"
-                         HorizontalAlignment="Left"
-                         Margin="0,0,0,10" />
+                <Grid Grid.Row="0" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0"
+                             Style="{StaticResource SearchTextBoxStyle}"
+                             Tag="Search the event log"
+                             Text="{Binding EventLogSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                             ToolTip="Search by message, type or user"
+                             Width="320"
+                             HorizontalAlignment="Left" />
+                    <Button Grid.Column="1"
+                            Content="Export"
+                            Padding="10,7"
+                            Margin="8,0,0,0"
+                            Click="OnExportEventLogButtonClick">
+                        <Button.ContextMenu>
+                            <ContextMenu Placement="Bottom">
+                                <MenuItem Header="Copy as CSV" Command="{Binding CopyEventLogCsvCommand}" />
+                                <MenuItem Header="Save as CSV..." Command="{Binding ExportEventLogCsvCommand}" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                </Grid>
 
                 <Grid Grid.Row="1">
                     <!-- Loading more appends past the bottom rather than

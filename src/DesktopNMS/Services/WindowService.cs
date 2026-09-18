@@ -332,6 +332,56 @@ public sealed class WindowService : IWindowService
         return window.ShowDialog() == true;
     }
 
+    public bool ShowAddRuleDialog()
+    {
+        var viewModel = _services.GetRequiredService<RuleEditorViewModel>();
+        return ShowRuleEditorDialog(viewModel);
+    }
+
+    public bool ShowEditRuleDialog(AlertRule rule)
+    {
+        var viewModel = _services.GetRequiredService<RuleEditorViewModel>();
+        viewModel.Initialize(rule);
+        return ShowRuleEditorDialog(viewModel);
+    }
+
+    private bool ShowRuleEditorDialog(RuleEditorViewModel viewModel)
+    {
+        var window = new RuleEditorWindow(viewModel);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        return window.ShowDialog() == true;
+    }
+
+    public bool ShowAddAlertTemplateDialog()
+    {
+        var viewModel = _services.GetRequiredService<AlertTemplateEditorViewModel>();
+        return ShowAlertTemplateEditorDialog(viewModel);
+    }
+
+    public bool ShowEditAlertTemplateDialog(AlertTemplate template)
+    {
+        var viewModel = _services.GetRequiredService<AlertTemplateEditorViewModel>();
+        viewModel.Initialize(template);
+        return ShowAlertTemplateEditorDialog(viewModel);
+    }
+
+    private bool ShowAlertTemplateEditorDialog(AlertTemplateEditorViewModel viewModel)
+    {
+        var window = new AlertTemplateEditorWindow(viewModel);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        return window.ShowDialog() == true;
+    }
+
     /// <summary>
     /// The same themed dialog as <see cref="ShowConfirmDialog"/>, in OK-only
     /// mode, for a plain notice - see <see cref="ShowError"/>/<see cref="ShowInformation"/>.

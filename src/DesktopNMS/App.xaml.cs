@@ -225,12 +225,16 @@ public partial class App : Application
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<GroupsViewModel>();
         services.AddSingleton<LocationsViewModel>();
+        services.AddSingleton<RulesViewModel>();
+        services.AddSingleton<TemplatesViewModel>();
         services.AddTransient<ConnectionViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AddDeviceViewModel>();
         services.AddTransient<DeviceGroupEditorViewModel>();
         services.AddTransient<AddDevicesToGroupViewModel>();
         services.AddTransient<LocationEditorViewModel>();
+        services.AddTransient<RuleEditorViewModel>();
+        services.AddTransient<AlertTemplateEditorViewModel>();
 
         return services.BuildServiceProvider();
     }
