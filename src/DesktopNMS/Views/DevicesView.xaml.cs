@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Linq;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -42,6 +44,62 @@ public partial class DevicesView : UserControl
         {
             viewModel.ShowDeviceDetailCommand.Execute(null);
         }
+    }
+
+    /// <summary>
+    /// Forwards the grid's multi-selection to the view model.
+    /// DataGrid.SelectedItems is not a dependency property, so it cannot be
+    /// bound directly - this is the standard way to bridge it into MVVM,
+    /// same as AlertsView.xaml.cs's OnGridSelectionChanged.
+    /// </summary>
+    private void OnGridSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is DeviceListViewModel viewModel)
+        {
+            viewModel.UpdateSelectedDevices(DeviceGrid.SelectedItems.Cast<DeviceItemViewModel>());
+        }
+    }
+
+    /// <summary>
+    /// Builds the column show/hide menu fresh on every click, straight from
+    /// DeviceGrid's own live columns (issue #40) - a headerless column (just
+    /// the pin toggle) is skipped, since there is nothing to label it with
+    /// and no reason to hide it. Refuses to hide the last remaining visible
+    /// column so the grid can never end up fully empty.
+    /// </summary>
+    private void ColumnsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = ColumnsButton };
+
+        foreach (var column in DeviceGrid.Columns)
+        {
+            if (column.Header is not string header || string.IsNullOrEmpty(header))
+            {
+                continue;
+            }
+
+            var item = new MenuItem
+            {
+                Header = header,
+                IsCheckable = true,
+                IsChecked = column.Visibility == Visibility.Visible,
+            };
+
+            item.Click += (_, _) =>
+            {
+                if (!item.IsChecked && DeviceGrid.Columns.Count(c => c.Visibility == Visibility.Visible) <= 1)
+                {
+                    item.IsChecked = true;
+                    return;
+                }
+
+                column.Visibility = item.IsChecked ? Visibility.Visible : Visibility.Collapsed;
+            };
+
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
     }
 
     /// <summary>

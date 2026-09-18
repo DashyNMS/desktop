@@ -114,6 +114,19 @@
                                 Visibility="{Binding HasAnyFilterApplied, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
                         </Button>
+
+                        <!-- Column show/hide (issue #40) - the menu itself is
+                             built in code-behind from DeviceGrid.Columns
+                             (ColumnsButton_Click), since it needs live
+                             DataGridColumn objects rather than a view-model
+                             abstraction invented just for this one grid. -->
+                        <Button x:Name="ColumnsButton"
+                                Click="ColumnsButton_Click"
+                                Style="{StaticResource IconButtonStyle}"
+                                ToolTip="Show/hide columns"
+                                Margin="4,0,0,0">
+                            <TextBlock Text="&#xE8AE;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" />
+                        </Button>
                     </StackPanel>
 
                     <!-- Set apart from the filter cluster by a divider rather
@@ -187,8 +200,10 @@
                           x:Name="DeviceGrid"
                           ItemsSource="{Binding DevicesView}"
                           SelectedItem="{Binding SelectedDevice}"
+                          SelectionMode="Extended"
                           Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}"
                           MouseDoubleClick="OnGridDoubleClick"
+                          SelectionChanged="OnGridSelectionChanged"
                           Sorting="DeviceGrid_Sorting">
                     <DataGrid.Columns>
 
@@ -314,9 +329,26 @@
                                    Margin="24"
                                    Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
 
+                        <!-- Multi-select: a summary instead of one device's detail (issue #39), same treatment as AlertsView's own multi-select block. -->
+                        <StackPanel Grid.Row="0"
+                                    Margin="18"
+                                    Visibility="{Binding HasMultipleSelection, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{Binding SelectedCountText}"
+                                       Style="{StaticResource HeadingTextStyle}"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="Pin, unpin or add them to a device group together below. Per-device detail needs a single selection."
+                                       Style="{StaticResource SubtleTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0" />
+                        </StackPanel>
+
+                        <!-- DataContext is set on the inner StackPanel, not on the
+                             ScrollViewer: bindings on the element that redefines
+                             DataContext resolve against the new one, so Visibility
+                             would look for IsSingleSelection on the device and fail. -->
                         <ScrollViewer Grid.Row="0"
                                       VerticalScrollBarVisibility="Auto"
-                                      Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
+                                      Visibility="{Binding IsSingleSelection, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="18" DataContext="{Binding SelectedDevice}">
 
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
@@ -364,12 +396,26 @@
                                 Padding="18,14"
                                 Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel>
-                                <Button Content="Open device"
-                                        Command="{Binding ShowDeviceDetailCommand}"
-                                        Style="{StaticResource PrimaryButtonStyle}"
-                                        Margin="0,0,0,8" />
-                                <Button Content="Show alerts for this device"
-                                        Command="{Binding ShowAlertsCommand}" />
+                                <StackPanel Visibility="{Binding IsSingleSelection, Converter={StaticResource BoolToVisibility}}">
+                                    <Button Content="Open device"
+                                            Command="{Binding ShowDeviceDetailCommand}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Margin="0,0,0,8" />
+                                    <Button Content="Show alerts for this device"
+                                            Command="{Binding ShowAlertsCommand}" />
+                                </StackPanel>
+
+                                <StackPanel Visibility="{Binding HasMultipleSelection, Converter={StaticResource BoolToVisibility}}">
+                                    <Button Content="Add to group..."
+                                            Command="{Binding AddSelectedToGroupCommand}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Margin="0,0,0,8" />
+                                    <Button Content="Pin all"
+                                            Command="{Binding PinSelectedCommand}"
+                                            Margin="0,0,0,8" />
+                                    <Button Content="Unpin all"
+                                            Command="{Binding UnpinSelectedCommand}" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </Grid>

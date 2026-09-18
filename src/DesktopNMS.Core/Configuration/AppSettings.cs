@@ -965,22 +965,33 @@ public sealed class WindowPlacement
 }
 
 /// <summary>
-/// Remembered column widths and sort for one DataGrid - see
-/// DataGridLayoutHelper. Columns are matched by position (list index =
+/// Remembered column widths, visibility, order and sort for one DataGrid -
+/// see DataGridLayoutHelper. Columns are matched by position (list index =
 /// the column's original XAML declaration order) rather than a separately
 /// invented string id; a saved layout with a different column count than
 /// the live grid (e.g. after a future column-set change) is simply
 /// ignored rather than mis-applied, since this is a remembered preference,
-/// not data. Column order is not persisted - live drag-to-reorder still
-/// works, but DataGridColumn.DisplayIndex cannot safely be reassigned one
-/// column at a time from code (WPF validates the whole column set as a
-/// permutation at every intermediate assignment, and a naive restore loop
-/// can throw ArgumentOutOfRangeException by passing through an invalid
-/// in-between state - confirmed against a live crash).
+/// not data. <see cref="ColumnOrder"/> is separate from that positional
+/// list precisely because DataGridColumn.DisplayIndex cannot safely be
+/// reassigned one column at a time from code in declaration order (WPF
+/// validates the whole column set as a permutation at every intermediate
+/// assignment, and a naive restore loop can throw
+/// ArgumentOutOfRangeException by passing through an invalid in-between
+/// state - confirmed against a live crash, issue #15); see
+/// DataGridLayoutHelper.Apply for the ascending-target-order assignment
+/// that avoids it (issue #40).
 /// </summary>
 public sealed class GridLayout
 {
     public List<GridColumnLayout> Columns { get; set; } = new();
+
+    /// <summary>
+    /// For each visual position 0..N-1, the declaration-index (into
+    /// <see cref="Columns"/>/the live grid's own Columns collection) of the
+    /// column that sits there - null means "leave the live order alone",
+    /// so an older saved layout with no order at all is unaffected.
+    /// </summary>
+    public List<int>? ColumnOrder { get; set; }
 
     public int? SortColumnIndex { get; set; }
 
@@ -989,12 +1000,13 @@ public sealed class GridLayout
     public GridLayout Clone() => new()
     {
         Columns = Columns.Select(c => c.Clone()).ToList(),
+        ColumnOrder = ColumnOrder?.ToList(),
         SortColumnIndex = SortColumnIndex,
         SortDescending = SortDescending,
     };
 }
 
-/// <summary>One column's remembered width within a <see cref="GridLayout"/>.</summary>
+/// <summary>One column's remembered width and visibility within a <see cref="GridLayout"/>.</summary>
 public sealed class GridColumnLayout
 {
     /// <summary>A pixel width, or - when <see cref="IsStarWidth"/> - the star factor (e.g. 1, 2) rather than a pixel count.</summary>
@@ -1003,5 +1015,8 @@ public sealed class GridColumnLayout
     /// <summary>True when this column was originally star-sized ("fill remaining space") - <see cref="Width"/> is then its star factor, not a pixel count, so it never gets pinned to a fixed size just because its layout was saved once.</summary>
     public bool IsStarWidth { get; set; }
 
-    public GridColumnLayout Clone() => new() { Width = Width, IsStarWidth = IsStarWidth };
+    /// <summary>False when the user hid this column via a grid's "Columns" chooser (issue #40). Absent in an older saved layout, which defaults to true - a column no earlier version of the app could ever hide.</summary>
+    public bool IsVisible { get; set; } = true;
+
+    public GridColumnLayout Clone() => new() { Width = Width, IsStarWidth = IsStarWidth, IsVisible = IsVisible };
 }
