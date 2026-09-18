@@ -7,23 +7,17 @@ public static class ReleaseVersion
 {
     /// <summary>
     /// True if <paramref name="candidateTag"/> (e.g. "v0.2.0", "0.2.0") is a
-    /// higher version than <paramref name="currentVersion"/> (e.g. "0.1.0").
+    /// higher version than <paramref name="currentVersion"/> (e.g. "0.1.0"),
+    /// using the same preview-aware ranking as <see cref="Compare"/> - this
+    /// used to do its own cruder, non-preview-aware comparison, which meant a
+    /// newer preview build (e.g. "1.0.0-preview.2") was never detected as an
+    /// update over an older one ("1.0.0-preview.1") already running, since
+    /// both discarded their preview suffix and compared equal (issue #107).
     /// Anything that cannot be parsed as a version is treated as not newer, so
     /// a malformed or unexpected tag never produces a false "update available".
     /// </summary>
-    public static bool IsNewer(string? candidateTag, string? currentVersion)
-    {
-        if (candidateTag is null || currentVersion is null)
-        {
-            return false;
-        }
-
-        var candidateText = Regex.Match(candidateTag, @"\d+(\.\d+){1,3}").Value;
-
-        return Version.TryParse(candidateText, out var candidate)
-            && Version.TryParse(currentVersion, out var current)
-            && candidate > current;
-    }
+    public static bool IsNewer(string? candidateTag, string? currentVersion) =>
+        Compare(candidateTag, currentVersion) > 0;
 
     /// <summary>
     /// Ranks two release tags against each other so the best one can be

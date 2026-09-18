@@ -60,7 +60,12 @@ jobs:
         run: git log -1 --pretty=%B | Out-File -FilePath commit-message.txt -Encoding utf8NoBOM
 
       - name: Publish
-        run: dotnet publish src/DesktopNMS/DesktopNMS.csproj -c Release -o publish
+        # -p:Version= so the built binary's own InformationalVersion carries
+        # the full preview tag (e.g. "1.0.0-preview.2") - without it, every
+        # preview build reports the same bare Directory.Build.props version
+        # regardless of which preview it is, and the in-app update check can
+        # never tell them apart (issue #107).
+        run: dotnet publish src/DesktopNMS/DesktopNMS.csproj -c Release -o publish -p:Version=${{ steps.version.outputs.preview_version }}
 
       - name: Ensure Inno Setup is installed
         shell: pwsh
