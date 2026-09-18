@@ -1462,7 +1462,8 @@
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Display name" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBox Text="{Binding EditDisplayName, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBox Text="{Binding EditDisplayName, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="A literal name, or a LibreNMS {{ $hostname }}-style template - blank uses LibreNMS's own default naming" />
                             </StackPanel>
                             <StackPanel Grid.Column="4">
                                 <TextBlock Text="Type" Style="{StaticResource SectionHeaderStyle}" />
