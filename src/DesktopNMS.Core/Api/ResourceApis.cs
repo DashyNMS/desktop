@@ -728,6 +728,12 @@ internal sealed class GraphsApi : IGraphsApi
         return _transport.GetCollectionAsync<GraphType>(url, "graphs", cancellationToken);
     }
 
+    public Task<IReadOnlyList<GraphType>> ListHealthAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/health";
+        return _transport.GetCollectionAsync<GraphType>(url, "graphs", cancellationToken);
+    }
+
     public Task<string> GetSvgAsync(
         int deviceId,
         string graphName,

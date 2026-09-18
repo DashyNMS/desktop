@@ -1084,7 +1084,16 @@
                             Margin="0,0,0,12"
                             Visibility="{Binding HasProcessors, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
-                            <TextBlock Text="{Binding Processors.Count, StringFormat=Processors ({0})}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Processors.Count, StringFormat=Processors ({0})}" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Cursor="Hand">
+                                    <Hyperlink Command="{Binding ShowProcessorGraphCommand}" ToolTip="View the processor graph">View graph</Hyperlink>
+                                </TextBlock>
+                            </Grid>
                             <ItemsControl ItemsSource="{Binding Processors}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -1125,7 +1134,16 @@
                             Margin="0,0,0,12"
                             Visibility="{Binding HasMempools, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
-                            <TextBlock Text="{Binding Mempools.Count, StringFormat=Memory ({0})}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Mempools.Count, StringFormat=Memory ({0})}" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Cursor="Hand">
+                                    <Hyperlink Command="{Binding ShowMempoolGraphCommand}" ToolTip="View the memory pool graph">View graph</Hyperlink>
+                                </TextBlock>
+                            </Grid>
                             <ItemsControl ItemsSource="{Binding Mempools}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -1167,7 +1185,16 @@
                             Padding="16"
                             Visibility="{Binding HasStorage, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
-                            <TextBlock Text="{Binding Storage.Count, StringFormat=Storage ({0})}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Storage.Count, StringFormat=Storage ({0})}" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Cursor="Hand">
+                                    <Hyperlink Command="{Binding ShowStorageGraphCommand}" ToolTip="View the storage graph">View graph</Hyperlink>
+                                </TextBlock>
+                            </Grid>
                             <ItemsControl ItemsSource="{Binding Storage}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>

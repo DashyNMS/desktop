@@ -30,6 +30,7 @@ public sealed class GraphsSectionViewModel : ObservableObject
     private readonly Dictionary<(string GraphName, GraphTimeRange Range), string> _cache = new();
 
     private bool _hasLoadedOnce;
+    private Task? _loadTypesTask;
     private GraphType? _selectedGraph;
     private bool _isLoading;
     private string? _errorMessage;
@@ -103,30 +104,77 @@ public sealed class GraphsSectionViewModel : ObservableObject
         }
 
         _hasLoadedOnce = true;
-        _ = LoadGraphTypesAsync();
+        _loadTypesTask = LoadGraphTypesAsync(selectGraphName: null);
     }
 
-    private async Task LoadGraphTypesAsync()
+    /// <summary>
+    /// Switches to the graph named <paramref name="graphName"/> - used by a
+    /// "view graph" quick link elsewhere in Device Details (e.g. Resources'
+    /// Processor/Memory/Storage cards). If the type list has never been
+    /// loaded, this drives that load itself and selects the match directly
+    /// - rather than defaulting to the first graph and then immediately
+    /// correcting to this one, which would fetch and briefly show the wrong
+    /// graph first. If a load from <see cref="EnsureLoaded"/> is already in
+    /// flight, awaits that instead of racing it.
+    /// </summary>
+    public async Task SelectGraphByNameAsync(string graphName)
+    {
+        if (!_hasLoadedOnce)
+        {
+            _hasLoadedOnce = true;
+            _loadTypesTask = LoadGraphTypesAsync(graphName);
+            await _loadTypesTask.ConfigureAwait(true);
+            return;
+        }
+
+        if (_loadTypesTask is { } task)
+        {
+            await task.ConfigureAwait(true);
+        }
+
+        if (AvailableGraphs.FirstOrDefault(g => g.Name == graphName) is { } match)
+        {
+            SelectedGraph = match;
+        }
+    }
+
+    /// <param name="selectGraphName">
+    /// Selects this specific graph once loaded, if the device has it;
+    /// falls back to the first graph (the plain first-visit default) when
+    /// null or not found.
+    /// </param>
+    private async Task LoadGraphTypesAsync(string? selectGraphName)
     {
         IsLoading = true;
         ErrorMessage = null;
 
         try
         {
-            var types = await _client.Graphs.ListAsync(_deviceId).ConfigureAwait(true);
+            // Device-wide graphs (poller time, ping, uptime, netstat, ...)
+            // and health-category graphs (processor, mempool, storage,
+            // temperature, ...) are two distinct listings - confirmed live
+            // neither ever includes the other - though both render through
+            // the same /devices/{id}/{graphName} mechanism, so they can
+            // simply be combined into one picker.
+            var deviceWideTask = _client.Graphs.ListAsync(_deviceId);
+            var healthTask = _client.Graphs.ListHealthAsync(_deviceId);
+            await Task.WhenAll(deviceWideTask, healthTask).ConfigureAwait(true);
 
             AvailableGraphs.Clear();
-            foreach (var type in types.OrderBy(t => t.Description, StringComparer.OrdinalIgnoreCase))
+            foreach (var type in deviceWideTask.Result.Concat(healthTask.Result).OrderBy(t => t.Description, StringComparer.OrdinalIgnoreCase))
             {
                 AvailableGraphs.Add(type);
             }
 
-            // Selecting the first graph triggers its own load (see
-            // SelectedGraph's setter), which will clear IsLoading itself -
-            // only clear it here when there was nothing to select at all.
-            if (AvailableGraphs.Count > 0)
+            // Selecting a graph triggers its own load (see SelectedGraph's
+            // setter), which will clear IsLoading itself - only clear it
+            // here when there was nothing to select at all.
+            var toSelect = (selectGraphName is not null ? AvailableGraphs.FirstOrDefault(g => g.Name == selectGraphName) : null)
+                ?? AvailableGraphs.FirstOrDefault();
+
+            if (toSelect is not null)
             {
-                SelectedGraph = AvailableGraphs[0];
+                SelectedGraph = toSelect;
             }
             else
             {

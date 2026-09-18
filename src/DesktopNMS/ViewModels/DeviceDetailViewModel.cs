@@ -269,6 +269,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             SelectedSection = DeviceDetailSection.Graphs;
             Graphs.EnsureLoaded();
         });
+        ShowProcessorGraphCommand = new RelayCommand(() => ShowGraph("device_processor"));
+        ShowMempoolGraphCommand = new RelayCommand(() => ShowGraph("device_mempool"));
+        ShowStorageGraphCommand = new RelayCommand(() => ShowGraph("device_storage"));
         SelectAlertsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Alerts);
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
         SelectEditCommand = new RelayCommand(SelectEdit);
@@ -465,6 +468,15 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>Device-wide graphs (issues #14/#13/#17/#20) - see <see cref="GraphsSectionViewModel"/>.</summary>
     public GraphsSectionViewModel Graphs { get; }
+
+    /// <summary>"View graph" quick link on the Resources tab's Processor card - see <see cref="ShowGraph"/>.</summary>
+    public RelayCommand ShowProcessorGraphCommand { get; }
+
+    /// <summary>"View graph" quick link on the Resources tab's Memory card - see <see cref="ShowGraph"/>.</summary>
+    public RelayCommand ShowMempoolGraphCommand { get; }
+
+    /// <summary>"View graph" quick link on the Resources tab's Storage card - see <see cref="ShowGraph"/>.</summary>
+    public RelayCommand ShowStorageGraphCommand { get; }
 
     public RelayCommand SelectAlertsCommand { get; }
 
@@ -2417,6 +2429,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// current device every time - switching away and back discards an
     /// unsaved edit rather than leaving stale text sitting there.
     /// </summary>
+    /// <summary>Jumps to the Graphs section with a specific graph pre-selected - see <see cref="GraphsSectionViewModel.SelectGraphByNameAsync"/>.</summary>
+    private void ShowGraph(string graphName)
+    {
+        SelectedSection = DeviceDetailSection.Graphs;
+        _ = Graphs.SelectGraphByNameAsync(graphName);
+    }
+
     private void SelectEdit()
     {
         EditHostname = _device?.Hostname ?? string.Empty;

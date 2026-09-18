@@ -15,6 +15,17 @@ public interface IGraphsApi
     Task<IReadOnlyList<GraphType>> ListAsync(int deviceId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// GET /api/v0/devices/{id}/health - every health-category graph type
+    /// this device has (processor, mempool, storage, temperature, voltage,
+    /// ...). A distinct listing from <see cref="ListAsync"/> - confirmed
+    /// live these are never included in the plain /graphs listing - but the
+    /// graphs themselves render through the exact same
+    /// /devices/{id}/{graphName} mechanism as <see cref="GetSvgAsync"/>
+    /// already uses.
+    /// </summary>
+    Task<IReadOnlyList<GraphType>> ListHealthAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// GET /api/v0/devices/{id}/{graphName} - the rendered graph, as the raw
     /// SVG LibreNMS returns (confirmed live: image/svg+xml, no cookie
     /// session needed, honours "from"/"width"/"height"). Callers apply their
