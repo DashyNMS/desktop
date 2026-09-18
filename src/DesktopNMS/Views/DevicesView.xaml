@@ -275,9 +275,30 @@
                     </DataGrid.Columns>
 
                     <DataGrid.ContextMenu>
+                        <!-- Single vs. multi selection swap which items show,
+                             rather than layering bulk items alongside the
+                             single-device ones - "Open device"/"Show alerts"
+                             have no meaning for more than one device. -->
                         <ContextMenu>
-                            <MenuItem Header="Open device" Command="{Binding ShowDeviceDetailCommand}" />
-                            <MenuItem Header="Show alerts for this device" Command="{Binding ShowAlertsCommand}" />
+                            <MenuItem Header="Open device"
+                                      Command="{Binding ShowDeviceDetailCommand}"
+                                      Visibility="{Binding IsSingleSelection, Converter={StaticResource BoolToVisibility}}" />
+                            <MenuItem Header="Show alerts for this device"
+                                      Command="{Binding ShowAlertsCommand}"
+                                      Visibility="{Binding IsSingleSelection, Converter={StaticResource BoolToVisibility}}" />
+
+                            <MenuItem Header="Add to group..."
+                                      Command="{Binding AddSelectedToGroupCommand}"
+                                      Visibility="{Binding HasMultipleSelection, Converter={StaticResource BoolToVisibility}}" />
+                            <MenuItem Header="Pin all"
+                                      Command="{Binding PinSelectedCommand}"
+                                      Visibility="{Binding HasMultipleSelection, Converter={StaticResource BoolToVisibility}}" />
+                            <MenuItem Header="Unpin all"
+                                      Command="{Binding UnpinSelectedCommand}"
+                                      Visibility="{Binding HasMultipleSelection, Converter={StaticResource BoolToVisibility}}" />
+                            <MenuItem Header="Rediscover all"
+                                      Command="{Binding RediscoverSelectedCommand}"
+                                      Visibility="{Binding HasMultipleSelection, Converter={StaticResource BoolToVisibility}}" />
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                 </DataGrid>
@@ -414,7 +435,10 @@
                                             Command="{Binding PinSelectedCommand}"
                                             Margin="0,0,0,8" />
                                     <Button Content="Unpin all"
-                                            Command="{Binding UnpinSelectedCommand}" />
+                                            Command="{Binding UnpinSelectedCommand}"
+                                            Margin="0,0,0,8" />
+                                    <Button Content="Rediscover all"
+                                            Command="{Binding RediscoverSelectedCommand}" />
                                 </StackPanel>
                             </StackPanel>
                         </Border>

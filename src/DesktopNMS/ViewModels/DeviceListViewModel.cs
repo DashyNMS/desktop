@@ -152,6 +152,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         PinSelectedCommand = new RelayCommand(() => SetSelectedPinned(true), () => _selectedDevices.Count > 0);
         UnpinSelectedCommand = new RelayCommand(() => SetSelectedPinned(false), () => _selectedDevices.Count > 0);
         AddSelectedToGroupCommand = new RelayCommand(AddSelectedToGroup, () => _selectedDevices.Count > 0);
+        RediscoverSelectedCommand = new AsyncRelayCommand(RediscoverSelectedAsync, () => _selectedDevices.Count > 0);
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
@@ -233,6 +234,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     /// <summary>Opens the "Add to group" dialog for every currently-selected device - see <see cref="AddSelectedToGroup"/>.</summary>
     public RelayCommand AddSelectedToGroupCommand { get; }
+
+    /// <summary>Triggers a LibreNMS rediscovery for every currently-selected device - see <see cref="RediscoverSelectedAsync"/>.</summary>
+    public AsyncRelayCommand RediscoverSelectedCommand { get; }
 
     /// <summary>A short "45s" / "2:05" countdown to the next automatic refresh.</summary>
     public string NextRefreshText => PollAlignment.FormatRemaining(_deviceMonitor.SecondsUntilNextPoll());
@@ -317,6 +321,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         PinSelectedCommand.RaiseCanExecuteChanged();
         UnpinSelectedCommand.RaiseCanExecuteChanged();
         AddSelectedToGroupCommand.RaiseCanExecuteChanged();
+        RediscoverSelectedCommand.RaiseCanExecuteChanged();
     }
 
     public string StatusMessage
@@ -664,6 +669,52 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         if (_windows.ShowAddDevicesToGroupDialog(deviceIds))
         {
             RequestGroupsRefresh();
+        }
+    }
+
+    /// <summary>
+    /// Triggers a LibreNMS rediscovery for every currently-selected device
+    /// (issue #39) - same fire-and-forget request as the single-device
+    /// Rediscover action on Device Details (DeviceDetailViewModel.RediscoverAsync),
+    /// just concurrently for the whole selection. One device failing does
+    /// not stop the others; failures are reported together once every
+    /// request has finished.
+    /// </summary>
+    private async Task RediscoverSelectedAsync()
+    {
+        if (_selectedDevices.Count == 0)
+        {
+            return;
+        }
+
+        var devices = _selectedDevices.ToList();
+        var failedNames = new List<string>();
+
+        await Task.WhenAll(devices.Select(async device =>
+        {
+            try
+            {
+                await _client.Devices.DiscoverAsync(device.DeviceId).ConfigureAwait(true);
+            }
+            catch (LibreNmsApiException ex)
+            {
+                _logger.LogWarning(ex, "Could not trigger rediscovery for device {DeviceId}", device.DeviceId);
+                lock (failedNames)
+                {
+                    failedNames.Add(device.Name);
+                }
+            }
+        })).ConfigureAwait(true);
+
+        if (failedNames.Count == 0)
+        {
+            _windows.ShowInformation("Rediscover requested", $"Rediscovery requested for {devices.Count} device(s).");
+        }
+        else
+        {
+            _windows.ShowError(
+                "Rediscover failed for some devices",
+                $"Could not request rediscovery for: {string.Join(", ", failedNames)}");
         }
     }
 
