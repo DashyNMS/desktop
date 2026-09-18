@@ -1125,14 +1125,41 @@
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Template">
             <Setter.Value>
+                <!-- A checkable MenuItem (e.g. the Devices grid's column
+                     show/hide menu) has nothing else to show whether it's
+                     currently checked - the previous template was a plain
+                     Border+ContentPresenter with no check glyph anywhere,
+                     so IsChecked was being set correctly but had nothing to
+                     render (same "custom template silently drops standard
+                     behaviour" issue as ComboBox/DataGridColumnHeader
+                     elsewhere in this file). The glyph column is reserved
+                     for every item, checkable or not, same as a native
+                     Windows menu, so an ordinary item's text still lines up
+                     with a checkable one's. -->
                 <ControlTemplate TargetType="MenuItem">
                     <Border x:Name="Root"
                             Background="{TemplateBinding Background}"
                             CornerRadius="4"
                             SnapsToDevicePixels="True">
-                        <ContentPresenter Margin="{TemplateBinding Padding}"
-                                          ContentSource="Header"
-                                          RecognizesAccessKey="True" />
+                        <Grid Margin="{TemplateBinding Padding}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="22" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock x:Name="CheckGlyph"
+                                       Grid.Column="0"
+                                       Text="&#xE73E;"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="12"
+                                       VerticalAlignment="Center"
+                                       Visibility="Collapsed" />
+
+                            <ContentPresenter Grid.Column="1"
+                                               ContentSource="Header"
+                                               RecognizesAccessKey="True"
+                                               VerticalAlignment="Center" />
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
@@ -1141,6 +1168,9 @@
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
                             <Setter Property="Opacity" Value="0.6" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="CheckGlyph" Property="Visibility" Value="Visible" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
