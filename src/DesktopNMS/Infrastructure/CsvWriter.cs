@@ -20,10 +20,27 @@ public static class CsvWriter
         return builder.ToString();
     }
 
-    /// <summary>Wraps a field in quotes if it contains a comma, quote or newline, doubling up any embedded quotes.</summary>
+    /// <summary>Leading characters Excel/Sheets/LibreOffice treat as the start of a formula - see <see cref="Escape"/>.</summary>
+    private static readonly char[] FormulaTriggers = { '=', '+', '-', '@', '\t', '\r' };
+
+    /// <summary>
+    /// Wraps a field in quotes if it contains a comma, quote or newline,
+    /// doubling up any embedded quotes. Fields here come from the LibreNMS
+    /// server (alert notes, rule/device names, event log messages) -
+    /// anything settable by anyone with write access to it, not just this
+    /// app's own user - so a field starting with a formula-trigger character
+    /// is prefixed with a single quote first (the standard CSV/formula-
+    /// injection mitigation) so a spreadsheet app never executes it as a
+    /// live formula on open.
+    /// </summary>
     private static string Escape(string? field)
     {
         field ??= string.Empty;
+
+        if (field.Length > 0 && field.IndexOfAny(FormulaTriggers) == 0)
+        {
+            field = "'" + field;
+        }
 
         if (field.IndexOfAny(new[] { ',', '"', '\r', '\n' }) < 0)
         {
