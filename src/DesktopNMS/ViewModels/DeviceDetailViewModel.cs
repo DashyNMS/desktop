@@ -372,6 +372,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// </summary>
     public ObservableCollection<SensorGroupViewModel> SensorGroups { get; }
 
+    /// <summary>One "View graph" quick link per distinct sensor class this device reports (issue #9) - see <see cref="RebuildSensorGraphLinks"/>.</summary>
+    public ObservableCollection<SensorGraphLinkViewModel> SensorGraphLinks { get; } = new();
+
     public ObservableCollection<AlertLogItemViewModel> AlertHistory { get; }
 
     public ObservableCollection<ActiveAlertItemViewModel> ActiveAlerts { get; }
@@ -1604,6 +1607,36 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
 
         OnPropertyChanged(nameof(HasVisibleSensorGroups));
+        RebuildSensorGraphLinks();
+    }
+
+    /// <summary>
+    /// One "View graph" quick link per distinct sensor class this device
+    /// actually reports (issue #9) - e.g. Temperature, Voltage, Fan speed -
+    /// jumping to that class's aggregate health graph (LibreNMS names it
+    /// "device_" + the raw sensor class, confirmed live against every class
+    /// tried so far). Built from the full sensor list, not whatever the
+    /// search box currently filters to - which classes exist doesn't depend
+    /// on a search term.
+    /// </summary>
+    private void RebuildSensorGraphLinks()
+    {
+        SensorGraphLinks.Clear();
+
+        // Grouped by class (not Distinct()) so ClassDisplayText - a
+        // per-item computed property, since SensorClassDisplay's own
+        // lookup is private to SensorItemViewModel.cs - can be read off
+        // one representative sensor rather than needing that lookup here.
+        var classes = Sensors
+            .Where(s => !string.IsNullOrWhiteSpace(s.Model.SensorClass))
+            .GroupBy(s => s.Model.SensorClass!, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in classes)
+        {
+            var graphName = "device_" + group.Key;
+            SensorGraphLinks.Add(new SensorGraphLinkViewModel(group.First().ClassDisplayText, new RelayCommand(() => ShowGraph(graphName))));
+        }
     }
 
     private bool MatchesCurrentGroups(IReadOnlyList<SensorGroupViewModel> candidate)
@@ -2952,6 +2985,20 @@ public sealed class SensorGroupViewModel
     public AlertSeverity WorstSeverity => Sensors.Count == 0
         ? AlertSeverity.Unknown
         : Sensors.OrderByDescending(s => s.Severity.SortRank()).First().Severity;
+}
+
+/// <summary>One "View graph" quick link on the Sensors tab, for one distinct sensor class the device reports - see <see cref="DeviceDetailViewModel.RebuildSensorGraphLinks"/>.</summary>
+public sealed class SensorGraphLinkViewModel
+{
+    public SensorGraphLinkViewModel(string label, RelayCommand command)
+    {
+        Label = label;
+        Command = command;
+    }
+
+    public string Label { get; }
+
+    public RelayCommand Command { get; }
 }
 
 /// <summary>One row in a device's event log - a general audit entry, not necessarily tied to any alert.</summary>

@@ -516,14 +516,41 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <TextBox Grid.Row="0"
-                         Style="{StaticResource SearchTextBoxStyle}"
-                         Tag="Search sensors"
-                         Text="{Binding SensorSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                         ToolTip="Search by device name, description or sensor id"
-                         Width="320"
-                         HorizontalAlignment="Left"
-                         Margin="0,0,0,10" />
+                <Grid Grid.Row="0" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox Grid.Column="0"
+                             Style="{StaticResource SearchTextBoxStyle}"
+                             Tag="Search sensors"
+                             Text="{Binding SensorSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                             ToolTip="Search by device name, description or sensor id"
+                             Width="320"
+                             HorizontalAlignment="Left" />
+
+                    <!-- One quick link per sensor class the device actually
+                         reports (issue #9), jumping to that class's
+                         aggregate graph - see DeviceDetailViewModel.RebuildSensorGraphLinks. -->
+                    <ItemsControl Grid.Column="1"
+                                  ItemsSource="{Binding SensorGraphLinks}"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding Label, StringFormat={}{0} graph}"
+                                        Command="{Binding Command}"
+                                        Style="{StaticResource ChipButtonStyle}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
 
                 <Grid Grid.Row="1">
                 <!-- A card per group rather than a grouped DataGrid: this list
