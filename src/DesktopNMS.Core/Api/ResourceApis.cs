@@ -147,6 +147,21 @@ internal sealed class DevicesApi : IDevicesApi
         return JsonSerializer.Deserialize<bool>(element.GetRawText(), LibreNmsJson.Options);
     }
 
+    public async Task<string> ScheduleMaintenanceAsync(int deviceId, DeviceMaintenanceRequest request, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/maintenance";
+        using var document = await _transport.SendAsync(HttpMethod.Post, url, body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        // api_success_noresult puts the message at the envelope's top level
+        // ({"status":"ok","message":"..."}), unlike DiscoverAsync's endpoint.
+        if (document.RootElement.TryGetProperty("message", out var message) && message.GetString() is { Length: > 0 } text)
+        {
+            return text;
+        }
+
+        return "Maintenance scheduled.";
+    }
+
     public Task<IReadOnlyList<AvailabilityWindow>> GetAvailabilityAsync(int deviceId, CancellationToken cancellationToken = default)
     {
         var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/availability";

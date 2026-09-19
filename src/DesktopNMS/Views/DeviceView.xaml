@@ -1610,6 +1610,12 @@
                                     ToolTip="Ask LibreNMS to rediscover this device now"
                                     HorizontalAlignment="Left"
                                     Padding="12,7" />
+                            <Button Content="Schedule maintenance..."
+                                    Command="{Binding ScheduleMaintenanceCommand}"
+                                    ToolTip="Suppress or mute alerts for this device for a set duration"
+                                    HorizontalAlignment="Left"
+                                    Padding="12,7"
+                                    Margin="10,0,0,0" />
                             <Button Content="Delete device"
                                     Command="{Binding DeleteCommand}"
                                     ToolTip="Permanently remove this device from LibreNMS"

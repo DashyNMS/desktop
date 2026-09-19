@@ -235,6 +235,7 @@ public partial class App : Application
         services.AddTransient<LocationEditorViewModel>();
         services.AddTransient<RuleEditorViewModel>();
         services.AddTransient<AlertTemplateEditorViewModel>();
+        services.AddTransient<MaintenanceScheduleViewModel>();
 
         return services.BuildServiceProvider();
     }
