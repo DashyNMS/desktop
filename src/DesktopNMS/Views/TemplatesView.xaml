@@ -1,0 +1,125 @@
+<UserControl x:Class="DesktopNMS.Views.TemplatesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:TemplatesViewModel}"
+             d:DesignHeight="600" d:DesignWidth="1100">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox x:Name="SearchBox"
+                             Width="240"
+                             Style="{StaticResource SearchTextBoxStyle}"
+                             Tag="Search templates"
+                             Text="{Binding Filtered.SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                             ToolTip="Filter by name or title"
+                             Margin="0,0,8,0" />
+
+                    <Button Command="{Binding ClearFiltersCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Clear search"
+                            Visibility="{Binding Filtered.SearchText, Converter={StaticResource StringToVisibility}}">
+                        <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                    </Button>
+                </StackPanel>
+
+                <Rectangle Grid.Column="2" Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
+
+                <Button Grid.Column="3"
+                        Command="{Binding AddTemplateCommand}"
+                        Style="{StaticResource IconButtonStyle}"
+                        ToolTip="Add alert template">
+                    <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1"
+                Background="#33DA3633"
+                BorderBrush="{StaticResource CriticalBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,10"
+                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" />
+        </Border>
+
+        <Grid Grid.Row="2">
+            <DataGrid x:Name="TemplatesGrid"
+                      ItemsSource="{Binding Filtered.View}"
+                      IsReadOnly="True"
+                      Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
+                <DataGrid.Columns>
+
+                    <DataGridTextColumn Header="Name" Width="1*" Binding="{Binding Name}" ElementStyle="{StaticResource GridTextCellStyle}" />
+
+                    <DataGridTextColumn Header="Title" Width="1*" Binding="{Binding Title}" ElementStyle="{StaticResource GridTextCellStyle}" />
+
+                    <!-- The rules this template drives, by name and wrapping,
+                         so it reads at a glance; sorting still uses the count. -->
+                    <DataGridTextColumn Header="Attached rules"
+                                        Width="2*"
+                                        Binding="{Binding AttachedRuleNames}"
+                                        SortMemberPath="RuleCount"
+                                        ElementStyle="{StaticResource GridWrappingTextCellStyle}" />
+
+                    <DataGridTemplateColumn Header="" Width="50" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Command="{Binding EditCommand}"
+                                        Style="{StaticResource IconButtonStyle}"
+                                        Width="28"
+                                        Height="28"
+                                        FontSize="13"
+                                        Margin="6,0"
+                                        ToolTip="Edit this template">
+                                    <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <TextBlock Text="Loading templates..."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
+
+            <TextBlock Text="No alert templates yet - use + to create one."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+
+            <TextBlock Text="No templates match your search."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}" />
+        </Grid>
+    </Grid>
+</UserControl>

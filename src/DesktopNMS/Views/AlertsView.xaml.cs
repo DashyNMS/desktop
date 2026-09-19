@@ -96,4 +96,14 @@ public partial class AlertsView : UserControl
         vm.IsolateSeverity(severity);
         e.Handled = true;
     }
+
+    private void OnExportButtonClick(object sender, RoutedEventArgs e)
+    {
+        var button = (Button)sender;
+        if (button.ContextMenu is { } menu)
+        {
+            menu.PlacementTarget = button;
+            menu.IsOpen = true;
+        }
+    }
 }

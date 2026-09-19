@@ -3,9 +3,12 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Data;
 using System.Windows.Threading;
 using DesktopNMS.Core.Alerting;
@@ -15,6 +18,7 @@ using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
 
 namespace DesktopNMS.ViewModels;
 
@@ -290,6 +294,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SaveEditCommand = new AsyncRelayCommand(SaveEditAsync, () => !IsSavingEdit);
 
         LoadMoreEventLogCommand = new AsyncRelayCommand(LoadMoreEventLogAsync, () => HasMoreEventLog && !IsLoadingMoreEventLog);
+        CopyEventLogCsvCommand = new RelayCommand(CopyEventLogCsv);
+        ExportEventLogCsvCommand = new RelayCommand(ExportEventLogCsv);
 
         // Shows whatever is already cached instantly, rather than a blank
         // window until the next shared poll lands.
@@ -507,6 +513,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public RelayCommand SelectEditCommand { get; }
 
     public AsyncRelayCommand LoadMoreEventLogCommand { get; }
+
+    /// <summary>Copies the currently-loaded/visible event log rows to the clipboard as CSV (issue #27).</summary>
+    public RelayCommand CopyEventLogCsvCommand { get; }
+
+    /// <summary>Saves the currently-loaded/visible event log rows as a CSV file (issue #27).</summary>
+    public RelayCommand ExportEventLogCsvCommand { get; }
 
     /// <summary>Saves whichever Edit fields actually changed - see <see cref="SaveEditAsync"/>.</summary>
     public AsyncRelayCommand SaveEditCommand { get; }
@@ -2364,6 +2376,41 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         finally
         {
             IsLoadingMoreEventLog = false;
+        }
+    }
+
+    private static readonly string[] EventLogCsvHeaders = { "Time", "Type", "User", "Message" };
+
+    private string BuildEventLogCsv() => CsvWriter.ToCsv(
+        EventLogCsvHeaders,
+        EventLogView.Cast<EventLogItemViewModel>().Select(e => (IReadOnlyList<string>)new[]
+        {
+            e.TimeText, e.TypeText, e.Username, e.Message,
+        }));
+
+    private void CopyEventLogCsv()
+    {
+        try
+        {
+            Clipboard.SetText(BuildEventLogCsv());
+        }
+        catch (ExternalException)
+        {
+            // Another process briefly holds the clipboard - not worth surfacing as an error.
+        }
+    }
+
+    private void ExportEventLogCsv()
+    {
+        var dialog = new SaveFileDialog
+        {
+            Filter = "CSV files (*.csv)|*.csv",
+            FileName = $"device-{_deviceId}-eventlog-{DateTime.Now:yyyy-MM-dd-HHmmss}.csv",
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            File.WriteAllText(dialog.FileName, BuildEventLogCsv());
         }
     }
 

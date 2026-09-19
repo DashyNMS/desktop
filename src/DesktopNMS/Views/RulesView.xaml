@@ -1,0 +1,243 @@
+<UserControl x:Class="DesktopNMS.Views.RulesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:models="clr-namespace:DesktopNMS.Core.Models;assembly=DesktopNMS.Core"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:RulesViewModel}"
+             d:DesignHeight="600" d:DesignWidth="1100">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ======================== Severity pills + Search + Add ======================== -->
+        <!-- Refresh is deliberately not duplicated here: the main tab bar's
+             Refresh button (RefreshCurrentTabCommand) already covers
+             whichever tab is showing. -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Same pills and shift-click-to-isolate gesture as the
+                     Alerts and Devices tabs, without counts - a rule's
+                     severity is a setting, not a live state worth tallying. -->
+                <WrapPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="Severity"
+                               Style="{StaticResource SubtleTextStyle}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0" />
+
+                    <ToggleButton IsChecked="{Binding ShowCritical}" Tag="{x:Static models:AlertSeverity.Critical}" PreviewMouseLeftButtonDown="SeverityBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide critical rules (shift-click to show only critical)" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Critical" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton IsChecked="{Binding ShowWarning}" Tag="{x:Static models:AlertSeverity.Warning}" PreviewMouseLeftButtonDown="SeverityBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide warning rules (shift-click to show only warning)" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource WarningBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Warning" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton IsChecked="{Binding ShowOk}" Tag="{x:Static models:AlertSeverity.Ok}" PreviewMouseLeftButtonDown="SeverityBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide ok rules (shift-click to show only ok)">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Ok" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </ToggleButton>
+                </WrapPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox x:Name="SearchBox"
+                             Width="240"
+                             Style="{StaticResource SearchTextBoxStyle}"
+                             Tag="Search rules"
+                             Text="{Binding Filtered.SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                             ToolTip="Filter by name, severity, notes or target"
+                             Margin="0,0,8,0" />
+
+                    <Button Command="{Binding ClearFiltersCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Clear search and severity filters"
+                            Visibility="{Binding Filtered.SearchText, Converter={StaticResource StringToVisibility}}">
+                        <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                    </Button>
+                </StackPanel>
+
+                <Rectangle Grid.Column="2" Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
+
+                <Button Grid.Column="3"
+                        Command="{Binding AddRuleCommand}"
+                        Style="{StaticResource IconButtonStyle}"
+                        ToolTip="Add rule">
+                    <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1"
+                Background="#33DA3633"
+                BorderBrush="{StaticResource CriticalBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,10"
+                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Rule list ======================== -->
+        <Grid Grid.Row="2">
+            <DataGrid x:Name="RulesGrid"
+                      ItemsSource="{Binding Filtered.View}"
+                      IsReadOnly="True"
+                      Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
+                <DataGrid.Columns>
+
+                    <DataGridTemplateColumn Header="Severity" Width="90" SortMemberPath="SeverityRank">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="10,0">
+                                    <Ellipse Width="9"
+                                             Height="9"
+                                             Margin="0,0,6,0"
+                                             VerticalAlignment="Center"
+                                             Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                    <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Live count of alerts this rule has raised (active or
+                         acknowledged), coloured by the rule's severity.
+                         Clicking it opens the Alerts tab filtered to the rule. -->
+                    <DataGridTemplateColumn Header="Alerts" Width="80" SortMemberPath="ActiveAlertCount">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Command="{Binding ShowAlertsCommand}"
+                                        Style="{StaticResource IconButtonStyle}"
+                                        HorizontalAlignment="Center"
+                                        Height="24"
+                                        Padding="0"
+                                        ToolTip="{Binding ActiveAlertsToolTip}"
+                                        Visibility="{Binding HasActiveAlerts, Converter={StaticResource BoolToVisibility}}">
+                                    <Border Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}"
+                                            CornerRadius="10"
+                                            Padding="9,2"
+                                            MinWidth="30">
+                                        <TextBlock Text="{Binding ActiveAlertCount}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource AccentForegroundBrush}"
+                                                   HorizontalAlignment="Center" />
+                                    </Border>
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="Name" Width="1*" Binding="{Binding Name}" ElementStyle="{StaticResource GridTextCellStyle}" />
+
+                    <!-- The condition as LibreNMS's own rule list renders it
+                         (macros unexpanded), wrapped so a long rule reads in
+                         full instead of running off the edge. Notes are in
+                         the editor; they didn't earn a column here. -->
+                    <DataGridTextColumn Header="Condition" Width="2*" Binding="{Binding ConditionText}" SortMemberPath="ConditionText">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource GridWrappingTextCellStyle}">
+                                <Setter Property="FontFamily" Value="Consolas" />
+                                <Setter Property="FontSize" Value="12" />
+                                <Setter Property="ToolTip" Value="{Binding ConditionToolTip}" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+
+                    <DataGridTextColumn Header="Target" Width="150" Binding="{Binding TargetSummary}" ElementStyle="{StaticResource GridTextCellStyle}" />
+
+                    <!-- Status toggle sits with the row actions: a green tick
+                         for enabled, a red cross for disabled, one click to
+                         flip it (a full edit_rule write - LibreNMS has no
+                         toggle route). -->
+                    <DataGridTemplateColumn Header="" Width="120" CanUserSort="True" SortMemberPath="IsDisabled">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="6,0">
+                                    <Button Command="{Binding ToggleDisabledCommand}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Width="28"
+                                            Height="28"
+                                            FontSize="13"
+                                            ToolTip="{Binding StatusToolTip}">
+                                        <Grid>
+                                            <TextBlock Text="&#xE73E;"
+                                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                       FontSize="13"
+                                                       Foreground="{StaticResource OkBrush}"
+                                                       Visibility="{Binding IsDisabled, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                            <TextBlock Text="&#xE711;"
+                                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                       FontSize="13"
+                                                       Foreground="{StaticResource CriticalBrush}"
+                                                       Visibility="{Binding IsDisabled, Converter={StaticResource BoolToVisibility}}" />
+                                        </Grid>
+                                    </Button>
+                                    <Button Command="{Binding EditCommand}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Width="28"
+                                            Height="28"
+                                            FontSize="13"
+                                            ToolTip="Edit this rule">
+                                        <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                                    </Button>
+                                    <Button Command="{Binding DeleteCommand}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Width="28"
+                                            Height="28"
+                                            FontSize="13"
+                                            ToolTip="Delete this rule"
+                                            Foreground="{StaticResource CriticalBrush}">
+                                        <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                                    </Button>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <TextBlock Text="Loading rules..."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
+
+            <TextBlock Text="No alert rules yet - use + to create one."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+
+            <TextBlock Text="No rules match your filters."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}" />
+        </Grid>
+    </Grid>
+</UserControl>

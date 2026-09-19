@@ -9,4 +9,6 @@ public enum MainTab
     Alerts,
     Groups,
     Locations,
+    Rules,
+    Templates,
 }

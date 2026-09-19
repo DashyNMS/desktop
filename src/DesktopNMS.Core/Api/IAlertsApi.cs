@@ -33,6 +33,35 @@ public interface IAlertRulesApi
 
     /// <summary>GET /api/v0/rules/{id}</summary>
     Task<AlertRule?> GetAsync(int ruleId, CancellationToken cancellationToken = default);
+
+    /// <summary>POST /api/v0/rules. <paramref name="request"/>.RuleId is ignored - always creates a new rule.</summary>
+    Task CreateAsync(AlertRuleWriteRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>PUT /api/v0/rules. <paramref name="request"/>.RuleId identifies which rule to update - LibreNMS's own edit_rule route takes the id in the body, not the URL.</summary>
+    Task UpdateAsync(AlertRuleWriteRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>DELETE /api/v0/rules/{id}.</summary>
+    Task DeleteAsync(int ruleId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Alert template endpoints. Unlike <see cref="IAlertRulesApi"/>, LibreNMS's
+/// API has no delete route for templates (confirmed live via the server's
+/// own /api/v0 route map) - list/create/edit is the whole surface.
+/// </summary>
+public interface IAlertTemplatesApi
+{
+    /// <summary>GET /api/v0/alert_templates</summary>
+    Task<IReadOnlyList<AlertTemplate>> ListAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>GET /api/v0/alert_templates/{id}</summary>
+    Task<AlertTemplate?> GetAsync(int templateId, CancellationToken cancellationToken = default);
+
+    /// <summary>POST /api/v0/alert_templates. <paramref name="request"/>.TemplateId is ignored - always creates a new template.</summary>
+    Task CreateAsync(AlertTemplateWriteRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>POST /api/v0/alert_templates with <paramref name="request"/>.TemplateId set - LibreNMS's own edit_alert_template route reuses the create route, addressed by that field rather than a distinct PUT/PATCH verb.</summary>
+    Task UpdateAsync(AlertTemplateWriteRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Device endpoints.</summary>

@@ -69,6 +69,50 @@ internal sealed class AlertRulesApi : IAlertRulesApi
         var rules = await _transport.GetCollectionAsync<AlertRule>(url, "rules", cancellationToken).ConfigureAwait(false);
         return rules.Count > 0 ? rules[0] : null;
     }
+
+    public async Task CreateAsync(AlertRuleWriteRequest request, CancellationToken cancellationToken = default)
+    {
+        using var _ = await _transport.SendAsync(HttpMethod.Post, "rules", body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task UpdateAsync(AlertRuleWriteRequest request, CancellationToken cancellationToken = default)
+    {
+        using var _ = await _transport.SendAsync(HttpMethod.Put, "rules", body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task DeleteAsync(int ruleId, CancellationToken cancellationToken = default)
+    {
+        var url = "rules/" + ruleId.ToString(CultureInfo.InvariantCulture);
+        using var _ = await _transport.SendAsync(HttpMethod.Delete, url, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+}
+
+/// <summary>Implementation of <see cref="IAlertTemplatesApi"/>.</summary>
+internal sealed class AlertTemplatesApi : IAlertTemplatesApi
+{
+    private readonly ILibreNmsTransport _transport;
+
+    public AlertTemplatesApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<AlertTemplate>> ListAsync(CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<AlertTemplate>("alert_templates", "alert_templates", cancellationToken);
+
+    public async Task<AlertTemplate?> GetAsync(int templateId, CancellationToken cancellationToken = default)
+    {
+        var url = "alert_templates/" + templateId.ToString(CultureInfo.InvariantCulture);
+        var templates = await _transport.GetCollectionAsync<AlertTemplate>(url, "alert_templates", cancellationToken).ConfigureAwait(false);
+        return templates.Count > 0 ? templates[0] : null;
+    }
+
+    public async Task CreateAsync(AlertTemplateWriteRequest request, CancellationToken cancellationToken = default)
+    {
+        using var _ = await _transport.SendAsync(HttpMethod.Post, "alert_templates", body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task UpdateAsync(AlertTemplateWriteRequest request, CancellationToken cancellationToken = default)
+    {
+        using var _ = await _transport.SendAsync(HttpMethod.Post, "alert_templates", body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
 }
 
 /// <summary>Implementation of <see cref="IDevicesApi"/>.</summary>

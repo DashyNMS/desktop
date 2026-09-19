@@ -103,17 +103,66 @@
                             <TextBlock Text="acknowledged" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                         </StackPanel>
                     </ToggleButton>
+
+                    <!-- Set by the Rules tab's "alerts raised" badge; a chip
+                         here rather than text in the search box so it reads
+                         as a filter and is dismissed with one click. -->
+                    <Border Background="{StaticResource SurfaceAltBrush}"
+                            BorderBrush="{StaticResource AccentBrush}"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="10,4,4,4"
+                            Margin="14,0,0,0"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding HasRuleFilter, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Rule:" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="0,0,5,0" />
+                            <TextBlock Text="{Binding FilterRuleName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <Button Command="{Binding ClearRuleFilterCommand}"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Width="22"
+                                    Height="22"
+                                    Margin="6,0,0,0"
+                                    ToolTip="Show all rules again">
+                                <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
                 </WrapPanel>
 
+                <!-- Same shape as every other tab's toolbar: search box, a ✕
+                     that only appears once something is filtering, then a
+                     separator and the tab's action icon (here export/share,
+                     where the list tabs have +). -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBox x:Name="SearchBox"
                              Width="240"
+                             Style="{StaticResource SearchTextBoxStyle}"
+                             Tag="Search alerts"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
                              ToolTip="Filter by host, rule, note or alert id"
                              Margin="0,0,8,0" />
-                    <Button Content="Clear"
-                            Command="{Binding ClearFiltersCommand}"
-                            Padding="10,7" />
+
+                    <Button Command="{Binding ClearFiltersCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Clear search and filters"
+                            Visibility="{Binding HasActiveFilters, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                    </Button>
+
+                    <Rectangle Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
+
+                    <Button Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Export the alerts shown"
+                            Click="OnExportButtonClick">
+                        <TextBlock Text="&#xE72D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                        <Button.ContextMenu>
+                            <ContextMenu Placement="Bottom">
+                                <MenuItem Header="Copy as CSV" Command="{Binding CopyAlertsCsvCommand}" />
+                                <MenuItem Header="Save as CSV..." Command="{Binding ExportAlertsCsvCommand}" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>

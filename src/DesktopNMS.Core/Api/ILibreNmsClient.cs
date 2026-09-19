@@ -16,6 +16,8 @@ public interface ILibreNmsClient
 
     IAlertRulesApi Rules { get; }
 
+    IAlertTemplatesApi AlertTemplates { get; }
+
     IDevicesApi Devices { get; }
 
     ISensorsApi Sensors { get; }
