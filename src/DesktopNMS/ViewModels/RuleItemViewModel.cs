@@ -54,7 +54,13 @@ public sealed class RuleItemViewModel : ObservableObject
                 parts.Add(Rule.Locations.Count == 1 ? "1 location" : $"{Rule.Locations.Count} locations");
             }
 
-            return parts.Count == 0 ? "All devices" : string.Join(", ", parts);
+            if (parts.Count == 0)
+            {
+                return "All devices";
+            }
+
+            // invert_map: the list is an exclusion, not a target.
+            return (Rule.InvertMap ? "All except " : string.Empty) + string.Join(", ", parts);
         }
     }
 
