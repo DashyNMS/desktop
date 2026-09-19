@@ -130,20 +130,32 @@
                     </Border>
                 </WrapPanel>
 
+                <!-- Same shape as every other tab's toolbar: search box, a ✕
+                     that only appears once something is filtering, then a
+                     separator and the tab's action icon (here export/share,
+                     where the list tabs have +). -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBox x:Name="SearchBox"
                              Width="240"
+                             Style="{StaticResource SearchTextBoxStyle}"
+                             Tag="Search alerts"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
                              ToolTip="Filter by host, rule, note or alert id"
                              Margin="0,0,8,0" />
-                    <Button Content="Clear"
-                            Command="{Binding ClearFiltersCommand}"
-                            Padding="10,7"
-                            Margin="0,0,8,0" />
 
-                    <Button Content="Export"
-                            Padding="10,7"
+                    <Button Command="{Binding ClearFiltersCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Clear search and filters"
+                            Visibility="{Binding HasActiveFilters, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                    </Button>
+
+                    <Rectangle Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
+
+                    <Button Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Export the alerts shown"
                             Click="OnExportButtonClick">
+                        <TextBlock Text="&#xE72D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
                         <Button.ContextMenu>
                             <ContextMenu Placement="Bottom">
                                 <MenuItem Header="Copy as CSV" Command="{Binding CopyAlertsCsvCommand}" />

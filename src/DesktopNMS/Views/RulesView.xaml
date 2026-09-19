@@ -151,7 +151,7 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTextColumn Header="Name" Width="1*" Binding="{Binding Name}" />
+                    <DataGridTextColumn Header="Name" Width="1*" Binding="{Binding Name}" ElementStyle="{StaticResource GridTextCellStyle}" />
 
                     <!-- The condition as LibreNMS's own rule list renders it
                          (macros unexpanded), wrapped so a long rule reads in
@@ -159,17 +159,15 @@
                          the editor; they didn't earn a column here. -->
                     <DataGridTextColumn Header="Condition" Width="2*" Binding="{Binding ConditionText}" SortMemberPath="ConditionText">
                         <DataGridTextColumn.ElementStyle>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="TextWrapping" Value="Wrap" />
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource GridWrappingTextCellStyle}">
                                 <Setter Property="FontFamily" Value="Consolas" />
                                 <Setter Property="FontSize" Value="12" />
-                                <Setter Property="Margin" Value="10,6" />
                                 <Setter Property="ToolTip" Value="{Binding ConditionToolTip}" />
                             </Style>
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <DataGridTextColumn Header="Target" Width="150" Binding="{Binding TargetSummary}" />
+                    <DataGridTextColumn Header="Target" Width="150" Binding="{Binding TargetSummary}" ElementStyle="{StaticResource GridTextCellStyle}" />
 
                     <!-- Status toggle sits with the row actions: a green tick
                          for enabled, a red cross for disabled, one click to

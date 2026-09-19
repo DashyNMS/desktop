@@ -908,6 +908,24 @@
         </Setter>
     </Style>
 
+    <!-- The cell template below has no padding (template columns lay out
+         their own), so a plain DataGridTextColumn's text would sit flush
+         against the cell edge while the column header above it is indented
+         10px. Text columns set one of these as their ElementStyle to line up. -->
+    <Style x:Key="GridTextCellStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="10,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!-- Same indent, but wraps (the row grows) rather than trimming - for
+         cells whose whole value matters, like a rule's condition. -->
+    <Style x:Key="GridWrappingTextCellStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="10,6" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
     <Style TargetType="DataGridCell">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />

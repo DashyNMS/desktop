@@ -164,6 +164,16 @@ public class AlertRuleSqlImporterTests
     }
 
     [Fact]
+    public void Pathologically_nested_input_is_rejected_rather_than_overflowing_the_stack()
+    {
+        var sql = new string('(', 5000) + "devices.status = 1" + new string(')', 5000);
+
+        var ex = Assert.Throws<FormatException>(() => AlertRuleSqlImporter.Parse(sql));
+
+        Assert.Contains("Too deeply nested", ex.Message);
+    }
+
+    [Fact]
     public void The_imported_tree_serializes_in_librenms_builder_shape()
     {
         var node = AlertRuleSqlImporter.Parse("devices.status = 0");

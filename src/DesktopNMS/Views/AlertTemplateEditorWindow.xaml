@@ -8,7 +8,7 @@
         d:DataContext="{d:DesignInstance Type=vm:AlertTemplateEditorViewModel}"
         Title="{Binding Title}"
         Width="600"
-        Height="700"
+        Height="860"
         MinWidth="480"
         MinHeight="480"
         ShowInTaskbar="False"
@@ -37,13 +37,16 @@
                 <TextBox Text="{Binding TitleRec, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,14" />
 
                 <TextBlock Text="Template" Style="{StaticResource SectionHeaderStyle}" />
+                <!-- AcceptsTab: Blade templates are indented, so Tab must
+                     insert rather than move focus. -->
                 <TextBox Text="{Binding Template, UpdateSourceTrigger=PropertyChanged}"
                          AcceptsReturn="True"
+                         AcceptsTab="True"
                          TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto"
                          FontFamily="Consolas"
                          FontSize="12"
-                         Height="220"
+                         Height="380"
                          Margin="0,0,0,14" />
 
                 <TextBlock Text="Attached rules" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />

@@ -140,9 +140,22 @@ public sealed class AlertTemplateEditorViewModel : ObservableObject
         }
     }
 
+    /// <summary>The one name LibreNMS's API refuses on create (its add_edit_alert_template handler hard-codes it) - it belongs to the built-in template.</summary>
+    private const string ReservedName = "Default Alert Template";
+
     private async Task SaveAsync()
     {
         ErrorMessage = null;
+
+        // Caught here with a plain message rather than letting the API's
+        // 400 "This template name is reserved!" come back.
+        var isRenamingToReserved = !string.Equals(_originalTemplate?.Name, ReservedName, StringComparison.Ordinal);
+        if (string.Equals(Name.Trim(), ReservedName, StringComparison.OrdinalIgnoreCase) && isRenamingToReserved)
+        {
+            ErrorMessage = $"\"{ReservedName}\" is the name of LibreNMS's built-in template and can't be used for another one - choose a different name.";
+            return;
+        }
+
         IsBusy = true;
 
         try

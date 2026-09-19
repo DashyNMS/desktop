@@ -25,6 +25,9 @@ public sealed class TemplatesViewModel : ObservableObject
     private bool _isBusy;
     private string? _errorMessage;
 
+    /// <summary>LibreNMS's built-in template, matched by name the same way its own web UI does.</summary>
+    private const string DefaultTemplateName = "Default Alert Template";
+
     public TemplatesViewModel(ILibreNmsClient client, ISessionService session, IWindowService windows, ILogger<TemplatesViewModel> logger)
     {
         _client = client;
@@ -105,12 +108,33 @@ public sealed class TemplatesViewModel : ObservableObject
 
         try
         {
-            var templates = await _client.AlertTemplates.ListAsync().ConfigureAwait(true);
+            // Rules are fetched alongside so each row can name the rules it's
+            // attached to rather than just count them.
+            var templatesTask = _client.AlertTemplates.ListAsync();
+            var rulesTask = _client.Rules.ListAsync();
+            await Task.WhenAll(templatesTask, rulesTask).ConfigureAwait(true);
+
+            var ruleNames = rulesTask.Result
+                .GroupBy(r => r.Id)
+                .ToDictionary(g => g.Key, g => g.First().Name ?? $"Rule {g.Key}");
+
+            // The default template's alert_rules comes back empty from the
+            // API: LibreNMS doesn't store its mappings, it derives them as
+            // "every rule not attached to some other template" (see its
+            // print-alert-templates.php). Same derivation here.
+            var mappedRuleIds = templatesTask.Result.SelectMany(t => t.AlertRules).ToHashSet();
 
             Templates.Clear();
-            foreach (var template in templates.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
+            foreach (var template in templatesTask.Result.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
             {
-                Templates.Add(new AlertTemplateItemViewModel(template, EditTemplate));
+                var attached = string.Equals(template.Name, DefaultTemplateName, StringComparison.Ordinal)
+                    ? ruleNames.Where(r => !mappedRuleIds.Contains(r.Key)).Select(r => r.Value).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()
+                    // Names in the order LibreNMS lists the ids; an id with no
+                    // matching rule (deleted since) still shows, as "Rule 123",
+                    // rather than silently vanishing from the count.
+                    : template.AlertRules.Select(id => ruleNames.GetValueOrDefault(id, $"Rule {id}")).ToList();
+
+                Templates.Add(new AlertTemplateItemViewModel(template, attached, EditTemplate));
             }
         }
         catch (LibreNmsApiException ex)

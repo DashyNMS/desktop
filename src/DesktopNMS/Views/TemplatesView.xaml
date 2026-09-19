@@ -72,18 +72,17 @@
                       Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
                 <DataGrid.Columns>
 
-                    <DataGridTextColumn Header="Name" Width="1*" Binding="{Binding Name}" />
+                    <DataGridTextColumn Header="Name" Width="1*" Binding="{Binding Name}" ElementStyle="{StaticResource GridTextCellStyle}" />
 
-                    <DataGridTextColumn Header="Title" Width="1*" Binding="{Binding Title}" />
+                    <DataGridTextColumn Header="Title" Width="1*" Binding="{Binding Title}" ElementStyle="{StaticResource GridTextCellStyle}" />
 
-                    <DataGridTextColumn Header="Rules" Width="80" Binding="{Binding RuleCount}">
-                        <DataGridTextColumn.ElementStyle>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="TextAlignment" Value="Right" />
-                                <Setter Property="Margin" Value="0,0,10,0" />
-                            </Style>
-                        </DataGridTextColumn.ElementStyle>
-                    </DataGridTextColumn>
+                    <!-- The rules this template drives, by name and wrapping,
+                         so it reads at a glance; sorting still uses the count. -->
+                    <DataGridTextColumn Header="Attached rules"
+                                        Width="2*"
+                                        Binding="{Binding AttachedRuleNames}"
+                                        SortMemberPath="RuleCount"
+                                        ElementStyle="{StaticResource GridWrappingTextCellStyle}" />
 
                     <DataGridTemplateColumn Header="" Width="50" CanUserSort="False">
                         <DataGridTemplateColumn.CellTemplate>

@@ -426,6 +426,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public bool HasRuleFilter => _filterRule is not null;
 
+    /// <summary>True when anything narrows the alert list - drives the toolbar's clear (✕) button, shown only when there's something to clear.</summary>
+    public bool HasActiveFilters =>
+        !ShowCritical || !ShowWarning || !ShowAcknowledged || HasRuleFilter || !string.IsNullOrWhiteSpace(SearchText);
+
     public string FilterRuleName => _filterRule?.Name ?? string.Empty;
 
     public RelayCommand ClearRuleFilterCommand { get; }
@@ -1386,6 +1390,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         AlertsView.Refresh();
         OnPropertyChanged(nameof(VisibleCount));
+        OnPropertyChanged(nameof(HasActiveFilters));
         LoadState.UpdateVisibleCount(VisibleCount);
 
         if (!_suppressFilterPersistence)

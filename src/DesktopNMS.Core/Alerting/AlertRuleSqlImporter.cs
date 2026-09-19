@@ -252,8 +252,12 @@ public static class AlertRuleSqlImporter
 
     private sealed class Parser
     {
+        /// <summary>Pasted text is untrusted input; without a cap, a wall of "(" would recurse until the stack overflowed, which can't be caught.</summary>
+        private const int MaxDepth = 64;
+
         private readonly List<Token> _tokens;
         private int _index;
+        private int _depth;
 
         public Parser(List<Token> tokens)
         {
@@ -337,6 +341,11 @@ public static class AlertRuleSqlImporter
 
             if (Current.Kind == TokenKind.LeftParen)
             {
+                if (++_depth > MaxDepth)
+                {
+                    throw new FormatException($"Too deeply nested (more than {MaxDepth} levels of parentheses).");
+                }
+
                 Take();
                 var inner = ParseExpression();
                 if (Current.Kind != TokenKind.RightParen)
@@ -345,6 +354,7 @@ public static class AlertRuleSqlImporter
                 }
 
                 Take();
+                _depth--;
                 return inner;
             }
 
