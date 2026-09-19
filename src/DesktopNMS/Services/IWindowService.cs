@@ -87,6 +87,13 @@ public interface IWindowService
     /// <summary>Shows the "Edit rule" dialog for an existing alert rule. Returns true if it was saved.</summary>
     bool ShowEditRuleDialog(AlertRule rule);
 
+    /// <summary>
+    /// Shows the "Schedule maintenance" dialog for a device (issue #38).
+    /// Returns LibreNMS's own confirmation message on success, or null if the
+    /// dialog was cancelled or the request failed.
+    /// </summary>
+    string? ShowScheduleMaintenanceDialog(int deviceId, string deviceName);
+
     /// <summary>Shows the "Add alert template" dialog. Returns true if a template was created.</summary>
     bool ShowAddAlertTemplateDialog();
 

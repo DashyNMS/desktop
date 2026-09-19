@@ -269,6 +269,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => _session.IsConnected && !IsBusy);
         RediscoverCommand = new AsyncRelayCommand(RediscoverAsync, () => _session.IsConnected && !IsRediscovering);
+        ScheduleMaintenanceCommand = new RelayCommand(ScheduleMaintenance, () => _session.IsConnected);
         DeleteCommand = new AsyncRelayCommand(DeleteAsync, () => _session.IsConnected && !IsDeleting);
 
         SelectOverviewCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Overview);
@@ -466,6 +467,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>Queues an on-demand LibreNMS rediscovery of this device - see <see cref="RediscoverAsync"/>.</summary>
     public AsyncRelayCommand RediscoverCommand { get; }
+
+    /// <summary>Opens the "Schedule maintenance" dialog for this device - see <see cref="ScheduleMaintenance"/>.</summary>
+    public RelayCommand ScheduleMaintenanceCommand { get; }
 
     /// <summary>Permanently removes this device from LibreNMS, after confirmation - see <see cref="DeleteAsync"/>.</summary>
     public AsyncRelayCommand DeleteCommand { get; }
@@ -2481,6 +2485,26 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             IsRediscovering = false;
         }
+    }
+
+    /// <summary>
+    /// Opens the "Schedule maintenance" dialog (issue #38) and, on success,
+    /// requests a fresh poll so the device's state badge picks up
+    /// <see cref="DeviceState.Maintenance"/> as soon as LibreNMS reports it
+    /// (see <see cref="Services.DeviceMonitor"/>, which already checks
+    /// <see cref="IDevicesApi.IsUnderMaintenanceAsync"/> on every poll -
+    /// there was just never a way to schedule one from here before).
+    /// </summary>
+    private void ScheduleMaintenance()
+    {
+        var message = _windows.ShowScheduleMaintenanceDialog(_deviceId, Name);
+        if (message is null)
+        {
+            return;
+        }
+
+        _windows.ShowInformation("Maintenance scheduled", message);
+        _deviceMonitor.RequestRefresh();
     }
 
     /// <summary>

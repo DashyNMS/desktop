@@ -87,6 +87,16 @@ public interface IDevicesApi
     Task<bool> IsUnderMaintenanceAsync(int deviceId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// POST /api/v0/devices/{id}/maintenance. Schedules a maintenance window
+    /// for this device - see <see cref="DeviceMaintenanceRequest"/>. Returns
+    /// the server's own confirmation message. There is no corresponding
+    /// cancel/delete route (see this interface's remarks on
+    /// <see cref="IsUnderMaintenanceAsync"/>): once scheduled, a window can
+    /// only be ended early from LibreNMS's own web UI.
+    /// </summary>
+    Task<string> ScheduleMaintenanceAsync(int deviceId, DeviceMaintenanceRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// GET /api/v0/devices/{id}/availability. Uptime percentage over four
     /// fixed windows (1 day, 7 days, 30 days, 1 year).
     /// </summary>

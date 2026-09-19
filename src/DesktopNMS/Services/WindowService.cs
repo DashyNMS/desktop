@@ -357,6 +357,21 @@ public sealed class WindowService : IWindowService
         return window.ShowDialog() == true;
     }
 
+    public string? ShowScheduleMaintenanceDialog(int deviceId, string deviceName)
+    {
+        var viewModel = _services.GetRequiredService<MaintenanceScheduleViewModel>();
+        viewModel.Initialize(deviceId, deviceName);
+
+        var window = new MaintenanceScheduleWindow(viewModel);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        return window.ShowDialog() == true ? viewModel.ConfirmationMessage : null;
+    }
+
     public bool ShowAddAlertTemplateDialog()
     {
         var viewModel = _services.GetRequiredService<AlertTemplateEditorViewModel>();
