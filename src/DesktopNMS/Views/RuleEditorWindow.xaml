@@ -7,14 +7,128 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:RuleEditorViewModel}"
         Title="{Binding Title}"
-        Width="640"
-        Height="760"
-        MinWidth="560"
-        MinHeight="500"
+        Width="760"
+        Height="820"
+        MinWidth="640"
+        MinHeight="540"
         ShowInTaskbar="False"
         Icon="pack://application:,,,/Assets/app.ico"
         Background="{StaticResource BackgroundBrush}"
         WindowStartupLocation="CenterOwner">
+
+    <Window.Resources>
+        <!-- ================= One leaf condition ================= -->
+        <DataTemplate DataType="{x:Type vm:RuleConditionRowViewModel}">
+            <Grid Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="1.3*" />
+                    <ColumnDefinition Width="1.2*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Editable so the ~1,385-entry field catalog is typeable
+                     rather than scrollable. IsTextSearchEnabled is off
+                     because WPF's own prefix autocomplete fights the view
+                     model's contains-match filtering. -->
+                <ComboBox Grid.Column="0"
+                          IsEditable="True"
+                          IsTextSearchEnabled="False"
+                          StaysOpenOnEdit="True"
+                          MaxDropDownHeight="320"
+                          ItemsSource="{Binding Fields}"
+                          SelectedItem="{Binding SelectedField}"
+                          Text="{Binding FieldSearchText, UpdateSourceTrigger=PropertyChanged}"
+                          PreviewTextInput="OnFieldPickerPreviewTextInput"
+                          ToolTip="Type to filter, e.g. devices.uptime"
+                          Margin="0,0,4,0" />
+
+                <ComboBox Grid.Column="1"
+                          ItemsSource="{Binding Operators}"
+                          SelectedItem="{Binding SelectedOperator}"
+                          Margin="0,0,4,0" />
+
+                <!-- 0, 1 or 2 value boxes depending on the operator (is null /
+                     equal / between). -->
+                <Grid Grid.Column="2" Margin="0,0,4,0" Visibility="{Binding HasValue, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0"
+                             Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="{Binding ValueHint}" />
+                    <TextBlock Grid.Column="1"
+                               Text="and"
+                               Style="{StaticResource SubtleTextStyle}"
+                               VerticalAlignment="Center"
+                               Margin="6,0"
+                               Visibility="{Binding HasSecondValue, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBox Grid.Column="2"
+                             MinWidth="70"
+                             Text="{Binding SecondValue, UpdateSourceTrigger=PropertyChanged}"
+                             Visibility="{Binding HasSecondValue, Converter={StaticResource BoolToVisibility}}" />
+                </Grid>
+
+                <Button Grid.Column="3"
+                        Command="{Binding RemoveCommand}"
+                        Style="{StaticResource IconButtonStyle}"
+                        Width="28"
+                        Height="28"
+                        ToolTip="Remove condition">
+                    <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                </Button>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ================= One AND/OR group ================= -->
+        <!-- Nested groups render through this same implicit template via the
+             inner ItemsControl, which is what gives the tree its recursion. -->
+        <DataTemplate DataType="{x:Type vm:RuleConditionGroupViewModel}">
+            <Border BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="2,0,0,0"
+                    Padding="10,0,0,0"
+                    Margin="0,0,0,8">
+                <StackPanel>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <RadioButton Content="AND"
+                                         GroupName="{Binding RadioGroupName}"
+                                         IsChecked="{Binding IsAnd}"
+                                         Margin="0,0,12,0"
+                                         VerticalAlignment="Center" />
+                            <RadioButton Content="OR"
+                                         GroupName="{Binding RadioGroupName}"
+                                         IsChecked="{Binding IsOr}"
+                                         VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <Button Content="Add rule" Command="{Binding AddRuleCommand}" Padding="8,3" Margin="0,0,6,0" />
+                            <Button Content="Add group" Command="{Binding AddGroupCommand}" Padding="8,3" Margin="0,0,6,0" />
+                            <Button Command="{Binding RemoveCommand}"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Width="28"
+                                    Height="28"
+                                    ToolTip="Remove this group"
+                                    Visibility="{Binding IsRoot, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                                <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding Children}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
 
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -23,154 +137,201 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="{Binding Title}" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
+        <!-- ================= Title + Main/Advanced tabs ================= -->
+        <Grid Grid.Row="0" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="{Binding Title}" Style="{StaticResource HeadingTextStyle}" VerticalAlignment="Center" />
+
+            <Border Grid.Column="1" Style="{StaticResource NavTabTrackStyle}" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal">
+                    <ToggleButton Content="Main"
+                                  Style="{StaticResource NavTabButtonStyle}"
+                                  IsChecked="{Binding IsMainTabSelected, Mode=OneWay}"
+                                  Command="{Binding SelectMainTabCommand}" />
+                    <ToggleButton Content="Advanced"
+                                  Style="{StaticResource NavTabButtonStyle}"
+                                  IsChecked="{Binding IsAdvancedTabSelected, Mode=OneWay}"
+                                  Command="{Binding SelectAdvancedTabCommand}" />
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="0,0,10,0">
-                <TextBlock Text="Name" Style="{StaticResource SectionHeaderStyle}" />
-                <TextBox x:Name="NameBox" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,14" />
+            <Grid Margin="0,0,10,0">
 
-                <TextBlock Text="Severity" Style="{StaticResource SectionHeaderStyle}" />
-                <ComboBox ItemsSource="{Binding Severities}" SelectedItem="{Binding SelectedSeverity}" Margin="0,0,0,14" />
+                <!-- ================= Main tab ================= -->
+                <StackPanel Visibility="{Binding IsMainTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="Rule name" Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBox x:Name="NameBox" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,14" />
 
-                <CheckBox Content="Disabled" IsChecked="{Binding Disabled}" Margin="0,0,0,10" />
-                <CheckBox Content="Invert match (fire when the condition is NOT met)" IsChecked="{Binding InvertMap}" Margin="0,0,0,14" />
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Conditions" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" />
+                        <Button Grid.Column="1"
+                                Content="Import from..."
+                                Command="{Binding ToggleImportCommand}"
+                                Padding="8,3" />
+                    </Grid>
 
-                <TextBlock Text="Notes (optional)" Style="{StaticResource SectionHeaderStyle}" />
-                <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,14" />
+                    <!-- Import from: the same three sources LibreNMS's own
+                         "Import from" menu offers (SQL query / old format /
+                         alert rule), minus its bundled rule collection. -->
+                    <Border BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="5"
+                            Padding="12"
+                            Margin="0,0,0,10"
+                            Visibility="{Binding IsImportOpen, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="Copy the conditions from another rule" Style="{StaticResource SubtleTextStyle}" Margin="0,0,0,4" />
+                            <ComboBox ItemsSource="{Binding ImportableRules}"
+                                      SelectedItem="{Binding SelectedImportRule}"
+                                      Margin="0,0,0,12" />
 
-                <TextBlock Text="Procedure URL (optional)" Style="{StaticResource SectionHeaderStyle}" />
-                <TextBox Text="{Binding Procedure, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,14" />
+                            <TextBlock Text="Or paste a SQL WHERE clause (a full SELECT from the rule list works too) or an old-format rule" Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding ImportText, UpdateSourceTrigger=PropertyChanged}"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     MinHeight="64"
+                                     FontFamily="Consolas"
+                                     FontSize="12"
+                                     Margin="0,0,0,8" />
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Import as SQL" Command="{Binding ImportSqlCommand}" Padding="8,3" Margin="0,0,6,0" />
+                                <Button Content="Import as old format" Command="{Binding ImportOldFormatCommand}" Padding="8,3" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding ImportError}"
+                                       Foreground="{StaticResource CriticalBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"
+                                       Visibility="{Binding HasImportError, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                    </Border>
 
-                <TextBlock Text="Conditions" Style="{StaticResource SectionHeaderStyle}" />
+                    <!-- The condition tree. Replacing the tree via any import
+                         swaps what's below without touching anything else. -->
+                    <ContentControl Content="{Binding Root}"
+                                    Visibility="{Binding IsConditionEditable, Converter={StaticResource BoolToVisibility}}" />
 
-                <StackPanel Visibility="{Binding IsConditionEditable, Converter={StaticResource BoolToVisibility}}">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="Match" VerticalAlignment="Center" Margin="0,0,8,0" Style="{StaticResource SubtleTextStyle}" />
-                        <RadioButton Content="ALL of these" GroupName="TopLevelOp" IsChecked="{Binding IsTopLevelAnd}" Margin="0,0,14,0" VerticalAlignment="Center" />
-                        <RadioButton Content="ANY of these" GroupName="TopLevelOp" IsChecked="{Binding IsTopLevelOr}" VerticalAlignment="Center" />
+                    <StackPanel Visibility="{Binding IsConditionEditable, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,8"
+                                   Text="This rule's stored conditions couldn't be read, so they're shown as-is and will be saved back untouched. Use Import from... to replace them, or change them in LibreNMS's web UI." />
+                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10" MaxHeight="120">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <TextBlock Text="{Binding RawConditionJson}" TextWrapping="Wrap" FontFamily="Consolas" FontSize="11" />
+                            </ScrollViewer>
+                        </Border>
                     </StackPanel>
 
-                    <ItemsControl ItemsSource="{Binding ConditionRows}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,0,0,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="2*" />
-                                        <ColumnDefinition Width="1.2*" />
-                                        <ColumnDefinition Width="1*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <!-- Editable so the ~1,385-entry field
-                                         catalog is typeable rather than
-                                         scrollable. IsTextSearchEnabled is off
-                                         because WPF's own prefix autocomplete
-                                         fights the view model's contains-match
-                                         filtering. -->
-                                    <ComboBox Grid.Column="0"
-                                              IsEditable="True"
-                                              IsTextSearchEnabled="False"
-                                              StaysOpenOnEdit="True"
-                                              MaxDropDownHeight="320"
-                                              ItemsSource="{Binding Fields}"
-                                              SelectedItem="{Binding SelectedField}"
-                                              Text="{Binding FieldSearchText, UpdateSourceTrigger=PropertyChanged}"
-                                              PreviewTextInput="OnFieldPickerPreviewTextInput"
-                                              ToolTip="Type to filter, e.g. devices.uptime"
-                                              Margin="0,0,4,0" />
-                                    <ComboBox Grid.Column="1" ItemsSource="{Binding Operators}" SelectedItem="{Binding SelectedOperator}" Margin="0,0,4,0" />
-                                    <TextBox Grid.Column="2"
-                                             Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                                             ToolTip="{Binding ValueHint}"
-                                             Margin="0,0,4,0" />
-                                    <Button Grid.Column="3"
-                                            Command="{Binding RemoveCommand}"
-                                            Style="{StaticResource IconButtonStyle}"
-                                            Width="28"
-                                            Height="28"
-                                            ToolTip="Remove condition">
-                                        <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
-                                    </Button>
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <TextBlock Text="Severity" Style="{StaticResource SectionHeaderStyle}" Margin="0,10,0,6" />
+                    <ComboBox ItemsSource="{Binding Severities}" SelectedItem="{Binding SelectedSeverity}" Margin="0,0,0,14" />
 
-                    <Button Content="+ Add condition"
-                            Command="{Binding AddConditionCommand}"
-                            HorizontalAlignment="Left"
-                            Padding="8,4"
-                            Margin="0,4,0,0" />
-                </StackPanel>
+                    <CheckBox Content="Disabled" IsChecked="{Binding Disabled}" Margin="0,0,0,8" />
+                    <CheckBox Content="Invert rule match"
+                              IsChecked="{Binding Invert}"
+                              ToolTip="Alert when this rule doesn't match."
+                              Margin="0,0,0,8" />
+                    <CheckBox Content="Recovery alerts"
+                              IsChecked="{Binding Recovery}"
+                              ToolTip="Issue recovery alerts."
+                              Margin="0,0,0,8" />
+                    <CheckBox Content="Acknowledgement alerts"
+                              IsChecked="{Binding Acknowledgement}"
+                              ToolTip="Issue acknowledgement alerts."
+                              Margin="0,0,0,8" />
 
-                <StackPanel Visibility="{Binding IsConditionEditable, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
-                    <TextBlock Style="{StaticResource SubtleTextStyle}"
-                               TextWrapping="Wrap"
-                               Margin="0,0,0,8"
-                               Text="This rule's conditions use a nested-group structure this editor can't display or edit safely - change conditions from LibreNMS's own web UI instead. Every other field here can still be changed and saved without affecting the conditions below." />
-                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10" MaxHeight="120">
+                    <!-- The API's save handler rebuilds a rule's extra
+                         settings without a mute field, so this can only be
+                         warned about, not preserved. -->
+                    <Border Background="#33D29922"
+                            BorderBrush="{StaticResource WarningBrush}"
+                            BorderThickness="1"
+                            CornerRadius="5"
+                            Padding="12,8"
+                            Margin="0,4,0,8"
+                            Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock TextWrapping="Wrap"
+                                   Text="This rule is muted in LibreNMS. LibreNMS's API has no mute field, so saving from here will un-mute it - mute it again from the web UI afterwards if you need it kept quiet." />
+                    </Border>
+
+                    <TextBlock Text="Match devices, groups and locations" Style="{StaticResource SectionHeaderStyle}" Margin="0,6,0,6" />
+                    <TextBox Style="{StaticResource SearchTextBoxStyle}"
+                             Tag="Search devices, groups and locations"
+                             Text="{Binding MatchPicker.SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                             Margin="0,0,0,6" />
+                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10,4" MaxHeight="200">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <TextBlock Text="{Binding RawConditionJson}" TextWrapping="Wrap" FontFamily="Consolas" FontSize="11" />
+                            <ItemsControl ItemsSource="{Binding MatchPicker.View}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsChecked}" Margin="0,5">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Background="{StaticResource SurfaceAltBrush}"
+                                                        CornerRadius="3"
+                                                        Padding="5,1"
+                                                        Margin="0,0,8,0"
+                                                        VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Kind}" FontSize="10" Style="{StaticResource SubtleTextStyle}" />
+                                                </Border>
+                                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </CheckBox>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </ScrollViewer>
                     </Border>
+                    <CheckBox Content="All devices except in list"
+                              IsChecked="{Binding InvertMap}"
+                              ToolTip="If on, the rule runs on every device except the selected devices, groups and locations."
+                              Margin="0,8,0,4" />
+                    <TextBlock Text="Leave the list empty to target every device (a global rule)."
+                               Style="{StaticResource SubtleTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,14" />
+
+                    <TextBlock Text="Procedure URL (optional)" Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBox Text="{Binding Procedure, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,14" />
+
+                    <TextBlock Text="Notes (optional)" Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="60"
+                             Margin="0,0,0,4" />
                 </StackPanel>
 
-                <TextBlock Text="Devices" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
-                <TextBox Style="{StaticResource SearchTextBoxStyle}"
-                         Tag="Search devices"
-                         Text="{Binding DevicesPicker.SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                         Margin="0,0,0,6" />
-                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10,4" MaxHeight="150">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding DevicesPicker.View}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}" Margin="0,5" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </Border>
+                <!-- ================= Advanced tab ================= -->
+                <StackPanel Visibility="{Binding IsAdvancedTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <CheckBox Content="Override SQL"
+                              IsChecked="{Binding OverrideQuery}"
+                              Margin="0,0,0,6" />
+                    <TextBlock Style="{StaticResource SubtleTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,10"
+                               Text="With this on, LibreNMS runs the query below exactly as written instead of the SQL it derives from the conditions on the Main tab. It's pre-filled with the SQL the rule currently runs. Every query must select from the devices table and include devices.device_id = ? so it can be evaluated per device." />
 
-                <TextBlock Text="Groups" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
-                <TextBox Style="{StaticResource SearchTextBoxStyle}"
-                         Tag="Search groups"
-                         Text="{Binding GroupsPicker.SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                         Margin="0,0,0,6" />
-                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10,4" MaxHeight="150">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding GroupsPicker.View}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}" Margin="0,5" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </Border>
-
-                <TextBlock Text="Locations" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
-                <TextBox Style="{StaticResource SearchTextBoxStyle}"
-                         Tag="Search locations"
-                         Text="{Binding LocationsPicker.SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                         Margin="0,0,0,6" />
-                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10,4" MaxHeight="150">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding LocationsPicker.View}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}" Margin="0,5" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </Border>
-
-                <TextBlock Text="Leave all three empty to target every device (a global rule)."
-                           Style="{StaticResource SubtleTextStyle}"
-                           TextWrapping="Wrap"
-                           Margin="0,8,0,0" />
-            </StackPanel>
+                    <TextBlock Text="Query" Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBox Text="{Binding AdvQuery, UpdateSourceTrigger=PropertyChanged}"
+                             IsEnabled="{Binding OverrideQuery}"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             MinHeight="220"
+                             FontFamily="Consolas"
+                             FontSize="12" />
+                </StackPanel>
+            </Grid>
         </ScrollViewer>
 
         <StackPanel Grid.Row="2">

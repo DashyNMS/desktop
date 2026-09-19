@@ -9,8 +9,8 @@ namespace DesktopNMS.ViewModels;
 
 /// <summary>
 /// One editable leaf condition in the rule builder (issue #22) - a field,
-/// operator and value, matching one entry in an <see cref="AlertConditionNode"/>
-/// group's <c>Rules</c> list.
+/// operator and value(s), matching one leaf in an <see cref="AlertConditionNode"/>
+/// tree. Lives inside a <see cref="RuleConditionGroupViewModel"/>.
 /// </summary>
 public sealed class RuleConditionRowViewModel : ObservableObject
 {
@@ -19,18 +19,33 @@ public sealed class RuleConditionRowViewModel : ObservableObject
 
     private AlertConditionField _selectedField;
     private AlertConditionOperator? _selectedOperator;
-    private string _value;
+    private IReadOnlyList<AlertConditionOperator> _operators;
+    private string _value = string.Empty;
+    private string _secondValue = string.Empty;
     private string _fieldSearchText;
 
-    public RuleConditionRowViewModel(Action<RuleConditionRowViewModel> onRemove, AlertConditionField? field = null, string? operatorValue = null, string? value = null)
+    public RuleConditionRowViewModel(Action<RuleConditionRowViewModel> onRemove)
+        : this(onRemove, null, null, Array.Empty<string>())
+    {
+    }
+
+    public RuleConditionRowViewModel(Action<RuleConditionRowViewModel> onRemove, AlertConditionField? field, string? operatorValue, IReadOnlyList<string> values)
     {
         RemoveCommand = new RelayCommand(() => onRemove(this));
 
         _selectedField = field ?? AlertConditionFields.Resolve("devices.hostname");
-        _selectedOperator = _selectedField.Operators.FirstOrDefault(o => o.Value == operatorValue) ?? _selectedField.Operators.FirstOrDefault();
-        _value = value ?? string.Empty;
+        _operators = OperatorsFor(_selectedField, operatorValue);
+        _selectedOperator = _operators.FirstOrDefault(o => o.Value == operatorValue) ?? _operators.FirstOrDefault();
+        // in/not_in carry a whole list; it lives in the one value box as
+        // comma-separated text (see ToNode for the reverse).
+        _value = IsListOperator(operatorValue) ? string.Join(", ", values) : values.Count > 0 ? values[0] : string.Empty;
+        _secondValue = values.Count > 1 ? values[1] : string.Empty;
         _fieldSearchText = _selectedField.Field;
     }
+
+    /// <summary>Rebuilds this row from a leaf node, e.g. after an import.</summary>
+    public static RuleConditionRowViewModel FromNode(AlertConditionNode leaf, Action<RuleConditionRowViewModel> onRemove) =>
+        new(onRemove, AlertConditionFields.Resolve(leaf.Field ?? string.Empty), leaf.Operator, leaf.ValueList);
 
     /// <summary>
     /// The field list the picker shows, narrowed by <see cref="FieldSearchText"/>.
@@ -91,29 +106,50 @@ public sealed class RuleConditionRowViewModel : ObservableObject
                 // the open dropdown.
                 _fieldSearchText = value.Field;
                 OnPropertyChanged(nameof(FieldSearchText));
-                OnPropertyChanged(nameof(Operators));
                 OnPropertyChanged(nameof(ValueHint));
 
-                if (SelectedOperator is null || !value.Operators.Any(o => o.Value == SelectedOperator.Value))
+                _operators = OperatorsFor(value, null);
+                OnPropertyChanged(nameof(Operators));
+
+                if (SelectedOperator is null || !_operators.Any(o => o.Value == SelectedOperator.Value))
                 {
-                    SelectedOperator = value.Operators.FirstOrDefault();
+                    SelectedOperator = _operators.FirstOrDefault();
                 }
             }
         }
     }
 
-    public IReadOnlyList<AlertConditionOperator> Operators => SelectedField.Operators;
+    public IReadOnlyList<AlertConditionOperator> Operators => _operators;
 
     public AlertConditionOperator? SelectedOperator
     {
         get => _selectedOperator;
-        set => SetProperty(ref _selectedOperator, value);
+        set
+        {
+            if (SetProperty(ref _selectedOperator, value))
+            {
+                OnPropertyChanged(nameof(HasValue));
+                OnPropertyChanged(nameof(HasSecondValue));
+            }
+        }
     }
+
+    /// <summary>False for is_null / is_empty style operators, which take no value.</summary>
+    public bool HasValue => (SelectedOperator?.InputCount ?? 1) >= 1;
+
+    /// <summary>True for between / not between, which take a lower and upper bound.</summary>
+    public bool HasSecondValue => (SelectedOperator?.InputCount ?? 1) >= 2;
 
     public string Value
     {
         get => _value;
         set => SetProperty(ref _value, value);
+    }
+
+    public string SecondValue
+    {
+        get => _secondValue;
+        set => SetProperty(ref _secondValue, value);
     }
 
     /// <summary>
@@ -128,14 +164,45 @@ public sealed class RuleConditionRowViewModel : ObservableObject
 
     public RelayCommand RemoveCommand { get; }
 
-    public AlertConditionNode ToNode() => new()
+    public AlertConditionNode ToNode()
     {
-        Id = SelectedField.Field,
-        Field = SelectedField.Field,
-        Type = SelectedField.Type,
-        Input = SelectedField.Input,
-        Operator = SelectedOperator?.Value ?? "equal",
-        Value = Value,
-        Valid = true,
-    };
+        var op = SelectedOperator ?? Operators[0];
+
+        return new AlertConditionNode
+        {
+            Id = SelectedField.Field,
+            Field = SelectedField.Field,
+            Type = SelectedField.Type,
+            Input = SelectedField.Input,
+            Operator = op.Value,
+            Value = op.InputCount switch
+            {
+                0 => null,
+                2 => AlertConditionNode.ArrayValue(new[] { Value, SecondValue }),
+                _ when IsListOperator(op.Value) => AlertConditionNode.ArrayValue(Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)),
+                _ => AlertConditionNode.ScalarValue(Value),
+            },
+            Valid = true,
+        };
+    }
+
+    /// <summary>
+    /// The field's own operators, plus the rule's current operator as an
+    /// extra entry when it isn't one of them (e.g. <c>in</c>, which LibreNMS
+    /// stores but doesn't offer in its picker) - so opening a rule never
+    /// silently swaps its operator for the first one in the list.
+    /// </summary>
+    private static bool IsListOperator(string? op) => op is "in" or "not_in";
+
+    private static IReadOnlyList<AlertConditionOperator> OperatorsFor(AlertConditionField field, string? currentOperator)
+    {
+        if (currentOperator is null || field.Operators.Any(o => o.Value == currentOperator))
+        {
+            return field.Operators;
+        }
+
+        var inputCount = currentOperator.StartsWith("is_") ? 0 : 1;
+        var extra = new AlertConditionOperator(currentOperator, currentOperator.Replace('_', ' '), inputCount);
+        return field.Operators.Append(extra).ToList();
+    }
 }

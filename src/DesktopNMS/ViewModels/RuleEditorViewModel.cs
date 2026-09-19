@@ -29,17 +29,21 @@ public sealed class AlertSeverityOption
 }
 
 /// <summary>
-/// Backs the "Add/Edit rule" dialog (see <see cref="Views.RuleEditorWindow"/>).
-/// One class serves both modes, same shape as <see cref="LocationEditorViewModel"/>
-/// - create mode is the default; <see cref="Initialize"/> switches it into
-/// edit mode for a specific existing rule. The condition builder only edits a
-/// single flat AND/OR group of leaf conditions (issue #22) - a rule whose
-/// builder nests a group inside a group falls back to a read-only raw-JSON
-/// view (<see cref="IsConditionEditable"/>) rather than risk flattening or
-/// corrupting a structure this editor doesn't model.
+/// Backs the "Add/Edit rule" dialog (see <see cref="Views.RuleEditorWindow"/>),
+/// mirroring LibreNMS's own rule editor modal: a Main tab (name, Import
+/// from, the condition builder, severity, the Invert/Recovery/Acknowledgement
+/// toggles, one combined "Match devices, groups and locations" list with its
+/// "All devices except in list" switch, procedure URL and notes) and an
+/// Advanced tab (Override SQL + query). One class serves both modes, same
+/// shape as <see cref="LocationEditorViewModel"/> - create mode is the
+/// default; <see cref="Initialize"/> switches it into edit mode.
 /// </summary>
 public sealed class RuleEditorViewModel : ObservableObject
 {
+    public const string DeviceKind = "Device";
+    public const string GroupKind = "Group";
+    public const string LocationKind = "Location";
+
     public static readonly IReadOnlyList<AlertSeverityOption> SeverityOptions = new[]
     {
         new AlertSeverityOption(AlertSeverity.Ok, "Ok"),
@@ -50,7 +54,7 @@ public sealed class RuleEditorViewModel : ObservableObject
     private readonly ILibreNmsClient _client;
     private readonly ILogger<RuleEditorViewModel> _logger;
 
-    /// <summary>Null in create mode. In edit mode, the rule being edited - addresses the PUT and carries forward escalation fields this editor doesn't expose.</summary>
+    /// <summary>Null in create mode. In edit mode, the rule being edited - addresses the PUT and supplies the untouched builder when it couldn't be parsed.</summary>
     private AlertRule? _originalRule;
 
     private string _name = string.Empty;
@@ -59,9 +63,18 @@ public sealed class RuleEditorViewModel : ObservableObject
     private string? _procedure;
     private bool _disabled;
     private bool _invertMap;
-    private string _topLevelOperator = "AND";
+    private bool _invert;
+    private bool _recovery = true;
+    private bool _acknowledgement = true;
+    private bool _overrideQuery;
+    private string? _advQuery;
+    private bool _isAdvancedTabSelected;
     private bool _isConditionEditable = true;
     private string? _rawConditionJson;
+    private bool _isImportOpen;
+    private string _importText = string.Empty;
+    private string? _importError;
+    private AlertRule? _selectedImportRule;
     private bool _isBusy;
     private string? _errorMessage;
 
@@ -70,15 +83,18 @@ public sealed class RuleEditorViewModel : ObservableObject
         _client = client;
         _logger = logger;
 
-        ConditionRows = new ObservableCollection<RuleConditionRowViewModel>();
-        DevicesPicker = new CheckablePickerViewModel();
-        GroupsPicker = new CheckablePickerViewModel();
-        LocationsPicker = new CheckablePickerViewModel();
+        Root = new RuleConditionGroupViewModel();
+        Root.ReplaceWith(new AlertConditionNode { Condition = "AND", Rules = new List<AlertConditionNode>() }); // one blank row to start
 
-        AddConditionCommand = new RelayCommand(() => ConditionRows.Add(new RuleConditionRowViewModel(RemoveConditionRow)));
+        MatchPicker = new CheckablePickerViewModel();
+        ImportableRules = new ObservableCollection<AlertRule>();
+
+        ToggleImportCommand = new RelayCommand(() => IsImportOpen = !IsImportOpen);
+        ImportSqlCommand = new RelayCommand(() => Import(AlertRuleSqlImporter.Parse));
+        ImportOldFormatCommand = new RelayCommand(() => Import(AlertRuleSqlImporter.ParseOldFormat));
+        SelectMainTabCommand = new RelayCommand(() => IsAdvancedTabSelected = false);
+        SelectAdvancedTabCommand = new RelayCommand(() => IsAdvancedTabSelected = true);
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(Name));
-
-        ConditionRows.Add(new RuleConditionRowViewModel(RemoveConditionRow));
 
         _ = LoadPickerDataAsync();
     }
@@ -100,6 +116,18 @@ public sealed class RuleEditorViewModel : ObservableObject
         Disabled = rule.Disabled;
         InvertMap = rule.InvertMap;
 
+        var extra = rule.Extra;
+        Invert = extra?.Invert ?? false;
+        Recovery = extra?.Recovery ?? true;
+        Acknowledgement = extra?.Acknowledgement ?? true;
+        OverrideQuery = extra?.OverrideQuery ?? false;
+
+        // Same as the web editor: the query box is pre-filled with whatever
+        // SQL the rule currently runs, so ticking Override starts from it.
+        AdvQuery = rule.Query;
+
+        OnPropertyChanged(nameof(IsMuted));
+
         LoadCondition(rule);
     }
 
@@ -108,6 +136,30 @@ public sealed class RuleEditorViewModel : ObservableObject
     public string Title => IsEditMode ? "Edit rule" : "Add rule";
 
     public event EventHandler<bool>? RequestClose;
+
+    // ------------------------------------------------------------------
+    // Tabs
+
+    public bool IsAdvancedTabSelected
+    {
+        get => _isAdvancedTabSelected;
+        set
+        {
+            if (SetProperty(ref _isAdvancedTabSelected, value))
+            {
+                OnPropertyChanged(nameof(IsMainTabSelected));
+            }
+        }
+    }
+
+    public bool IsMainTabSelected => !IsAdvancedTabSelected;
+
+    public RelayCommand SelectMainTabCommand { get; }
+
+    public RelayCommand SelectAdvancedTabCommand { get; }
+
+    // ------------------------------------------------------------------
+    // Main tab
 
     public string Name
     {
@@ -147,43 +199,45 @@ public sealed class RuleEditorViewModel : ObservableObject
         set => SetProperty(ref _disabled, value);
     }
 
+    /// <summary>"All devices except in list" - run against every device NOT in the match list.</summary>
     public bool InvertMap
     {
         get => _invertMap;
         set => SetProperty(ref _invertMap, value);
     }
 
-    /// <summary>"AND" or "OR" - how the top-level condition group combines its rows.</summary>
-    public string TopLevelOperator
+    /// <summary>"Invert rule match" - alert when the condition does NOT match.</summary>
+    public bool Invert
     {
-        get => _topLevelOperator;
-        set
-        {
-            if (SetProperty(ref _topLevelOperator, value))
-            {
-                OnPropertyChanged(nameof(IsTopLevelAnd));
-                OnPropertyChanged(nameof(IsTopLevelOr));
-            }
-        }
+        get => _invert;
+        set => SetProperty(ref _invert, value);
     }
 
-    public bool IsTopLevelAnd
+    /// <summary>"Recovery alerts".</summary>
+    public bool Recovery
     {
-        get => TopLevelOperator == "AND";
-        set { if (value) TopLevelOperator = "AND"; }
+        get => _recovery;
+        set => SetProperty(ref _recovery, value);
     }
 
-    public bool IsTopLevelOr
+    /// <summary>"Acknowledgement alerts".</summary>
+    public bool Acknowledgement
     {
-        get => TopLevelOperator == "OR";
-        set { if (value) TopLevelOperator = "OR"; }
+        get => _acknowledgement;
+        set => SetProperty(ref _acknowledgement, value);
     }
 
-    public ObservableCollection<RuleConditionRowViewModel> ConditionRows { get; }
+    /// <summary>
+    /// True when the rule being edited carries LibreNMS's legacy "Mute
+    /// alerts" flag. The API's save handler has no field for it and drops it
+    /// on every write, so the view shows a warning rather than a toggle.
+    /// </summary>
+    public bool IsMuted => _originalRule?.Extra?.Mute ?? false;
 
-    public RelayCommand AddConditionCommand { get; }
+    /// <summary>The root AND/OR group of the condition tree.</summary>
+    public RuleConditionGroupViewModel Root { get; }
 
-    /// <summary>False when the source rule's builder nests a group inside a group - shows <see cref="RawConditionJson"/> instead.</summary>
+    /// <summary>False only when the stored builder JSON couldn't be parsed at all - shows <see cref="RawConditionJson"/> instead.</summary>
     public bool IsConditionEditable
     {
         get => _isConditionEditable;
@@ -196,11 +250,88 @@ public sealed class RuleEditorViewModel : ObservableObject
         private set => SetProperty(ref _rawConditionJson, value);
     }
 
-    public CheckablePickerViewModel DevicesPicker { get; }
+    /// <summary>One combined, searchable list of every device, group and location, each tagged with its kind.</summary>
+    public CheckablePickerViewModel MatchPicker { get; }
 
-    public CheckablePickerViewModel GroupsPicker { get; }
+    // ------------------------------------------------------------------
+    // Import from
 
-    public CheckablePickerViewModel LocationsPicker { get; }
+    public bool IsImportOpen
+    {
+        get => _isImportOpen;
+        set => SetProperty(ref _isImportOpen, value);
+    }
+
+    public RelayCommand ToggleImportCommand { get; }
+
+    /// <summary>SQL (bare WHERE clause or a full SELECT) or an old-format rule, depending on which import button is pressed.</summary>
+    public string ImportText
+    {
+        get => _importText;
+        set
+        {
+            if (SetProperty(ref _importText, value ?? string.Empty))
+            {
+                ImportError = null;
+            }
+        }
+    }
+
+    public string? ImportError
+    {
+        get => _importError;
+        private set
+        {
+            if (SetProperty(ref _importError, value))
+            {
+                OnPropertyChanged(nameof(HasImportError));
+            }
+        }
+    }
+
+    public bool HasImportError => !string.IsNullOrEmpty(_importError);
+
+    public RelayCommand ImportSqlCommand { get; }
+
+    public RelayCommand ImportOldFormatCommand { get; }
+
+    /// <summary>Every other rule on the server, for "Import from → Alert Rule".</summary>
+    public ObservableCollection<AlertRule> ImportableRules { get; }
+
+    /// <summary>Picking a rule copies its conditions in, then clears the selection so the same rule can be picked again.</summary>
+    public AlertRule? SelectedImportRule
+    {
+        get => _selectedImportRule;
+        set
+        {
+            if (value is null || !SetProperty(ref _selectedImportRule, value))
+            {
+                return;
+            }
+
+            ImportFromRule(value);
+            _selectedImportRule = null;
+            OnPropertyChanged();
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Advanced tab
+
+    /// <summary>"Override SQL" - run <see cref="AdvQuery"/> instead of the SQL LibreNMS derives from the builder.</summary>
+    public bool OverrideQuery
+    {
+        get => _overrideQuery;
+        set => SetProperty(ref _overrideQuery, value);
+    }
+
+    public string? AdvQuery
+    {
+        get => _advQuery;
+        set => SetProperty(ref _advQuery, value);
+    }
+
+    // ------------------------------------------------------------------
 
     public AsyncRelayCommand SaveCommand { get; }
 
@@ -230,18 +361,8 @@ public sealed class RuleEditorViewModel : ObservableObject
 
     public bool HasError => !string.IsNullOrEmpty(_errorMessage);
 
-    private void RemoveConditionRow(RuleConditionRowViewModel row)
-    {
-        if (ConditionRows.Count > 1)
-        {
-            ConditionRows.Remove(row);
-        }
-    }
-
     private void LoadCondition(AlertRule rule)
     {
-        ConditionRows.Clear();
-
         AlertConditionNode? tree = null;
 
         if (!string.IsNullOrWhiteSpace(rule.Builder))
@@ -250,33 +371,73 @@ public sealed class RuleEditorViewModel : ObservableObject
             {
                 tree = JsonSerializer.Deserialize<AlertConditionNode>(rule.Builder);
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
-                tree = null;
+                _logger.LogWarning(ex, "Rule {RuleId}'s builder JSON could not be parsed; showing it read-only", rule.Id);
             }
         }
 
-        if (tree is null || !tree.IsFlatGroup)
+        if (tree is null)
         {
             IsConditionEditable = false;
             RawConditionJson = rule.Builder;
-            ConditionRows.Add(new RuleConditionRowViewModel(RemoveConditionRow));
             return;
         }
 
         IsConditionEditable = true;
         RawConditionJson = null;
-        TopLevelOperator = string.Equals(tree.Condition, "OR", StringComparison.OrdinalIgnoreCase) ? "OR" : "AND";
+        Root.ReplaceWith(tree);
+    }
 
-        foreach (var leaf in tree.Rules!)
+    private void Import(Func<string, AlertConditionNode> parse)
+    {
+        if (string.IsNullOrWhiteSpace(ImportText))
         {
-            var field = AlertConditionFields.Resolve(leaf.Field ?? string.Empty);
-            ConditionRows.Add(new RuleConditionRowViewModel(RemoveConditionRow, field, leaf.Operator, leaf.Value));
+            ImportError = "Paste a query first.";
+            return;
         }
 
-        if (ConditionRows.Count == 0)
+        try
         {
-            ConditionRows.Add(new RuleConditionRowViewModel(RemoveConditionRow));
+            Root.ReplaceWith(parse(ImportText));
+            IsConditionEditable = true;
+            RawConditionJson = null;
+            ImportError = null;
+            IsImportOpen = false;
+            ImportText = string.Empty;
+        }
+        catch (FormatException ex)
+        {
+            ImportError = ex.Message;
+        }
+    }
+
+    private void ImportFromRule(AlertRule source)
+    {
+        if (string.IsNullOrWhiteSpace(source.Builder))
+        {
+            ImportError = $"\"{source.Name}\" has no builder conditions to copy.";
+            return;
+        }
+
+        try
+        {
+            var tree = JsonSerializer.Deserialize<AlertConditionNode>(source.Builder);
+            if (tree is null)
+            {
+                ImportError = $"\"{source.Name}\"'s conditions couldn't be read.";
+                return;
+            }
+
+            Root.ReplaceWith(tree);
+            IsConditionEditable = true;
+            RawConditionJson = null;
+            ImportError = null;
+            IsImportOpen = false;
+        }
+        catch (JsonException)
+        {
+            ImportError = $"\"{source.Name}\"'s conditions couldn't be read.";
         }
     }
 
@@ -287,15 +448,19 @@ public sealed class RuleEditorViewModel : ObservableObject
             var devicesTask = _client.Devices.ListAsync();
             var groupsTask = _client.DeviceGroups.ListAsync();
             var locationsTask = _client.Locations.ListAsync();
-            await Task.WhenAll(devicesTask, groupsTask, locationsTask).ConfigureAwait(true);
+            var rulesTask = _client.Rules.ListAsync();
+            await Task.WhenAll(devicesTask, groupsTask, locationsTask, rulesTask).ConfigureAwait(true);
 
-            var checkedDevices = (_originalRule?.Devices ?? new List<int>()).ToHashSet();
-            var checkedGroups = (_originalRule?.Groups ?? new List<int>()).ToHashSet();
-            var checkedLocations = (_originalRule?.Locations ?? new List<int>()).ToHashSet();
+            MatchPicker.Items.Clear();
+            MatchPicker.Add(DeviceKind, devicesTask.Result.Select(d => (d.DeviceId, d.BestName)), (_originalRule?.Devices ?? new List<int>()).ToHashSet());
+            MatchPicker.Add(GroupKind, groupsTask.Result.Select(g => (g.Id, g.Name)), (_originalRule?.Groups ?? new List<int>()).ToHashSet());
+            MatchPicker.Add(LocationKind, locationsTask.Result.Select(l => (l.Id, l.Name)), (_originalRule?.Locations ?? new List<int>()).ToHashSet());
 
-            DevicesPicker.Load(devicesTask.Result.Select(d => (d.DeviceId, d.BestName)), checkedDevices);
-            GroupsPicker.Load(groupsTask.Result.Select(g => (g.Id, g.Name)), checkedGroups);
-            LocationsPicker.Load(locationsTask.Result.Select(l => (l.Id, l.Name)), checkedLocations);
+            ImportableRules.Clear();
+            foreach (var rule in rulesTask.Result.Where(r => r.Id != _originalRule?.Id).OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                ImportableRules.Add(rule);
+            }
         }
         catch (LibreNmsApiException ex)
         {
@@ -311,22 +476,17 @@ public sealed class RuleEditorViewModel : ObservableObject
 
         try
         {
-            string builderJson;
+            // The API validates the builder before it looks at the override,
+            // so it's always sent - the untouched original when it couldn't
+            // be parsed into the tree editor.
+            var builderJson = IsConditionEditable
+                ? JsonSerializer.Serialize(Root.ToNode())
+                : _originalRule?.Builder ?? string.Empty;
 
-            if (IsConditionEditable)
+            var devices = MatchPicker.CheckedIdsOf(DeviceKind).ToList();
+            if (devices.Count == 0)
             {
-                var node = new AlertConditionNode
-                {
-                    Condition = TopLevelOperator,
-                    Rules = ConditionRows.Select(r => r.ToNode()).ToList(),
-                    Valid = true,
-                };
-                builderJson = JsonSerializer.Serialize(node);
-            }
-            else
-            {
-                // Never touched by this editor - preserved exactly as loaded.
-                builderJson = _originalRule?.Builder ?? string.Empty;
+                devices.Add(-1); // "global" - see AlertRuleWriteRequest
             }
 
             var request = new AlertRuleWriteRequest
@@ -337,15 +497,23 @@ public sealed class RuleEditorViewModel : ObservableObject
                 Builder = builderJson,
                 Notes = string.IsNullOrWhiteSpace(Notes) ? null : Notes,
                 Procedure = string.IsNullOrWhiteSpace(Procedure) ? null : Procedure,
-                Disabled = Disabled,
+                Disabled = Disabled ? 1 : 0,
                 InvertMap = InvertMap,
-                Devices = DevicesPicker.CheckedIds.ToList(),
-                Groups = GroupsPicker.CheckedIds.ToList(),
-                Locations = LocationsPicker.CheckedIds.ToList(),
-                AlertOperationId = _originalRule?.AlertOperationId,
-                Operations = _originalRule?.Operations,
-                DefaultOperationStepDurationSeconds = _originalRule?.DefaultOperationStepDurationSeconds,
+                Invert = Invert,
+                Recovery = Recovery,
+                Acknowledgement = Acknowledgement,
+                OverrideQuery = OverrideQuery,
+                AdvQuery = OverrideQuery ? AdvQuery : null,
+                Devices = devices,
+                Groups = MatchPicker.CheckedIdsOf(GroupKind).ToList(),
+                Locations = MatchPicker.CheckedIdsOf(LocationKind).ToList(),
             };
+
+            if (OverrideQuery && string.IsNullOrWhiteSpace(AdvQuery))
+            {
+                ErrorMessage = "Override SQL is on but the query is empty - enter the SQL to run, or turn the override off.";
+                return;
+            }
 
             if (_originalRule is not null)
             {

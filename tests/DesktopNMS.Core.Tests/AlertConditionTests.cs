@@ -51,7 +51,7 @@ public class AlertConditionTests
             Valid = true,
             Rules = new()
             {
-                new AlertConditionNode { Id = "devices.hostname", Field = "devices.hostname", Type = "string", Input = "text", Operator = "equal", Value = "localhost", Valid = true },
+                new AlertConditionNode { Id = "devices.hostname", Field = "devices.hostname", Type = "string", Input = "text", Operator = "equal", Value = AlertConditionNode.ScalarValue("localhost"), Valid = true },
             },
         };
 
@@ -61,7 +61,68 @@ public class AlertConditionTests
         Assert.True(roundTripped.IsFlatGroup);
         Assert.Equal("devices.hostname", roundTripped.Rules![0].Field);
         Assert.Equal("equal", roundTripped.Rules[0].Operator);
-        Assert.Equal("localhost", roundTripped.Rules[0].Value);
+        Assert.Equal("localhost", roundTripped.Rules[0].ValueList.Single());
+    }
+
+    [Fact]
+    public void Unset_members_are_absent_from_the_json_not_null()
+    {
+        // LibreNMS's QueryBuilderParser uses array_key_exists('condition', ...)
+        // to tell a group from a leaf, and PHP counts a null-valued key as
+        // existing - so a leaf serialized with "condition":null was parsed as
+        // an empty group and displayed as "()" on a live rule.
+        var node = new AlertConditionNode
+        {
+            Condition = "AND",
+            Rules = new()
+            {
+                new AlertConditionNode { Id = "devices.status", Field = "devices.status", Type = "string", Input = "text", Operator = "equal", Value = AlertConditionNode.ScalarValue("0") },
+                new AlertConditionNode { Id = "devices.notes", Field = "devices.notes", Type = "string", Input = "text", Operator = "is_null", Value = null },
+            },
+        };
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(node));
+        var root = document.RootElement;
+        var leaf = root.GetProperty("rules")[0];
+        var nullValueLeaf = root.GetProperty("rules")[1];
+
+        Assert.False(leaf.TryGetProperty("condition", out _));
+        Assert.False(leaf.TryGetProperty("rules", out _));
+        Assert.False(root.TryGetProperty("id", out _));
+        Assert.False(root.TryGetProperty("field", out _));
+        Assert.False(root.TryGetProperty("operator", out _));
+
+        // The one deliberate null: jQuery QueryBuilder writes "value":null
+        // itself for is_null-style operators.
+        Assert.Equal(JsonValueKind.Null, nullValueLeaf.GetProperty("value").ValueKind);
+    }
+
+    [Fact]
+    public void A_between_array_value_round_trips_without_throwing()
+    {
+        // Authored in the web UI: between/in carry an array, not a string.
+        var json = """
+        {"condition":"AND","rules":[
+            {"id":"devices.uptime","field":"devices.uptime","type":"string","input":"text","operator":"between","value":["100","200"]}
+        ],"valid":true}
+        """;
+
+        var node = JsonSerializer.Deserialize<AlertConditionNode>(json)!;
+
+        Assert.Equal(new[] { "100", "200" }, node.Rules![0].ValueList);
+
+        var again = JsonSerializer.Deserialize<AlertConditionNode>(JsonSerializer.Serialize(node))!;
+        Assert.Equal(new[] { "100", "200" }, again.Rules![0].ValueList);
+    }
+
+    [Fact]
+    public void A_null_value_is_an_empty_value_list()
+    {
+        var json = """{"id":"devices.notes","field":"devices.notes","type":"string","input":"text","operator":"is_null","value":null}""";
+
+        var leaf = JsonSerializer.Deserialize<AlertConditionNode>(json)!;
+
+        Assert.Empty(leaf.ValueList);
     }
 
     [Fact]

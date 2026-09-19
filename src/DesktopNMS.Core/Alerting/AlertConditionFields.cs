@@ -4,8 +4,13 @@ using System.Linq;
 
 namespace DesktopNMS.Core.Alerting;
 
-/// <summary>One operator a condition field can use in the rule builder - value is what LibreNMS's builder JSON expects, label is what the UI shows.</summary>
-public sealed record AlertConditionOperator(string Value, string Label)
+/// <summary>
+/// One operator a condition field can use in the rule builder - value is what
+/// LibreNMS's builder JSON expects, label is what the UI shows, and
+/// <see cref="InputCount"/> is how many values it takes (0 for is_null-style,
+/// 2 for between, otherwise 1), matching jQuery QueryBuilder's nb_inputs.
+/// </summary>
+public sealed record AlertConditionOperator(string Value, string Label, int InputCount = 1)
 {
     /// <summary>Fixes this app's known ComboBox closed-display quirk (the shared style falls back to .ToString() rather than DisplayMemberPath) - see GraphType/DeviceNameOption for the same workaround.</summary>
     public override string ToString() => Label;
@@ -83,11 +88,6 @@ public static class AlertConditionFields
     // compared numerically), and in/not_in are left out entirely. Order here
     // is LibreNMS's order, so the dropdown reads the same as the web UI's.
     //
-    // between/not_between are the one intentional omission: they carry two
-    // values and this editor's condition row has a single value box. A rule
-    // authored in the web UI that uses them still round-trips untouched via
-    // the raw-JSON fallback.
-
     private static readonly AlertConditionOperator Equal = new("equal", "equal");
     private static readonly AlertConditionOperator NotEqual = new("not_equal", "not equal");
     private static readonly AlertConditionOperator BeginsWith = new("begins_with", "begins with");
@@ -96,10 +96,12 @@ public static class AlertConditionFields
     private static readonly AlertConditionOperator NotContains = new("not_contains", "doesn't contain");
     private static readonly AlertConditionOperator EndsWith = new("ends_with", "ends with");
     private static readonly AlertConditionOperator NotEndsWith = new("not_ends_with", "doesn't end with");
-    private static readonly AlertConditionOperator IsEmpty = new("is_empty", "is empty");
-    private static readonly AlertConditionOperator IsNotEmpty = new("is_not_empty", "is not empty");
-    private static readonly AlertConditionOperator IsNull = new("is_null", "is null");
-    private static readonly AlertConditionOperator IsNotNull = new("is_not_null", "is not null");
+    private static readonly AlertConditionOperator Between = new("between", "between", InputCount: 2);
+    private static readonly AlertConditionOperator NotBetween = new("not_between", "not between", InputCount: 2);
+    private static readonly AlertConditionOperator IsEmpty = new("is_empty", "is empty", InputCount: 0);
+    private static readonly AlertConditionOperator IsNotEmpty = new("is_not_empty", "is not empty", InputCount: 0);
+    private static readonly AlertConditionOperator IsNull = new("is_null", "is null", InputCount: 0);
+    private static readonly AlertConditionOperator IsNotNull = new("is_not_null", "is not null", InputCount: 0);
     private static readonly AlertConditionOperator Less = new("less", "less");
     private static readonly AlertConditionOperator LessOrEqual = new("less_or_equal", "less or equal");
     private static readonly AlertConditionOperator Greater = new("greater", "greater");
@@ -118,7 +120,7 @@ public static class AlertConditionFields
 
     private static readonly IReadOnlyList<AlertConditionOperator> NumericOperators = new[]
     {
-        Equal, NotEqual,
+        Equal, NotEqual, Between, NotBetween,
         IsNull, IsNotNull,
         Less, LessOrEqual, Greater, GreaterOrEqual,
         Regex, NotRegex,
@@ -126,7 +128,7 @@ public static class AlertConditionFields
 
     private static readonly IReadOnlyList<AlertConditionOperator> DateTimeOperators = new[]
     {
-        Equal, NotEqual,
+        Equal, NotEqual, Between, NotBetween,
         IsNull, IsNotNull,
         Less, LessOrEqual, Greater, GreaterOrEqual,
     };
