@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -10,115 +11,169 @@ public sealed record AlertConditionOperator(string Value, string Label)
     public override string ToString() => Label;
 }
 
-/// <summary>One selectable field in the rule builder's condition editor.</summary>
-public sealed record AlertConditionField(string Field, string Label, string Type, string Input, IReadOnlyList<AlertConditionOperator> Operators)
+/// <summary>
+/// One selectable field in the rule builder's condition editor.
+/// <see cref="Label"/> is always the raw, fully-qualified field name (e.g.
+/// "devices.sysName") - matching LibreNMS's own rule editor exactly, which
+/// shows these dotted names verbatim rather than a friendlier paraphrase.
+/// Admins working with LibreNMS rules already know these names, so showing
+/// anything else is a mismatch, not an improvement.
+/// </summary>
+public sealed record AlertConditionField(
+    string Field,
+    string Type,
+    string Input,
+    IReadOnlyList<AlertConditionOperator> Operators,
+    IReadOnlyList<string> Values)
 {
+    public string Label => Field;
+
+    /// <summary>The table (or "macros") this field belongs to - the part before the first dot.</summary>
+    public string Table
+    {
+        get
+        {
+            var dot = Field.IndexOf('.');
+            return dot < 0 ? Field : Field[..dot];
+        }
+    }
+
     public override string ToString() => Label;
 }
 
-/// <summary>A named group of fields, e.g. "Devices" or "Sensors", for the rule builder's field picker.</summary>
+/// <summary>A named group of fields, e.g. "devices" or "sensors", for the rule builder's field picker.</summary>
 public sealed record AlertConditionFieldGroup(string Name, IReadOnlyList<AlertConditionField> Fields);
 
 /// <summary>
-/// A curated catalog of common alert rule condition fields, sourced from
-/// LibreNMS's own "Entities" and "Macros" documentation pages - the same
-/// hardcoded approach LibreNMS's own web UI takes (its jQuery QueryBuilder
-/// config is a fixed field list, not fetched from an API). This is
-/// deliberately "common fields, not exhaustive" - LibreNMS's own docs make
-/// the same caveat ("This list is not complete. For the full list, read the
-/// MySQL database schema."). A rule whose builder references a field not in
-/// this catalog still round-trips correctly (see
-/// <see cref="Models.AlertConditionNode"/>/the rule editor's own handling of
-/// an unknown field), just without a friendly label or operator list.
+/// The complete set of fields LibreNMS's own rule builder offers, generated
+/// from LibreNMS's source rather than hand-curated from its docs (the docs'
+/// "Entities" page is explicitly incomplete and was missing whole tables and
+/// obvious columns like <c>devices.uptime</c>).
 /// </summary>
+/// <remarks>
+/// <para>
+/// LibreNMS builds its filter list at runtime in
+/// <c>LibreNMS/Alerting/QueryBuilderFilter.php</c>: it walks
+/// <c>resources/definitions/schema/db_schema.yaml</c>, keeps every table that
+/// <c>LibreNMS\DB\Schema::getAllRelationshipPaths()</c> can trace back to
+/// <c>devices</c> (minus <c>device_group_device</c>/<c>alerts</c>/<c>alert_log</c>),
+/// drops each table's own <c>device_id</c> column and any binary/blob column,
+/// then prepends the <c>alert.macros.rule.*</c> macros from
+/// <c>resources/definitions/config_definitions.json</c> (skipping the
+/// <c>past_&lt;n&gt;m</c> ones, which aren't plain field comparisons).
+/// <see cref="AlertConditionFieldCatalog"/> is that algorithm replayed
+/// offline against those two files - 115 tables, 1,385 fields.
+/// </para>
+/// <para>
+/// To regenerate after a LibreNMS schema change, re-run that port against the
+/// current <c>db_schema.yaml</c> and <c>config_definitions.json</c>. Column
+/// types follow LibreNMS's own mapping, including its quirks: every integer
+/// column is typed <c>string</c> (there's a <c>TODO</c> in its source about
+/// that), <c>char</c>/<c>decimal</c>/<c>longtext</c>/<c>mediumtext</c> columns
+/// are dropped entirely because its prefix checks don't match them, and enum
+/// columns become radio fields restricted to <c>equal</c>.
+/// </para>
+/// </remarks>
 public static class AlertConditionFields
 {
+    // Operator sets below mirror the list LibreNMS passes to jQuery
+    // QueryBuilder in includes/html/modal/new_alert_rule.inc.php, which
+    // deliberately overrides the library's defaults: less/greater/regex are
+    // re-declared with apply_to including 'string' (so text columns can be
+    // compared numerically), and in/not_in are left out entirely. Order here
+    // is LibreNMS's order, so the dropdown reads the same as the web UI's.
+    //
+    // between/not_between are the one intentional omission: they carry two
+    // values and this editor's condition row has a single value box. A rule
+    // authored in the web UI that uses them still round-trips untouched via
+    // the raw-JSON fallback.
+
+    private static readonly AlertConditionOperator Equal = new("equal", "equal");
+    private static readonly AlertConditionOperator NotEqual = new("not_equal", "not equal");
+    private static readonly AlertConditionOperator BeginsWith = new("begins_with", "begins with");
+    private static readonly AlertConditionOperator NotBeginsWith = new("not_begins_with", "doesn't begin with");
+    private static readonly AlertConditionOperator Contains = new("contains", "contains");
+    private static readonly AlertConditionOperator NotContains = new("not_contains", "doesn't contain");
+    private static readonly AlertConditionOperator EndsWith = new("ends_with", "ends with");
+    private static readonly AlertConditionOperator NotEndsWith = new("not_ends_with", "doesn't end with");
+    private static readonly AlertConditionOperator IsEmpty = new("is_empty", "is empty");
+    private static readonly AlertConditionOperator IsNotEmpty = new("is_not_empty", "is not empty");
+    private static readonly AlertConditionOperator IsNull = new("is_null", "is null");
+    private static readonly AlertConditionOperator IsNotNull = new("is_not_null", "is not null");
+    private static readonly AlertConditionOperator Less = new("less", "less");
+    private static readonly AlertConditionOperator LessOrEqual = new("less_or_equal", "less or equal");
+    private static readonly AlertConditionOperator Greater = new("greater", "greater");
+    private static readonly AlertConditionOperator GreaterOrEqual = new("greater_or_equal", "greater or equal");
+    private static readonly AlertConditionOperator Regex = new("regex", "regex");
+    private static readonly AlertConditionOperator NotRegex = new("not_regex", "not regex");
+
     private static readonly IReadOnlyList<AlertConditionOperator> StringOperators = new[]
     {
-        new AlertConditionOperator("equal", "is"),
-        new AlertConditionOperator("not_equal", "is not"),
-        new AlertConditionOperator("contains", "contains"),
-        new AlertConditionOperator("begins_with", "begins with"),
-        new AlertConditionOperator("ends_with", "ends with"),
+        Equal, NotEqual,
+        BeginsWith, NotBeginsWith, Contains, NotContains, EndsWith, NotEndsWith,
+        IsEmpty, IsNotEmpty, IsNull, IsNotNull,
+        Less, LessOrEqual, Greater, GreaterOrEqual,
+        Regex, NotRegex,
     };
 
     private static readonly IReadOnlyList<AlertConditionOperator> NumericOperators = new[]
     {
-        new AlertConditionOperator("equal", "="),
-        new AlertConditionOperator("not_equal", "!="),
-        new AlertConditionOperator("greater", ">"),
-        new AlertConditionOperator("greater_or_equal", ">="),
-        new AlertConditionOperator("less", "<"),
-        new AlertConditionOperator("less_or_equal", "<="),
+        Equal, NotEqual,
+        IsNull, IsNotNull,
+        Less, LessOrEqual, Greater, GreaterOrEqual,
+        Regex, NotRegex,
     };
 
-    private static readonly IReadOnlyList<AlertConditionOperator> BooleanOperators = new[]
+    private static readonly IReadOnlyList<AlertConditionOperator> DateTimeOperators = new[]
     {
-        new AlertConditionOperator("equal", "is"),
+        Equal, NotEqual,
+        IsNull, IsNotNull,
+        Less, LessOrEqual, Greater, GreaterOrEqual,
     };
 
-    private static AlertConditionField Str(string field, string label) => new(field, label, "string", "text", StringOperators);
+    /// <summary>Radio fields (enum columns and yes/no macros) - LibreNMS pins these to <c>equal</c> alone.</summary>
+    private static readonly IReadOnlyList<AlertConditionOperator> EqualOnly = new[] { Equal };
 
-    private static AlertConditionField Num(string field, string label) => new(field, label, "integer", "text", NumericOperators);
+    private static readonly IReadOnlyList<string> NoValues = Array.Empty<string>();
 
-    private static AlertConditionField Bool(string field, string label) => new(field, label, "integer", "radio", BooleanOperators);
+    /// <summary>The two values LibreNMS offers for a yes/no macro, in its own order.</summary>
+    private static readonly IReadOnlyList<string> YesNoValues = new[] { "1", "0" };
 
-    public static IReadOnlyList<AlertConditionFieldGroup> Groups { get; } = new[]
+    private static AlertConditionField Str(string field) => new(field, "string", "text", StringOperators, NoValues);
+
+    public static IReadOnlyList<AlertConditionFieldGroup> Groups { get; } = Parse();
+
+    private static IReadOnlyList<AlertConditionFieldGroup> Parse()
     {
-        new AlertConditionFieldGroup("Devices", new[]
+        var fields = new List<AlertConditionField>();
+
+        foreach (var line in AlertConditionFieldCatalog.Data.Split('\n'))
         {
-            Str("devices.hostname", "Hostname"),
-            Str("devices.sysName", "sysName"),
-            Str("devices.sysDescr", "sysDescr"),
-            Str("devices.hardware", "Hardware"),
-            Str("devices.version", "OS version"),
-            Str("devices.location", "Location"),
-            Str("devices.type", "Device type"),
-            Bool("devices.status", "Status is up"),
-            Bool("devices.ignore", "Is ignored"),
-            Bool("devices.disabled", "Is disabled"),
-        }),
-        new AlertConditionFieldGroup("Device stats", new[]
-        {
-            Num("device_stats.ping_loss_last", "Ping loss at last poll (%)"),
-            Num("device_stats.ping_loss_avg", "Average ping loss (%)"),
-            Num("device_stats.ping_rtt_last", "Ping RTT at last poll (ms)"),
-            Num("device_stats.ping_rtt_avg", "Average ping RTT (ms)"),
-        }),
-        new AlertConditionFieldGroup("Ports", new[]
-        {
-            Str("ports.ifDescr", "Interface description"),
-            Str("ports.ifName", "Interface name"),
-            Num("ports.ifSpeed", "Speed (bps)"),
-            Str("ports.ifOperStatus", "Operational status"),
-            Str("ports.ifAdminStatus", "Administrative status"),
-            Str("ports.ifDuplex", "Duplex"),
-        }),
-        new AlertConditionFieldGroup("Processors", new[]
-        {
-            Num("processors.processor_usage", "Usage (%)"),
-            Str("processors.processor_descr", "Description"),
-        }),
-        new AlertConditionFieldGroup("Storage", new[]
-        {
-            Str("storage.storage_descr", "Description"),
-            Num("storage.storage_perc", "Usage (%)"),
-        }),
-        new AlertConditionFieldGroup("Sensors", new[]
-        {
-            Str("sensors.sensor_class", "Sensor class"),
-            Str("sensors.sensor_desc", "Description"),
-            Num("sensors.sensor_current", "Current value"),
-            Num("sensors.sensor_prev", "Previous value"),
-        }),
-        new AlertConditionFieldGroup("Macros", new[]
-        {
-            Bool("macros.device_up", "Device is up"),
-            Bool("macros.device_down", "Device is down"),
-            Bool("macros.port_up", "Port is up"),
-            Bool("macros.port_down", "Port is down"),
-        }),
-    };
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            var parts = trimmed.Split('|');
+            var name = parts[0];
+            var kind = parts.Length > 1 ? parts[1] : "s";
+
+            fields.Add(kind switch
+            {
+                "d" => new AlertConditionField(name, "datetime", "text", DateTimeOperators, NoValues),
+                "i" => new AlertConditionField(name, "integer", "text", NumericOperators, NoValues),
+                "r" => new AlertConditionField(name, "integer", "radio", EqualOnly, YesNoValues),
+                "e" => new AlertConditionField(name, "integer", "radio", EqualOnly, parts.Length > 2 ? parts[2].Split(',') : NoValues),
+                _ => Str(name),
+            });
+        }
+
+        return fields
+            .GroupBy(f => f.Table)
+            .Select(g => new AlertConditionFieldGroup(g.Key, g.ToList()))
+            .ToList();
+    }
 
     private static readonly IReadOnlyDictionary<string, AlertConditionField> ByField =
         Groups.SelectMany(g => g.Fields).ToDictionary(f => f.Field, StringComparer.OrdinalIgnoreCase);
@@ -129,8 +184,8 @@ public static class AlertConditionFields
     /// <summary>
     /// Falls back to a bare, generic string entry (so the field still renders
     /// and round-trips) when <paramref name="field"/> isn't in the catalog -
-    /// e.g. a rule authored in the LibreNMS web UI against a column this
-    /// curated list doesn't cover.
+    /// e.g. a rule written against a custom column, or one added to LibreNMS
+    /// after this catalog was last generated.
     /// </summary>
-    public static AlertConditionField Resolve(string field) => Find(field) ?? Str(field, field);
+    public static AlertConditionField Resolve(string field) => Find(field) ?? Str(field);
 }

@@ -61,9 +61,28 @@
                                         <ColumnDefinition Width="1*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <ComboBox Grid.Column="0" ItemsSource="{Binding Fields}" SelectedItem="{Binding SelectedField}" Margin="0,0,4,0" />
+                                    <!-- Editable so the ~1,385-entry field
+                                         catalog is typeable rather than
+                                         scrollable. IsTextSearchEnabled is off
+                                         because WPF's own prefix autocomplete
+                                         fights the view model's contains-match
+                                         filtering. -->
+                                    <ComboBox Grid.Column="0"
+                                              IsEditable="True"
+                                              IsTextSearchEnabled="False"
+                                              StaysOpenOnEdit="True"
+                                              MaxDropDownHeight="320"
+                                              ItemsSource="{Binding Fields}"
+                                              SelectedItem="{Binding SelectedField}"
+                                              Text="{Binding FieldSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                              PreviewTextInput="OnFieldPickerPreviewTextInput"
+                                              ToolTip="Type to filter, e.g. devices.uptime"
+                                              Margin="0,0,4,0" />
                                     <ComboBox Grid.Column="1" ItemsSource="{Binding Operators}" SelectedItem="{Binding SelectedOperator}" Margin="0,0,4,0" />
-                                    <TextBox Grid.Column="2" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,4,0" />
+                                    <TextBox Grid.Column="2"
+                                             Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="{Binding ValueHint}"
+                                             Margin="0,0,4,0" />
                                     <Button Grid.Column="3"
                                             Command="{Binding RemoveCommand}"
                                             Style="{StaticResource IconButtonStyle}"
