@@ -33,7 +33,7 @@ public sealed class TemplatesViewModel : ObservableObject
         _logger = logger;
 
         Templates = new ObservableCollection<AlertTemplateItemViewModel>();
-        Filtered = new FilteredListViewModel(Templates, (item, term) => ((AlertTemplateItemViewModel)item).Matches(term));
+        Filtered = new FilteredListViewModel(Templates, (item, term) => term.Length == 0 || ((AlertTemplateItemViewModel)item).Matches(term));
         Filtered.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(Filtered.VisibleCount))

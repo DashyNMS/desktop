@@ -64,6 +64,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private bool _isBulkUpdating;
     private DateTimeOffset? _lastUpdated;
     private string _searchText = string.Empty;
+    private AlertRule? _filterRule;
     private string _acknowledgeNote = string.Empty;
     private bool _suppressFilterPersistence;
     private bool _showAllFaultFields;
@@ -140,6 +141,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         OpenDeviceCommand = new RelayCommand(OpenSelectedDevice, () => SelectedAlert?.DeviceUrl is not null);
         OpenProcedureCommand = new RelayCommand(OpenSelectedProcedure, () => SelectedAlert?.HasProcedure == true);
         ClearFiltersCommand = new RelayCommand(ClearFilters);
+        ClearRuleFilterCommand = new RelayCommand(() => FilterRule = null);
         CopyAlertsCsvCommand = new RelayCommand(CopyAlertsCsv);
         ExportAlertsCsvCommand = new RelayCommand(ExportAlertsCsv);
         ReloadDetailCommand = new RelayCommand(() => ReloadDetail(force: true), () => SelectedAlert is not null);
@@ -168,6 +170,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _monitor.Polled += OnPolled;
         _monitor.PollStarted += OnPollStarted;
         _session.StateChanged += OnSessionStateChanged;
+        _rulesTab.ShowAlertsRequested += (_, rule) => ShowAlertsForRule(rule);
 
         // Ages are relative, so they have to be nudged even when nothing polls.
         _ageTimer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
@@ -401,6 +404,31 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         get => _searchText;
         set { if (SetProperty(ref _searchText, value)) OnFilterChanged(); }
     }
+
+    /// <summary>
+    /// When set, only alerts raised by this rule show - the Rules tab's
+    /// "alerts raised" badge sets it. Transient: not persisted with the other
+    /// filters, and cleared by Clear like the rest.
+    /// </summary>
+    public AlertRule? FilterRule
+    {
+        get => _filterRule;
+        set
+        {
+            if (SetProperty(ref _filterRule, value))
+            {
+                OnPropertyChanged(nameof(HasRuleFilter));
+                OnPropertyChanged(nameof(FilterRuleName));
+                OnFilterChanged();
+            }
+        }
+    }
+
+    public bool HasRuleFilter => _filterRule is not null;
+
+    public string FilterRuleName => _filterRule?.Name ?? string.Empty;
+
+    public RelayCommand ClearRuleFilterCommand { get; }
 
     // ------------------------------------------------------------------ state
 
@@ -654,6 +682,27 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Switches to the Alerts tab showing every alert the given rule has
+    /// raised - all severities, active and acknowledged - regardless of the
+    /// filters that were set. Used by the Rules tab's alert badges.
+    /// </summary>
+    public void ShowAlertsForRule(AlertRule rule)
+    {
+        SelectedTab = MainTab.Alerts;
+        _suppressFilterPersistence = true;
+
+        ShowCritical = true;
+        ShowWarning = true;
+        ShowUnknownSeverity = true;
+        ShowAcknowledged = true;
+        SearchText = string.Empty;
+        FilterRule = rule;
+
+        _suppressFilterPersistence = false;
+        OnFilterChanged();
+    }
+
+    /// <summary>
     /// Clears the severity/state filters and searches for the given device, so
     /// every active or acknowledged alert against it is visible. Used by the
     /// device view's "Show alerts" action.
@@ -668,6 +717,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ShowUnknownSeverity = true;
         ShowAcknowledged = true;
         SearchText = deviceSearchTerm;
+        FilterRule = null;
 
         _suppressFilterPersistence = false;
         OnFilterChanged();
@@ -1184,6 +1234,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ShowUnknownSeverity = true;
         ShowAcknowledged = true;
         SearchText = string.Empty;
+        FilterRule = null;
 
         _suppressFilterPersistence = false;
         OnFilterChanged();
@@ -1318,6 +1369,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         };
 
         if (!stateAllowed)
+        {
+            return false;
+        }
+
+        if (_filterRule is not null && alert.RuleId != _filterRule.Id)
         {
             return false;
         }

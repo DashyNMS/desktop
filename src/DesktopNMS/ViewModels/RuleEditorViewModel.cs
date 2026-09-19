@@ -237,6 +237,93 @@ public sealed class RuleEditorViewModel : ObservableObject
     /// <summary>The root AND/OR group of the condition tree.</summary>
     public RuleConditionGroupViewModel Root { get; }
 
+    /// <summary>
+    /// Drag-to-reorder: moves <paramref name="dragged"/> (a row or a group)
+    /// next to <paramref name="target"/> - after it when <paramref name="placeAfter"/>,
+    /// otherwise before - or, when <paramref name="target"/> is a group and
+    /// <paramref name="intoGroup"/> is set, to the top of that group. The
+    /// moved item is rebuilt in its new group (see
+    /// <see cref="RuleConditionGroupViewModel.Adopt"/>) rather than re-parented.
+    /// Returns false for a no-op or an illegal move (a group into itself, or
+    /// one that would leave the root empty).
+    /// </summary>
+    public bool MoveCondition(object dragged, object target, bool placeAfter, bool intoGroup)
+    {
+        if (ReferenceEquals(dragged, target))
+        {
+            return false;
+        }
+
+        var source = Root.FindOwner(dragged);
+        if (source is null)
+        {
+            return false;
+        }
+
+        RuleConditionGroupViewModel destination;
+        int index;
+
+        if (intoGroup && target is RuleConditionGroupViewModel targetGroup)
+        {
+            destination = targetGroup;
+            index = 0;
+        }
+        else
+        {
+            var owner = Root.FindOwner(target);
+            if (owner is null)
+            {
+                return false;
+            }
+
+            destination = owner;
+            index = owner.Children.IndexOf(target) + (placeAfter ? 1 : 0);
+        }
+
+        if (dragged is RuleConditionGroupViewModel draggedGroup && destination.IsWithin(draggedGroup))
+        {
+            return false;
+        }
+
+        // Moving the root's only child somewhere else would empty the root;
+        // reordering a group's only child within itself is a no-op (and
+        // Detach would prune the group out from under the insert).
+        if (source.Children.Count == 1 && (source.IsRoot || ReferenceEquals(destination, source)))
+        {
+            return false;
+        }
+
+        var node = dragged switch
+        {
+            RuleConditionRowViewModel row => row.ToNode(),
+            RuleConditionGroupViewModel group => group.ToNode(),
+            _ => null,
+        };
+
+        if (node is null)
+        {
+            return false;
+        }
+
+        // Removing first shifts later indexes in the same group down by one.
+        if (ReferenceEquals(source, destination) && source.Children.IndexOf(dragged) < index)
+        {
+            index--;
+        }
+
+        source.Detach(dragged);
+
+        // Detach may have pruned an emptied sub-group that was the destination.
+        if (!destination.IsRoot && Root.FindOwner(destination) is null)
+        {
+            return false;
+        }
+
+        index = Math.Clamp(index, 0, destination.Children.Count);
+        destination.Children.Insert(index, destination.Adopt(node));
+        return true;
+    }
+
     /// <summary>False only when the stored builder JSON couldn't be parsed at all - shows <see cref="RawConditionJson"/> instead.</summary>
     public bool IsConditionEditable
     {

@@ -19,19 +19,38 @@
     <Window.Resources>
         <!-- ================= One leaf condition ================= -->
         <DataTemplate DataType="{x:Type vm:RuleConditionRowViewModel}">
-            <Grid Margin="0,0,0,6">
+            <Grid Margin="0,0,0,6"
+                  Background="Transparent"
+                  AllowDrop="True"
+                  DragOver="OnConditionDragOver"
+                  Drop="OnConditionDrop">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="2*" />
                     <ColumnDefinition Width="1.3*" />
                     <ColumnDefinition Width="1.2*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
+                <!-- Drag grip: drag-to-reorder within or between groups,
+                     the same as the sortable plugin in LibreNMS's builder. -->
+                <TextBlock Grid.Column="0"
+                           Text="&#xE700;"
+                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                           FontSize="12"
+                           Style="{StaticResource SubtleTextStyle}"
+                           VerticalAlignment="Center"
+                           Cursor="SizeAll"
+                           Background="Transparent"
+                           ToolTip="Drag to reorder"
+                           Margin="0,0,8,0"
+                           PreviewMouseLeftButtonDown="OnGripMouseDown" />
+
                 <!-- Editable so the ~1,385-entry field catalog is typeable
                      rather than scrollable. IsTextSearchEnabled is off
                      because WPF's own prefix autocomplete fights the view
                      model's contains-match filtering. -->
-                <ComboBox Grid.Column="0"
+                <ComboBox Grid.Column="1"
                           IsEditable="True"
                           IsTextSearchEnabled="False"
                           StaysOpenOnEdit="True"
@@ -43,14 +62,14 @@
                           ToolTip="Type to filter, e.g. devices.uptime"
                           Margin="0,0,4,0" />
 
-                <ComboBox Grid.Column="1"
+                <ComboBox Grid.Column="2"
                           ItemsSource="{Binding Operators}"
                           SelectedItem="{Binding SelectedOperator}"
                           Margin="0,0,4,0" />
 
                 <!-- 0, 1 or 2 value boxes depending on the operator (is null /
                      equal / between). -->
-                <Grid Grid.Column="2" Margin="0,0,4,0" Visibility="{Binding HasValue, Converter={StaticResource BoolToVisibility}}">
+                <Grid Grid.Column="3" Margin="0,0,4,0" Visibility="{Binding HasValue, Converter={StaticResource BoolToVisibility}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -71,7 +90,7 @@
                              Visibility="{Binding HasSecondValue, Converter={StaticResource BoolToVisibility}}" />
                 </Grid>
 
-                <Button Grid.Column="3"
+                <Button Grid.Column="4"
                         Command="{Binding RemoveCommand}"
                         Style="{StaticResource IconButtonStyle}"
                         Width="28"
@@ -89,9 +108,13 @@
             <Border BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="2,0,0,0"
                     Padding="10,0,0,0"
-                    Margin="0,0,0,8">
+                    Margin="0,0,0,8"
+                    Background="Transparent"
+                    AllowDrop="True"
+                    DragOver="OnConditionDragOver"
+                    Drop="OnConditionDrop">
                 <StackPanel>
-                    <Grid Margin="0,0,0,8">
+                    <Grid x:Name="GroupHeader" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -99,6 +122,17 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <TextBlock Text="&#xE700;"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="12"
+                                       Style="{StaticResource SubtleTextStyle}"
+                                       VerticalAlignment="Center"
+                                       Cursor="SizeAll"
+                                       Background="Transparent"
+                                       ToolTip="Drag to reorder this group"
+                                       Margin="0,0,10,0"
+                                       PreviewMouseLeftButtonDown="OnGripMouseDown"
+                                       Visibility="{Binding IsRoot, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
                             <RadioButton Content="AND"
                                          GroupName="{Binding RadioGroupName}"
                                          IsChecked="{Binding IsAnd}"

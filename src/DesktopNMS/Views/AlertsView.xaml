@@ -103,6 +103,31 @@
                             <TextBlock Text="acknowledged" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                         </StackPanel>
                     </ToggleButton>
+
+                    <!-- Set by the Rules tab's "alerts raised" badge; a chip
+                         here rather than text in the search box so it reads
+                         as a filter and is dismissed with one click. -->
+                    <Border Background="{StaticResource SurfaceAltBrush}"
+                            BorderBrush="{StaticResource AccentBrush}"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="10,4,4,4"
+                            Margin="14,0,0,0"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding HasRuleFilter, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Rule:" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="0,0,5,0" />
+                            <TextBlock Text="{Binding FilterRuleName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <Button Command="{Binding ClearRuleFilterCommand}"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Width="22"
+                                    Height="22"
+                                    Margin="6,0,0,0"
+                                    ToolTip="Show all rules again">
+                                <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
                 </WrapPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">

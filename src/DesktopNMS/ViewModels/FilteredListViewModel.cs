@@ -62,6 +62,8 @@ public sealed class FilteredListViewModel : ObservableObject
         OnPropertyChanged(nameof(VisibleCount));
     }
 
-    private bool Filter(object item) =>
-        string.IsNullOrWhiteSpace(SearchText) || _matches(item, SearchText.Trim());
+    // Always consult the predicate, with an empty term when nothing is typed:
+    // the Rules tab's predicate also applies its severity pills, which must
+    // filter with or without a search term.
+    private bool Filter(object item) => _matches(item, SearchText.Trim());
 }

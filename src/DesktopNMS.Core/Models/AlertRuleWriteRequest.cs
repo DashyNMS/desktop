@@ -92,4 +92,35 @@ public sealed class AlertRuleWriteRequest
 
     [JsonPropertyName("locations")]
     public List<int> Locations { get; set; } = new();
+
+    /// <summary>
+    /// A request that writes <paramref name="rule"/> back exactly as it is -
+    /// the starting point for a single-field change (e.g. toggling
+    /// <see cref="Disabled"/> from the rule list) that must not disturb
+    /// anything else, given the handler's rebuild-<c>extra</c> behaviour.
+    /// </summary>
+    public static AlertRuleWriteRequest FromRule(AlertRule rule)
+    {
+        var overrideQuery = rule.Extra?.OverrideQuery ?? false;
+
+        return new AlertRuleWriteRequest
+        {
+            RuleId = rule.Id,
+            Name = rule.Name ?? string.Empty,
+            Severity = rule.Severity.ToApiValue() ?? rule.SeverityText ?? "critical",
+            Builder = rule.Builder ?? string.Empty,
+            Notes = rule.Notes,
+            Procedure = rule.Procedure,
+            Disabled = rule.Disabled ? 1 : 0,
+            InvertMap = rule.InvertMap,
+            Invert = rule.Extra?.Invert ?? false,
+            Recovery = rule.Extra?.Recovery ?? true,
+            Acknowledgement = rule.Extra?.Acknowledgement ?? true,
+            OverrideQuery = overrideQuery,
+            AdvQuery = overrideQuery ? rule.Query : null,
+            Devices = new List<int>(rule.Devices),
+            Groups = new List<int>(rule.Groups),
+            Locations = new List<int>(rule.Locations),
+        };
+    }
 }

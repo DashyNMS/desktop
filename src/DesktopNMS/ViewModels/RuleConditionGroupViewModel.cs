@@ -72,6 +72,66 @@ public sealed class RuleConditionGroupViewModel : ObservableObject
 
     public bool IsRoot => _parent is null;
 
+    public RuleConditionGroupViewModel? Parent => _parent;
+
+    /// <summary>True if <paramref name="group"/> is this group or any ancestor of it - a group can't be dropped inside itself.</summary>
+    public bool IsWithin(RuleConditionGroupViewModel group)
+    {
+        for (var current = this; current is not null; current = current._parent)
+        {
+            if (ReferenceEquals(current, group))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>The group directly containing <paramref name="child"/>, searching this subtree.</summary>
+    public RuleConditionGroupViewModel? FindOwner(object child)
+    {
+        if (Children.Contains(child))
+        {
+            return this;
+        }
+
+        foreach (var nested in Children.OfType<RuleConditionGroupViewModel>())
+        {
+            var owner = nested.FindOwner(child);
+            if (owner is not null)
+            {
+                return owner;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Builds a child (row or nested group) belonging to this group from a
+    /// node - used by drag-to-reorder, which moves a child by rebuilding it
+    /// in its new group so its remove callback and parent link are right.
+    /// </summary>
+    public object Adopt(AlertConditionNode node) => node.IsGroup
+        ? FromNode(node, this)
+        : RuleConditionRowViewModel.FromNode(node, RemoveChild);
+
+    /// <summary>
+    /// Removes a child for a move - unlike <see cref="RemoveChild"/> there is
+    /// no keep-one-row guard on the root (the caller has already checked the
+    /// move leaves it non-empty), but an emptied sub-group is still pruned.
+    /// </summary>
+    public void Detach(object child)
+    {
+        Children.Remove(child);
+
+        if (Children.Count == 0 && _parent is not null)
+        {
+            _parent.Detach(this);
+        }
+    }
+
     /// <summary>
     /// A unique RadioButton GroupName per group, so each nested group's
     /// AND/OR pair toggles independently - WPF links every RadioButton in a
