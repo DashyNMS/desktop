@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views;
@@ -16,6 +17,10 @@ public partial class SettingsWindow : Window
         DataContext = viewModel;
         _viewModel.RequestClose += OnRequestClose;
     }
+
+    /// <summary>PasswordBox does not expose a bindable password, by design - see ConnectionWindow's identical pattern for the LibreNMS token.</summary>
+    private void OnUnimusTokenChanged(object sender, RoutedEventArgs e)
+        => _viewModel.UnimusTokenInput = ((PasswordBox)sender).Password;
 
     private void OnRequestClose(object? sender, bool saved)
     {

@@ -7,6 +7,7 @@ using System.Windows.Media;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Updates;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
@@ -24,6 +25,7 @@ public enum SettingsSection
     Window,
     Appearance,
     Server,
+    Integrations,
     About,
 }
 
@@ -93,6 +95,9 @@ public sealed class SettingsViewModel : ObservableObject
     private readonly IWindowService _windows;
     private readonly ISessionService _session;
     private readonly ILibreNmsClient _client;
+    private readonly IUnimusApi _unimus;
+    private readonly IUnimusTokenProtector _unimusTokens;
+    private readonly IUnimusDeviceResolver _unimusResolver;
     private readonly AppSettings _draft;
 
     private SettingsSection _selectedSection = SettingsSection.Polling;
@@ -104,6 +109,12 @@ public sealed class SettingsViewModel : ObservableObject
     private bool _isRefreshingServerInfo;
     private string? _serverInfoStatusText;
 
+    private bool _hasStoredUnimusToken;
+    private string _unimusTokenInput = string.Empty;
+    private bool _isTestingUnimusConnection;
+    private string? _unimusTestStatusText;
+    private bool? _unimusTestSucceeded;
+
     public SettingsViewModel(
         ISettingsStore store,
         IStartupRegistration startup,
@@ -111,7 +122,10 @@ public sealed class SettingsViewModel : ObservableObject
         IUpdateCheckService updates,
         IWindowService windows,
         ISessionService session,
-        ILibreNmsClient client)
+        ILibreNmsClient client,
+        IUnimusApi unimus,
+        IUnimusTokenProtector unimusTokens,
+        IUnimusDeviceResolver unimusResolver)
     {
         _store = store;
         _startup = startup;
@@ -120,8 +134,12 @@ public sealed class SettingsViewModel : ObservableObject
         _windows = windows;
         _session = session;
         _client = client;
+        _unimus = unimus;
+        _unimusTokens = unimusTokens;
+        _unimusResolver = unimusResolver;
         _serverInfo = session.ServerInfo;
         _draft = store.Current.Clone();
+        _hasStoredUnimusToken = unimusTokens.HasStoredToken;
 
         // The registry is the source of truth for auto-start, not the settings file.
         _draft.StartWithWindows = startup.IsEnabled;
@@ -139,6 +157,7 @@ public sealed class SettingsViewModel : ObservableObject
         SelectWindowSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Window);
         SelectAppearanceSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Appearance);
         SelectServerSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Server);
+        SelectIntegrationsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Integrations);
         SelectAboutSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.About);
 
         RefreshServerInfoCommand = new AsyncRelayCommand(RefreshServerInfoAsync, () => !IsRefreshingServerInfo);
@@ -149,6 +168,9 @@ public sealed class SettingsViewModel : ObservableObject
             () => _latestRelease?.HtmlUrl is not null);
         ViewReleasesPageCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri("https://github.com/DashyNMS/desktop/releases")));
+
+        TestUnimusConnectionCommand = new AsyncRelayCommand(TestUnimusConnectionAsync, () => !IsTestingUnimusConnection && !string.IsNullOrWhiteSpace(UnimusUrl));
+        ClearUnimusTokenCommand = new RelayCommand(ClearUnimusToken, () => HasStoredUnimusToken || !string.IsNullOrEmpty(UnimusTokenInput));
 
         _ = CheckForUpdatesAsync(notifyIfNewer: false);
     }
@@ -181,6 +203,8 @@ public sealed class SettingsViewModel : ObservableObject
 
     public RelayCommand SelectServerSectionCommand { get; }
 
+    public RelayCommand SelectIntegrationsSectionCommand { get; }
+
     public RelayCommand SelectAboutSectionCommand { get; }
 
     public SettingsSection SelectedSection
@@ -198,6 +222,7 @@ public sealed class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsWindowSectionSelected));
                 OnPropertyChanged(nameof(IsAppearanceSectionSelected));
                 OnPropertyChanged(nameof(IsServerSectionSelected));
+                OnPropertyChanged(nameof(IsIntegrationsSectionSelected));
                 OnPropertyChanged(nameof(IsAboutSectionSelected));
             }
         }
@@ -218,6 +243,8 @@ public sealed class SettingsViewModel : ObservableObject
     public bool IsAppearanceSectionSelected => SelectedSection == SettingsSection.Appearance;
 
     public bool IsServerSectionSelected => SelectedSection == SettingsSection.Server;
+
+    public bool IsIntegrationsSectionSelected => SelectedSection == SettingsSection.Integrations;
 
     public bool IsAboutSectionSelected => SelectedSection == SettingsSection.About;
 
@@ -491,6 +518,202 @@ public sealed class SettingsViewModel : ObservableObject
     }
 
     private static string Blank(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value!;
+
+    // ------------------------------------------------------------------ integrations (Unimus, issue #115)
+
+    public bool UnimusEnabled
+    {
+        get => _draft.Unimus.Enabled;
+        set
+        {
+            if (_draft.Unimus.Enabled == value)
+            {
+                return;
+            }
+
+            _draft.Unimus.Enabled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? UnimusUrl
+    {
+        get => _draft.Unimus.Url;
+        set
+        {
+            if (_draft.Unimus.Url == value)
+            {
+                return;
+            }
+
+            _draft.Unimus.Url = value;
+            OnPropertyChanged();
+            TestUnimusConnectionCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public bool UnimusAllowUntrustedCertificate
+    {
+        get => _draft.Unimus.AllowUntrustedCertificate;
+        set
+        {
+            if (_draft.Unimus.AllowUntrustedCertificate == value)
+            {
+                return;
+            }
+
+            _draft.Unimus.AllowUntrustedCertificate = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// LibreNMS's own discovery domain suffix - see
+    /// <see cref="UnimusSettings.MyDomain"/> for why this has to be entered
+    /// here rather than read from LibreNMS itself.
+    /// </summary>
+    public string? UnimusMyDomain
+    {
+        get => _draft.Unimus.MyDomain;
+        set
+        {
+            if (_draft.Unimus.MyDomain == value)
+            {
+                return;
+            }
+
+            _draft.Unimus.MyDomain = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Fed by the token PasswordBox's code-behind (PasswordBox has no
+    /// bindable Password, the same reason ConnectionWindow's own token field
+    /// works this way). Left blank on save keeps whatever token is already
+    /// stored - see <see cref="Save"/> - so reopening Settings never forces
+    /// re-entering a token that's already working.
+    /// </summary>
+    public string UnimusTokenInput
+    {
+        get => _unimusTokenInput;
+        set
+        {
+            if (SetProperty(ref _unimusTokenInput, value ?? string.Empty))
+            {
+                ClearUnimusTokenCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool HasStoredUnimusToken
+    {
+        get => _hasStoredUnimusToken;
+        private set
+        {
+            if (SetProperty(ref _hasStoredUnimusToken, value))
+            {
+                OnPropertyChanged(nameof(UnimusTokenStatusText));
+                ClearUnimusTokenCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string UnimusTokenStatusText => HasStoredUnimusToken ? "A token is saved." : "No token saved yet.";
+
+    public RelayCommand ClearUnimusTokenCommand { get; }
+
+    private void ClearUnimusToken()
+    {
+        UnimusTokenInput = string.Empty;
+        HasStoredUnimusToken = false;
+        _unimusTokens.Clear();
+        _unimus.Clear();
+        _unimusResolver.Clear();
+        UnimusTestStatusText = null;
+    }
+
+    public AsyncRelayCommand TestUnimusConnectionCommand { get; }
+
+    public bool IsTestingUnimusConnection
+    {
+        get => _isTestingUnimusConnection;
+        private set
+        {
+            if (SetProperty(ref _isTestingUnimusConnection, value))
+            {
+                TestUnimusConnectionCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? UnimusTestStatusText
+    {
+        get => _unimusTestStatusText;
+        private set
+        {
+            if (SetProperty(ref _unimusTestStatusText, value))
+            {
+                OnPropertyChanged(nameof(HasUnimusTestStatus));
+            }
+        }
+    }
+
+    public bool HasUnimusTestStatus => !string.IsNullOrEmpty(_unimusTestStatusText);
+
+    /// <summary>Null before a test has run, then whether the last one succeeded - drives the status text's colour.</summary>
+    public bool? UnimusTestSucceeded
+    {
+        get => _unimusTestSucceeded;
+        private set => SetProperty(ref _unimusTestSucceeded, value);
+    }
+
+    /// <summary>
+    /// Tries the URL/token currently in the form - whatever is typed in
+    /// <see cref="UnimusTokenInput"/>, or the already-stored token if that's
+    /// blank - without touching the live <see cref="IUnimusApi"/> singleton
+    /// until Save is actually clicked.
+    /// </summary>
+    private async Task TestUnimusConnectionAsync()
+    {
+        UnimusTestStatusText = null;
+
+        if (!UnimusConnection.TryParseWebRoot(UnimusUrl, out var webRoot, out var urlError) || webRoot is null)
+        {
+            UnimusTestSucceeded = false;
+            UnimusTestStatusText = urlError;
+            return;
+        }
+
+        var token = string.IsNullOrEmpty(UnimusTokenInput) ? _unimusTokens.Load() : UnimusTokenInput;
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            UnimusTestSucceeded = false;
+            UnimusTestStatusText = "Enter an API token first.";
+            return;
+        }
+
+        IsTestingUnimusConnection = true;
+
+        using var probe = new UnimusApi(Microsoft.Extensions.Logging.Abstractions.NullLogger<UnimusApi>.Instance);
+        probe.Configure(new UnimusConnection(webRoot, token, UnimusAllowUntrustedCertificate));
+
+        try
+        {
+            await probe.TestConnectionAsync().ConfigureAwait(true);
+            UnimusTestSucceeded = true;
+            UnimusTestStatusText = "Connected to Unimus successfully.";
+        }
+        catch (UnimusApiException ex)
+        {
+            UnimusTestSucceeded = false;
+            UnimusTestStatusText = ex.ToUserMessage();
+        }
+        finally
+        {
+            IsTestingUnimusConnection = false;
+        }
+    }
 
     // ------------------------------------------------------------------ about
 
@@ -1294,7 +1517,44 @@ public sealed class SettingsViewModel : ObservableObject
         _draft.RecentlyViewedDevices = _store.Current.RecentlyViewedDevices;
         _draft.PinnedDevices = _store.Current.PinnedDevices;
 
+        ApplyUnimusConfiguration();
+
         _store.Replace(_draft);
         RequestClose?.Invoke(this, true);
+    }
+
+    /// <summary>
+    /// Persists a newly-typed token (if any) and reconfigures the live
+    /// <see cref="IUnimusApi"/> singleton to match the saved settings -
+    /// mirrors <c>App.ConfigureUnimusIfEnabled</c>'s logic for the
+    /// already-running app, since that method only runs once at startup.
+    /// </summary>
+    private void ApplyUnimusConfiguration()
+    {
+        if (!string.IsNullOrEmpty(UnimusTokenInput))
+        {
+            _unimusTokens.Save(UnimusTokenInput);
+        }
+
+        // Whatever changed here (enabled/disabled, URL, token, mydomain) can
+        // change matching outcomes - never leave a stale resolution behind.
+        _unimusResolver.Clear();
+
+        if (!UnimusEnabled
+            || !UnimusConnection.TryParseWebRoot(UnimusUrl, out var webRoot, out _)
+            || webRoot is null)
+        {
+            _unimus.Clear();
+            return;
+        }
+
+        var token = string.IsNullOrEmpty(UnimusTokenInput) ? _unimusTokens.Load() : UnimusTokenInput;
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            _unimus.Clear();
+            return;
+        }
+
+        _unimus.Configure(new UnimusConnection(webRoot, token, UnimusAllowUntrustedCertificate));
     }
 }

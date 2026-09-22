@@ -78,6 +78,15 @@
                                       IsChecked="{Binding IsDevicesSectionSelected, Mode=OneWay}"
                                       Command="{Binding SelectDevicesSectionCommand}" />
 
+                        <!-- Its own group, like Devices - the natural home
+                             for future integrations (Graylog, #114) rather
+                             than only ever having one item. -->
+                        <TextBlock Text="INTEGRATIONS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
+                        <ToggleButton Content="Unimus"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsIntegrationsSectionSelected, Mode=OneWay}"
+                                      Command="{Binding SelectIntegrationsSectionCommand}" />
+
                         <TextBlock Text="WINDOW &amp; APPEARANCE" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
                         <ToggleButton Content="Window and start-up"
                                       Style="{StaticResource SettingsNavItemStyle}"
@@ -803,6 +812,86 @@
                                            Style="{StaticResource SubtleTextStyle}"
                                            Margin="0,16,0,0"
                                            Visibility="{Binding HasServerInfo, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Integrations (Unimus) ==================== -->
+                    <StackPanel Visibility="{Binding IsIntegrationsSectionSelected, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Unimus" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14"
+                                   Text="Shows config backups for a device, lets you diff two revisions, and trigger a backup on demand, from the Config tab in Device Details. Talks to Unimus directly with its own token - not through LibreNMS." />
+
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
+                            <StackPanel>
+                                <CheckBox Content="Enable Unimus integration" IsChecked="{Binding UnimusEnabled}" />
+
+                                <TextBlock Text="Unimus URL" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding UnimusUrl, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="e.g. https://unimus.example.com" />
+
+                                <TextBlock Text="API token" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <PasswordBox x:Name="UnimusTokenBox" PasswordChanged="OnUnimusTokenChanged" />
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding UnimusTokenStatusText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1"
+                                            Content="Clear"
+                                            Command="{Binding ClearUnimusTokenCommand}"
+                                            Padding="10,4" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="Leave blank and save to keep the token already stored. Generate one in Unimus under User management, API tokens." />
+
+                                <CheckBox Content="Ignore SSL certificate errors"
+                                          IsChecked="{Binding UnimusAllowUntrustedCertificate}"
+                                          Margin="0,16,0,0" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="Only enable this if Unimus uses a self-signed or internally-issued certificate you trust." />
+
+                                <TextBlock Text="LibreNMS discovery domain (optional)" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding UnimusMyDomain, UpdateSourceTrigger=PropertyChanged}" ToolTip="e.g. internal.example.com" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="LibreNMS's own 'mydomain' discovery setting, if configured - used as one of the ways a device is matched to its Unimus entry. Not required; LibreNMS's API doesn't expose this, so it has to be entered here too if it's set." />
+
+                                <Grid Margin="0,16,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0"
+                                            Content="Test connection"
+                                            Command="{Binding TestUnimusConnectionCommand}"
+                                            Padding="10,6" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding UnimusTestStatusText}"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0,0,0"
+                                               Visibility="{Binding HasUnimusTestStatus, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding UnimusTestSucceeded}" Value="False">
+                                                        <Setter Property="Foreground" Value="{StaticResource CriticalBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
                             </StackPanel>
                         </Border>
                     </StackPanel>

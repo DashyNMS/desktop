@@ -241,6 +241,7 @@ public partial class App : Application
         services.AddSingleton<ISessionService, SessionService>();
         services.AddSingleton<IDeviceCache, DeviceCache>();
         services.AddSingleton<IAlertRuleCache, AlertRuleCache>();
+        services.AddSingleton<IUnimusDeviceResolver, UnimusDeviceResolver>();
         services.AddSingleton<AlertMonitor>();
         services.AddSingleton<SensorMonitor>();
         services.AddSingleton<DeviceMonitor>();

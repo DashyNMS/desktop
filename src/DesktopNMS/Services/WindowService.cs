@@ -88,6 +88,8 @@ public sealed class WindowService : IWindowService
             _services.GetRequiredService<ISessionService>(),
             settings,
             this,
+            _services.GetRequiredService<IUnimusApi>(),
+            _services.GetRequiredService<IUnimusDeviceResolver>(),
             _services.GetRequiredService<ILogger<DeviceDetailViewModel>>());
 
         var window = new DeviceView(viewModel, settings);
