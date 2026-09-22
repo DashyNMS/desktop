@@ -71,7 +71,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, SensorItemViewModel> _sensorIndex = new();
     private readonly HashSet<int> _loadedEventLogIds = new();
-    private bool _hasLoadedConfigOnce;
     private int? _unimusDeviceId;
 
     /// <summary>
@@ -302,8 +301,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         ShowPingGraphCommand = new RelayCommand(() => ShowGraph("device_icmp_perf"));
         SelectAlertsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Alerts);
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
-        SelectConfigCommand = new RelayCommand(SelectConfig);
-        DiffSelectedCommand = new RelayCommand(() => _ = DiffSelectedAsync(), CanDiffSelected);
+        SelectConfigCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Config);
         BackupNowCommand = new AsyncRelayCommand(BackupNowAsync, () => !IsBackingUpNow && HasUnimusMatch);
         RefreshConfigCommand = new AsyncRelayCommand(LoadConfigAsync, () => !IsLoadingConfig);
         SelectEditCommand = new RelayCommand(SelectEdit);
@@ -345,6 +343,18 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _ = LoadFdbAsync();
         _ = LoadArpAsync();
         _ = LoadEventLogAsync();
+
+        // Eager, unlike everything else being conditional on Unimus being
+        // configured at all - deliberately so, even though it costs one
+        // extra call to Unimus per window open when it is: the Unimus nav
+        // item/section only show once a match is actually confirmed (see
+        // ShowUnimusSection), so whether there is anything to show has to be
+        // known up front rather than waiting for a click on a tab nobody
+        // can see yet.
+        if (_unimus.IsConfigured)
+        {
+            _ = LoadConfigAsync();
+        }
         _ = OverviewGraph.LoadAsync(_loadCts.Token);
     }
 
@@ -717,30 +727,29 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// configured, and an extra network round-trip to it on every Device
     /// Detail open would slow things down for no benefit to that majority.
     /// </summary>
-    private void SelectConfig()
-    {
-        SelectedSection = DeviceDetailSection.Config;
-
-        if (!_hasLoadedConfigOnce)
-        {
-            _hasLoadedConfigOnce = true;
-            _ = LoadConfigAsync();
-        }
-    }
 
     // ------------------------------------------------------------------ config (Unimus, issue #115)
 
     public ObservableCollection<UnimusBackupItemViewModel> ConfigBackups { get; }
 
     /// <summary>
-    /// Whether the Config tab shows at all (see DeviceView.xaml's CONFIG nav
-    /// group). A live passthrough of <see cref="IUnimusApi.IsConfigured"/>,
-    /// correct whenever this window is opened - it just won't update itself
-    /// live if Unimus is set up or torn down in Settings while this specific
-    /// window happens to already be open, a low-value edge case not worth a
+    /// A live passthrough of <see cref="IUnimusApi.IsConfigured"/> - correct
+    /// whenever this window is opened, it just won't update itself live if
+    /// Unimus is set up or torn down in Settings while this specific window
+    /// happens to already be open, a low-value edge case not worth a
     /// settings-changed subscription for.
     /// </summary>
     public bool IsUnimusConfigured => _unimus.IsConfigured;
+
+    /// <summary>
+    /// Whether the Unimus nav item/section show at all. Deliberately more
+    /// than just <see cref="IsUnimusConfigured"/>: a device with no match in
+    /// Unimus (checked and confirmed absent) gets no tab at all rather than
+    /// a tab that only ever says "nothing here" - but a device that couldn't
+    /// be checked (Unimus unreachable, bad token) still gets the tab, since
+    /// hiding a real error would be worse than showing an empty one.
+    /// </summary>
+    public bool ShowUnimusSection => IsUnimusConfigured && (HasUnimusMatch || HasConfigError);
 
     private bool _isLoadingConfig;
 
@@ -766,6 +775,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _configErrorMessage, value))
             {
                 OnPropertyChanged(nameof(HasConfigError));
+                OnPropertyChanged(nameof(ShowUnimusSection));
             }
         }
     }
@@ -783,6 +793,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _hasUnimusMatch, value))
             {
                 BackupNowCommand.RaiseCanExecuteChanged();
+                OnPropertyChanged(nameof(ShowUnimusSection));
             }
         }
     }
@@ -842,35 +853,43 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsDiffing
     {
         get => _isDiffing;
-        private set
-        {
-            if (SetProperty(ref _isDiffing, value))
-            {
-                DiffSelectedCommand.RaiseCanExecuteChanged();
-            }
-        }
+        private set => SetProperty(ref _isDiffing, value);
     }
 
-    public RelayCommand DiffSelectedCommand { get; }
+    private bool _hasTooManySelected;
 
-    private bool CanDiffSelected() => !IsDiffing && ConfigBackups.Count(b => b.IsSelectedForDiff) == 2;
-
-    private void OnBackupSelectionChanged(UnimusBackupItemViewModel changed)
+    /// <summary>True when more than two rows are selected - diffing needs exactly two, and this app doesn't guess which two you meant.</summary>
+    public bool HasTooManySelected
     {
-        // Only two revisions make sense to diff - selecting a third
-        // silently drops the oldest selection rather than refusing the
-        // click or requiring the user to deselect one first themselves.
-        if (changed.IsSelectedForDiff)
-        {
-            var selected = ConfigBackups.Where(b => b.IsSelectedForDiff).ToList();
-            if (selected.Count > 2)
-            {
-                var oldest = selected.Where(b => b != changed).OrderBy(b => b.Backup.ValidSince).First();
-                oldest.IsSelectedForDiff = false;
-            }
-        }
+        get => _hasTooManySelected;
+        private set => SetProperty(ref _hasTooManySelected, value);
+    }
 
-        DiffSelectedCommand.RaiseCanExecuteChanged();
+    /// <summary>
+    /// Drives the whole view/diff area from the grid's own row selection
+    /// (see DeviceView.xaml.cs's SelectionChanged handler) - one row selected
+    /// views it, two diffs them, anything else clears back to the
+    /// placeholder. No separate checkbox column or "Diff selected" button:
+    /// selecting the rows is the action.
+    /// </summary>
+    public void OnConfigSelectionChanged(IReadOnlyList<UnimusBackupItemViewModel> selected)
+    {
+        HasTooManySelected = selected.Count > 2;
+
+        switch (selected.Count)
+        {
+            case 1:
+                ViewBackup(selected[0]);
+                break;
+            case 2:
+                _ = DiffAsync(selected[0], selected[1]);
+                break;
+            default:
+                SelectedBackup = null;
+                SelectedBackupContent = null;
+                DiffLines = null;
+                break;
+        }
     }
 
     private bool _isBackingUpNow;
@@ -925,7 +944,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 var page = await _unimus.GetBackupsAsync(unimusId, cancellationToken: _loadCts.Token).ConfigureAwait(true);
                 foreach (var backup in page.Backups.OrderByDescending(b => b.ValidSince))
                 {
-                    ConfigBackups.Add(new UnimusBackupItemViewModel(backup, OnBackupSelectionChanged, ViewBackup));
+                    ConfigBackups.Add(new UnimusBackupItemViewModel(backup));
                 }
             }
         }
@@ -954,13 +973,11 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             : "This backup is stored as binary - Unimus itself is the only place that can show it.";
     }
 
-    private async Task DiffSelectedAsync()
+    private async Task DiffAsync(UnimusBackupItemViewModel a, UnimusBackupItemViewModel b)
     {
-        var selected = ConfigBackups.Where(b => b.IsSelectedForDiff).OrderBy(b => b.Backup.ValidSince).ToList();
-        if (selected.Count != 2)
-        {
-            return;
-        }
+        // Always original-then-revised by date, regardless of the order the
+        // two rows were clicked in.
+        var (orig, rev) = a.Backup.ValidSince <= b.Backup.ValidSince ? (a, b) : (b, a);
 
         IsDiffing = true;
         ConfigErrorMessage = null;
@@ -969,7 +986,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
         try
         {
-            var diff = await _unimus.GetDiffAsync(selected[0].Id, selected[1].Id, _loadCts.Token).ConfigureAwait(true);
+            var diff = await _unimus.GetDiffAsync(orig.Id, rev.Id, _loadCts.Token).ConfigureAwait(true);
             DiffLines = diff is not null ? UnimusDiffLineViewModel.FromDiff(diff) : Array.Empty<UnimusDiffLineViewModel>();
         }
         catch (OperationCanceledException)
@@ -978,7 +995,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
         catch (UnimusApiException ex)
         {
-            _logger.LogWarning(ex, "Could not diff Unimus backups {Orig}/{Rev} for device {DeviceId}", selected[0].Id, selected[1].Id, _deviceId);
+            _logger.LogWarning(ex, "Could not diff Unimus backups {Orig}/{Rev} for device {DeviceId}", orig.Id, rev.Id, _deviceId);
             ConfigErrorMessage = ex.ToUserMessage();
         }
         finally
@@ -2795,9 +2812,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             LoadDeviceGroupsAsync(), LoadVlansAsync(), LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync(),
         };
 
-        // Config is lazy-loaded (see SelectConfig) - only refresh it
-        // alongside everything else once it has actually been visited.
-        if (_hasLoadedConfigOnce)
+        // Unlike every other section here, only actually calls out to
+        // Unimus when it's configured at all - see the constructor's own
+        // eager call for why this one is eager rather than load-on-select.
+        if (_unimus.IsConfigured)
         {
             tasks.Add(LoadConfigAsync());
         }

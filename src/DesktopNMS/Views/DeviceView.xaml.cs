@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using DesktopNMS.Core.Configuration;
@@ -161,6 +162,20 @@ public partial class DeviceView : Window
         {
             menu.PlacementTarget = button;
             menu.IsOpen = true;
+        }
+    }
+
+    /// <summary>
+    /// The Unimus backups grid's own row selection drives the whole view/diff
+    /// area - no checkbox column or separate buttons (issue #115 follow-up:
+    /// the checkbox-based selection was fiddly). One row selected views it,
+    /// two diffs them - see DeviceDetailViewModel.OnConfigSelectionChanged.
+    /// </summary>
+    private void OnUnimusBackupsSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is DeviceDetailViewModel viewModel && sender is DataGrid grid)
+        {
+            viewModel.OnConfigSelectionChanged(grid.SelectedItems.Cast<UnimusBackupItemViewModel>().ToList());
         }
     }
 }

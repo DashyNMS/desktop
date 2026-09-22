@@ -1,29 +1,23 @@
-using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using DesktopNMS.Core.Models;
-using DesktopNMS.Infrastructure;
 
 namespace DesktopNMS.ViewModels;
 
 /// <summary>
-/// One row in a device's Config tab (issue #115) - a single Unimus backup
-/// revision. Selecting exactly two rows (<see cref="IsSelectedForDiff"/>)
-/// enables the diff action on <see cref="DeviceDetailViewModel"/>.
+/// One row in a device's Unimus tab (issue #115) - a single backup revision.
+/// Plain data, no selection state of its own: the grid's native row
+/// selection drives everything (see DeviceView.xaml.cs's SelectionChanged
+/// handler and <see cref="DeviceDetailViewModel.OnConfigSelectionChanged"/>)
+/// rather than a per-row checkbox/command.
 /// </summary>
-public sealed class UnimusBackupItemViewModel : ObservableObject
+public sealed class UnimusBackupItemViewModel
 {
-    private bool _isSelectedForDiff;
-
-    public UnimusBackupItemViewModel(UnimusBackup backup, Action<UnimusBackupItemViewModel> onSelectionChanged, Action<UnimusBackupItemViewModel> onView)
+    public UnimusBackupItemViewModel(UnimusBackup backup)
     {
         Backup = backup;
-        ViewCommand = new RelayCommand(() => onView(this));
-        _onSelectionChanged = onSelectionChanged;
     }
-
-    private readonly Action<UnimusBackupItemViewModel> _onSelectionChanged;
 
     public UnimusBackup Backup { get; }
 
@@ -39,20 +33,6 @@ public sealed class UnimusBackupItemViewModel : ObservableObject
     public string StatusText => IsCurrent ? "Current" : "Superseded";
 
     public bool IsText => Backup.IsText;
-
-    public bool IsSelectedForDiff
-    {
-        get => _isSelectedForDiff;
-        set
-        {
-            if (SetProperty(ref _isSelectedForDiff, value))
-            {
-                _onSelectionChanged(this);
-            }
-        }
-    }
-
-    public RelayCommand ViewCommand { get; }
 }
 
 /// <summary>

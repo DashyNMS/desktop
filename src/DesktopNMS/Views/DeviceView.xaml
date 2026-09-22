@@ -237,18 +237,21 @@
                         </ToggleButton>
 
                         <!-- Its own group, like Settings' Integrations - only
-                             shows once Unimus is actually set up, so a user
-                             who hasn't configured it never sees a tab that
-                             would just tell them to go set it up. -->
-                        <TextBlock Text="CONFIG"
+                             shows once this device actually has something to
+                             show (a confirmed Unimus match, or a real error
+                             checking) - not just because Unimus is
+                             configured at all, so a device Unimus doesn't
+                             know about never gets a tab that only ever says
+                             "nothing here". -->
+                        <TextBlock Text="UNIMUS"
                                    Style="{StaticResource SectionHeaderStyle}"
                                    Margin="14,16,0,6"
-                                   Visibility="{Binding IsUnimusConfigured, Converter={StaticResource BoolToVisibility}}" />
+                                   Visibility="{Binding ShowUnimusSection, Converter={StaticResource BoolToVisibility}}" />
                         <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsConfigSelected, Mode=OneWay}"
                                       Command="{Binding SelectConfigCommand}"
-                                      Visibility="{Binding IsUnimusConfigured, Converter={StaticResource BoolToVisibility}}"
-                                      Content="Config" />
+                                      Visibility="{Binding ShowUnimusSection, Converter={StaticResource BoolToVisibility}}"
+                                      Content="Unimus" />
 
                         <!-- No sidebar entry for Edit - the header's own Edit
                              button (next to Refresh) is the one way in, so
@@ -1593,7 +1596,7 @@
                 </StackPanel>
             </Grid>
 
-            <!-- ==================== Config (Unimus, issue #115) ==================== -->
+            <!-- ==================== Unimus (issue #115) ==================== -->
             <Grid Margin="24"
                   Visibility="{Binding IsConfigSelected, Converter={StaticResource BoolToVisibility}}">
                 <Grid.RowDefinitions>
@@ -1608,7 +1611,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Config" Style="{StaticResource HeadingTextStyle}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="0" Text="Unimus" Style="{StaticResource HeadingTextStyle}" VerticalAlignment="Center" />
                     <Button Grid.Column="1"
                             Content="Refresh"
                             Command="{Binding RefreshConfigCommand}"
@@ -1632,7 +1635,11 @@
                             Padding="10,7" />
                 </Grid>
 
-                <Grid Grid.Row="1" Visibility="{Binding HasUnimusMatch, Converter={StaticResource BoolToVisibility}}">
+                <!-- This whole tab only shows once HasUnimusMatch or
+                     HasConfigError is true (see ShowUnimusSection gating the
+                     nav item) - so row 1 only ever needs to choose between
+                     those two, never a "no match"/"still checking" state. -->
+                <Grid Grid.Row="1" Visibility="{Binding HasConfigError, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="320" />
                         <ColumnDefinition Width="16" />
@@ -1640,51 +1647,26 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- ==================== Backup list ==================== -->
-                    <Grid Grid.Column="0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <DataGrid Grid.Row="0"
-                                  ItemsSource="{Binding ConfigBackups}"
-                                  IsReadOnly="False"
-                                  AutoGenerateColumns="False"
-                                  HeadersVisibility="Column"
-                                  CanUserAddRows="False">
-                            <DataGrid.Columns>
-                                <!-- Interactive, so no OneWay override needed
-                                     here unlike the Rules grid's read-only
-                                     Disabled column - this checkbox is the
-                                     whole point of the column. -->
-                                <DataGridCheckBoxColumn Header="Diff" Width="40" Binding="{Binding IsSelectedForDiff}" />
-                                <DataGridTextColumn Header="Date" Width="*" Binding="{Binding DateText}" IsReadOnly="True" />
-                                <DataGridTextColumn Header="Status" Width="90" Binding="{Binding StatusText}" IsReadOnly="True" />
-                                <DataGridTemplateColumn Header="" Width="50" CanUserSort="False">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <Button Command="{Binding ViewCommand}"
-                                                    Style="{StaticResource IconButtonStyle}"
-                                                    Width="28"
-                                                    Height="28"
-                                                    FontSize="13"
-                                                    ToolTip="View this backup">
-                                                <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
-                                            </Button>
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-                            </DataGrid.Columns>
-                        </DataGrid>
-
-                        <Button Grid.Row="1"
-                                Content="Diff selected"
-                                Command="{Binding DiffSelectedCommand}"
-                                ToolTip="Select exactly two backups above to compare them"
-                                HorizontalAlignment="Left"
-                                Padding="10,7"
-                                Margin="0,10,0,0" />
-                    </Grid>
+                    <!-- No checkbox column or per-row button: the grid's own
+                         row selection is the whole interaction (see
+                         DeviceView.xaml.cs's SelectionChanged handler) -
+                         click a row to view it, ctrl/shift-click a second to
+                         diff them automatically. -->
+                    <DataGrid Grid.Column="0"
+                              x:Name="UnimusBackupsGrid"
+                              ItemsSource="{Binding ConfigBackups}"
+                              IsReadOnly="True"
+                              AutoGenerateColumns="False"
+                              HeadersVisibility="Column"
+                              SelectionMode="Extended"
+                              SelectionUnit="FullRow"
+                              CanUserAddRows="False"
+                              SelectionChanged="OnUnimusBackupsSelectionChanged">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Date" Width="*" Binding="{Binding DateText}" />
+                            <DataGridTextColumn Header="Status" Width="90" Binding="{Binding StatusText}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
 
                     <!-- ==================== Content / diff viewer ==================== -->
                     <Border Grid.Column="2"
@@ -1693,7 +1675,7 @@
                             BorderThickness="1"
                             CornerRadius="6">
                         <Grid Margin="12">
-                            <TextBlock Text="Select a backup to view it, or check two and click Diff selected to compare them."
+                            <TextBlock Text="Select a backup to view it, or select two to compare them."
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
                                        TextWrapping="Wrap"
@@ -1709,10 +1691,22 @@
                                             <DataTrigger Binding="{Binding HasDiff}" Value="True">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                             </DataTrigger>
+                                            <DataTrigger Binding="{Binding HasTooManySelected}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
+
+                            <TextBlock Text="Select exactly two backups to compare them."
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="320"
+                                       TextAlignment="Center"
+                                       Style="{StaticResource SubtleTextStyle}"
+                                       Visibility="{Binding HasTooManySelected, Converter={StaticResource BoolToVisibility}}" />
 
                             <ScrollViewer VerticalScrollBarVisibility="Auto"
                                           HorizontalScrollBarVisibility="Auto"
@@ -1754,30 +1748,15 @@
                     </Border>
                 </Grid>
 
-                <!-- ==================== Loading / not matched / not configured ==================== -->
-                <Grid Grid.Row="1" Visibility="{Binding HasUnimusMatch, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
-                    <TextBlock Text="Checking Unimus for this device..."
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource SubtleTextStyle}"
-                               Visibility="{Binding IsLoadingConfig, Converter={StaticResource BoolToVisibility}}" />
-
-                    <StackPanel HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                MaxWidth="360"
-                                Visibility="{Binding HasCheckedUnimusMatch, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="No matching device found in Unimus."
-                                   TextWrapping="Wrap"
-                                   TextAlignment="Center"
-                                   Style="{StaticResource SubtleTextStyle}"
-                                   Visibility="{Binding HasConfigError, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
-                        <TextBlock Text="{Binding ConfigErrorMessage}"
-                                   TextWrapping="Wrap"
-                                   TextAlignment="Center"
-                                   Foreground="{StaticResource CriticalBrush}"
-                                   Visibility="{Binding HasConfigError, Converter={StaticResource BoolToVisibility}}" />
-                    </StackPanel>
-                </Grid>
+                <TextBlock Grid.Row="1"
+                           Text="{Binding ConfigErrorMessage}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxWidth="360"
+                           TextAlignment="Center"
+                           Foreground="{StaticResource CriticalBrush}"
+                           Visibility="{Binding HasConfigError, Converter={StaticResource BoolToVisibility}}" />
             </Grid>
 
             <!-- ==================== Edit ==================== -->
