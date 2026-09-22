@@ -140,6 +140,28 @@ public sealed class UnimusApi : IUnimusApi, IDisposable
         return envelope?.Data;
     }
 
+    public async Task<IReadOnlyList<UnimusDevice>> ListAllDevicesAsync(CancellationToken cancellationToken = default)
+    {
+        const int pageSize = 500;
+        var devices = new List<UnimusDevice>();
+        var page = 0;
+        int totalPages;
+
+        do
+        {
+            using var response = await SendAsync(HttpMethod.Get, $"devices?page={page}&size={pageSize}", cancellationToken).ConfigureAwait(false);
+            await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+
+            var envelope = await response.Content.ReadFromJsonAsync<UnimusPagedEnvelope<UnimusDevice>>(JsonOptions, cancellationToken).ConfigureAwait(false);
+            devices.AddRange(envelope?.Data ?? new List<UnimusDevice>());
+            totalPages = envelope?.Paginator?.TotalPages ?? 1;
+            page++;
+        }
+        while (page < totalPages);
+
+        return devices;
+    }
+
     public async Task<UnimusBackup?> GetLatestBackupAsync(int unimusDeviceId, CancellationToken cancellationToken = default)
     {
         using var response = await SendAsync(HttpMethod.Get, $"devices/{unimusDeviceId}/backups/latest", cancellationToken).ConfigureAwait(false);

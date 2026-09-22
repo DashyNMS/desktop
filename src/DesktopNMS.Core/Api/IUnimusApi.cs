@@ -28,7 +28,24 @@ public interface IUnimusApi
     /// GET devices/findByAddress/{address}. Null on a 404 (no device at that
     /// address) - not an error, just a miss for this one candidate address.
     /// </summary>
+    /// <remarks>
+    /// Confirmed live: this only matches a device's IP
+    /// (<see cref="UnimusDevice.Address"/>), never its hostname/description,
+    /// and is scoped to Unimus's "Default Zone" unless a <c>zoneId</c> is
+    /// known and passed - neither of which this app can assume. Device
+    /// matching uses <see cref="ListAllDevicesAsync"/> + <see cref="Alerting.UnimusDeviceMatcher"/>
+    /// instead; this method is kept for completeness and for a caller that
+    /// already knows a specific IP and zone.
+    /// </remarks>
     Task<UnimusDevice?> FindDeviceAsync(string address, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Every device Unimus knows about, across every zone - pages through
+    /// GET devices?page&amp;size internally. See <see cref="Alerting.UnimusDeviceMatcher"/>
+    /// for why this, not <see cref="FindDeviceAsync"/>, is how a LibreNMS
+    /// device gets matched to its Unimus entry.
+    /// </summary>
+    Task<IReadOnlyList<UnimusDevice>> ListAllDevicesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>GET devices/{id}/backups/latest, with content included.</summary>
     Task<UnimusBackup?> GetLatestBackupAsync(int unimusDeviceId, CancellationToken cancellationToken = default);
