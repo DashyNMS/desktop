@@ -6,7 +6,9 @@ using System.Windows;
 using System.Windows.Threading;
 using DesktopNMS.Core;
 using DesktopNMS.Core.Alerting;
+using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
+using DesktopNMS.Core.Security;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using DesktopNMS.ViewModels;
@@ -131,6 +133,41 @@ public partial class App : Application
         // sign-in is dismissed. Fire-and-forget: a failed or slow GitHub
         // request must never delay or affect anything else at startup.
         _ = CheckForUpdatesAsync();
+
+        // Also independent of the LibreNMS connection - Unimus has its own
+        // enable/disable toggle and credentials (see UnimusSettings), set up
+        // in Settings rather than tied to LibreNMS sign-in/out.
+        ConfigureUnimusIfEnabled();
+    }
+
+    private void ConfigureUnimusIfEnabled()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        var settings = _services.GetRequiredService<ISettingsStore>().Current.Unimus;
+        if (!settings.Enabled || string.IsNullOrWhiteSpace(settings.Url))
+        {
+            return;
+        }
+
+        var token = _services.GetRequiredService<IUnimusTokenProtector>().Load();
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            _logger?.LogWarning("Unimus is enabled but no API token is stored; the Config tab will show as unconfigured");
+            return;
+        }
+
+        if (!UnimusConnection.TryParseWebRoot(settings.Url, out var webRoot, out var error) || webRoot is null)
+        {
+            _logger?.LogWarning("Unimus's configured URL is invalid: {Error}", error);
+            return;
+        }
+
+        var connection = new UnimusConnection(webRoot, token, settings.AllowUntrustedCertificate);
+        _services.GetRequiredService<IUnimusApi>().Configure(connection);
     }
 
     private async Task CheckForUpdatesAsync()

@@ -114,6 +114,9 @@ public sealed class AppSettings
 
     public AlertFilterSettings Filter { get; set; } = new();
 
+    /// <summary>Unimus config-backup integration (issue #115) - see <see cref="UnimusSettings"/>. The API token itself is encrypted separately by <see cref="Security.IUnimusTokenProtector"/>, the same split as the main LibreNMS token.</summary>
+    public UnimusSettings Unimus { get; set; } = new();
+
     /// <summary>Warning/critical bands applied to dBm sensors on the Health tab.</summary>
     public DbmThresholdSettings DbmThresholds { get; set; } = new();
 
@@ -203,6 +206,7 @@ public sealed class AppSettings
         SuppressBulkAlertActionConfirmation = SuppressBulkAlertActionConfirmation,
         Notifications = Notifications.Clone(),
         Filter = Filter.Clone(),
+        Unimus = Unimus.Clone(),
         DbmThresholds = DbmThresholds.Clone(),
         SignalThresholds = SignalThresholds.Clone(),
         TemperatureThresholds = TemperatureThresholds.Clone(),
@@ -937,6 +941,47 @@ public sealed class NotificationSettings
 }
 
 /// <summary>The filter chips the user last had selected.</summary>
+/// <summary>
+/// Configuration for the Unimus config-backup integration (issue #115) - a
+/// second, independent API this app talks to directly (its own URL, its own
+/// token, its own SSL trust setting) rather than through LibreNMS, even
+/// though LibreNMS ships its own server-side Unimus client
+/// (<c>app/ApiClients/Unimus.php</c>) - that integration lives entirely in
+/// LibreNMS's web UI and isn't reachable via its versioned API.
+/// </summary>
+public sealed class UnimusSettings
+{
+    public bool Enabled { get; set; }
+
+    /// <summary>Root URL of the Unimus instance, e.g. https://unimus.example.com/.</summary>
+    public string? Url { get; set; }
+
+    /// <summary>
+    /// Accept self-signed or internally-issued certificates - deliberately
+    /// separate from the LibreNMS connection's own
+    /// <see cref="AppSettings.AllowUntrustedCertificate"/>, since Unimus is
+    /// commonly run as an internal-only tool with its own, unrelated
+    /// certificate trust story.
+    /// </summary>
+    public bool AllowUntrustedCertificate { get; set; }
+
+    /// <summary>
+    /// LibreNMS's own discovery domain suffix (its <c>mydomain</c> config) -
+    /// one of the candidates tried when matching a LibreNMS device to a
+    /// Unimus one by hostname. Not exposed via LibreNMS's API, so this has
+    /// to be entered here too if it's set on the LibreNMS side.
+    /// </summary>
+    public string? MyDomain { get; set; }
+
+    public UnimusSettings Clone() => new()
+    {
+        Enabled = Enabled,
+        Url = Url,
+        AllowUntrustedCertificate = AllowUntrustedCertificate,
+        MyDomain = MyDomain,
+    };
+}
+
 public sealed class AlertFilterSettings
 {
     public bool ShowCritical { get; set; } = true;
