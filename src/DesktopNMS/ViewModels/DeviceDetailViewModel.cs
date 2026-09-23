@@ -270,7 +270,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         EventLogView = CollectionViewSource.GetDefaultView(EventLog);
         EventLogView.Filter = FilterEventLogEntry;
 
-        ShowAlertsCommand = new RelayCommand(() => _windows.ShowAlertsForDevice(_device?.Hostname ?? Name));
+        ShowAlertsCommand = new RelayCommand(() => _windows.ShowAlertsForDevice(_deviceId, Name));
         ShowDevicesForLocationCommand = new RelayCommand(ShowDevicesForLocation, () => HasLocation);
 
         OpenWebHttpCommand = new RelayCommand(() => OpenExternal("http"), () => CanOpenExternally);
@@ -3116,7 +3116,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// unsaved edit rather than leaving stale text sitting there.
     /// </summary>
     /// <summary>Jumps to the Graphs section with a specific graph pre-selected - see <see cref="GraphsSectionViewModel.SelectGraphByNameAsync"/>.</summary>
-    private void ShowGraph(string graphName)
+    public void ShowGraph(string graphName)
     {
         SelectedSection = DeviceDetailSection.Graphs;
         _ = Graphs.SelectGraphByNameAsync(graphName);

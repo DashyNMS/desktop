@@ -39,6 +39,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly AlertMonitor _monitor;
     private readonly IDeviceCache _devices;
     private readonly IAlertRuleCache _rules;
+    private readonly IDeviceGroupMembershipService _groupMembership;
     private readonly IWindowService _windows;
     private readonly DeviceListViewModel _deviceList;
     private readonly HealthViewModel _health;
@@ -65,6 +66,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private DateTimeOffset? _lastUpdated;
     private string _searchText = string.Empty;
     private AlertRule? _filterRule;
+    private int? _filterDeviceId;
+    private string _filterDeviceName = string.Empty;
     private string _acknowledgeNote = string.Empty;
     private bool _suppressFilterPersistence;
     private bool _showAllFaultFields;
@@ -96,6 +99,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         AlertMonitor monitor,
         IDeviceCache devices,
         IAlertRuleCache rules,
+        IDeviceGroupMembershipService groupMembership,
         IWindowService windows,
         DeviceListViewModel deviceList,
         HealthViewModel health,
@@ -114,6 +118,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _monitor = monitor;
         _devices = devices;
         _rules = rules;
+        _groupMembership = groupMembership;
         _windows = windows;
         _deviceList = deviceList;
         _health = health;
@@ -132,16 +137,26 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         Alerts = new ObservableCollection<AlertItemViewModel>();
         AlertsView = CollectionViewSource.GetDefaultView(Alerts);
+        GroupFilter = new FilterFacet(OnFilterChanged);
+        GroupFilter.PropertyChanged += OnGroupFilterPropertyChanged;
+        _groupMembership.Changed += OnGroupMembershipChanged;
+
         AlertsView.Filter = FilterAlert;
 
         RefreshCommand = new RelayCommand(RequestRefresh, () => _isConnected && !_isBusy);
         AcknowledgeCommand = new AsyncRelayCommand(AcknowledgeSelectedAsync, () => CanAcknowledge);
         UnacknowledgeCommand = new AsyncRelayCommand(UnacknowledgeSelectedAsync, () => CanUnacknowledge);
-        OpenAlertCommand = new RelayCommand(OpenSelectedAlert, () => SelectedAlert?.AlertUrl is not null);
-        OpenDeviceCommand = new RelayCommand(OpenSelectedDevice, () => SelectedAlert?.DeviceUrl is not null);
-        OpenProcedureCommand = new RelayCommand(OpenSelectedProcedure, () => SelectedAlert?.HasProcedure == true);
+        OpenDeviceCommand = new RelayCommand(OpenSelectedDevice, () => SelectedAlert is not null);
+        // The row's procedure icon passes its own alert as the parameter
+        // (clicking it needn't select the row first); the context menu and
+        // detail pane pass nothing and act on the selection.
+        OpenProcedureCommand = new RelayCommand(OpenProcedure, p => (p as AlertItemViewModel ?? SelectedAlert)?.HasProcedure == true);
         ClearFiltersCommand = new RelayCommand(ClearFilters);
         ClearRuleFilterCommand = new RelayCommand(() => FilterRule = null);
+        ClearDeviceFilterCommand = new RelayCommand(() => SetDeviceFilter(null, null));
+        FilterBySelectedRuleCommand = new RelayCommand(FilterBySelectedRule, () => SelectedAlert is not null);
+        FilterBySelectedDeviceCommand = new RelayCommand(FilterBySelectedDevice, () => SelectedAlert is not null);
+        ShowAlertFiltersCommand = new RelayCommand(ShowAlertFilters);
         CopyAlertsCsvCommand = new RelayCommand(CopyAlertsCsv);
         ExportAlertsCsvCommand = new RelayCommand(ExportAlertsCsv);
         ReloadDetailCommand = new RelayCommand(() => ReloadDetail(force: true), () => SelectedAlert is not null);
@@ -199,11 +214,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public AsyncRelayCommand UnacknowledgeCommand { get; }
 
-    public RelayCommand OpenAlertCommand { get; }
-
+    /// <summary>Opens the alert's device in this app's own Device Details window (issue #158) - also what double-clicking a row does.</summary>
     public RelayCommand OpenDeviceCommand { get; }
 
     public RelayCommand OpenProcedureCommand { get; }
+
+    /// <summary>Right-click "Filter by this rule" (issue #163) - the same Rule chip the Rules tab's alert badge sets.</summary>
+    public RelayCommand FilterBySelectedRuleCommand { get; }
+
+    /// <summary>Right-click "Filter by this device" (issue #163) - a Device chip alongside the Rule one.</summary>
+    public RelayCommand FilterBySelectedDeviceCommand { get; }
+
+    public RelayCommand ClearDeviceFilterCommand { get; }
+
+    /// <summary>Opens the device-group filter dialog (issue #162).</summary>
+    public RelayCommand ShowAlertFiltersCommand { get; }
 
     public RelayCommand ClearFiltersCommand { get; }
 
@@ -428,11 +453,33 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>True when anything narrows the alert list - drives the toolbar's clear (✕) button, shown only when there's something to clear.</summary>
     public bool HasActiveFilters =>
-        !ShowCritical || !ShowWarning || !ShowAcknowledged || HasRuleFilter || !string.IsNullOrWhiteSpace(SearchText);
+        !ShowCritical || !ShowWarning || !ShowAcknowledged || HasRuleFilter || HasDeviceFilter
+        || GroupFilter.HasActiveFilter || !string.IsNullOrWhiteSpace(SearchText);
 
     public string FilterRuleName => _filterRule?.Name ?? string.Empty;
 
     public RelayCommand ClearRuleFilterCommand { get; }
+
+    /// <summary>
+    /// When set, only alerts on this device show - the right-click "Filter by
+    /// this device" action and Device Details' "Show alerts" both set it.
+    /// A chip matching the Rule one, keyed by device id rather than text in
+    /// the search box, so it can't also match other devices with similar
+    /// names. Transient like <see cref="FilterRule"/>: not persisted.
+    /// </summary>
+    public bool HasDeviceFilter => _filterDeviceId is not null;
+
+    public string FilterDeviceName => _filterDeviceName;
+
+    /// <summary>
+    /// Device group facet (issue #162) - same component as the Devices tab's
+    /// Group filter, counting alerts rather than devices, fed by the shared
+    /// <see cref="IDeviceGroupMembershipService"/>.
+    /// </summary>
+    public FilterFacet GroupFilter { get; }
+
+    /// <summary>Drives the dot on the toolbar's filter button - the dialog's checkboxes aren't visible until it's opened.</summary>
+    public bool IsGroupFilterActive => GroupFilter.HasActiveFilter;
 
     // ------------------------------------------------------------------ state
 
@@ -631,6 +678,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         StatusMessage = "Connected. Waiting for the first poll...";
         RequestRefresh();
 
+        // The Alerts tab is always live (not just when shown), so its group
+        // filter needs membership from the start too.
+        _groupMembership.EnsureStarted();
+
         // The initial tab may have been set (from StartupTab) before the
         // session was restored, when OnShown would have found nothing to load.
         if (SelectedTab == MainTab.Devices)
@@ -700,6 +751,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ShowUnknownSeverity = true;
         ShowAcknowledged = true;
         SearchText = string.Empty;
+        SetDeviceFilter(null, null);
+        GroupFilter.SetAllChecked(true, notify: false);
         FilterRule = rule;
 
         _suppressFilterPersistence = false;
@@ -707,11 +760,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Clears the severity/state filters and searches for the given device, so
-    /// every active or acknowledged alert against it is visible. Used by the
-    /// device view's "Show alerts" action.
+    /// Clears every other filter and shows only this device's alerts via the
+    /// Device chip, so every active or acknowledged alert against it is
+    /// visible. Used by Device Details' and the Devices tab's "Show alerts".
     /// </summary>
-    public void ShowAlertsForDevice(string deviceSearchTerm)
+    public void ShowAlertsForDevice(int deviceId, string deviceName)
     {
         SelectedTab = MainTab.Alerts;
         _suppressFilterPersistence = true;
@@ -720,11 +773,115 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ShowWarning = true;
         ShowUnknownSeverity = true;
         ShowAcknowledged = true;
-        SearchText = deviceSearchTerm;
+        SearchText = string.Empty;
         FilterRule = null;
+        GroupFilter.SetAllChecked(true, notify: false);
+        SetDeviceFilter(deviceId, deviceName);
 
         _suppressFilterPersistence = false;
         OnFilterChanged();
+    }
+
+    private void SetDeviceFilter(int? deviceId, string? deviceName)
+    {
+        if (_filterDeviceId == deviceId)
+        {
+            return;
+        }
+
+        _filterDeviceId = deviceId;
+        _filterDeviceName = deviceId is null ? string.Empty : deviceName ?? $"Device #{deviceId}";
+        OnPropertyChanged(nameof(HasDeviceFilter));
+        OnPropertyChanged(nameof(FilterDeviceName));
+        OnFilterChanged();
+    }
+
+    /// <summary>
+    /// Narrows to every alert raised by the same rule as the selected one.
+    /// Builds the chip's rule from the alert row itself (id and name) rather
+    /// than a rule-cache lookup - the chip only ever needs those two, and
+    /// this way it works instantly and even if the rules list hasn't loaded.
+    /// </summary>
+    private void FilterBySelectedRule()
+    {
+        if (SelectedAlert is { } alert)
+        {
+            FilterRule = new AlertRule { Id = alert.RuleId, Name = alert.RuleName };
+        }
+    }
+
+    private void FilterBySelectedDevice()
+    {
+        if (SelectedAlert is { } alert)
+        {
+            SetDeviceFilter(alert.DeviceId, alert.DeviceName);
+        }
+    }
+
+    private void ShowAlertFilters()
+    {
+        _windows.ShowAlertFiltersDialog();
+
+        // Cleared after the (modal) dialog closes, not while it's open, so
+        // its search box doesn't visibly empty itself.
+        GroupFilter.ClearSearch();
+    }
+
+    /// <summary>
+    /// Rebuilds the group facet's counts - one per alert that can appear in
+    /// this list at all (recovered alerts never do), not per device - from
+    /// the current alerts against whatever membership is currently known.
+    /// Called after every poll and whenever membership itself changes.
+    /// </summary>
+    private void RebuildGroupFilter()
+    {
+        var counts = new Dictionary<string, int>();
+
+        foreach (var alert in Alerts)
+        {
+            if (alert.State == AlertState.Recovered)
+            {
+                continue;
+            }
+
+            foreach (var group in GroupsOrNone(alert.DeviceId))
+            {
+                counts[group] = counts.TryGetValue(group, out var existing) ? existing + 1 : 1;
+            }
+        }
+
+        GroupFilter.Apply(counts.Select(kv => (kv.Key, GroupDisplayText(kv.Key), kv.Value)));
+    }
+
+    /// <summary>The single key used for a device in no group at all, so "not in a group" is a filterable option of its own - same as the Devices tab.</summary>
+    private static readonly IReadOnlyList<string> NoGroupKey = new[] { string.Empty };
+
+    private IReadOnlyList<string> GroupsOrNone(int deviceId) =>
+        _groupMembership.GroupsFor(deviceId) is { Count: > 0 } names ? names : NoGroupKey;
+
+    private static string GroupDisplayText(string group) =>
+        string.IsNullOrWhiteSpace(group) ? "Not in a group" : group;
+
+    private void OnGroupMembershipChanged(object? sender, EventArgs e)
+    {
+        RebuildGroupFilter();
+
+        // A background refresh, not a filter change the user made - re-apply
+        // without re-saving the persisted filter settings (which would also
+        // raise settings-changed app-wide every few minutes for nothing).
+        _suppressFilterPersistence = true;
+        OnFilterChanged();
+        _suppressFilterPersistence = false;
+    }
+
+    /// <summary>Apply() can flip HasActiveFilter without a checkbox toggle (e.g. the last unchecked group disappearing), so relay it directly.</summary>
+    private void OnGroupFilterPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(FilterFacet.HasActiveFilter))
+        {
+            OnPropertyChanged(nameof(IsGroupFilterActive));
+            OnPropertyChanged(nameof(HasActiveFilters));
+        }
     }
 
     /// <summary>Selects the given alert, bringing it into view. Used by toast activation.</summary>
@@ -855,6 +1012,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
 
         RaiseCountsChanged();
+        RebuildGroupFilter();
 
         // The selected row may have been removed by this refresh.
         if (SelectedAlert is not null && !_index.ContainsKey(SelectedAlert.Id))
@@ -1098,27 +1256,35 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _ => ("Confirm", $"Apply this to all {count} selected alerts?"),
     };
 
-    private void OpenSelectedAlert()
-    {
-        if (SelectedAlert?.AlertUrl is { } url)
-        {
-            _windows.OpenUrl(url);
-        }
-    }
-
     private void OpenSelectedDevice()
     {
-        if (SelectedAlert?.DeviceUrl is { } url)
+        if (SelectedAlert is { } alert)
         {
-            _windows.OpenUrl(url);
+            _windows.ShowDeviceDetail(alert.DeviceId);
         }
     }
 
-    private void OpenSelectedProcedure()
+    /// <summary>
+    /// Opens the rule's procedure/runbook URL (issue #141). The URL is
+    /// whatever someone typed into the rule on the server, so it's treated as
+    /// untrusted: only http/https ever reaches the shell - a file:, UNC or
+    /// other-scheme "procedure" is ignored rather than launched.
+    /// </summary>
+    private void OpenProcedure(object? parameter)
     {
-        if (SelectedAlert?.ProcedureUrl is { } raw && Uri.TryCreate(raw, UriKind.Absolute, out var url))
+        var alert = parameter as AlertItemViewModel ?? SelectedAlert;
+
+        if (alert?.ProcedureUrl is { } raw
+            && Uri.TryCreate(raw.Trim(), UriKind.Absolute, out var url)
+            && (url.Scheme == Uri.UriSchemeHttp || url.Scheme == Uri.UriSchemeHttps))
         {
             _windows.OpenUrl(url);
+        }
+        else if (alert?.HasProcedure == true)
+        {
+            _windows.ShowInformation(
+                "Can't open procedure",
+                $"This rule's procedure isn't a web link, so it won't be opened:\n\n{alert.ProcedureUrl}");
         }
     }
 
@@ -1239,6 +1405,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ShowAcknowledged = true;
         SearchText = string.Empty;
         FilterRule = null;
+        SetDeviceFilter(null, null);
+        GroupFilter.SetAllChecked(true, notify: false);
 
         _suppressFilterPersistence = false;
         OnFilterChanged();
@@ -1325,11 +1493,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _monitor.ResetHistory();
         _rules.Clear();
         _devices.Invalidate();
+        _groupMembership.Clear();
 
         Alerts.Clear();
         _index.Clear();
         SelectedAlert = null;
+        SetDeviceFilter(null, null);
         RaiseCountsChanged();
+        RebuildGroupFilter();
 
         StatusMessage = "Signed out.";
 
@@ -1378,6 +1549,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
 
         if (_filterRule is not null && alert.RuleId != _filterRule.Id)
+        {
+            return false;
+        }
+
+        if (_filterDeviceId is { } deviceId && alert.DeviceId != deviceId)
+        {
+            return false;
+        }
+
+        if (!GroupFilter.AllowsAny(GroupsOrNone(alert.DeviceId)))
         {
             return false;
         }
@@ -1463,9 +1644,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RefreshCommand.RaiseCanExecuteChanged();
         AcknowledgeCommand.RaiseCanExecuteChanged();
         UnacknowledgeCommand.RaiseCanExecuteChanged();
-        OpenAlertCommand.RaiseCanExecuteChanged();
         OpenDeviceCommand.RaiseCanExecuteChanged();
         OpenProcedureCommand.RaiseCanExecuteChanged();
+        FilterBySelectedRuleCommand.RaiseCanExecuteChanged();
+        FilterBySelectedDeviceCommand.RaiseCanExecuteChanged();
         SignOutCommand.RaiseCanExecuteChanged();
     }
 
@@ -1478,6 +1660,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _session.StateChanged -= OnSessionStateChanged;
         _branding.Changed -= OnBrandingChanged;
         _settings.Changed -= OnLogoSettingChanged;
+        _groupMembership.Changed -= OnGroupMembershipChanged;
+        GroupFilter.PropertyChanged -= OnGroupFilterPropertyChanged;
 
         _detailCts?.Cancel();
         _detailCts?.Dispose();

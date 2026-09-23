@@ -33,6 +33,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
     private readonly ILibreNmsClient _client;
     private readonly ILogger _logger;
     private readonly Dispatcher _dispatcher;
+    private readonly Action<int, string> _openGraph;
 
     private IReadOnlyList<Device> _fleet = Array.Empty<Device>();
     private int? _selectedDeviceId;
@@ -45,13 +46,15 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
     private string? _svg;
     private int _loadVersion;
 
-    public GraphWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model, DeviceMonitor deviceMonitor, ILibreNmsClient client, ILogger logger)
+    /// <param name="openGraph">Opens this device's Device Details on the given graph - a callback (like the other device-shaped widgets' own) rather than an IWindowService dependency.</param>
+    public GraphWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model, DeviceMonitor deviceMonitor, ILibreNmsClient client, ILogger logger, Action<int, string> openGraph)
         : base(layout, model)
     {
         _deviceMonitor = deviceMonitor;
         _client = client;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
+        _openGraph = openGraph;
 
         _selectedDeviceId = model.GraphDeviceId;
         TimeRange = new GraphTimeRangeViewModel(model.GraphTimeRangePreset, model.GraphCustomFrom, model.GraphCustomTo);
@@ -77,6 +80,18 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
             }
         });
 
+        // No CanExecute: the device/graph arrive asynchronously and a
+        // RelayCommand never re-queries on its own, so a gate here would
+        // stay stuck disabled. The view only shows the clickable graph once
+        // one has rendered anyway; this just guards the (unlikely) gap.
+        OpenGraphCommand = new RelayCommand(() =>
+        {
+            if (_selectedDeviceId is { } deviceId && _selectedGraph is { } graph)
+            {
+                _openGraph(deviceId, graph.Name);
+            }
+        });
+
         // Device data has to come from somewhere - DeviceMonitor is lazily
         // started (see DeviceStatusWidgetViewModel's own reasoning), and this
         // widget may be the only thing on the Dashboard asking for it.
@@ -97,6 +112,9 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
     public RelayCommand ToggleDevicePickerCommand { get; }
 
     public RelayCommand SelectDeviceCommand { get; }
+
+    /// <summary>Clicking the rendered graph (issue #161) opens the device's Device Details on this same graph, full size.</summary>
+    public RelayCommand OpenGraphCommand { get; }
 
     public ObservableCollection<DevicePickerItem> DevicePickerResults { get; }
 

@@ -25,7 +25,7 @@ public interface IWindowService
     /// through here rather than a direct reference so the alerts and device
     /// view models do not depend on each other.
     /// </summary>
-    void ShowAlertsForDevice(string deviceSearchTerm);
+    void ShowAlertsForDevice(int deviceId, string deviceName);
 
     /// <summary>
     /// Shows a device's detail window, non-modal. Reuses and activates the
@@ -33,6 +33,13 @@ public interface IWindowService
     /// a second one.
     /// </summary>
     void ShowDeviceDetail(int deviceId);
+
+    /// <summary>
+    /// Shows a device's detail window (see <see cref="ShowDeviceDetail"/>)
+    /// on its Graphs section with this graph selected - the Dashboard Graph
+    /// widget's click-through, so the graph opens full size in context.
+    /// </summary>
+    void ShowDeviceGraph(int deviceId, string graphName);
 
     /// <summary>Closes a device's detail window if it is currently open - a no-op otherwise.</summary>
     void CloseDeviceDetail(int deviceId);
@@ -59,6 +66,9 @@ public interface IWindowService
     /// back once it closes.
     /// </summary>
     void ShowDeviceFiltersDialog();
+
+    /// <summary>The Alerts tab's equivalent of <see cref="ShowDeviceFiltersDialog"/> - its device group filter (issue #162), live like the Devices one.</summary>
+    void ShowAlertFiltersDialog();
 
     /// <summary>Shows the sign-in dialog. Returns true if a session was established.</summary>
     bool ShowSignInDialog();
