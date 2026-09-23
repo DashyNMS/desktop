@@ -259,24 +259,38 @@ public sealed class GeoMapCanvas : FrameworkElement
 
         var selected = SelectedPins ?? Array.Empty<GeoPin>();
         var accent = Resource("AccentBrush", Brushes.DodgerBlue);
-        var outline = new Pen(Brushes.White, 2);
-        var ring = new Pen(accent, 3);
+        var surface = Resource("SurfaceBrush", Brushes.Black);
+        var text = Resource("TextPrimaryBrush", Brushes.White);
+        var selectedRing = new Pen(accent, 3);
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
         foreach (var cluster in _clusters)
         {
             var centre = ClusterCentre(cluster);
-            var count = cluster.Sum(p => p.DeviceCount);
+            var up = cluster.Sum(p => p.UpCount);
+            var down = cluster.Sum(p => p.DownCount);
+            var maintenance = cluster.Sum(p => p.MaintenanceCount);
+            var inactive = cluster.Sum(p => p.InactiveCount);
+            var count = up + down + maintenance + inactive;
             var radius = PinRadius(count);
             var isSelected = cluster.Any(selected.Contains);
-            var worst = WorstOf(cluster);
+
+            // Solid red only when everything that's being monitored there is
+            // down - a genuine site outage. A partial outage keeps a neutral
+            // pin and shows its share of red in the ring, plus a badge.
+            var fullyDown = down > 0 && up == 0 && maintenance == 0;
 
             if (isSelected)
             {
-                dc.DrawEllipse(null, ring, centre, radius + 4, radius + 4);
+                dc.DrawEllipse(null, selectedRing, centre, radius + 5, radius + 5);
             }
 
-            dc.DrawEllipse(StateBrush(worst), outline, centre, radius, radius);
+            dc.DrawEllipse(fullyDown ? SeverityToBrushConverter.Critical : surface, null, centre, radius, radius);
+
+            if (!fullyDown)
+            {
+                DrawStateRing(dc, centre, radius, up, down, maintenance, inactive);
+            }
 
             var countText = new FormattedText(
                 count.ToString(CultureInfo.CurrentCulture),
@@ -284,9 +298,14 @@ public sealed class GeoMapCanvas : FrameworkElement
                 FlowDirection.LeftToRight,
                 new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal),
                 count >= 100 ? 10 : 11,
-                Brushes.White,
+                fullyDown ? Brushes.White : text,
                 dpi);
             dc.DrawText(countText, new Point(centre.X - countText.Width / 2, centre.Y - countText.Height / 2));
+
+            if (down > 0 && !fullyDown)
+            {
+                DrawDownBadge(dc, centre, radius, down, dpi);
+            }
 
             // Names only for the hovered/selected pin, or once zoomed in far
             // enough that labels won't collide.
@@ -321,22 +340,99 @@ public sealed class GeoMapCanvas : FrameworkElement
     /// <summary>Bigger pins for bigger sites, within limits.</summary>
     private static double PinRadius(int deviceCount) => Math.Clamp(9 + Math.Log2(Math.Max(deviceCount, 1)) * 2, 10, 20);
 
-    private static DeviceState WorstOf(IEnumerable<GeoPin> pins)
+    /// <summary>
+    /// The pin's edge as a ring split by device state, each arc in proportion
+    /// to how many devices there are in it - so a mostly-green ring with a
+    /// thin red slice reads as "a couple down", not "site down". Starts at
+    /// twelve o'clock with down first, so the red slice sits at the top
+    /// right, beside the down-count badge.
+    /// </summary>
+    private static void DrawStateRing(DrawingContext dc, Point centre, double radius, int up, int down, int maintenance, int inactive)
     {
-        var states = pins.Select(p => p.WorstState).ToList();
-        return states.Contains(DeviceState.Down) ? DeviceState.Down
-            : states.Contains(DeviceState.Maintenance) ? DeviceState.Maintenance
-            : states.Contains(DeviceState.Up) ? DeviceState.Up
-            : DeviceState.Disabled;
+        var total = up + down + maintenance + inactive;
+        if (total == 0)
+        {
+            return;
+        }
+
+        var thickness = Math.Max(3.5, radius * 0.32);
+        var ringRadius = radius - thickness / 2;
+        var start = -90.0;
+
+        foreach (var (count, brush) in new[]
+        {
+            (down, (Brush)SeverityToBrushConverter.Critical),
+            (maintenance, SeverityToBrushConverter.Maintenance),
+            (inactive, SeverityToBrushConverter.Unknown),
+            (up, SeverityToBrushConverter.Ok),
+        })
+        {
+            if (count == 0)
+            {
+                continue;
+            }
+
+            var sweep = 360.0 * count / total;
+            var pen = new Pen(brush, thickness);
+
+            if (sweep >= 359.99)
+            {
+                dc.DrawEllipse(null, pen, centre, ringRadius, ringRadius);
+            }
+            else
+            {
+                dc.DrawGeometry(null, pen, Arc(centre, ringRadius, start, sweep));
+            }
+
+            start += sweep;
+        }
     }
 
-    private static Brush StateBrush(DeviceState state) => state switch
+    private static StreamGeometry Arc(Point centre, double radius, double startDegrees, double sweepDegrees)
     {
-        DeviceState.Up => SeverityToBrushConverter.Ok,
-        DeviceState.Down => SeverityToBrushConverter.Critical,
-        DeviceState.Maintenance => SeverityToBrushConverter.Maintenance,
-        _ => SeverityToBrushConverter.Unknown,
-    };
+        static Point On(Point c, double r, double degrees)
+        {
+            var radians = degrees * Math.PI / 180;
+            return new Point(c.X + r * Math.Cos(radians), c.Y + r * Math.Sin(radians));
+        }
+
+        var geometry = new StreamGeometry();
+        using (var context = geometry.Open())
+        {
+            context.BeginFigure(On(centre, radius, startDegrees), isFilled: false, isClosed: false);
+            context.ArcTo(
+                On(centre, radius, startDegrees + sweepDegrees),
+                new Size(radius, radius),
+                0,
+                isLargeArc: sweepDegrees > 180,
+                SweepDirection.Clockwise,
+                isStroked: true,
+                isSmoothJoin: false);
+        }
+
+        geometry.Freeze();
+        return geometry;
+    }
+
+    /// <summary>A small red count of devices down, on the pin's top-right edge.</summary>
+    private static void DrawDownBadge(DrawingContext dc, Point centre, double radius, int down, double dpi)
+    {
+        var text = new FormattedText(
+            down.ToString(CultureInfo.CurrentCulture),
+            CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight,
+            new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal),
+            9,
+            Brushes.White,
+            dpi);
+
+        var badgeRadius = Math.Max(7.5, text.Width / 2 + 3);
+        var offset = radius * 0.72;
+        var badgeCentre = new Point(centre.X + offset, centre.Y - offset);
+
+        dc.DrawEllipse(SeverityToBrushConverter.Critical, new Pen(Brushes.White, 1.5), badgeCentre, badgeRadius, badgeRadius);
+        dc.DrawText(text, new Point(badgeCentre.X - text.Width / 2, badgeCentre.Y - text.Height / 2));
+    }
 
     private Point ClusterCentre(List<GeoPin> cluster) => new(
         cluster.Average(p => ToScreen(p.World).X),

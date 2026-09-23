@@ -18,10 +18,10 @@ namespace DesktopNMS.ViewModels;
 public sealed record GeoDeviceRow(int DeviceId, string Name, DeviceState State);
 
 /// <summary>
-/// One location pin on the Geographical map, with its devices' current
-/// state. <see cref="WorstState"/> colours the pin: any device down makes
-/// the whole site red, since that's the one thing someone scanning the map
-/// needs to spot.
+/// One location pin on the Geographical map, with how many of its devices
+/// are in each state. The pin shows the mix (see <see cref="Views.GeoMapCanvas"/>)
+/// rather than just the worst device - a site with two of forty devices down
+/// isn't a site that's offline.
 /// </summary>
 public sealed class GeoPin
 {
@@ -30,11 +30,9 @@ public sealed class GeoPin
         Location = location;
         Devices = devices;
         World = location.World;
-        WorstState =
-            devices.Any(d => d.State == DeviceState.Down) ? DeviceState.Down :
-            devices.Any(d => d.State == DeviceState.Maintenance) ? DeviceState.Maintenance :
-            devices.Any(d => d.State == DeviceState.Up) ? DeviceState.Up :
-            DeviceState.Disabled;
+        UpCount = devices.Count(d => d.State == DeviceState.Up);
+        DownCount = devices.Count(d => d.State == DeviceState.Down);
+        MaintenanceCount = devices.Count(d => d.State == DeviceState.Maintenance);
     }
 
     public LocationPin Location { get; }
@@ -45,16 +43,48 @@ public sealed class GeoPin
 
     public int DeviceCount => Devices.Count;
 
-    public int DownCount => Devices.Count(d => d.State == DeviceState.Down);
+    public int UpCount { get; }
 
-    public DeviceState WorstState { get; }
+    public int DownCount { get; }
+
+    public int MaintenanceCount { get; }
+
+    /// <summary>Disabled or ignored - not being monitored, so neither up nor down.</summary>
+    public int InactiveCount => DeviceCount - UpCount - DownCount - MaintenanceCount;
 
     public MapPoint World { get; }
 
-    /// <summary>"12 devices · 2 down"</summary>
-    public string SummaryText => DownCount > 0
-        ? $"{DeviceCount} {(DeviceCount == 1 ? "device" : "devices")} · {DownCount} down"
-        : $"{DeviceCount} {(DeviceCount == 1 ? "device" : "devices")}";
+    /// <summary>"40 devices · 2 down · 1 in maintenance"</summary>
+    public string SummaryText
+    {
+        get
+        {
+            var parts = new List<string> { $"{DeviceCount} {(DeviceCount == 1 ? "device" : "devices")}" };
+            if (DownCount > 0)
+            {
+                parts.Add($"{DownCount} down");
+            }
+
+            if (MaintenanceCount > 0)
+            {
+                parts.Add($"{MaintenanceCount} in maintenance");
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+}
+
+/// <summary>The Geographical map legend's colours - the same brushes the pins are drawn with.</summary>
+public static class MapLegend
+{
+    public static System.Windows.Media.Brush Up => Converters.SeverityToBrushConverter.Ok;
+
+    public static System.Windows.Media.Brush Down => Converters.SeverityToBrushConverter.Critical;
+
+    public static System.Windows.Media.Brush Maintenance => Converters.SeverityToBrushConverter.Maintenance;
+
+    public static System.Windows.Media.Brush Inactive => Converters.SeverityToBrushConverter.Unknown;
 }
 
 /// <summary>

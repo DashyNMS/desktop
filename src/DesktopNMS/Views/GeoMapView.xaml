@@ -97,6 +97,36 @@
                 <views:LoadingOverlay Text="{Binding LoadingText}"
                                       Visibility="{Binding ShowLoading, Converter={StaticResource BoolToVisibility}}" />
 
+                <!-- Key to the pins: the ring's colours are the share of
+                     devices in each state; the badge counts those down. -->
+                <Border HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Margin="12"
+                        Padding="10,7"
+                        CornerRadius="6"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        Opacity="0.92"
+                        IsHitTestVisible="False">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{Binding Source={x:Static vm:MapLegend.Up}}" VerticalAlignment="Center" />
+                            <TextBlock Text="Up" Style="{StaticResource SubtleTextStyle}" FontSize="11" Margin="5,0,12,0" />
+                            <Ellipse Width="9" Height="9" Fill="{Binding Source={x:Static vm:MapLegend.Down}}" VerticalAlignment="Center" />
+                            <TextBlock Text="Down" Style="{StaticResource SubtleTextStyle}" FontSize="11" Margin="5,0,12,0" />
+                            <Ellipse Width="9" Height="9" Fill="{Binding Source={x:Static vm:MapLegend.Maintenance}}" VerticalAlignment="Center" />
+                            <TextBlock Text="Maintenance" Style="{StaticResource SubtleTextStyle}" FontSize="11" Margin="5,0,12,0" />
+                            <Ellipse Width="9" Height="9" Fill="{Binding Source={x:Static vm:MapLegend.Inactive}}" VerticalAlignment="Center" />
+                            <TextBlock Text="Disabled" Style="{StaticResource SubtleTextStyle}" FontSize="11" Margin="5,0,0,0" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   FontSize="11"
+                                   Margin="0,5,0,0"
+                                   Text="Ring = share of devices in each state · red badge = devices down · solid red = every device down" />
+                    </StackPanel>
+                </Border>
+
                 <Border HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         Background="{StaticResource SurfaceBrush}"
