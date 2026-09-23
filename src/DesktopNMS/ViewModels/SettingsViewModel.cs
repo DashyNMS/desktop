@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows.Media;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
+using DesktopNMS.Core.CustomMaps;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Updates;
@@ -96,6 +97,7 @@ public sealed class PersistenceOption
 public sealed class SettingsViewModel : ObservableObject
 {
     private readonly ISettingsStore _store;
+    private readonly ICustomMapStore _customMaps;
     private readonly IStartupRegistration _startup;
     private readonly IAlertNotificationService _notifications;
     private readonly IUpdateCheckService _updates;
@@ -132,9 +134,11 @@ public sealed class SettingsViewModel : ObservableObject
         ILibreNmsClient client,
         IUnimusApi unimus,
         IUnimusTokenProtector unimusTokens,
-        IUnimusDeviceResolver unimusResolver)
+        IUnimusDeviceResolver unimusResolver,
+        ICustomMapStore customMaps)
     {
         _store = store;
+        _customMaps = customMaps;
         _startup = startup;
         _notifications = notifications;
         _updates = updates;
@@ -1252,15 +1256,16 @@ public sealed class SettingsViewModel : ObservableObject
 
     // ----------------------------------------------------------------- maps
 
-    /// <summary>
-    /// What the Maps tab opens on. Network and Geographical today; custom
-    /// maps join this list (as "custom:{id}") once they exist.
-    /// </summary>
-    public IReadOnlyList<DefaultMapOption> DefaultMapOptions { get; } = new[]
-    {
-        new DefaultMapOption(AppSettings.DefaultMapNetwork, "Network"),
-        new DefaultMapOption(AppSettings.DefaultMapGeographical, "Geographical"),
-    };
+    private IReadOnlyList<DefaultMapOption>? _defaultMapOptions;
+
+    /// <summary>What the Maps tab opens on: Network, Geographical, or any saved custom map (as "custom:{id}").</summary>
+    public IReadOnlyList<DefaultMapOption> DefaultMapOptions => _defaultMapOptions ??= new[]
+        {
+            new DefaultMapOption(AppSettings.DefaultMapNetwork, "Network"),
+            new DefaultMapOption(AppSettings.DefaultMapGeographical, "Geographical"),
+        }
+        .Concat(_customMaps.List().Select(m => new DefaultMapOption(AppSettings.DefaultMapCustomPrefix + m.Id, "Custom: " + m.Name)))
+        .ToList();
 
     public DefaultMapOption SelectedDefaultMap
     {

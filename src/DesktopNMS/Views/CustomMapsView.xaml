@@ -3,29 +3,504 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:views="clr-namespace:DesktopNMS.Views"
              mc:Ignorable="d"
-             d:DesignHeight="600" d:DesignWidth="1100">
+             d:DataContext="{d:DesignInstance Type=vm:CustomMapsViewModel}"
+             d:DesignHeight="700" d:DesignWidth="1300">
 
-    <!-- The Maps tab's Custom Maps page - deliberately empty for now.
-         Custom maps (hand-arranged diagrams, like LibreNMS's own Custom
-         Maps) come later; once they exist, one can also be chosen as the
-         Default map in Settings. -->
-    <Grid Background="{StaticResource BackgroundBrush}">
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
-            <TextBlock Text="&#xE707;"
-                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                       FontSize="40"
-                       HorizontalAlignment="Center"
-                       Foreground="{StaticResource TextSecondaryBrush}"
-                       Margin="0,0,0,14" />
-            <TextBlock Text="No custom maps yet"
-                       Style="{StaticResource HeadingTextStyle}"
-                       HorizontalAlignment="Center" />
-            <TextBlock Text="Custom maps will let you lay out your own diagrams of devices and links. Once you have some, you'll be able to pick one as the map the Maps tab opens on."
-                       Style="{StaticResource SubtleTextStyle}"
-                       TextWrapping="Wrap"
-                       TextAlignment="Center"
-                       Margin="0,8,0,0" />
-        </StackPanel>
+    <UserControl.Resources>
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="0,10,0,3" />
+        </Style>
+
+        <!-- ================= Node properties ================= -->
+        <DataTemplate DataType="{x:Type vm:CustomMapNodeEditor}">
+            <StackPanel>
+                <TextBlock Text="Node" Style="{StaticResource HeadingTextStyle}" />
+
+                <TextBlock Text="Label" Style="{StaticResource FieldLabel}" />
+                <TextBox Text="{Binding Label, UpdateSourceTrigger=PropertyChanged, Delay=250}" />
+
+                <TextBlock Text="Device" Style="{StaticResource FieldLabel}" />
+                <ComboBox ItemsSource="{Binding Devices}"
+                          SelectedItem="{Binding Device}"
+                          DisplayMemberPath="Name"
+                          IsEditable="True"
+                          IsTextSearchEnabled="True"
+                          TextSearch.TextPath="Name"
+                          ToolTip="Type to find a device - the node shows that device's state">
+                    <ComboBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel />
+                        </ItemsPanelTemplate>
+                    </ComboBox.ItemsPanel>
+                </ComboBox>
+
+                <TextBlock Text="Links to map" Style="{StaticResource FieldLabel}" />
+                <ComboBox ItemsSource="{Binding Maps}"
+                          SelectedItem="{Binding LinkedMap}"
+                          DisplayMemberPath="Name"
+                          ToolTip="Double-clicking the node opens this map, and it shows as down if anything on that map is" />
+
+                <TextBlock Text="Style" Style="{StaticResource FieldLabel}" />
+                <ComboBox ItemsSource="{Binding Source={x:Static vm:CustomMapNodeEditor.Styles}}"
+                          SelectedItem="{Binding Style}"
+                          DisplayMemberPath="Label" />
+
+                <StackPanel Visibility="{Binding IsIconStyle, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="Icon" Style="{StaticResource FieldLabel}" />
+                    <ComboBox ItemsSource="{Binding Source={x:Static vm:CustomMapNodeEditor.Icons}}"
+                              SelectedItem="{Binding Icon}"
+                              DisplayMemberPath="Label" />
+                </StackPanel>
+
+                <Button Content="Choose image..."
+                        Command="{Binding DataContext.ChooseNodeImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        HorizontalAlignment="Left"
+                        Padding="10,5"
+                        Margin="0,8,0,0"
+                        Visibility="{Binding IsImageStyle, Converter={StaticResource BoolToVisibility}}" />
+
+                <Grid Margin="0,0,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Size" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding Size}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Border width" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding BorderWidth}" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Font" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding TextFace}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Font size" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding TextSize}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Colours (#RRGGBB)" Style="{StaticResource FieldLabel}" />
+                <views:ColourField Label="Text" Value="{Binding TextColour, Mode=TwoWay}" />
+                <views:ColourField Label="Fill" Value="{Binding BackgroundColour, Mode=TwoWay}" Margin="0,6,0,0" />
+                <views:ColourField Label="Border" Value="{Binding BorderColour, Mode=TwoWay}" Margin="0,6,0,0" />
+
+                <Button Content="Use as default for new nodes"
+                        Command="{Binding DataContext.UseAsNodeDefaultCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        HorizontalAlignment="Left"
+                        Padding="10,5"
+                        Margin="0,16,0,0" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- ================= Link properties ================= -->
+        <DataTemplate DataType="{x:Type vm:CustomMapEdgeEditor}">
+            <StackPanel>
+                <TextBlock Text="Link" Style="{StaticResource HeadingTextStyle}" />
+                <TextBlock Text="{Binding EndsText}" Style="{StaticResource SubtleTextStyle}" Margin="0,2,0,0" TextWrapping="Wrap" />
+
+                <TextBlock Text="Port (colours the link by its traffic)" Style="{StaticResource FieldLabel}" />
+                <ComboBox ItemsSource="{Binding Ports}"
+                          SelectedItem="{Binding Port}"
+                          DisplayMemberPath="Label"
+                          IsEditable="True"
+                          IsTextSearchEnabled="True"
+                          TextSearch.TextPath="Label">
+                    <ComboBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel />
+                        </ItemsPanelTemplate>
+                    </ComboBox.ItemsPanel>
+                </ComboBox>
+
+                <CheckBox Content="Reverse port direction"
+                          IsChecked="{Binding Reverse}"
+                          ToolTip="Swap which half shows inbound and which outbound - for a port on the far end of the link"
+                          Margin="0,10,0,0" />
+                <CheckBox Content="Show percent usage" IsChecked="{Binding ShowPercent}" Margin="0,6,0,0" />
+                <CheckBox Content="Show bits per second" IsChecked="{Binding ShowBps}" Margin="0,6,0,0" />
+
+                <TextBlock Text="Label" Style="{StaticResource FieldLabel}" />
+                <TextBox Text="{Binding Label, UpdateSourceTrigger=PropertyChanged, Delay=250}" />
+
+                <TextBlock Text="Line style" Style="{StaticResource FieldLabel}" />
+                <ComboBox ItemsSource="{Binding Source={x:Static vm:CustomMapEdgeEditor.LineStyles}}"
+                          SelectedItem="{Binding LineStyle}"
+                          DisplayMemberPath="Label" />
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Width (blank = by speed)" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding FixedWidth}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Font size" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding TextSize}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Label colour" Style="{StaticResource FieldLabel}" />
+                <views:ColourField Label="Text" Value="{Binding TextColour, Mode=TwoWay}" />
+
+                <Button Content="Use as default for new links"
+                        Command="{Binding DataContext.UseAsLinkDefaultCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        HorizontalAlignment="Left"
+                        Padding="10,5"
+                        Margin="0,16,0,0" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- ================= Map settings ================= -->
+        <DataTemplate DataType="{x:Type vm:CustomMapSettingsEditor}">
+            <StackPanel>
+                <TextBlock Text="Map settings" Style="{StaticResource HeadingTextStyle}" />
+                <TextBlock Text="Select a node or link to edit it instead."
+                           Style="{StaticResource SubtleTextStyle}"
+                           Margin="0,2,0,0" />
+
+                <TextBlock Text="Name" Style="{StaticResource FieldLabel}" />
+                <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged, Delay=400}" />
+
+                <TextBlock Text="Menu group (maps in the same group are listed together)" Style="{StaticResource FieldLabel}" TextWrapping="Wrap" />
+                <TextBox Text="{Binding MenuGroup, UpdateSourceTrigger=PropertyChanged, Delay=400}" />
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Width" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding Width}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Height" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding Height}" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Snap grid (0 = off)" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding NodeAlign}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Link midpoint gap" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding EdgeSeparation}" />
+                    </StackPanel>
+                </Grid>
+
+                <CheckBox Content="Reverse arrows (point out from the middle)" IsChecked="{Binding ReverseArrows}" Margin="0,10,0,0" />
+
+                <TextBlock Text="Background" Style="{StaticResource FieldLabel}" />
+                <ComboBox ItemsSource="{Binding Source={x:Static vm:CustomMapSettingsEditor.BackgroundTypes}}"
+                          SelectedItem="{Binding BackgroundType}"
+                          DisplayMemberPath="Label" />
+
+                <views:ColourField Label="Colour"
+                                   Value="{Binding BackgroundColour, Mode=TwoWay}"
+                                   Margin="0,8,0,0"
+                                   Visibility="{Binding IsColourBackground, Converter={StaticResource BoolToVisibility}}" />
+
+                <Button Content="Choose background image..."
+                        Command="{Binding DataContext.ChooseBackgroundImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        HorizontalAlignment="Left"
+                        Padding="10,5"
+                        Margin="0,8,0,0"
+                        Visibility="{Binding IsImageBackground, Converter={StaticResource BoolToVisibility}}" />
+
+                <Grid Visibility="{Binding IsMapBackground, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="60" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Latitude" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding Latitude}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Longitude" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding Longitude}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="4">
+                        <TextBlock Text="Zoom" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding Zoom}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Legend" Style="{StaticResource FieldLabel}" />
+                <CheckBox Content="Show the link utilisation legend (drag it to move)" IsChecked="{Binding ShowLegend}" />
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Steps" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding LegendSteps}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Font size" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding LegendFontSize}" />
+                    </StackPanel>
+                </Grid>
+                <CheckBox Content="Hide the Unknown row" IsChecked="{Binding LegendHideInvalid}" Margin="0,8,0,0" />
+                <CheckBox Content="Scale to 100% (hide overspeed)" IsChecked="{Binding LegendHideOverspeed}" Margin="0,6,0,0" />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ======================== Map list ======================== -->
+        <Border Grid.Column="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,1,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="14,12,10,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Custom maps" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1"
+                            Command="{Binding ImportMapCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Import a map (.map file)"
+                            Margin="0,0,2,0">
+                        <TextBlock Text="&#xE8B5;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" />
+                    </Button>
+                    <Button Grid.Column="2"
+                            Command="{Binding NewMapCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="New map">
+                        <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                    </Button>
+                </Grid>
+
+                <ListBox Grid.Row="1"
+                         ItemsSource="{Binding MapsView}"
+                         SelectedItem="{Binding SelectedSummary}"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name, TargetNullValue=Ungrouped}"
+                                               Style="{StaticResource SectionHeaderStyle}"
+                                               Margin="10,10,0,4" />
+                                </DataTemplate>
+                            </GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ListBox.GroupStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="4,3">
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}" FontSize="11">
+                                    <Run Text="{Binding NodeCount, Mode=OneWay}" /><Run Text=" nodes" />
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <TextBlock Grid.Row="1"
+                           Text="No custom maps yet. Use + to create one, or import a .map file."
+                           Style="{StaticResource SubtleTextStyle}"
+                           TextWrapping="Wrap"
+                           Margin="14,10"
+                           Visibility="{Binding HasMaps, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+            </Grid>
+        </Border>
+
+        <!-- ======================== Map ======================== -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="16,10"
+                    Visibility="{Binding HasMap, Converter={StaticResource BoolToVisibility}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding TitleText}"
+                               Style="{StaticResource HeadingTextStyle}"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+
+                    <!-- Viewing -->
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                Visibility="{Binding IsViewing, Converter={StaticResource BoolToVisibility}}">
+                        <Button Content="Edit" Command="{Binding EditMapCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="14,6" Margin="0,0,8,0" />
+                        <Button Content="Export..." Command="{Binding ExportMapCommand}" Padding="10,6" Margin="0,0,8,0" ToolTip="Save this map as a .map file" />
+                        <Button Content="Duplicate" Command="{Binding DuplicateMapCommand}" Padding="10,6" Margin="0,0,8,0" />
+                        <Button Content="Delete" Command="{Binding DeleteMapCommand}" Padding="10,6" Margin="0,0,8,0" />
+                        <Button Click="OnFitClick" Style="{StaticResource IconButtonStyle}" ToolTip="Fit the map in view">
+                            <TextBlock Text="&#xE9A6;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Editing -->
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibility}}">
+                        <ToggleButton Content="Select"
+                                      IsChecked="{Binding IsSelectTool, Mode=OneWay}"
+                                      Command="{Binding SelectToolCommand}"
+                                      CommandParameter="Select"
+                                      Style="{StaticResource ChipToggleStyle}"
+                                      Margin="0,0,6,0" />
+                        <ToggleButton Content="Add node"
+                                      IsChecked="{Binding IsAddNodeTool, Mode=OneWay}"
+                                      Command="{Binding SelectToolCommand}"
+                                      CommandParameter="AddNode"
+                                      Style="{StaticResource ChipToggleStyle}"
+                                      Margin="0,0,6,0" />
+                        <ToggleButton Content="Add link"
+                                      IsChecked="{Binding IsAddLinkTool, Mode=OneWay}"
+                                      Command="{Binding SelectToolCommand}"
+                                      CommandParameter="AddLink"
+                                      Style="{StaticResource ChipToggleStyle}"
+                                      Margin="0,0,12,0" />
+                        <Button Content="Delete" Command="{Binding DeleteSelectionCommand}" Padding="10,6" Margin="0,0,8,0" ToolTip="Delete the selected node or link (Del)" />
+                        <Button Content="Recentre links" Command="{Binding RecentreLinksCommand}" Padding="10,6" Margin="0,0,16,0" ToolTip="Straighten every link - put its midpoint back halfway between its nodes" />
+                        <Button Content="Save" Command="{Binding SaveMapCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="14,6" Margin="0,0,8,0" />
+                        <Button Content="Cancel" Command="{Binding CancelEditCommand}" Padding="10,6" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="1"
+                               Grid.ColumnSpan="2"
+                               Text="{Binding ToolHint}"
+                               Style="{StaticResource SubtleTextStyle}"
+                               Margin="0,6,0,0"
+                               Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibility}}" />
+                </Grid>
+            </Border>
+
+            <views:CustomMapCanvas Grid.Row="1"
+                                   x:Name="MapCanvas"
+                                   Map="{Binding Map}"
+                                   Visuals="{Binding Visuals}"
+                                   IsEditing="{Binding IsEditing}"
+                                   SelectedNodeId="{Binding SelectedNodeId, Mode=OneWay}"
+                                   SelectedEdgeId="{Binding SelectedEdgeId, Mode=OneWay}"
+                                   RenderVersion="{Binding RenderVersion}"
+                                   Tiles="{Binding Tiles}"
+                                   TileTemplate="{Binding TileTemplate}"
+                                   Visibility="{Binding HasMap, Converter={StaticResource BoolToVisibility}}" />
+
+            <StackPanel Grid.Row="0"
+                        Grid.RowSpan="2"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        MaxWidth="420"
+                        Visibility="{Binding HasMap, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                <TextBlock Text="&#xE707;"
+                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                           FontSize="40"
+                           HorizontalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Margin="0,0,0,14" />
+                <TextBlock Text="Custom maps"
+                           Style="{StaticResource HeadingTextStyle}"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="Draw your own diagrams of devices and links, like LibreNMS's Custom Maps - with live device status and link traffic. Pick a map on the left, create one with +, or import a .map file."
+                           Style="{StaticResource SubtleTextStyle}"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           Margin="0,8,0,0" />
+            </StackPanel>
+        </Grid>
+
+        <!-- ======================== Properties / details ======================== -->
+        <Border Grid.Column="2"
+                Width="320"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1,0,0,0"
+                Visibility="{Binding HasEditor, Converter={StaticResource BoolToVisibility}}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ContentControl Content="{Binding Editor}" Margin="18,14,18,18" Focusable="False" />
+            </ScrollViewer>
+        </Border>
+
+        <Border Grid.Column="2"
+                Width="280"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1,0,0,0"
+                Padding="18,14"
+                Visibility="{Binding HasViewSelection, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel>
+                <TextBlock Text="{Binding ViewSelectionName}" Style="{StaticResource HeadingTextStyle}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ViewSelectionState}" Style="{StaticResource SubtleTextStyle}" Margin="0,4,0,0" />
+                <Button Content="Open"
+                        Command="{Binding OpenSelectedCommand}"
+                        ToolTip="Open the device, or the map this node links to"
+                        HorizontalAlignment="Left"
+                        Padding="12,6"
+                        Margin="0,12,0,0" />
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>

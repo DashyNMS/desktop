@@ -192,6 +192,9 @@ public sealed class AppSettings
 
     public const string DefaultMapGeographical = "Geographical";
 
+    /// <summary>Followed by a custom map's id - see Core.CustomMaps.</summary>
+    public const string DefaultMapCustomPrefix = "custom:";
+
     /// <summary>
     /// The Geographical map's tile server - null for OpenStreetMap's standard
     /// tiles (LibreNMS's own default). Takes a full {z}/{x}/{y} template or

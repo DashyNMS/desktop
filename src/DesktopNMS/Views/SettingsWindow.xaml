@@ -581,7 +581,7 @@
                                 <TextBlock Style="{StaticResource SubtleTextStyle}"
                                            TextWrapping="Wrap"
                                            Margin="0,6,0,0"
-                                           Text="Which map opens when you click Maps. The others are always a hover away. Custom maps will be selectable here once you have some." />
+                                           Text="Which map opens when you click Maps - Network, Geographical, or one of your custom maps. The others are always a hover away." />
                             </StackPanel>
                         </Border>
 

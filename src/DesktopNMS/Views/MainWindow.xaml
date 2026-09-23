@@ -347,7 +347,7 @@
             </Grid>
 
             <Grid Visibility="{Binding IsCustomMapsTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:CustomMapsView />
+                <views:CustomMapsView x:Name="CustomMapsViewControl" DataContext="{Binding CustomMaps}" />
             </Grid>
 
             <Grid Visibility="{Binding IsRulesTabSelected, Converter={StaticResource BoolToVisibility}}">
