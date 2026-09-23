@@ -308,6 +308,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         PreviousChangeCommand = new RelayCommand(() => GoToChange(_currentChangeIndex - 1), CanGoToPreviousChange);
         ExpandHiddenLinesCommand = new RelayCommand(ExpandHiddenLines);
         CopyConfigLinesCommand = new RelayCommand(CopyConfigLines);
+        ExportConfigCommand = new RelayCommand(ExportConfig);
         SelectEditCommand = new RelayCommand(SelectEdit);
 
         SaveEditCommand = new AsyncRelayCommand(SaveEditAsync, () => !IsSavingEdit);
@@ -854,6 +855,11 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     private UnimusDiffResult? _currentDiffResult;
 
+    /// <summary>The two backups behind the current diff, oldest first - for the exported file's header and name.</summary>
+    private UnimusBackupItemViewModel? _diffOriginal;
+
+    private UnimusBackupItemViewModel? _diffRevised;
+
     private readonly HashSet<int> _expandedHiddenStarts = new();
 
     public bool HasDiff => _currentDiff is not null;
@@ -922,6 +928,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public RelayCommand ExpandHiddenLinesCommand { get; }
 
     public RelayCommand CopyConfigLinesCommand { get; }
+
+    /// <summary>Saves the shown backup (as-is) or comparison (as a .diff) to a file.</summary>
+    public RelayCommand ExportConfigCommand { get; }
 
     /// <summary>
     /// Asks the view to scroll the line viewer so this row index is in view,
@@ -1063,6 +1072,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         _currentDiff = null;
         _currentDiffResult = null;
+        _diffOriginal = null;
+        _diffRevised = null;
         _currentChangeIndex = -1;
         _expandedHiddenStarts.Clear();
         DiffHeaderText = null;
@@ -1158,10 +1169,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
 
         var text = HasDiff
-            ? string.Join(Environment.NewLine, lines.Select(l => l.IsHidden
-                ? $"@@ {l.Row.HiddenCount} unchanged lines @@"
-                : $"{(l.Prefix.Length > 0 ? l.Prefix : " ")} {l.Text}"))
-            : string.Join(Environment.NewLine, lines.Select(l => l.Text));
+            ? UnimusExport.ToDiffText(lines.Select(l => l.Row))
+            : SelectedBackup?.Backup.Content ?? string.Join(Environment.NewLine, lines.Select(l => l.Text));
 
         try
         {
@@ -1170,6 +1179,100 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         catch (ExternalException)
         {
             // Another process briefly holds the clipboard - not worth surfacing as an error.
+        }
+    }
+
+    /// <summary>
+    /// Saves what the viewer is showing to a file: a single backup exactly
+    /// as Unimus stored it (byte for byte, so binary backups - which can't be
+    /// shown here - export too), or a comparison as a .diff with a header
+    /// naming both backups. The diff follows the current display options
+    /// (only-changed, ignore-empty), same as Copy - what you see is what's saved.
+    /// </summary>
+    private void ExportConfig()
+    {
+        if (HasDiff)
+        {
+            ExportDiff();
+        }
+        else if (SelectedBackup is { } backup)
+        {
+            ExportBackup(backup);
+        }
+    }
+
+    private void ExportBackup(UnimusBackupItemViewModel item)
+    {
+        if (item.Backup.RawBytes is not { } bytes)
+        {
+            _windows.ShowInformation("Nothing to export", "Unimus didn't return any content for this backup.");
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Export configuration",
+            Filter = item.IsText
+                ? "Config files (*.cfg)|*.cfg|Text files (*.txt)|*.txt|All files (*.*)|*.*"
+                : "Binary files (*.bin)|*.bin|All files (*.*)|*.*",
+            FileName = UnimusExport.FileNameFor(Name, item.Backup.ValidSinceUtc?.ToLocalTime(), item.IsText ? ".cfg" : ".bin"),
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            WriteExport(dialog.FileName, () => File.WriteAllBytes(dialog.FileName, bytes));
+        }
+    }
+
+    /// <summary>
+    /// A standard unified diff of the whole comparison (see
+    /// <see cref="UnimusExport.ToUnifiedDiff"/>) - deliberately not the
+    /// viewer's collapsed/filtered display, so the file describes the real
+    /// change and git, patch and diff viewers all read it.
+    /// </summary>
+    private void ExportDiff()
+    {
+        if (_currentDiff is not { } diff || _diffOriginal is not { } original || _diffRevised is not { } revised)
+        {
+            return;
+        }
+
+        var text = UnimusExport.ToUnifiedDiff(
+            diff,
+            UnimusExport.FileHeader(Name, original.Backup.ValidSinceUtc),
+            UnimusExport.FileHeader(Name, revised.Backup.ValidSinceUtc));
+
+        if (text.Length == 0)
+        {
+            _windows.ShowInformation("Nothing to export", "These two backups are identical, so there's no difference to save.");
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Export comparison",
+            Filter = "Diff files (*.diff)|*.diff|Patch files (*.patch)|*.patch|All files (*.*)|*.*",
+            FileName = UnimusExport.FileNameFor(Name, revised.Backup.ValidSinceUtc?.ToLocalTime(), ".diff"),
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            // UTF-8 without a BOM - a BOM ahead of "---" can stop patch tools
+            // recognising the header.
+            WriteExport(dialog.FileName, () => File.WriteAllText(dialog.FileName, text, new System.Text.UTF8Encoding(false)));
+        }
+    }
+
+    private void WriteExport(string path, Action write)
+    {
+        try
+        {
+            write();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Could not export Unimus config to {Path}", path);
+            _windows.ShowError("Export failed", ex.Message);
         }
     }
 
@@ -1189,6 +1292,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             var diff = await _unimus.GetDiffAsync(orig.Id, rev.Id, _loadCts.Token).ConfigureAwait(true);
             _currentDiff = diff ?? new UnimusBackupDiff();
+            _diffOriginal = orig;
+            _diffRevised = rev;
             DiffHeaderText = $"{orig.DateText}  →  {rev.DateText}";
             RenderDiff();
         }
