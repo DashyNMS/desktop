@@ -65,6 +65,38 @@ public sealed record MapScopeOption(string Key, string DisplayName, string? Grou
     public override string ToString() => DisplayName;
 }
 
+/// <summary>The "All devices / each device group" scope list both maps share.</summary>
+public static class MapScopes
+{
+    public static MapScopeOption AllDevices { get; } = new("all", "All devices", null);
+
+    /// <summary>
+    /// Brings the list in line with the current group names (after
+    /// <see cref="AllDevices"/>). Only touches it when the groups actually
+    /// changed - clearing it would momentarily remove a selected group.
+    /// Returns true if it changed, so the caller can re-select by key.
+    /// </summary>
+    public static bool Sync(ObservableCollection<MapScopeOption> scopes, IReadOnlyList<string> groupNames)
+    {
+        if (scopes.Skip(1).Select(s => s.GroupName).SequenceEqual(groupNames))
+        {
+            return false;
+        }
+
+        while (scopes.Count > 1)
+        {
+            scopes.RemoveAt(scopes.Count - 1);
+        }
+
+        foreach (var name in groupNames)
+        {
+            scopes.Add(new MapScopeOption("group:" + name, name, name));
+        }
+
+        return true;
+    }
+}
+
 /// <summary>One line in the selected device's connection list: "Gi1/0/48 → r-sw-core-02 (1/1/1)".</summary>
 public sealed class MapConnectionItem
 {
@@ -85,7 +117,7 @@ public sealed class MapConnectionItem
 }
 
 /// <summary>
-/// The Map tab (issue #56): LibreNMS's discovered LLDP/CDP links drawn as a
+/// The Maps tab's Network map (issue #56): LibreNMS's discovered LLDP/CDP links drawn as a
 /// network map, for the whole fleet or one device group. Nodes are coloured
 /// by device up/down state from the shared <see cref="DeviceMonitor"/> poll;
 /// links come from one fleet-wide <c>resources/links</c> call, re-fetched on
@@ -98,8 +130,6 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
 {
     /// <summary>How stale the link list can get before showing the tab again re-fetches it - links change far less often than device state.</summary>
     private static readonly TimeSpan LinksMaxAge = TimeSpan.FromMinutes(10);
-
-    private const string AllDevicesKey = "all";
 
     private readonly DeviceMonitor _deviceMonitor;
     private readonly ILibreNmsClient _client;
@@ -150,7 +180,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
-        _selectedScope = new MapScopeOption(AllDevicesKey, "All devices", null);
+        _selectedScope = MapScopes.AllDevices;
         Scopes = new ObservableCollection<MapScopeOption> { _selectedScope };
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => _session.IsConnected && !IsLoading);
@@ -415,25 +445,11 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     private void OnGroupMembershipChanged(object? sender, EventArgs e)
     {
         var current = _selectedScope;
-        var names = _groupMembership.GroupNames;
 
-        // Only touch the picker when the set of groups actually changed -
-        // clearing it would momentarily remove the selected group.
-        if (!Scopes.Skip(1).Select(s => s.GroupName).SequenceEqual(names))
+        if (MapScopes.Sync(Scopes, _groupMembership.GroupNames))
         {
-            while (Scopes.Count > 1)
-            {
-                Scopes.RemoveAt(Scopes.Count - 1);
-            }
-
-            foreach (var name in names)
-            {
-                Scopes.Add(new MapScopeOption("group:" + name, name, name));
-            }
-
             // Keep the selection by key where that group still exists.
-            var match = Scopes.FirstOrDefault(s => s.Key == current.Key) ?? Scopes[0];
-            _selectedScope = match;
+            _selectedScope = Scopes.FirstOrDefault(s => s.Key == current.Key) ?? Scopes[0];
             OnPropertyChanged(nameof(SelectedScope));
         }
 

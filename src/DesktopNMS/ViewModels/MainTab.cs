@@ -12,6 +12,12 @@ public enum MainTab
     Rules,
     Templates,
 
-    /// <summary>The network map (issue #56).</summary>
-    Map,
+    /// <summary>Maps → Network: the LLDP/CDP topology map (issue #56).</summary>
+    MapsNetwork,
+
+    /// <summary>Maps → Geographical: locations as pins on a real map.</summary>
+    MapsGeographical,
+
+    /// <summary>Maps → Custom Maps - empty for now.</summary>
+    MapsCustom,
 }

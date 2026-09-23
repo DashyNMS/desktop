@@ -274,3 +274,40 @@ internal static class FlexibleNumber
         }
     }
 }
+
+/// <summary>
+/// Reads a nullable <see cref="double"/> from a JSON number or numeric
+/// string, treating null, an empty string or anything unparseable as null.
+/// For fields like coordinates, where one odd value from some server must
+/// not fail the whole device list.
+/// </summary>
+public sealed class LooseNullableDoubleConverter : JsonConverter<double?>
+{
+    public override double? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Number:
+                return reader.GetDouble();
+            case JsonTokenType.String:
+                return double.TryParse(reader.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
+            case JsonTokenType.Null:
+                return null;
+            default:
+                reader.Skip();
+                return null;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, double? value, JsonSerializerOptions options)
+    {
+        if (value.HasValue)
+        {
+            writer.WriteNumberValue(value.Value);
+        }
+        else
+        {
+            writer.WriteNullValue();
+        }
+    }
+}

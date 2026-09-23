@@ -225,10 +225,59 @@
                                 </Border>
                             </Popup>
                         </Grid>
-                        <ToggleButton Content="Map"
-                                      Style="{StaticResource NavTabButtonStyle}"
-                                      IsChecked="{Binding IsMapTabSelected, Mode=OneWay}"
-                                      Command="{Binding SelectMapTabCommand}" />
+                        <!-- Maps' own click opens the Default map (Settings);
+                             hovering offers all three, same flyout pattern
+                             as Devices and Alerts. -->
+                        <Grid>
+                            <ToggleButton x:Name="MapsTabButton"
+                                          Style="{StaticResource NavTabButtonStyle}"
+                                          IsChecked="{Binding IsMapsFamilyTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectMapsTabCommand}"
+                                          MouseEnter="MapsTabButton_MouseEnter"
+                                          MouseLeave="MapsTabButton_MouseLeave">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Maps" />
+                                    <TextBlock Text="&#xE70D;"
+                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                               FontSize="9"
+                                               Margin="5,0,0,0"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ToggleButton>
+
+                            <Popup x:Name="MapsFlyout"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   StaysOpen="True">
+                                <Border x:Name="MapsFlyoutContent"
+                                        Background="{StaticResource SurfaceBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="4"
+                                        Margin="0,4,0,0"
+                                        MouseEnter="MapsFlyoutContent_MouseEnter"
+                                        MouseLeave="MapsFlyoutContent_MouseLeave">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
+                                    </Border.Effect>
+                                    <StackPanel MinWidth="140">
+                                        <Button Content="Network"
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding SelectNetworkMapTabCommand}"
+                                                Click="MapsFlyoutItem_Click" />
+                                        <Button Content="Geographical"
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding SelectGeoMapTabCommand}"
+                                                Click="MapsFlyoutItem_Click" />
+                                        <Button Content="Custom Maps"
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding SelectCustomMapsTabCommand}"
+                                                Click="MapsFlyoutItem_Click" />
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
                     </StackPanel>
                 </Border>
 
@@ -289,8 +338,16 @@
                 <views:LocationsView x:Name="LocationsViewControl" DataContext="{Binding Locations}" />
             </Grid>
 
-            <Grid Visibility="{Binding IsMapTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:NetworkMapView x:Name="MapViewControl" DataContext="{Binding Map}" />
+            <Grid Visibility="{Binding IsNetworkMapTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:NetworkMapView x:Name="NetworkMapViewControl" DataContext="{Binding NetworkMap}" />
+            </Grid>
+
+            <Grid Visibility="{Binding IsGeoMapTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:GeoMapView x:Name="GeoMapViewControl" DataContext="{Binding GeoMap}" />
+            </Grid>
+
+            <Grid Visibility="{Binding IsCustomMapsTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:CustomMapsView />
             </Grid>
 
             <Grid Visibility="{Binding IsRulesTabSelected, Converter={StaticResource BoolToVisibility}}">

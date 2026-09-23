@@ -244,6 +244,7 @@ public partial class App : Application
         services.AddSingleton<IAlertRuleCache, AlertRuleCache>();
         services.AddSingleton<IDeviceGroupMembershipService, DeviceGroupMembershipService>();
         services.AddSingleton<IMapLayoutStore, MapLayoutStore>();
+        services.AddSingleton<IMapTileService, MapTileService>();
         services.AddSingleton<IUnimusDeviceResolver, UnimusDeviceResolver>();
         services.AddSingleton<AlertMonitor>();
         services.AddSingleton<SensorMonitor>();
@@ -269,6 +270,7 @@ public partial class App : Application
         services.AddSingleton<RulesViewModel>();
         services.AddSingleton<TemplatesViewModel>();
         services.AddSingleton<NetworkMapViewModel>();
+        services.AddSingleton<GeoMapViewModel>();
         services.AddTransient<ConnectionViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AddDeviceViewModel>();

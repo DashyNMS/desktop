@@ -22,6 +22,7 @@ public enum SettingsSection
     HealthThresholds,
     Notifications,
     Devices,
+    Maps,
     Window,
     Appearance,
     Server,
@@ -61,6 +62,12 @@ public sealed class StartupTabOption
 
     public string Label { get; }
 
+    public override string ToString() => Label;
+}
+
+/// <summary>A choice in Settings → Maps → Default map.</summary>
+public sealed record DefaultMapOption(string Value, string Label)
+{
     public override string ToString() => Label;
 }
 
@@ -158,6 +165,8 @@ public sealed class SettingsViewModel : ObservableObject
         SelectAppearanceSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Appearance);
         SelectServerSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Server);
         SelectIntegrationsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Integrations);
+        SelectMapsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Maps);
+        ResetMapTileUrlCommand = new RelayCommand(() => MapTileUrl = null);
         SelectAboutSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.About);
 
         RefreshServerInfoCommand = new AsyncRelayCommand(RefreshServerInfoAsync, () => !IsRefreshingServerInfo);
@@ -205,6 +214,8 @@ public sealed class SettingsViewModel : ObservableObject
 
     public RelayCommand SelectIntegrationsSectionCommand { get; }
 
+    public RelayCommand SelectMapsSectionCommand { get; }
+
     public RelayCommand SelectAboutSectionCommand { get; }
 
     public SettingsSection SelectedSection
@@ -223,6 +234,7 @@ public sealed class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsAppearanceSectionSelected));
                 OnPropertyChanged(nameof(IsServerSectionSelected));
                 OnPropertyChanged(nameof(IsIntegrationsSectionSelected));
+                OnPropertyChanged(nameof(IsMapsSectionSelected));
                 OnPropertyChanged(nameof(IsAboutSectionSelected));
             }
         }
@@ -245,6 +257,8 @@ public sealed class SettingsViewModel : ObservableObject
     public bool IsServerSectionSelected => SelectedSection == SettingsSection.Server;
 
     public bool IsIntegrationsSectionSelected => SelectedSection == SettingsSection.Integrations;
+
+    public bool IsMapsSectionSelected => SelectedSection == SettingsSection.Maps;
 
     public bool IsAboutSectionSelected => SelectedSection == SettingsSection.About;
 
@@ -1235,6 +1249,65 @@ public sealed class SettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
+
+    // ----------------------------------------------------------------- maps
+
+    /// <summary>
+    /// What the Maps tab opens on. Network and Geographical today; custom
+    /// maps join this list (as "custom:{id}") once they exist.
+    /// </summary>
+    public IReadOnlyList<DefaultMapOption> DefaultMapOptions { get; } = new[]
+    {
+        new DefaultMapOption(AppSettings.DefaultMapNetwork, "Network"),
+        new DefaultMapOption(AppSettings.DefaultMapGeographical, "Geographical"),
+    };
+
+    public DefaultMapOption SelectedDefaultMap
+    {
+        get => DefaultMapOptions.FirstOrDefault(o => o.Value == _draft.DefaultMap) ?? DefaultMapOptions[0];
+        set
+        {
+            if (value is null || _draft.DefaultMap == value.Value)
+            {
+                return;
+            }
+
+            _draft.DefaultMap = value.Value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Blank means OpenStreetMap's standard tiles - LibreNMS's own default.</summary>
+    public string? MapTileUrl
+    {
+        get => _draft.MapTileUrl;
+        set
+        {
+            var trimmed = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (_draft.MapTileUrl == trimmed)
+            {
+                return;
+            }
+
+            _draft.MapTileUrl = trimmed;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(MapTileUrlStatusText));
+            OnPropertyChanged(nameof(MapTileUrlIsInvalid));
+        }
+    }
+
+    public bool MapTileUrlIsInvalid =>
+        _draft.MapTileUrl is not null && Core.Topology.TileUrlTemplate.Normalise(_draft.MapTileUrl) is null;
+
+    /// <summary>What the setting resolves to, so a LibreNMS-style host-only value visibly becomes a full address.</summary>
+    public string MapTileUrlStatusText =>
+        _draft.MapTileUrl is null
+            ? $"Using OpenStreetMap: {Core.Topology.TileUrlTemplate.Default}"
+            : Core.Topology.TileUrlTemplate.Normalise(_draft.MapTileUrl) is { } template
+                ? $"Tiles will load from: {template}"
+                : "Not a usable tile address - it needs {z}, {x} and {y} (or just a host, like LibreNMS's leaflet.tile_url). OpenStreetMap will be used instead.";
+
+    public RelayCommand ResetMapTileUrlCommand { get; }
 
     // -------------------------------------------------------- notifications
 

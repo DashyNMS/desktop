@@ -57,6 +57,19 @@ public sealed class Device
     [JsonConverter(typeof(DesktopNMS.Core.Json.LooseStringConverter))]
     public string? Location { get; set; }
 
+    /// <summary>The LibreNMS location this device belongs to - what the Geographical map groups devices into pins by.</summary>
+    [JsonPropertyName("location_id")]
+    public int? LocationId { get; set; }
+
+    /// <summary>The location's coordinates, joined onto the device row by /devices (null when the location has none).</summary>
+    [JsonPropertyName("lat")]
+    [JsonConverter(typeof(DesktopNMS.Core.Json.LooseNullableDoubleConverter))]
+    public double? Latitude { get; set; }
+
+    [JsonPropertyName("lng")]
+    [JsonConverter(typeof(DesktopNMS.Core.Json.LooseNullableDoubleConverter))]
+    public double? Longitude { get; set; }
+
     [JsonPropertyName("type")]
     public string? Type { get; set; }
 

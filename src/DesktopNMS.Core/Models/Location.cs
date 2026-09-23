@@ -18,9 +18,11 @@ public sealed class Location
     public string Name { get; set; } = string.Empty;
 
     [JsonPropertyName("lat")]
+    [JsonConverter(typeof(DesktopNMS.Core.Json.LooseNullableDoubleConverter))]
     public double? Latitude { get; set; }
 
     [JsonPropertyName("lng")]
+    [JsonConverter(typeof(DesktopNMS.Core.Json.LooseNullableDoubleConverter))]
     public double? Longitude { get; set; }
 
     /// <summary>True (LibreNMS's own default once coordinates are set) keeps <see cref="Latitude"/>/<see cref="Longitude"/> fixed; false lets a device's own reported coordinates overwrite them.</summary>
