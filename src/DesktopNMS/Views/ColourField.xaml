@@ -1,0 +1,33 @@
+<UserControl x:Class="DesktopNMS.Views.ColourField"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root">
+
+    <!-- A "#RRGGBB" box with a live swatch of the colour - for the custom
+         map editor's colour settings. -->
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="56" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.Column="0"
+                   Text="{Binding Label, ElementName=Root}"
+                   Style="{StaticResource SubtleTextStyle}"
+                   VerticalAlignment="Center" />
+        <Border Grid.Column="1"
+                x:Name="Swatch"
+                Width="20"
+                Height="20"
+                CornerRadius="4"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                Margin="0,0,8,0"
+                VerticalAlignment="Center" />
+        <TextBox Grid.Column="2"
+                 x:Name="Input"
+                 FontFamily="Consolas"
+                 TextChanged="OnTextChanged" />
+    </Grid>
+</UserControl>

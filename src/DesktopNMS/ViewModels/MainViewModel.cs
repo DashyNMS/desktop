@@ -50,6 +50,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly TemplatesViewModel _templates;
     private readonly NetworkMapViewModel _networkMap;
     private readonly GeoMapViewModel _geoMap;
+    private readonly CustomMapsViewModel _customMaps;
     private readonly IServerBrandingService _branding;
     private readonly ISelfActionTracker _selfActions;
     private readonly ILogger<MainViewModel> _logger;
@@ -112,6 +113,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         TemplatesViewModel templates,
         NetworkMapViewModel networkMap,
         GeoMapViewModel geoMap,
+        CustomMapsViewModel customMaps,
         IServerBrandingService branding,
         ISelfActionTracker selfActions,
         ILogger<MainViewModel> logger)
@@ -133,6 +135,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _templates = templates;
         _networkMap = networkMap;
         _geoMap = geoMap;
+        _customMaps = customMaps;
         _branding = branding;
         _selfActions = selfActions;
         _logger = logger;
@@ -315,6 +318,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>The geographical map, for Maps → Geographical to bind to.</summary>
     public GeoMapViewModel GeoMap => _geoMap;
 
+    /// <summary>The custom maps, for Maps → Custom Maps to bind to.</summary>
+    public CustomMapsViewModel CustomMaps => _customMaps;
+
     /// <summary>The connected server's favicon, shown next to the tabs. Null until it loads, or if there isn't one.</summary>
     public BitmapImage? ServerLogo => _branding.Logo;
 
@@ -399,6 +405,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 else if (value == MainTab.MapsGeographical)
                 {
                     _geoMap.OnShown();
+                }
+                else if (value == MainTab.MapsCustom)
+                {
+                    _customMaps.OnShown();
                 }
             }
         }
@@ -765,6 +775,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         else if (SelectedTab == MainTab.MapsGeographical)
         {
             _geoMap.OnShown();
+        }
+        else if (SelectedTab == MainTab.MapsCustom)
+        {
+            _customMaps.OnShown();
         }
     }
 
@@ -1343,13 +1357,24 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Clicking Maps itself opens the Default map from Settings. Custom maps
-    /// ("custom:{id}") don't exist yet, so anything unrecognised - including
-    /// a custom map that's since been deleted - falls back to Network.
+    /// Clicking Maps itself opens the Default map from Settings - Network,
+    /// Geographical, or a specific custom map ("custom:{id}"). Anything
+    /// unrecognised, including a custom map that's since been deleted,
+    /// falls back to Network.
     /// </summary>
     private void SelectDefaultMap()
     {
-        SelectedTab = _settings.Current.DefaultMap switch
+        var setting = _settings.Current.DefaultMap;
+
+        if (setting.StartsWith(AppSettings.DefaultMapCustomPrefix, StringComparison.Ordinal)
+            && _customMaps.Maps.Any(m => m.Id == setting[AppSettings.DefaultMapCustomPrefix.Length..]))
+        {
+            SelectedTab = MainTab.MapsCustom;
+            _customMaps.OpenMap(setting[AppSettings.DefaultMapCustomPrefix.Length..]);
+            return;
+        }
+
+        SelectedTab = setting switch
         {
             AppSettings.DefaultMapGeographical => MainTab.MapsGeographical,
             _ => MainTab.MapsNetwork,
@@ -1434,6 +1459,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                     _geoMap.RefreshCommand.Execute(null);
                 }
 
+                break;
+
+            case MainTab.MapsCustom:
+                _ = _customMaps.RefreshAsync();
                 break;
 
             default:
