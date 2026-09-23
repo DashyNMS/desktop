@@ -48,6 +48,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly LocationsViewModel _locations;
     private readonly RulesViewModel _rulesTab;
     private readonly TemplatesViewModel _templates;
+    private readonly NetworkMapViewModel _map;
     private readonly IServerBrandingService _branding;
     private readonly ISelfActionTracker _selfActions;
     private readonly ILogger<MainViewModel> _logger;
@@ -108,6 +109,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         LocationsViewModel locations,
         RulesViewModel rulesTab,
         TemplatesViewModel templates,
+        NetworkMapViewModel map,
         IServerBrandingService branding,
         ISelfActionTracker selfActions,
         ILogger<MainViewModel> logger)
@@ -127,6 +129,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _locations = locations;
         _rulesTab = rulesTab;
         _templates = templates;
+        _map = map;
         _branding = branding;
         _selfActions = selfActions;
         _logger = logger;
@@ -168,6 +171,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectLocationsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Locations);
         SelectRulesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Rules);
         SelectTemplatesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Templates);
+        SelectMapTabCommand = new RelayCommand(() => SelectedTab = MainTab.Map);
         RefreshCurrentTabCommand = new RelayCommand(RefreshCurrentTab);
         ClearCurrentTabFiltersCommand = new RelayCommand(ClearCurrentTabFilters);
         SettingsCommand = new RelayCommand(OpenSettings);
@@ -257,6 +261,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectTemplatesTabCommand { get; }
 
+    public RelayCommand SelectMapTabCommand { get; }
+
     /// <summary>F5: refreshes whichever tab is currently showing.</summary>
     public RelayCommand RefreshCurrentTabCommand { get; }
 
@@ -289,6 +295,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The alert template list, for the Templates tab's content to bind to.</summary>
     public TemplatesViewModel Templates => _templates;
+
+    /// <summary>The network map, for the Map tab's content to bind to.</summary>
+    public NetworkMapViewModel Map => _map;
 
     /// <summary>The connected server's favicon, shown next to the tabs. Null until it loads, or if there isn't one.</summary>
     public BitmapImage? ServerLogo => _branding.Logo;
@@ -333,6 +342,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsLocationsTabSelected));
                 OnPropertyChanged(nameof(IsRulesTabSelected));
                 OnPropertyChanged(nameof(IsTemplatesTabSelected));
+                OnPropertyChanged(nameof(IsMapTabSelected));
 
                 // Loaded once, lazily, the first time a tab is actually looked at.
                 if (value == MainTab.Devices)
@@ -363,6 +373,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 {
                     _templates.OnShown();
                 }
+                else if (value == MainTab.Map)
+                {
+                    _map.OnShown();
+                }
             }
         }
     }
@@ -388,6 +402,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public bool IsRulesTabSelected => SelectedTab == MainTab.Rules;
 
     public bool IsTemplatesTabSelected => SelectedTab == MainTab.Templates;
+
+    public bool IsMapTabSelected => SelectedTab == MainTab.Map;
 
     // -------------------------------------------------------------- filtering
 
@@ -711,6 +727,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         else if (SelectedTab == MainTab.Templates)
         {
             _templates.OnShown();
+        }
+        else if (SelectedTab == MainTab.Map)
+        {
+            _map.OnShown();
         }
     }
 
@@ -1352,6 +1372,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
                 break;
 
+            case MainTab.Map:
+                if (_map.RefreshCommand.CanExecute(null))
+                {
+                    _map.RefreshCommand.Execute(null);
+                }
+
+                break;
+
             default:
                 break;
         }
@@ -1387,6 +1415,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
             case MainTab.Templates:
                 _templates.ClearFiltersCommand.Execute(null);
+                break;
+
+            case MainTab.Map:
+                _map.ClearFiltersCommand.Execute(null);
                 break;
 
             case MainTab.Dashboard:

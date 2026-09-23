@@ -225,6 +225,10 @@
                                 </Border>
                             </Popup>
                         </Grid>
+                        <ToggleButton Content="Map"
+                                      Style="{StaticResource NavTabButtonStyle}"
+                                      IsChecked="{Binding IsMapTabSelected, Mode=OneWay}"
+                                      Command="{Binding SelectMapTabCommand}" />
                     </StackPanel>
                 </Border>
 
@@ -283,6 +287,10 @@
 
             <Grid Visibility="{Binding IsLocationsTabSelected, Converter={StaticResource BoolToVisibility}}">
                 <views:LocationsView x:Name="LocationsViewControl" DataContext="{Binding Locations}" />
+            </Grid>
+
+            <Grid Visibility="{Binding IsMapTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:NetworkMapView x:Name="MapViewControl" DataContext="{Binding Map}" />
             </Grid>
 
             <Grid Visibility="{Binding IsRulesTabSelected, Converter={StaticResource BoolToVisibility}}">

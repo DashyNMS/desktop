@@ -181,6 +181,14 @@ public interface ILinksApi
     /// (via LLDP/CDP/FDP/etc.) attached to this device's ports.
     /// </summary>
     Task<IReadOnlyList<NetworkLink>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/resources/links. Every discovered link on every device in
+    /// one call - what the network map (issue #56) is built from. Each
+    /// connection between two monitored devices usually appears twice, once
+    /// from each end (see <see cref="Topology.NetworkTopology"/>).
+    /// </summary>
+    Task<IReadOnlyList<NetworkLink>> ListAllAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>Port (network interface) endpoints.</summary>

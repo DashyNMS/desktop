@@ -139,6 +139,10 @@ public partial class MainWindow : Window
         {
             LocationsViewControl.FocusSearch();
         }
+        else if (_viewModel.IsMapTabSelected)
+        {
+            MapViewControl.FocusSearch();
+        }
 
         // Dashboard has no search box yet.
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using DesktopNMS.Core.Api;
@@ -23,6 +24,9 @@ public interface IDeviceGroupMembershipService
 
     /// <summary>The names of every group this device belongs to - empty when none, or before the first fetch completes.</summary>
     IReadOnlyList<string> GroupsFor(int deviceId);
+
+    /// <summary>Every group with at least one member, sorted by name - e.g. the network map's scope picker.</summary>
+    IReadOnlyList<string> GroupNames { get; }
 
     /// <summary>Fetches now if nothing has yet, and starts the periodic background refresh. Safe to call repeatedly.</summary>
     void EnsureStarted();
@@ -82,6 +86,10 @@ public sealed class DeviceGroupMembershipService : IDeviceGroupMembershipService
 
     public IReadOnlyList<string> GroupsFor(int deviceId) =>
         _membership.TryGetValue(deviceId, out var names) ? names : Array.Empty<string>();
+
+    public IReadOnlyList<string> GroupNames =>
+        _membership.Values.SelectMany(n => n).Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
 
     public void EnsureStarted()
     {

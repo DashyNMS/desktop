@@ -321,6 +321,9 @@ internal sealed class LinksApi : ILinksApi
         var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/links";
         return _transport.GetCollectionAsync<NetworkLink>(url, "links", cancellationToken);
     }
+
+    public Task<IReadOnlyList<NetworkLink>> ListAllAsync(CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<NetworkLink>("resources/links", "links", cancellationToken);
 }
 
 /// <summary>Implementation of <see cref="IPortsApi"/>.</summary>

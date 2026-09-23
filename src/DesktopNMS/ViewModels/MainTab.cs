@@ -11,4 +11,7 @@ public enum MainTab
     Locations,
     Rules,
     Templates,
+
+    /// <summary>The network map (issue #56).</summary>
+    Map,
 }
