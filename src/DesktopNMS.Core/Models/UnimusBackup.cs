@@ -41,6 +41,32 @@ public sealed class UnimusBackup
     [JsonIgnore]
     public string? Content => IsText && !string.IsNullOrEmpty(Bytes) && TryDecode(Bytes, out var text) ? text : null;
 
+    /// <summary>
+    /// The backup exactly as Unimus stored it - TEXT or BINARY alike - for
+    /// saving to a file byte for byte (line endings and encoding untouched).
+    /// Null when there's no content or it isn't valid base64.
+    /// </summary>
+    [JsonIgnore]
+    public byte[]? RawBytes
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(Bytes))
+            {
+                return null;
+            }
+
+            try
+            {
+                return Convert.FromBase64String(Bytes);
+            }
+            catch (FormatException)
+            {
+                return null;
+            }
+        }
+    }
+
     private static bool TryDecode(string base64, out string text)
     {
         try
