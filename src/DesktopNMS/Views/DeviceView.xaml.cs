@@ -1,6 +1,10 @@
+using System;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Threading;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.ViewModels;
@@ -33,6 +37,8 @@ public partial class DeviceView : Window
         EventLogGrid.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(OnEventLogScrollChanged));
 
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        viewModel.ScrollToConfigLineRequested += OnScrollToConfigLineRequested;
+        DiffRuler.NavigateRequested += OnDiffRulerNavigateRequested;
 
         ApplyGridLayouts();
     }
@@ -98,6 +104,15 @@ public partial class DeviceView : Window
     /// </summary>
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(DeviceDetailViewModel.ConfigLines))
+        {
+            // New content starts at the top unless the view model asks for
+            // something else straight after (a change to jump to, or "stay
+            // put" when a hidden run was expanded) - see ScheduleConfigLinesScroll.
+            _configLinesPreviousOffset = GetConfigLinesScrollViewer()?.VerticalOffset ?? 0;
+            ScheduleConfigLinesScroll(0);
+        }
+
         if (e.PropertyName == nameof(DeviceDetailViewModel.IsEditSelected)
             && DataContext is DeviceDetailViewModel { IsEditSelected: true })
         {
@@ -161,6 +176,172 @@ public partial class DeviceView : Window
         {
             menu.PlacementTarget = button;
             menu.IsOpen = true;
+        }
+    }
+
+    /// <summary>
+    /// The Unimus backups grid's own row selection drives the whole view/diff
+    /// area - no checkbox column or separate buttons (issue #115 follow-up:
+    /// the checkbox-based selection was fiddly). One row selected views it,
+    /// two diffs them - see DeviceDetailViewModel.OnConfigSelectionChanged.
+    /// </summary>
+    private void OnUnimusBackupsSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_suppressUnimusSelectionForward)
+        {
+            ForwardUnimusSelection();
+        }
+    }
+
+    private void ForwardUnimusSelection()
+    {
+        if (DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.OnConfigSelectionChanged(UnimusBackupsGrid.SelectedItems.Cast<UnimusBackupItemViewModel>().ToList());
+        }
+    }
+
+    /// <summary>Set while a tick-box click is being applied, so the grid's own intermediate selection changes don't reach the view model.</summary>
+    private bool _suppressUnimusSelectionForward;
+
+    /// <summary>
+    /// A tick-box click toggles that row in or out of the selection, like
+    /// ctrl-click. This can't just be a two-way binding to the row's
+    /// IsSelected: DataGridCell selects its row on mouse-down with a class
+    /// handler that runs even for already-handled events, so the row was
+    /// single-selected on press and then the tick box toggled it straight
+    /// back off on release. Instead, the intended selection is worked out
+    /// here, before the cell sees the click, and applied once the grid has
+    /// finished its own handling - at Normal priority, ahead of rendering, so
+    /// the grid's interim single-selection is never drawn.
+    /// </summary>
+    private void OnUnimusTickPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: UnimusBackupItemViewModel item })
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        var grid = UnimusBackupsGrid;
+        var desired = grid.SelectedItems.Cast<UnimusBackupItemViewModel>().ToList();
+        if (!desired.Remove(item))
+        {
+            desired.Add(item);
+        }
+
+        _suppressUnimusSelectionForward = true;
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
+        {
+            // The cell's own mouse-down may have started a drag-select
+            // (capturing the mouse) - end it so moving the mouse before
+            // release doesn't re-select over the top of this.
+            if (grid.IsMouseCaptured)
+            {
+                grid.ReleaseMouseCapture();
+            }
+
+            grid.SelectedItems.Clear();
+            foreach (var backup in desired)
+            {
+                grid.SelectedItems.Add(backup);
+            }
+
+            _suppressUnimusSelectionForward = false;
+            ForwardUnimusSelection();
+        });
+    }
+
+    /// <summary>How many rows to leave above a change when jumping to it, so it doesn't sit flush against the top edge.</summary>
+    private const int ConfigLinesJumpContext = 3;
+
+    private double _configLinesPreviousOffset;
+    private double? _pendingConfigLinesOffset;
+    private ScrollViewer? _configLinesScroll;
+
+    /// <summary>
+    /// The line viewer's ScrollViewer lives in its ItemsControl's template,
+    /// which isn't applied until the Unimus tab is first shown - so this is
+    /// looked up lazily, and hooked for the overview ruler's viewport box the
+    /// first time it's found.
+    /// </summary>
+    private ScrollViewer? GetConfigLinesScrollViewer()
+    {
+        if (_configLinesScroll is null)
+        {
+            ConfigLinesList.ApplyTemplate();
+            _configLinesScroll = ConfigLinesList.Template?.FindName("LinesScroll", ConfigLinesList) as ScrollViewer;
+            if (_configLinesScroll is not null)
+            {
+                _configLinesScroll.ScrollChanged += OnConfigLinesScrollChanged;
+            }
+        }
+
+        return _configLinesScroll;
+    }
+
+    private void OnScrollToConfigLineRequested(int? row)
+    {
+        ScheduleConfigLinesScroll(row is { } r ? Math.Max(0, r - ConfigLinesJumpContext) : _configLinesPreviousOffset);
+    }
+
+    /// <summary>
+    /// Scrolls once the new rows have actually been laid out (Loaded
+    /// priority) - scrolling straight away would act on the old ItemsSource.
+    /// Several requests in one pass collapse into one, the last one winning,
+    /// so a content change's "back to the top" is overridden by a jump to
+    /// the first change that immediately follows it.
+    /// </summary>
+    private void ScheduleConfigLinesScroll(double offset)
+    {
+        var alreadyScheduled = _pendingConfigLinesOffset is not null;
+        _pendingConfigLinesOffset = offset;
+
+        if (alreadyScheduled)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            if (_pendingConfigLinesOffset is { } target && GetConfigLinesScrollViewer() is { } scroll)
+            {
+                scroll.ScrollToVerticalOffset(target);
+                scroll.ScrollToHorizontalOffset(0);
+            }
+
+            _pendingConfigLinesOffset = null;
+        });
+    }
+
+    private void OnConfigLinesScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        // Item-based scrolling - offset/viewport/extent are all in rows here.
+        if (e.ExtentHeight > 0)
+        {
+            DiffRuler.ViewportStart = e.VerticalOffset / e.ExtentHeight;
+            DiffRuler.ViewportSize = e.ViewportHeight / e.ExtentHeight;
+        }
+    }
+
+    private void OnDiffRulerNavigateRequested(object? sender, double fraction)
+    {
+        if (GetConfigLinesScrollViewer() is { } scroll)
+        {
+            // Centre the clicked point rather than putting it at the top edge.
+            scroll.ScrollToVerticalOffset(Math.Max(0, fraction * scroll.ExtentHeight - scroll.ViewportHeight / 2));
+        }
+    }
+
+    /// <summary>A collapsed "N unchanged lines hidden" row expands when clicked; every other row ignores the click.</summary>
+    private void OnConfigLineClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: UnimusDiffLineViewModel { IsHidden: true } line }
+            && DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.ExpandHiddenLinesCommand.Execute(line);
         }
     }
 }

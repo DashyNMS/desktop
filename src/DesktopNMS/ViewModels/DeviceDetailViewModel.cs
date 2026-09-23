@@ -40,6 +40,9 @@ public enum DeviceDetailSection
 
     /// <summary>Editable fields plus device-management actions (Rediscover now, Delete eventually) - a home for "change this device" rather than "view its data".</summary>
     Edit,
+
+    /// <summary>Config backups via Unimus (issue #115) - only meaningful once the integration is set up in Settings.</summary>
+    Config,
 }
 
 /// <summary>
@@ -62,10 +65,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
+    private readonly IUnimusApi _unimus;
+    private readonly IUnimusDeviceResolver _unimusResolver;
     private readonly ILogger<DeviceDetailViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, SensorItemViewModel> _sensorIndex = new();
     private readonly HashSet<int> _loadedEventLogIds = new();
+    private int? _unimusDeviceId;
 
     /// <summary>
     /// Cancelled (and disposed) in <see cref="Dispose"/> - closing this
@@ -200,6 +206,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         ISessionService session,
         ISettingsStore settings,
         IWindowService windows,
+        IUnimusApi unimus,
+        IUnimusDeviceResolver unimusResolver,
         ILogger<DeviceDetailViewModel> logger)
     {
         _deviceId = deviceId;
@@ -211,6 +219,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _session = session;
         _settings = settings;
         _windows = windows;
+        _unimus = unimus;
+        _unimusResolver = unimusResolver;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -229,6 +239,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         FdbEntries = new BatchObservableCollection<FdbItemViewModel>();
         ArpEntries = new BatchObservableCollection<ArpItemViewModel>();
         EventLog = new BatchObservableCollection<EventLogItemViewModel>();
+        ConfigBackups = new ObservableCollection<UnimusBackupItemViewModel>();
         PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
         Graphs = new GraphsSectionViewModel(deviceId, client, logger);
 
@@ -290,6 +301,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         ShowPingGraphCommand = new RelayCommand(() => ShowGraph("device_icmp_perf"));
         SelectAlertsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Alerts);
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
+        SelectConfigCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Config);
+        BackupNowCommand = new AsyncRelayCommand(BackupNowAsync, () => !IsBackingUpNow && HasUnimusMatch);
+        RefreshConfigCommand = new AsyncRelayCommand(LoadConfigAsync, () => !IsLoadingConfig);
+        NextChangeCommand = new RelayCommand(() => GoToChange(_currentChangeIndex + 1), CanGoToNextChange);
+        PreviousChangeCommand = new RelayCommand(() => GoToChange(_currentChangeIndex - 1), CanGoToPreviousChange);
+        ExpandHiddenLinesCommand = new RelayCommand(ExpandHiddenLines);
+        CopyConfigLinesCommand = new RelayCommand(CopyConfigLines);
         SelectEditCommand = new RelayCommand(SelectEdit);
 
         SaveEditCommand = new AsyncRelayCommand(SaveEditAsync, () => !IsSavingEdit);
@@ -329,6 +347,18 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _ = LoadFdbAsync();
         _ = LoadArpAsync();
         _ = LoadEventLogAsync();
+
+        // Eager, unlike everything else being conditional on Unimus being
+        // configured at all - deliberately so, even though it costs one
+        // extra call to Unimus per window open when it is: the Unimus nav
+        // item/section only show once a match is actually confirmed (see
+        // ShowUnimusSection), so whether there is anything to show has to be
+        // known up front rather than waiting for a click on a tab nobody
+        // can see yet.
+        if (_unimus.IsConfigured)
+        {
+            _ = LoadConfigAsync();
+        }
         _ = OverviewGraph.LoadAsync(_loadCts.Token);
     }
 
@@ -513,6 +543,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectEventLogCommand { get; }
 
+    public RelayCommand SelectConfigCommand { get; }
+
     /// <summary>Navigates to the Edit section and refreshes its draft fields from the current device - see <see cref="SelectEdit"/>.</summary>
     public RelayCommand SelectEditCommand { get; }
 
@@ -663,6 +695,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsAlertsSelected));
                 OnPropertyChanged(nameof(IsEventLogSelected));
                 OnPropertyChanged(nameof(IsEditSelected));
+                OnPropertyChanged(nameof(IsConfigSelected));
             }
         }
     }
@@ -688,6 +721,524 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsEventLogSelected => SelectedSection == DeviceDetailSection.EventLog;
 
     public bool IsEditSelected => SelectedSection == DeviceDetailSection.Edit;
+
+    public bool IsConfigSelected => SelectedSection == DeviceDetailSection.Config;
+
+    /// <summary>
+    /// Config loads lazily on first visit, unlike every other section (which
+    /// load eagerly at window open, see the constructor and RefreshAsync) -
+    /// Unimus is an optional third-party integration most windows won't have
+    /// configured, and an extra network round-trip to it on every Device
+    /// Detail open would slow things down for no benefit to that majority.
+    /// </summary>
+
+    // ------------------------------------------------------------------ config (Unimus, issue #115)
+
+    public ObservableCollection<UnimusBackupItemViewModel> ConfigBackups { get; }
+
+    /// <summary>
+    /// A live passthrough of <see cref="IUnimusApi.IsConfigured"/> - correct
+    /// whenever this window is opened, it just won't update itself live if
+    /// Unimus is set up or torn down in Settings while this specific window
+    /// happens to already be open, a low-value edge case not worth a
+    /// settings-changed subscription for.
+    /// </summary>
+    public bool IsUnimusConfigured => _unimus.IsConfigured;
+
+    /// <summary>
+    /// Whether the Unimus nav item/section show at all. Deliberately more
+    /// than just <see cref="IsUnimusConfigured"/>: a device with no match in
+    /// Unimus (checked and confirmed absent) gets no tab at all rather than
+    /// a tab that only ever says "nothing here" - but a device that couldn't
+    /// be checked (Unimus unreachable, bad token) still gets the tab, since
+    /// hiding a real error would be worse than showing an empty one.
+    /// </summary>
+    public bool ShowUnimusSection => IsUnimusConfigured && (HasUnimusMatch || HasConfigError);
+
+    private bool _isLoadingConfig;
+
+    public bool IsLoadingConfig
+    {
+        get => _isLoadingConfig;
+        private set
+        {
+            if (SetProperty(ref _isLoadingConfig, value))
+            {
+                RefreshConfigCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    private string? _configErrorMessage;
+
+    public string? ConfigErrorMessage
+    {
+        get => _configErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _configErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasConfigError));
+                OnPropertyChanged(nameof(ShowUnimusSection));
+            }
+        }
+    }
+
+    public bool HasConfigError => !string.IsNullOrEmpty(_configErrorMessage);
+
+    private bool _hasUnimusMatch;
+
+    /// <summary>True once this device has been successfully matched to a Unimus entry - see <see cref="UnimusAddressCandidates"/>.</summary>
+    public bool HasUnimusMatch
+    {
+        get => _hasUnimusMatch;
+        private set
+        {
+            if (SetProperty(ref _hasUnimusMatch, value))
+            {
+                BackupNowCommand.RaiseCanExecuteChanged();
+                OnPropertyChanged(nameof(ShowUnimusSection));
+            }
+        }
+    }
+
+    /// <summary>True once loading has finished one way or another - lets the view tell "still loading" apart from "loaded, no match found".</summary>
+    private bool _hasCheckedUnimusMatch;
+
+    public bool HasCheckedUnimusMatch
+    {
+        get => _hasCheckedUnimusMatch;
+        private set => SetProperty(ref _hasCheckedUnimusMatch, value);
+    }
+
+    private UnimusBackupItemViewModel? _selectedBackup;
+
+    /// <summary>The backup currently shown in the content viewer below the list - set by a row's own View action.</summary>
+    public UnimusBackupItemViewModel? SelectedBackup
+    {
+        get => _selectedBackup;
+        private set
+        {
+            if (SetProperty(ref _selectedBackup, value))
+            {
+                OnPropertyChanged(nameof(HasSelectedBackup));
+            }
+        }
+    }
+
+    public bool HasSelectedBackup => _selectedBackup is not null;
+
+    private IReadOnlyList<UnimusDiffLineViewModel>? _configLines;
+
+    /// <summary>
+    /// What the line viewer shows - a single backup's numbered lines, or the
+    /// rendered diff between two. One list for both so the view has a single
+    /// virtualized, line-numbered viewer rather than two differently-behaved ones.
+    /// </summary>
+    public IReadOnlyList<UnimusDiffLineViewModel>? ConfigLines
+    {
+        get => _configLines;
+        private set
+        {
+            if (SetProperty(ref _configLines, value))
+            {
+                OnPropertyChanged(nameof(HasConfigLines));
+            }
+        }
+    }
+
+    public bool HasConfigLines => _configLines is { Count: > 0 };
+
+    /// <summary>The raw diff currently shown, kept so toggling a display option re-renders it without another API call.</summary>
+    private UnimusBackupDiff? _currentDiff;
+
+    private UnimusDiffResult? _currentDiffResult;
+
+    private readonly HashSet<int> _expandedHiddenStarts = new();
+
+    public bool HasDiff => _currentDiff is not null;
+
+    private string? _diffHeaderText;
+
+    /// <summary>"05 Aug 2026 18:01 → 18 Aug 2026 18:01" - which two backups are being compared, oldest first.</summary>
+    public string? DiffHeaderText
+    {
+        get => _diffHeaderText;
+        private set => SetProperty(ref _diffHeaderText, value);
+    }
+
+    public string DiffSummaryText => _currentDiffResult switch
+    {
+        null => string.Empty,
+        { HasDifferences: false } => "No differences",
+        var r => $"{r.ChangeStarts.Count} {(r.ChangeStarts.Count == 1 ? "change" : "changes")} · +{r.AddedCount} −{r.RemovedCount}",
+    };
+
+    public bool HasDiffDifferences => _currentDiffResult is { HasDifferences: true };
+
+    private int _currentChangeIndex = -1;
+
+    public string ChangePositionText => _currentDiffResult is { ChangeStarts.Count: > 0 } r && _currentChangeIndex >= 0
+        ? $"{_currentChangeIndex + 1} of {r.ChangeStarts.Count}"
+        : string.Empty;
+
+    private bool _diffOnlyChanged = true;
+
+    /// <summary>Collapse unchanged stretches away from any change - on by default, as Unimus's own diff view does.</summary>
+    public bool DiffOnlyChanged
+    {
+        get => _diffOnlyChanged;
+        set
+        {
+            if (SetProperty(ref _diffOnlyChanged, value))
+            {
+                RenderDiff();
+            }
+        }
+    }
+
+    private bool _diffIgnoreEmptyLines;
+
+    public bool DiffIgnoreEmptyLines
+    {
+        get => _diffIgnoreEmptyLines;
+        set
+        {
+            if (SetProperty(ref _diffIgnoreEmptyLines, value))
+            {
+                // Hidden-run positions are indexes into the filtered line
+                // list, which this changes - old expansions would point at
+                // the wrong stretches.
+                _expandedHiddenStarts.Clear();
+                RenderDiff();
+            }
+        }
+    }
+
+    public RelayCommand NextChangeCommand { get; }
+
+    public RelayCommand PreviousChangeCommand { get; }
+
+    public RelayCommand ExpandHiddenLinesCommand { get; }
+
+    public RelayCommand CopyConfigLinesCommand { get; }
+
+    /// <summary>
+    /// Asks the view to scroll the line viewer so this row index is in view,
+    /// or (null) to stay exactly where it is across a re-render - the view
+    /// model has no handle on the ScrollViewer itself.
+    /// </summary>
+    public event Action<int?>? ScrollToConfigLineRequested;
+
+    private bool _isDiffing;
+
+    public bool IsDiffing
+    {
+        get => _isDiffing;
+        private set => SetProperty(ref _isDiffing, value);
+    }
+
+    private bool _hasTooManySelected;
+
+    /// <summary>True when more than two rows are selected - diffing needs exactly two, and this app doesn't guess which two you meant.</summary>
+    public bool HasTooManySelected
+    {
+        get => _hasTooManySelected;
+        private set => SetProperty(ref _hasTooManySelected, value);
+    }
+
+    /// <summary>
+    /// Drives the whole view/diff area from the grid's own row selection
+    /// (see DeviceView.xaml.cs's SelectionChanged handler) - one row selected
+    /// views it, two diffs them, anything else clears back to the
+    /// placeholder. No separate checkbox column or "Diff selected" button:
+    /// selecting the rows is the action.
+    /// </summary>
+    public void OnConfigSelectionChanged(IReadOnlyList<UnimusBackupItemViewModel> selected)
+    {
+        HasTooManySelected = selected.Count > 2;
+
+        switch (selected.Count)
+        {
+            case 1:
+                ViewBackup(selected[0]);
+                break;
+            case 2:
+                _ = DiffAsync(selected[0], selected[1]);
+                break;
+            default:
+                SelectedBackup = null;
+                ClearDiff();
+                ConfigLines = null;
+                break;
+        }
+    }
+
+    private bool _isBackingUpNow;
+
+    public bool IsBackingUpNow
+    {
+        get => _isBackingUpNow;
+        private set
+        {
+            if (SetProperty(ref _isBackingUpNow, value))
+            {
+                BackupNowCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public AsyncRelayCommand BackupNowCommand { get; }
+
+    public AsyncRelayCommand RefreshConfigCommand { get; }
+
+    /// <summary>
+    /// Matches this device against Unimus (cached - see
+    /// <see cref="IUnimusDeviceResolver"/>) and, on a match, loads its
+    /// backup list. Safe to call again (the Refresh button on this tab) -
+    /// re-resolves rather than trusting a previous match forever, in case
+    /// the device was re-added to Unimus under a different address since.
+    /// </summary>
+    private async Task LoadConfigAsync()
+    {
+        OnPropertyChanged(nameof(IsUnimusConfigured));
+
+        if (!_unimus.IsConfigured || _device is null)
+        {
+            return;
+        }
+
+        IsLoadingConfig = true;
+        ConfigErrorMessage = null;
+        HasCheckedUnimusMatch = false;
+        ConfigBackups.Clear();
+        SelectedBackup = null;
+        ClearDiff();
+        ConfigLines = null;
+
+        try
+        {
+            _unimusDeviceId = await _unimusResolver.ResolveAsync(_device, _loadCts.Token).ConfigureAwait(true);
+            HasUnimusMatch = _unimusDeviceId is not null;
+
+            if (_unimusDeviceId is { } unimusId)
+            {
+                var page = await _unimus.GetBackupsAsync(unimusId, cancellationToken: _loadCts.Token).ConfigureAwait(true);
+                var ordered = page.Backups.OrderByDescending(b => b.ValidSince).ToList();
+                for (var i = 0; i < ordered.Count; i++)
+                {
+                    // The newest ValidSince, not a null ValidUntil, is what
+                    // actually marks the current backup - see
+                    // UnimusBackupItemViewModel's constructor remarks.
+                    ConfigBackups.Add(new UnimusBackupItemViewModel(ordered[i], isCurrent: i == 0));
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
+        }
+        catch (UnimusApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load Unimus config backups for device {DeviceId}", _deviceId);
+            ConfigErrorMessage = ex.ToUserMessage();
+        }
+        finally
+        {
+            IsLoadingConfig = false;
+            HasCheckedUnimusMatch = true;
+        }
+    }
+
+    private void ViewBackup(UnimusBackupItemViewModel item)
+    {
+        ClearDiff();
+        SelectedBackup = item;
+        ConfigLines = UnimusDiffLineViewModel.FromContent(item.IsText
+            ? item.Backup.Content ?? "(no content)"
+            : "This backup is stored as binary - Unimus itself is the only place that can show it.");
+    }
+
+    private void ClearDiff()
+    {
+        _currentDiff = null;
+        _currentDiffResult = null;
+        _currentChangeIndex = -1;
+        _expandedHiddenStarts.Clear();
+        DiffHeaderText = null;
+        OnDiffStateChanged();
+    }
+
+    /// <summary>
+    /// Re-renders <see cref="_currentDiff"/> with the current display options
+    /// - called on first load and whenever an option or an expanded hidden
+    /// run changes, never re-fetching from Unimus.
+    /// </summary>
+    private void RenderDiff(bool keepScrollPosition = false)
+    {
+        if (_currentDiff is null)
+        {
+            return;
+        }
+
+        _currentDiffResult = UnimusDiffBuilder.Build(_currentDiff, new UnimusDiffOptions
+        {
+            OnlyChanged = DiffOnlyChanged,
+            IgnoreEmptyLines = DiffIgnoreEmptyLines,
+            ExpandedHiddenStarts = _expandedHiddenStarts,
+        });
+        ConfigLines = _currentDiffResult.Rows.Select(r => new UnimusDiffLineViewModel(r)).ToList();
+
+        if (keepScrollPosition)
+        {
+            // Expanding a hidden run - every row above it is unchanged, so
+            // keeping the same offset leaves the view exactly where the user
+            // clicked rather than jumping back to a change.
+            ScrollToConfigLineRequested?.Invoke(null);
+        }
+        else
+        {
+            _currentChangeIndex = -1;
+            if (_currentDiffResult.ChangeStarts.Count > 0)
+            {
+                GoToChange(0);
+            }
+        }
+
+        OnDiffStateChanged();
+    }
+
+    private void OnDiffStateChanged()
+    {
+        OnPropertyChanged(nameof(HasDiff));
+        OnPropertyChanged(nameof(DiffSummaryText));
+        OnPropertyChanged(nameof(HasDiffDifferences));
+        OnPropertyChanged(nameof(ChangePositionText));
+        NextChangeCommand.RaiseCanExecuteChanged();
+        PreviousChangeCommand.RaiseCanExecuteChanged();
+    }
+
+    private bool CanGoToNextChange() =>
+        _currentDiffResult is { } r && _currentChangeIndex < r.ChangeStarts.Count - 1;
+
+    private bool CanGoToPreviousChange() =>
+        _currentDiffResult is { ChangeStarts.Count: > 0 } && _currentChangeIndex > 0;
+
+    private void GoToChange(int index)
+    {
+        if (_currentDiffResult is not { } r || index < 0 || index >= r.ChangeStarts.Count)
+        {
+            return;
+        }
+
+        _currentChangeIndex = index;
+        ScrollToConfigLineRequested?.Invoke(r.ChangeStarts[index]);
+        OnDiffStateChanged();
+    }
+
+    private void ExpandHiddenLines(object? parameter)
+    {
+        if (parameter is UnimusDiffLineViewModel { IsHidden: true } line)
+        {
+            _expandedHiddenStarts.Add(line.Row.HiddenStart);
+            RenderDiff(keepScrollPosition: true);
+        }
+    }
+
+    /// <summary>
+    /// Copies whatever the viewer is showing - the plain config for a single
+    /// backup, or a unified diff ("+"/"-" prefixed, hidden runs noted) for a
+    /// comparison - so it can be pasted into a ticket or change record.
+    /// </summary>
+    private void CopyConfigLines()
+    {
+        if (ConfigLines is not { Count: > 0 } lines)
+        {
+            return;
+        }
+
+        var text = HasDiff
+            ? string.Join(Environment.NewLine, lines.Select(l => l.IsHidden
+                ? $"@@ {l.Row.HiddenCount} unchanged lines @@"
+                : $"{(l.Prefix.Length > 0 ? l.Prefix : " ")} {l.Text}"))
+            : string.Join(Environment.NewLine, lines.Select(l => l.Text));
+
+        try
+        {
+            Clipboard.SetText(text);
+        }
+        catch (ExternalException)
+        {
+            // Another process briefly holds the clipboard - not worth surfacing as an error.
+        }
+    }
+
+    private async Task DiffAsync(UnimusBackupItemViewModel a, UnimusBackupItemViewModel b)
+    {
+        // Always original-then-revised by date, regardless of the order the
+        // two rows were clicked in.
+        var (orig, rev) = a.Backup.ValidSince <= b.Backup.ValidSince ? (a, b) : (b, a);
+
+        IsDiffing = true;
+        ConfigErrorMessage = null;
+        SelectedBackup = null;
+        ClearDiff();
+        ConfigLines = null;
+
+        try
+        {
+            var diff = await _unimus.GetDiffAsync(orig.Id, rev.Id, _loadCts.Token).ConfigureAwait(true);
+            _currentDiff = diff ?? new UnimusBackupDiff();
+            DiffHeaderText = $"{orig.DateText}  →  {rev.DateText}";
+            RenderDiff();
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
+        }
+        catch (UnimusApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not diff Unimus backups {Orig}/{Rev} for device {DeviceId}", orig.Id, rev.Id, _deviceId);
+            ConfigErrorMessage = ex.ToUserMessage();
+        }
+        finally
+        {
+            IsDiffing = false;
+        }
+    }
+
+    private async Task BackupNowAsync()
+    {
+        if (_unimusDeviceId is not { } unimusId)
+        {
+            return;
+        }
+
+        IsBackingUpNow = true;
+
+        try
+        {
+            var result = await _unimus.TriggerBackupAsync(unimusId, _loadCts.Token).ConfigureAwait(true);
+            _windows.ShowInformation(
+                "Backup requested",
+                result.WasAccepted
+                    ? "Unimus has queued a backup for this device. Refresh this tab in a moment to see it once it completes."
+                    : "Unimus did not accept the backup request - the device may be unmanaged there.");
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed while this was in flight - quietly give up.
+        }
+        catch (UnimusApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not trigger a Unimus backup for device {DeviceId}", _deviceId);
+            _windows.ShowError("Backup failed", ex.ToUserMessage());
+        }
+        finally
+        {
+            IsBackingUpNow = false;
+        }
+    }
 
     // -------------------------------------------------------------------- edit
 
@@ -2457,9 +3008,22 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _deviceMonitor.RequestRefresh();
         _sensorMonitor.RequestRefresh();
         _alertMonitor.RequestRefresh();
-        return Task.WhenAll(
+
+        var tasks = new List<Task>
+        {
             LoadAlertHistoryAsync(), LoadPortsAsync(), LoadResourcesAsync(), LoadAvailabilityAsync(),
-            LoadDeviceGroupsAsync(), LoadVlansAsync(), LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync());
+            LoadDeviceGroupsAsync(), LoadVlansAsync(), LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync(),
+        };
+
+        // Unlike every other section here, only actually calls out to
+        // Unimus when it's configured at all - see the constructor's own
+        // eager call for why this one is eager rather than load-on-select.
+        if (_unimus.IsConfigured)
+        {
+            tasks.Add(LoadConfigAsync());
+        }
+
+        return Task.WhenAll(tasks);
     }
 
     /// <summary>

@@ -13,6 +13,9 @@ public static class AppPaths
     /// <summary>DPAPI-encrypted API token.</summary>
     public static string TokenFile => Path.Combine(DataDirectory, "token.dat");
 
+    /// <summary>DPAPI-encrypted Unimus API token - kept separate from <see cref="TokenFile"/> since it is a distinct secret for a distinct service.</summary>
+    public static string UnimusTokenFile => Path.Combine(DataDirectory, "unimus-token.dat");
+
     /// <summary>Alert ids and states already notified about, so a restart is quiet.</summary>
     public static string NotificationStateFile => Path.Combine(DataDirectory, "notified.json");
 
