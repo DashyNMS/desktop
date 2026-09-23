@@ -143,3 +143,48 @@ public class PinClusteringTests
         Assert.Single(clusters[1]);
     }
 }
+
+public class TileRecolourTests
+{
+    private static (byte R, byte G, byte B) Recolour(byte r, byte g, byte b)
+    {
+        var pixel = new byte[] { b, g, r, 255 };
+        TileRecolour.ToDark(pixel, 0x11, 0x14, 0x1A);
+        return (pixel[2], pixel[1], pixel[0]);
+    }
+
+    [Fact]
+    public void Light_land_becomes_dark()
+    {
+        // OSM's land colour.
+        var (r, g, b) = Recolour(0xF2, 0xEF, 0xE9);
+
+        Assert.True(r < 40 && g < 40 && b < 40, $"got {r},{g},{b}");
+    }
+
+    [Fact]
+    public void Dark_label_text_becomes_light()
+    {
+        var (r, g, b) = Recolour(0x33, 0x33, 0x33);
+
+        Assert.True(r > 150 && g > 150 && b > 150, $"got {r},{g},{b}");
+    }
+
+    [Fact]
+    public void Water_stays_blue()
+    {
+        // OSM's water colour - blue must still be the strongest channel.
+        var (r, g, b) = Recolour(0xAA, 0xD3, 0xDF);
+
+        Assert.True(b > r && b >= g, $"got {r},{g},{b}");
+    }
+
+    [Fact]
+    public void Alpha_is_left_alone()
+    {
+        var pixel = new byte[] { 10, 20, 30, 77 };
+        TileRecolour.ToDark(pixel, 0, 0, 0);
+
+        Assert.Equal(77, pixel[3]);
+    }
+}

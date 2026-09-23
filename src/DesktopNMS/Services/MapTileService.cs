@@ -8,8 +8,11 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Topology;
 using Microsoft.Extensions.Logging;
 
@@ -59,10 +62,22 @@ public sealed class MapTileService : IMapTileService
     private readonly HashSet<string> _pending = new();
     private readonly Dictionary<string, DateTime> _failedUntil = new();
 
-    public MapTileService(ILogger<MapTileService> logger)
+    /// <summary>
+    /// Dark theme: tiles are recoloured to suit it as they're decoded (see
+    /// <see cref="TileRecolour"/>). Read once - a theme change needs a
+    /// restart anyway (see App.ApplyTheme). The disk cache always keeps the
+    /// original tile, so switching theme never re-downloads anything.
+    /// </summary>
+    private readonly bool _dark;
+
+    /// <summary>The theme's background colour, which dark tiles are blended toward - looked up on first use, on the UI thread.</summary>
+    private Color? _background;
+
+    public MapTileService(ISettingsStore settings, ILogger<MapTileService> logger)
     {
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
+        _dark = settings.Current.Theme == AppTheme.Dark;
 
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1";
@@ -91,15 +106,18 @@ public sealed class MapTileService : IMapTileService
             return null;
         }
 
+        _background ??= Application.Current?.TryFindResource("BackgroundColor") as Color? ?? Color.FromRgb(0x11, 0x14, 0x1A);
+
         _pending.Add(url);
-        _ = LoadAsync(url, DiskPath(template, zoom, x, y));
+        _ = LoadAsync(url, DiskPath(template, zoom, x, y), _dark ? _background : null);
         return null;
     }
 
     public BitmapSource? PeekTile(string template, int zoom, int x, int y) =>
         _memory.TryGetValue(TileUrlTemplate.Format(template, zoom, x, y), out var cached) ? cached : null;
 
-    private async Task LoadAsync(string url, string diskPath)
+    /// <param name="darkBackground">Set in the dark theme: recolour the tile, blending toward this.</param>
+    private async Task LoadAsync(string url, string diskPath, Color? darkBackground)
     {
         BitmapSource? image = null;
 
@@ -122,7 +140,8 @@ public sealed class MapTileService : IMapTileService
                 await Task.Run(() => WriteDisk(diskPath, bytes)).ConfigureAwait(false);
             }
 
-            image = Decode(bytes);
+            var decoded = bytes;
+            image = await Task.Run(() => Decode(decoded, darkBackground)).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or NotSupportedException or InvalidOperationException)
         {
@@ -156,7 +175,7 @@ public sealed class MapTileService : IMapTileService
         }
     }
 
-    private static BitmapSource Decode(byte[] bytes)
+    private static BitmapSource Decode(byte[] bytes, Color? darkBackground)
     {
         using var stream = new MemoryStream(bytes);
         var image = new BitmapImage();
@@ -165,7 +184,24 @@ public sealed class MapTileService : IMapTileService
         image.StreamSource = stream;
         image.EndInit();
         image.Freeze();
-        return image;
+
+        if (darkBackground is not { } background)
+        {
+            return image;
+        }
+
+        // Tiles arrive as paletted PNGs or JPEGs; normalise to BGRA so the
+        // recolour can work pixel by pixel.
+        var bgra = new FormatConvertedBitmap(image, PixelFormats.Bgra32, null, 0);
+        var stride = bgra.PixelWidth * 4;
+        var pixels = new byte[stride * bgra.PixelHeight];
+        bgra.CopyPixels(pixels, stride, 0);
+
+        TileRecolour.ToDark(pixels, background.R, background.G, background.B);
+
+        var dark = BitmapSource.Create(bgra.PixelWidth, bgra.PixelHeight, 96, 96, PixelFormats.Bgra32, null, pixels, stride);
+        dark.Freeze();
+        return dark;
     }
 
     private static byte[]? ReadDisk(string path)

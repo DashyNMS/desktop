@@ -149,6 +149,7 @@ public sealed class GeoMapViewModel : ObservableObject, IDisposable
             {
                 SelectedPins = Array.Empty<GeoPin>();
                 Rebuild(fit: true);
+                RaiseLoadingState();
             }
         }
     }
@@ -227,9 +228,26 @@ public sealed class GeoMapViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _isLoading, value))
             {
                 RefreshCommand.RaiseCanExecuteChanged();
-                OnPropertyChanged(nameof(IsEmpty));
+                RaiseLoadingState();
             }
         }
+    }
+
+    /// <summary>What the map is still waiting for - null once devices, locations and (for a group) membership are all in.</summary>
+    public string? LoadingText =>
+        !_session.IsConnected || HasError ? null :
+        !_hasDevices ? "Loading devices..." :
+        _isLoading || _locations is null ? "Loading locations..." :
+        _selectedScope.GroupName is not null && !_groupMembership.HasLoaded ? "Loading device groups..." :
+        null;
+
+    public bool ShowLoading => LoadingText is not null;
+
+    private void RaiseLoadingState()
+    {
+        OnPropertyChanged(nameof(LoadingText));
+        OnPropertyChanged(nameof(ShowLoading));
+        OnPropertyChanged(nameof(IsEmpty));
     }
 
     public string? ErrorMessage
@@ -246,7 +264,7 @@ public sealed class GeoMapViewModel : ObservableObject, IDisposable
 
     public bool HasError => !string.IsNullOrEmpty(_errorMessage);
 
-    public bool IsEmpty => !IsLoading && !HasError && _locations is not null && _hasDevices && _pins.Count == 0;
+    public bool IsEmpty => !ShowLoading && !HasError && _locations is not null && _hasDevices && _pins.Count == 0;
 
     public AsyncRelayCommand RefreshCommand { get; }
 
@@ -320,6 +338,7 @@ public sealed class GeoMapViewModel : ObservableObject, IDisposable
             _maintenanceIds = result.DeviceIdsUnderMaintenance;
             _hasDevices = true;
             Rebuild(fit: !_hasFittedOnce);
+            RaiseLoadingState();
         });
     }
 
@@ -335,8 +354,10 @@ public sealed class GeoMapViewModel : ObservableObject, IDisposable
 
         if (_selectedScope.GroupName is not null)
         {
-            Rebuild(fit: previousKey != _selectedScope.Key);
+            Rebuild(fit: previousKey != _selectedScope.Key || _pins.Count == 0);
         }
+
+        RaiseLoadingState();
     }
 
     private void OnSettingsChanged(object? sender, AppSettings settings)
@@ -360,6 +381,8 @@ public sealed class GeoMapViewModel : ObservableObject, IDisposable
             SelectedPins = Array.Empty<GeoPin>();
             Pins = Array.Empty<GeoPin>();
         }
+
+        RaiseLoadingState();
     });
 
     /// <summary>Cheap (tens of locations), so it simply rebuilds every pin on each poll - the canvas keeps its own view, so nothing moves.</summary>
@@ -367,6 +390,15 @@ public sealed class GeoMapViewModel : ObservableObject, IDisposable
     {
         if (_locations is null || !_hasDevices)
         {
+            return;
+        }
+
+        if (_selectedScope.GroupName is not null && !_groupMembership.HasLoaded)
+        {
+            // Without membership the group would look empty - wait (the
+            // loading overlay says so) until OnGroupMembershipChanged rebuilds.
+            Pins = Array.Empty<GeoPin>();
+            RaiseLoadingState();
             return;
         }
 

@@ -89,6 +89,16 @@ public sealed class GeoMapCanvas : FrameworkElement
 
     private double Scale => Math.Pow(2, _zoom);
 
+    /// <summary>
+    /// The furthest out the map can go: the zoom at which the world (256
+    /// world pixels, times 2^zoom) just covers the whole window in both
+    /// directions - any further and the blank canvas behind it would show.
+    /// </summary>
+    private double MinZoomForView =>
+        ActualWidth > 0 && ActualHeight > 0
+            ? Math.Max(MinZoom, Math.Log2(Math.Max(ActualWidth, ActualHeight) / WebMercator.TileSize))
+            : MinZoom;
+
     private static void OnTilesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var canvas = (GeoMapCanvas)d;
@@ -129,8 +139,9 @@ public sealed class GeoMapCanvas : FrameworkElement
             ? 14
             : Math.Clamp(Math.Log2(Math.Min(
                 (ActualWidth - margin * 2) / Math.Max(width, 1e-9),
-                (ActualHeight - margin * 2) / Math.Max(height, 1e-9))), MinZoom, 16);
+                (ActualHeight - margin * 2) / Math.Max(height, 1e-9))), MinZoomForView, 16);
 
+        ClampView();
         InvalidateVisual();
     }
 
@@ -138,6 +149,7 @@ public sealed class GeoMapCanvas : FrameworkElement
     {
         _centre = pin.World;
         _zoom = Math.Max(_zoom, 12);
+        ClampView();
         InvalidateVisual();
     }
 
@@ -147,7 +159,12 @@ public sealed class GeoMapCanvas : FrameworkElement
         if (sizeInfo.PreviousSize.Width == 0 && sizeInfo.NewSize.Width > 0)
         {
             FitToView();
+            return;
         }
+
+        // A bigger window may now show past the world's edge at the current
+        // zoom - zoom in / pan back just enough that it doesn't.
+        ClampView();
     }
 
     protected override void OnRender(DrawingContext dc)
@@ -364,6 +381,7 @@ public sealed class GeoMapCanvas : FrameworkElement
             // A merged pin: zoom in on it until its locations separate.
             _centre = ToWorld(ClusterCentre(hit));
             _zoom = Math.Min(MaxZoom, _zoom + 2);
+            ClampView();
             InvalidateVisual();
             e.Handled = true;
             return;
@@ -399,7 +417,7 @@ public sealed class GeoMapCanvas : FrameworkElement
             _moved = true;
             var delta = point - _lastPoint;
             _centre = new MapPoint(_centre.X - delta.X / Scale, _centre.Y - delta.Y / Scale);
-            ClampCentre();
+            ClampView();
             _lastPoint = point;
             InvalidateVisual();
             return;
@@ -443,18 +461,31 @@ public sealed class GeoMapCanvas : FrameworkElement
 
         var point = e.GetPosition(this);
         var before = ToWorld(point);
-        _zoom = Math.Clamp(_zoom + e.Delta / 120.0 * 0.5, MinZoom, MaxZoom);
+        _zoom = Math.Clamp(_zoom + e.Delta / 120.0 * 0.5, MinZoomForView, MaxZoom);
 
         // Keep the point under the cursor fixed while zooming.
         var after = ToWorld(point);
         _centre = new MapPoint(_centre.X + before.X - after.X, _centre.Y + before.Y - after.Y);
-        ClampCentre();
+        ClampView();
         InvalidateVisual();
         e.Handled = true;
     }
 
-    /// <summary>Stops the map being dragged completely off the world.</summary>
-    private void ClampCentre() => _centre = new MapPoint(
-        Math.Clamp(_centre.X, 0, WebMercator.TileSize),
-        Math.Clamp(_centre.Y, 0, WebMercator.TileSize));
+    /// <summary>
+    /// Keeps the window entirely over the map: zoom no further out than
+    /// <see cref="MinZoomForView"/>, and the centre far enough from each edge
+    /// of the world that half a window's width/height still fits inside it.
+    /// </summary>
+    private void ClampView()
+    {
+        _zoom = Math.Clamp(_zoom, MinZoomForView, MaxZoom);
+
+        var halfWidth = ActualWidth / 2 / Scale;
+        var halfHeight = ActualHeight / 2 / Scale;
+        var size = (double)WebMercator.TileSize;
+
+        _centre = new MapPoint(
+            halfWidth * 2 >= size ? size / 2 : Math.Clamp(_centre.X, halfWidth, size - halfWidth),
+            halfHeight * 2 >= size ? size / 2 : Math.Clamp(_centre.Y, halfHeight, size - halfHeight));
+    }
 }

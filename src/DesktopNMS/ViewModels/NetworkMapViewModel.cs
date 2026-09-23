@@ -320,9 +320,34 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _isLoading, value))
             {
                 RefreshCommand.RaiseCanExecuteChanged();
-                OnPropertyChanged(nameof(IsEmpty));
+                RaiseLoadingState();
             }
         }
+    }
+
+    private bool _isLayingOut;
+
+    /// <summary>
+    /// What the map is still waiting for before it's complete - null once
+    /// everything's in. Devices, links and (for a group) group membership
+    /// all arrive separately, then the layout runs; the map isn't worth
+    /// showing until all of them have.
+    /// </summary>
+    public string? LoadingText =>
+        !_session.IsConnected || HasError ? null :
+        !_hasDevices ? "Loading devices..." :
+        _isLoading || _links is null ? "Loading links..." :
+        _selectedScope.GroupName is not null && !_groupMembership.HasLoaded ? "Loading device groups..." :
+        _isLayingOut ? "Laying out the map..." :
+        null;
+
+    public bool ShowLoading => LoadingText is not null;
+
+    private void RaiseLoadingState()
+    {
+        OnPropertyChanged(nameof(LoadingText));
+        OnPropertyChanged(nameof(ShowLoading));
+        OnPropertyChanged(nameof(IsEmpty));
     }
 
     public string? ErrorMessage
@@ -340,7 +365,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     public bool HasError => !string.IsNullOrEmpty(_errorMessage);
 
     /// <summary>Loaded, nothing to draw - e.g. a group whose members have no links between them.</summary>
-    public bool IsEmpty => !IsLoading && !HasError && _links is not null && _hasDevices && _nodes.Count == 0;
+    public bool IsEmpty => !ShowLoading && !HasError && _links is not null && _hasDevices && _nodes.Count == 0;
 
     /// <summary>"42 devices · 51 connections"</summary>
     public string SummaryText => _nodes.Count == 0
@@ -428,6 +453,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             _devices = result.Devices;
             _maintenanceIds = result.DeviceIdsUnderMaintenance;
             _hasDevices = true;
+            RaiseLoadingState();
 
             // A device added or removed changes the graph itself; otherwise
             // just repaint states and names in place, keeping the layout.
@@ -458,6 +484,8 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         {
             _ = RebuildAsync(fit: current.Key != _selectedScope.Key || _nodes.Count == 0);
         }
+
+        RaiseLoadingState();
     }
 
     private void OnSessionStateChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() =>
@@ -471,8 +499,9 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             Nodes = Array.Empty<MapNode>();
             Edges = Array.Empty<MapEdge>();
             OnPropertyChanged(nameof(SummaryText));
-            OnPropertyChanged(nameof(IsEmpty));
         }
+
+        RaiseLoadingState();
     });
 
     /// <summary>
@@ -489,6 +518,18 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
 
         var version = ++_buildVersion;
         var scope = _selectedScope;
+
+        if (scope.GroupName is not null && !_groupMembership.HasLoaded)
+        {
+            // Without membership a group would lay out as empty; clear the
+            // previous scope's map and wait - OnGroupMembershipChanged
+            // rebuilds once it's in, and the loading overlay says so meanwhile.
+            Nodes = Array.Empty<MapNode>();
+            Edges = Array.Empty<MapEdge>();
+            _isLayingOut = false;
+            RaiseLoadingState();
+            return;
+        }
         var scopeIds = scope.GroupName is { } group
             ? _devices.Where(d => _groupMembership.GroupsFor(d.DeviceId).Contains(group, StringComparer.OrdinalIgnoreCase)).Select(d => d.DeviceId)
             : _devices.Select(d => d.DeviceId);
@@ -498,6 +539,9 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         var unlinkedIds = _showUnlinkedDevices ? graph.UnlinkedDeviceIds : Array.Empty<int>();
         var saved = _layouts.Get(LayoutKey(scope));
         var edgePairs = graph.Edges.Select(e => (e.DeviceA, e.DeviceB)).ToList();
+
+        _isLayingOut = true;
+        RaiseLoadingState();
 
         var positions = await Task.Run(() =>
         {
@@ -519,8 +563,11 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
 
         if (version != _buildVersion)
         {
+            // Superseded - the newer rebuild owns the loading state now.
             return;
         }
+
+        _isLayingOut = false;
 
         var nodes = new Dictionary<int, MapNode>();
         foreach (var id in linkedIds.Concat(unlinkedIds))
@@ -538,7 +585,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         SelectedNode = selectedId is { } sid && nodes.TryGetValue(sid, out var reselect) ? reselect : null;
 
         OnPropertyChanged(nameof(SummaryText));
-        OnPropertyChanged(nameof(IsEmpty));
+        RaiseLoadingState();
 
         // Remember the result so it stays put from now on - the first layout
         // for a scope included.

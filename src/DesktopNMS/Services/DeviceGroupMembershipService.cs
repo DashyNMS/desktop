@@ -28,6 +28,9 @@ public interface IDeviceGroupMembershipService
     /// <summary>Every group with at least one member, sorted by name - e.g. the network map's scope picker.</summary>
     IReadOnlyList<string> GroupNames { get; }
 
+    /// <summary>True once membership has been fetched at least once since connecting - until then a group looks empty, not just unloaded.</summary>
+    bool HasLoaded { get; }
+
     /// <summary>Fetches now if nothing has yet, and starts the periodic background refresh. Safe to call repeatedly.</summary>
     void EnsureStarted();
 
@@ -91,6 +94,8 @@ public sealed class DeviceGroupMembershipService : IDeviceGroupMembershipService
         _membership.Values.SelectMany(n => n).Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
 
+    public bool HasLoaded { get; private set; }
+
     public void EnsureStarted()
     {
         if (_started)
@@ -120,6 +125,7 @@ public sealed class DeviceGroupMembershipService : IDeviceGroupMembershipService
         _started = false;
         _timer.Stop();
         _membership = new Dictionary<int, IReadOnlyList<string>>();
+        HasLoaded = false;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -144,18 +150,35 @@ public sealed class DeviceGroupMembershipService : IDeviceGroupMembershipService
                 }
 
                 _membership = membership;
+                HasLoaded = true;
                 Changed?.Invoke(this, EventArgs.Empty);
             });
         }
         catch (LibreNmsApiException ex)
         {
             _logger.LogWarning(ex, "Could not load device group membership");
+            await MarkFirstAttemptDoneAsync(generation).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Could not load device group membership unexpectedly");
+            await MarkFirstAttemptDoneAsync(generation).ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// A failed first fetch still counts as "loaded" (with nothing in it) -
+    /// otherwise anything waiting on <see cref="HasLoaded"/> would show as
+    /// loading forever. The next periodic refresh fills it in.
+    /// </summary>
+    private Task MarkFirstAttemptDoneAsync(int generation) => _dispatcher.InvokeAsync(() =>
+    {
+        if (generation == _generation && !HasLoaded)
+        {
+            HasLoaded = true;
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }).Task;
 
     private TimeSpan RefreshInterval()
         => TimeSpan.FromSeconds(_settings.Current.PollIntervalSeconds * RefreshMultiplier);

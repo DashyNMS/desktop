@@ -108,12 +108,8 @@
                                             SelectedNode="{Binding SelectedNode}"
                                             RenderVersion="{Binding RenderVersion}" />
 
-                    <TextBlock Text="Loading the network map..."
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Style="{StaticResource SubtleTextStyle}"
-                               Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
+                    <views:LoadingOverlay Text="{Binding LoadingText}"
+                                          Visibility="{Binding ShowLoading, Converter={StaticResource BoolToVisibility}}" />
 
                     <TextBlock Text="No links between these devices. LibreNMS hasn't discovered any LLDP/CDP neighbours between them - tick 'Devices without links' to show them anyway."
                                HorizontalAlignment="Center"

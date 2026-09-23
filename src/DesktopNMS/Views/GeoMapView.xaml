@@ -94,12 +94,8 @@
                                     TileTemplate="{Binding TileTemplate}"
                                     Tiles="{Binding Tiles}" />
 
-                <TextBlock Text="Loading locations..."
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           IsHitTestVisible="False"
-                           Style="{StaticResource SubtleTextStyle}"
-                           Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
+                <views:LoadingOverlay Text="{Binding LoadingText}"
+                                      Visibility="{Binding ShowLoading, Converter={StaticResource BoolToVisibility}}" />
 
                 <Border HorizontalAlignment="Center"
                         VerticalAlignment="Center"
