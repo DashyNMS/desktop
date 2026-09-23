@@ -187,10 +187,71 @@ public partial class DeviceView : Window
     /// </summary>
     private void OnUnimusBackupsSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (DataContext is DeviceDetailViewModel viewModel && sender is DataGrid grid)
+        if (!_suppressUnimusSelectionForward)
         {
-            viewModel.OnConfigSelectionChanged(grid.SelectedItems.Cast<UnimusBackupItemViewModel>().ToList());
+            ForwardUnimusSelection();
         }
+    }
+
+    private void ForwardUnimusSelection()
+    {
+        if (DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.OnConfigSelectionChanged(UnimusBackupsGrid.SelectedItems.Cast<UnimusBackupItemViewModel>().ToList());
+        }
+    }
+
+    /// <summary>Set while a tick-box click is being applied, so the grid's own intermediate selection changes don't reach the view model.</summary>
+    private bool _suppressUnimusSelectionForward;
+
+    /// <summary>
+    /// A tick-box click toggles that row in or out of the selection, like
+    /// ctrl-click. This can't just be a two-way binding to the row's
+    /// IsSelected: DataGridCell selects its row on mouse-down with a class
+    /// handler that runs even for already-handled events, so the row was
+    /// single-selected on press and then the tick box toggled it straight
+    /// back off on release. Instead, the intended selection is worked out
+    /// here, before the cell sees the click, and applied once the grid has
+    /// finished its own handling - at Normal priority, ahead of rendering, so
+    /// the grid's interim single-selection is never drawn.
+    /// </summary>
+    private void OnUnimusTickPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: UnimusBackupItemViewModel item })
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        var grid = UnimusBackupsGrid;
+        var desired = grid.SelectedItems.Cast<UnimusBackupItemViewModel>().ToList();
+        if (!desired.Remove(item))
+        {
+            desired.Add(item);
+        }
+
+        _suppressUnimusSelectionForward = true;
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
+        {
+            // The cell's own mouse-down may have started a drag-select
+            // (capturing the mouse) - end it so moving the mouse before
+            // release doesn't re-select over the top of this.
+            if (grid.IsMouseCaptured)
+            {
+                grid.ReleaseMouseCapture();
+            }
+
+            grid.SelectedItems.Clear();
+            foreach (var backup in desired)
+            {
+                grid.SelectedItems.Add(backup);
+            }
+
+            _suppressUnimusSelectionForward = false;
+            ForwardUnimusSelection();
+        });
     }
 
     /// <summary>How many rows to leave above a change when jumping to it, so it doesn't sit flush against the top edge.</summary>

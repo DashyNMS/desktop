@@ -1668,13 +1668,14 @@
                               CanUserAddRows="False"
                               SelectionChanged="OnUnimusBackupsSelectionChanged">
                         <DataGrid.Columns>
-                            <!-- A tick box that is the row's own selection, not
-                                 separate state: bound two-way to the containing
-                                 DataGridRow's IsSelected, so ticking adds that
-                                 row to the selection (like ctrl-click) and a
-                                 plain row click still ticks just that one. The
-                                 SelectionChanged handler then does the rest -
-                                 two ticked rows diff automatically. -->
+                            <!-- A tick box that shows the row's own selection, not
+                                 separate state (so a plain row click still ticks
+                                 just that one). Clicking anywhere in this cell
+                                 toggles the row in or out of the selection like
+                                 ctrl-click - handled in code-behind, see
+                                 OnUnimusTickPreviewMouseLeftButtonDown for why
+                                 a plain two-way IsSelected binding can't. Two
+                                 ticked rows then diff automatically. -->
                             <DataGridTemplateColumn Width="36" CanUserResize="False" CanUserSort="False">
                                 <DataGridTemplateColumn.HeaderTemplate>
                                     <DataTemplate>
@@ -1685,11 +1686,15 @@
                                 </DataGridTemplateColumn.HeaderTemplate>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <CheckBox HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"
-                                                  Focusable="False"
-                                                  ToolTip="Tick two backups to compare them"
-                                                  IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}, Mode=TwoWay}" />
+                                        <Border Background="Transparent"
+                                                ToolTip="Tick two backups to compare them"
+                                                PreviewMouseLeftButtonDown="OnUnimusTickPreviewMouseLeftButtonDown">
+                                            <CheckBox HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Focusable="False"
+                                                      IsHitTestVisible="False"
+                                                      IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}, Mode=OneWay}" />
+                                        </Border>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
