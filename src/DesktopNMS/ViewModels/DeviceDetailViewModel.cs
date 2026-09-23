@@ -1224,27 +1224,42 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// A standard unified diff of the whole comparison (see
+    /// <see cref="UnimusExport.ToUnifiedDiff"/>) - deliberately not the
+    /// viewer's collapsed/filtered display, so the file describes the real
+    /// change and git, patch and diff viewers all read it.
+    /// </summary>
     private void ExportDiff()
     {
-        if (_currentDiffResult is not { } result || _diffOriginal is not { } original || _diffRevised is not { } revised)
+        if (_currentDiff is not { } diff || _diffOriginal is not { } original || _diffRevised is not { } revised)
         {
+            return;
+        }
+
+        var text = UnimusExport.ToUnifiedDiff(
+            diff,
+            UnimusExport.FileHeader(Name, original.Backup.ValidSinceUtc),
+            UnimusExport.FileHeader(Name, revised.Backup.ValidSinceUtc));
+
+        if (text.Length == 0)
+        {
+            _windows.ShowInformation("Nothing to export", "These two backups are identical, so there's no difference to save.");
             return;
         }
 
         var dialog = new SaveFileDialog
         {
             Title = "Export comparison",
-            Filter = "Diff files (*.diff)|*.diff|Text files (*.txt)|*.txt|All files (*.*)|*.*",
+            Filter = "Diff files (*.diff)|*.diff|Patch files (*.patch)|*.patch|All files (*.*)|*.*",
             FileName = UnimusExport.FileNameFor(Name, revised.Backup.ValidSinceUtc?.ToLocalTime(), ".diff"),
         };
 
         if (dialog.ShowDialog() == true)
         {
-            var text = UnimusExport.ToDiffText(
-                result.Rows,
-                $"{Name} {original.DateText}",
-                $"{Name} {revised.DateText}");
-            WriteExport(dialog.FileName, () => File.WriteAllText(dialog.FileName, text));
+            // UTF-8 without a BOM - a BOM ahead of "---" can stop patch tools
+            // recognising the header.
+            WriteExport(dialog.FileName, () => File.WriteAllText(dialog.FileName, text, new System.Text.UTF8Encoding(false)));
         }
     }
 
