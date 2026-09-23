@@ -43,6 +43,11 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Unimus diff row tints - the status colours, faded right down so
+             the line text stays readable on top of them. -->
+        <SolidColorBrush x:Key="DiffRemovedRowBrush" Color="{StaticResource CriticalColor}" Opacity="0.18" />
+        <SolidColorBrush x:Key="DiffAddedRowBrush" Color="{StaticResource OkColor}" Opacity="0.18" />
     </Window.Resources>
 
     <Grid>
@@ -1675,7 +1680,86 @@
                             BorderThickness="1"
                             CornerRadius="6">
                         <Grid Margin="12">
-                            <TextBlock Text="Select a backup to view it, or select two to compare them."
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <!-- ==================== Viewer toolbar ==================== -->
+                            <!-- What's being shown on the left; diff-only options
+                                 and change navigation in the middle; Copy on the
+                                 right for both modes. -->
+                            <Grid Grid.Row="0"
+                                  Margin="0,0,0,10"
+                                  Visibility="{Binding HasConfigLines, Converter={StaticResource BoolToVisibility}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding HasDiff, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="{Binding DiffHeaderText}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding DiffSummaryText}" Style="{StaticResource SubtleTextStyle}" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="0"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding HasSelectedBackup, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="{Binding SelectedBackup.DateText}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding SelectedBackup.StatusText}" Style="{StaticResource SubtleTextStyle}" Margin="0,2,0,0" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            Margin="12,0,0,0"
+                                            Visibility="{Binding HasDiff, Converter={StaticResource BoolToVisibility}}">
+                                    <CheckBox Content="Only changed lines"
+                                              IsChecked="{Binding DiffOnlyChanged}"
+                                              ToolTip="Collapse unchanged lines away from any change - click a collapsed row to show it"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,14,0" />
+                                    <CheckBox Content="Ignore empty lines"
+                                              IsChecked="{Binding DiffIgnoreEmptyLines}"
+                                              ToolTip="Leave out blank lines, including changes that only add or remove them"
+                                              VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            Margin="16,0,0,0"
+                                            Visibility="{Binding HasDiffDifferences, Converter={StaticResource BoolToVisibility}}">
+                                    <Button Content="↑"
+                                            Command="{Binding PreviousChangeCommand}"
+                                            ToolTip="Previous change"
+                                            Padding="10,4"
+                                            Margin="0,0,4,0" />
+                                    <Button Content="↓"
+                                            Command="{Binding NextChangeCommand}"
+                                            ToolTip="Next change"
+                                            Padding="10,4"
+                                            Margin="0,0,8,0" />
+                                    <TextBlock Text="{Binding ChangePositionText}"
+                                               Style="{StaticResource SubtleTextStyle}"
+                                               VerticalAlignment="Center"
+                                               MinWidth="48" />
+                                </StackPanel>
+
+                                <Button Grid.Column="3"
+                                        Content="Copy"
+                                        Command="{Binding CopyConfigLinesCommand}"
+                                        ToolTip="Copy what's shown here to the clipboard"
+                                        Padding="10,4"
+                                        Margin="12,0,0,0"
+                                        VerticalAlignment="Center" />
+                            </Grid>
+
+                            <TextBlock Grid.Row="1"
+                                       Text="Select a backup to view it, or select two to compare them."
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
                                        TextWrapping="Wrap"
@@ -1685,13 +1769,13 @@
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
                                         <Setter Property="Visibility" Value="Visible" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasSelectedBackup}" Value="True">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding HasDiff}" Value="True">
+                                            <DataTrigger Binding="{Binding HasConfigLines}" Value="True">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding HasTooManySelected}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsDiffing}" Value="True">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -1699,7 +1783,15 @@
                                 </TextBlock.Style>
                             </TextBlock>
 
-                            <TextBlock Text="Select exactly two backups to compare them."
+                            <TextBlock Grid.Row="1"
+                                       Text="Comparing..."
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource SubtleTextStyle}"
+                                       Visibility="{Binding IsDiffing, Converter={StaticResource BoolToVisibility}}" />
+
+                            <TextBlock Grid.Row="1"
+                                       Text="Select exactly two backups to compare them."
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
                                        TextWrapping="Wrap"
@@ -1708,42 +1800,114 @@
                                        Style="{StaticResource SubtleTextStyle}"
                                        Visibility="{Binding HasTooManySelected, Converter={StaticResource BoolToVisibility}}" />
 
-                            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                          HorizontalScrollBarVisibility="Auto"
-                                          Visibility="{Binding HasSelectedBackup, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="{Binding SelectedBackupContent}"
-                                           FontFamily="Consolas"
-                                           FontSize="12"
-                                           TextWrapping="NoWrap" />
-                            </ScrollViewer>
+                            <!-- ==================== Line viewer ==================== -->
+                            <!-- One virtualized list for both a single backup and a
+                                 diff - configs run to thousands of lines. Item-based
+                                 scrolling (CanContentScroll) makes the scroll offset
+                                 a row index, which is what change navigation and the
+                                 overview ruler both work in. -->
+                            <Grid Grid.Row="1"
+                                  Visibility="{Binding HasConfigLines, Converter={StaticResource BoolToVisibility}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
 
-                            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                          HorizontalScrollBarVisibility="Auto"
-                                          Visibility="{Binding HasDiff, Converter={StaticResource BoolToVisibility}}">
-                                <ItemsControl ItemsSource="{Binding DiffLines}">
+                                <ItemsControl Grid.Column="0"
+                                              x:Name="ConfigLinesList"
+                                              ItemsSource="{Binding ConfigLines}"
+                                              VirtualizingPanel.IsVirtualizing="True"
+                                              VirtualizingPanel.VirtualizationMode="Recycling"
+                                              VirtualizingPanel.ScrollUnit="Item">
+                                    <ItemsControl.Template>
+                                        <ControlTemplate TargetType="ItemsControl">
+                                            <ScrollViewer x:Name="LinesScroll"
+                                                          CanContentScroll="True"
+                                                          Focusable="False"
+                                                          VerticalScrollBarVisibility="Auto"
+                                                          HorizontalScrollBarVisibility="Auto">
+                                                <ItemsPresenter />
+                                            </ScrollViewer>
+                                        </ControlTemplate>
+                                    </ItemsControl.Template>
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <VirtualizingStackPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock FontFamily="Consolas" FontSize="12" TextWrapping="NoWrap">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsRemoved}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource CriticalBrush}" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding IsAdded}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                                <Run Text="{Binding Prefix, Mode=OneWay}" FontWeight="Bold" />
-                                                <Run Text="{Binding Text, Mode=OneWay}" />
-                                            </TextBlock>
+                                        <DataTemplate DataType="{x:Type vm:UnimusDiffLineViewModel}">
+                                            <Border x:Name="RowBackground"
+                                                    Background="Transparent"
+                                                    MouseLeftButtonUp="OnConfigLineClick">
+                                                <Grid TextElement.FontFamily="Consolas" TextElement.FontSize="12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="46" />
+                                                        <ColumnDefinition Width="46" />
+                                                        <ColumnDefinition Width="22" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{Binding OldNumberText}"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               TextAlignment="Right"
+                                                               Margin="0,1,8,1" />
+                                                    <!-- The second (new-side) number only means
+                                                         anything in a diff - a single backup has
+                                                         one set of line numbers. -->
+                                                    <TextBlock Grid.Column="1"
+                                                               x:Name="NewNumber"
+                                                               Text="{Binding NewNumberText}"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               TextAlignment="Right"
+                                                               Margin="0,1,8,1"
+                                                               Visibility="{Binding DataContext.HasDiff, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVisibility}}" />
+                                                    <TextBlock Grid.Column="2"
+                                                               x:Name="Prefix"
+                                                               Text="{Binding Prefix}"
+                                                               FontWeight="Bold"
+                                                               TextAlignment="Center"
+                                                               Margin="0,1" />
+                                                    <TextBlock Grid.Column="3"
+                                                               x:Name="LineText"
+                                                               Text="{Binding Text}"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               TextWrapping="NoWrap"
+                                                               Margin="0,1,12,1" />
+                                                </Grid>
+                                            </Border>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding IsRemoved}" Value="True">
+                                                    <Setter TargetName="RowBackground" Property="Background" Value="{StaticResource DiffRemovedRowBrush}" />
+                                                    <Setter TargetName="Prefix" Property="Foreground" Value="{StaticResource CriticalBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsAdded}" Value="True">
+                                                    <Setter TargetName="RowBackground" Property="Background" Value="{StaticResource DiffAddedRowBrush}" />
+                                                    <Setter TargetName="Prefix" Property="Foreground" Value="{StaticResource OkBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsHidden}" Value="True">
+                                                    <Setter TargetName="RowBackground" Property="Background" Value="{StaticResource SurfaceBrush}" />
+                                                    <Setter TargetName="RowBackground" Property="Cursor" Value="Hand" />
+                                                    <Setter TargetName="LineText" Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                                                    <Setter TargetName="LineText" Property="FontStyle" Value="Italic" />
+                                                    <Setter TargetName="LineText" Property="Margin" Value="0,4,12,4" />
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                            </ScrollViewer>
+
+                                <!-- Where the changes are in the whole diff, and
+                                     which part of it is in view - click or drag
+                                     to jump there. -->
+                                <views:DiffOverviewRuler Grid.Column="1"
+                                                         x:Name="DiffRuler"
+                                                         Width="12"
+                                                         Margin="6,0,0,0"
+                                                         Lines="{Binding ConfigLines}"
+                                                         ToolTip="Changes in this comparison - click to jump there"
+                                                         Visibility="{Binding HasDiff, Converter={StaticResource BoolToVisibility}}" />
+                            </Grid>
                         </Grid>
                     </Border>
                 </Grid>
