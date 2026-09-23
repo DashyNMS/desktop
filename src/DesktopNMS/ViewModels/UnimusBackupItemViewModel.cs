@@ -14,9 +14,22 @@ namespace DesktopNMS.ViewModels;
 /// </summary>
 public sealed class UnimusBackupItemViewModel
 {
-    public UnimusBackupItemViewModel(UnimusBackup backup)
+    /// <param name="isCurrent">
+    /// Whether this is the newest backup for the device (highest
+    /// <see cref="Models.UnimusBackup.ValidSince"/>) - the caller decides
+    /// this from the list as a whole, not from anything on the backup
+    /// itself. <see cref="Models.UnimusBackup.ValidUntilUtc"/> looked like
+    /// the obvious signal (null = never superseded) but live data disproved
+    /// that: Unimus's own <c>/backups/latest</c> for a device returned its
+    /// current backup with <c>validUntil</c> already set, weeks in the
+    /// future - it isn't a "superseded at" timestamp at all, so every row
+    /// was showing "Superseded" before this was reworked to just compare
+    /// dates.
+    /// </param>
+    public UnimusBackupItemViewModel(UnimusBackup backup, bool isCurrent)
     {
         Backup = backup;
+        IsCurrent = isCurrent;
     }
 
     public UnimusBackup Backup { get; }
@@ -27,10 +40,9 @@ public sealed class UnimusBackupItemViewModel
         ? t.ToLocalTime().ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture)
         : "-";
 
-    /// <summary>Whether this revision is still the current one, or was superseded by a later backup.</summary>
-    public bool IsCurrent => Backup.ValidUntilUtc is null;
+    public bool IsCurrent { get; }
 
-    public string StatusText => IsCurrent ? "Current" : "Superseded";
+    public string StatusText => IsCurrent ? "Current" : "Previous";
 
     public bool IsText => Backup.IsText;
 }

@@ -942,9 +942,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             if (_unimusDeviceId is { } unimusId)
             {
                 var page = await _unimus.GetBackupsAsync(unimusId, cancellationToken: _loadCts.Token).ConfigureAwait(true);
-                foreach (var backup in page.Backups.OrderByDescending(b => b.ValidSince))
+                var ordered = page.Backups.OrderByDescending(b => b.ValidSince).ToList();
+                for (var i = 0; i < ordered.Count; i++)
                 {
-                    ConfigBackups.Add(new UnimusBackupItemViewModel(backup));
+                    // The newest ValidSince, not a null ValidUntil, is what
+                    // actually marks the current backup - see
+                    // UnimusBackupItemViewModel's constructor remarks.
+                    ConfigBackups.Add(new UnimusBackupItemViewModel(ordered[i], isCurrent: i == 0));
                 }
             }
         }
