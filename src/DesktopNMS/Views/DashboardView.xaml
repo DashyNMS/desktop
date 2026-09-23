@@ -757,11 +757,28 @@
                 </Border>
 
                 <Grid Grid.Row="1">
-                    <svgc:SvgViewbox SvgSource="{Binding Svg}"
-                                     Stretch="Uniform"
-                                     HorizontalAlignment="Stretch"
-                                     VerticalAlignment="Stretch"
-                                     Visibility="{Binding Svg, Converter={StaticResource NullToVisibility}}" />
+                    <!-- Click to open this graph full size in the device's
+                         Device Details (issue #161). A chrome-less Button
+                         rather than a click handler on the image, so it's a
+                         plain command binding; only there once a graph has
+                         actually rendered. -->
+                    <Button Command="{Binding OpenGraphCommand}"
+                            Cursor="Hand"
+                            ToolTip="Open in Device Details"
+                            Focusable="False"
+                            Visibility="{Binding Svg, Converter={StaticResource NullToVisibility}}">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="Transparent">
+                                    <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <svgc:SvgViewbox SvgSource="{Binding Svg}"
+                                         Stretch="Uniform"
+                                         HorizontalAlignment="Stretch"
+                                         VerticalAlignment="Stretch" />
+                    </Button>
 
                     <TextBlock Text="Loading..."
                                HorizontalAlignment="Center"

@@ -109,6 +109,10 @@ public sealed class AlertNotificationService : IAlertNotificationService
             return;
         }
 
+        // Before deciding what to show - and regardless of whether anything
+        // is shown - clear out problem toasts this poll has made stale.
+        RemoveStaleProblemToasts(result.Changes);
+
         if (!settings.Enabled)
         {
             _logger.LogInformation(
@@ -406,6 +410,57 @@ public sealed class AlertNotificationService : IAlertNotificationService
                 $"{severity.ToDisplayString()} preview",
                 "Windows notifications are not available; showing a tray balloon instead.",
                 severity);
+        }
+    }
+
+    /// <summary>
+    /// Toast kinds that ask for attention about a problem - the ones worth
+    /// removing once that problem is dealt with. Every toast is tagged per
+    /// alert id and kind (see <see cref="BuildTag"/>), so removing one that
+    /// was never shown is a harmless no-op.
+    /// </summary>
+    private static readonly AlertChangeKind[] ProblemKinds =
+    {
+        AlertChangeKind.New,
+        AlertChangeKind.Reopened,
+        AlertChangeKind.Unacknowledged,
+    };
+
+    /// <summary>
+    /// Issue #160: a sticky Critical toast that fired while you were away
+    /// would otherwise still be sitting on screen (or in the notification
+    /// centre) after its alert recovered - demanding attention for a problem
+    /// that's already fixed. So when an alert recovers, or is acknowledged
+    /// (from this app, its own toast button, or the website - all arrive as
+    /// the same change on the next poll, and acknowledging already means
+    /// "I've seen this"), its earlier problem toasts are removed. Runs
+    /// whether or not the recovery/acknowledgement itself is notified.
+    /// </summary>
+    private void RemoveStaleProblemToasts(IReadOnlyList<AlertChange> changes)
+    {
+        if (_toastsUnavailable)
+        {
+            return;
+        }
+
+        foreach (var change in changes)
+        {
+            if (change.Kind is not (AlertChangeKind.Recovered or AlertChangeKind.Acknowledged))
+            {
+                continue;
+            }
+
+            foreach (var kind in ProblemKinds)
+            {
+                try
+                {
+                    ToastNotificationManagerCompat.History.Remove(BuildTag(change.Alert.Id, kind), ToastGroup);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Could not remove the {Kind} toast for alert {AlertId}", kind, change.Alert.Id);
+                }
+            }
         }
     }
 

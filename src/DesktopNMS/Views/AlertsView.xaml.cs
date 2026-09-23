@@ -57,9 +57,12 @@ public partial class AlertsView : UserControl
 
     private void OnGridDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (DataContext is MainViewModel viewModel && viewModel.OpenAlertCommand.CanExecute(null))
+        // Opens the device in this app (issue #158), not the alert on the
+        // LibreNMS website - the alert itself is already shown in the detail
+        // pane, so the device is the only useful place to go from here.
+        if (DataContext is MainViewModel viewModel && viewModel.OpenDeviceCommand.CanExecute(null))
         {
-            viewModel.OpenAlertCommand.Execute(null);
+            viewModel.OpenDeviceCommand.Execute(null);
         }
     }
 

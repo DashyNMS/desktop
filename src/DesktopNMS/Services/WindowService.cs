@@ -62,10 +62,21 @@ public sealed class WindowService : IWindowService
         _services.GetRequiredService<MainViewModel>().SelectDevicesTabCommand.Execute(null);
     }
 
-    public void ShowAlertsForDevice(string deviceSearchTerm)
+    public void ShowAlertsForDevice(int deviceId, string deviceName)
     {
-        _services.GetRequiredService<MainViewModel>().ShowAlertsForDevice(deviceSearchTerm);
+        _services.GetRequiredService<MainViewModel>().ShowAlertsForDevice(deviceId, deviceName);
         ShowMain();
+    }
+
+    public void ShowDeviceGraph(int deviceId, string graphName)
+    {
+        ShowDeviceDetail(deviceId);
+
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window)
+            && window.DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.ShowGraph(graphName);
+        }
     }
 
     public void ShowDeviceDetail(int deviceId)
@@ -151,6 +162,20 @@ public sealed class WindowService : IWindowService
         // the device grid behind this dialog.
         var viewModel = _services.GetRequiredService<DeviceListViewModel>();
         var window = new DeviceFiltersWindow(viewModel);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        window.ShowDialog();
+    }
+
+    public void ShowAlertFiltersDialog()
+    {
+        // Same live-object reasoning as ShowDeviceFiltersDialog: MainViewModel
+        // is a singleton, so its GroupFilter here is the one filtering the grid.
+        var window = new AlertFiltersWindow(_services.GetRequiredService<MainViewModel>());
 
         if (_mainWindow is { IsVisible: true })
         {

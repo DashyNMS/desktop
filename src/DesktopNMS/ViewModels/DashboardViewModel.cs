@@ -356,7 +356,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         "DeviceStatus" => new DeviceStatusWidgetViewModel(_layout, model, _deviceMonitor),
         "RecentlyViewed" => new RecentlyViewedWidgetViewModel(_layout, model, _settings, deviceId => _windows.ShowDeviceDetail(deviceId)),
         "PinnedDevices" => new PinnedDevicesWidgetViewModel(_layout, model, _settings, deviceId => _windows.ShowDeviceDetail(deviceId)),
-        "Graph" => new GraphWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger),
+        "Graph" => new GraphWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger, (deviceId, graphName) => _windows.ShowDeviceGraph(deviceId, graphName)),
         // "Sensors" (and any future/unknown type, so a layout from a newer
         // version does not blow up) fall back to the Sensors widget.
         _ => new SensorWidgetViewModel(_layout, model, OpenDeviceCommand),

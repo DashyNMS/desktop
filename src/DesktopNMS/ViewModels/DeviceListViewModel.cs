@@ -28,18 +28,8 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// <summary>The <see cref="GroupFilter"/> key used for a device that belongs to no group at all.</summary>
     private static readonly IReadOnlyList<string> NoGroupKey = new[] { string.Empty };
 
-    /// <summary>
-    /// <see cref="LoadDeviceGroupsAsync"/> re-fetches in the background this
-    /// many times less often than the device poll - group membership
-    /// changes far less often than device state, so tying it to a multiple
-    /// of <see cref="AppSettings.PollIntervalSeconds"/> keeps it scaling
-    /// with whatever cadence the user has already chosen, rather than a
-    /// flat constant that would either be relatively too eager (a fast
-    /// device poll) or too lax (a slow one).
-    /// </summary>
-    private const int GroupMembershipRefreshMultiplier = 10;
-
     private readonly DeviceMonitor _deviceMonitor;
+    private readonly IDeviceGroupMembershipService _groupMembership;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
@@ -57,27 +47,23 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     private DateTimeOffset? _lastUpdated;
     private string _searchText = string.Empty;
     private bool _hasLoadedOnce;
-    private bool _hasLoadedGroupsOnce;
 
     private bool _showUp = true;
     private bool _showDown = true;
     private bool _showDisabled = true;
     private bool _showMaintenance = true;
 
-    /// <summary>Device id -> the names of every group it belongs to. Empty until <see cref="LoadDeviceGroupsAsync"/> first completes.</summary>
-    private IReadOnlyDictionary<int, IReadOnlyList<string>> _groupMembership = new Dictionary<int, IReadOnlyList<string>>();
-
-    /// <summary>The device list from the most recent poll, kept so group membership arriving separately (see <see cref="LoadDeviceGroupsAsync"/>) can rebuild <see cref="GroupFilter"/> without waiting for the next poll.</summary>
+    /// <summary>The device list from the most recent poll, kept so group membership arriving separately (see <see cref="OnGroupMembershipChanged"/>) can rebuild <see cref="GroupFilter"/> without waiting for the next poll.</summary>
     private IReadOnlyList<Device> _lastOrderedDevices = Array.Empty<Device>();
 
     /// <summary>Device ids currently pinned, kept in step with <see cref="AppSettings.PinnedDevices"/> for cheap per-row lookups in <see cref="ApplyDevices"/>.</summary>
     private HashSet<int> _pinnedIds = new();
 
     private readonly AutoRefreshTimer _autoRefresh;
-    private readonly DispatcherTimer _groupMembershipRefreshTimer;
 
     public DeviceListViewModel(
         DeviceMonitor deviceMonitor,
+        IDeviceGroupMembershipService groupMembership,
         ISessionService session,
         ISettingsStore settings,
         IWindowService windows,
@@ -85,6 +71,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         ILogger<DeviceListViewModel> logger)
     {
         _deviceMonitor = deviceMonitor;
+        _groupMembership = groupMembership;
         _session = session;
         _settings = settings;
         _windows = windows;
@@ -124,8 +111,8 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             // separate, slower fetch (one call per group) from the device
             // poll this command otherwise only requests, and awaiting it here
             // would leave the Refresh button disabled for that whole time.
-            // LoadDeviceGroupsAsync handles its own failures.
-            _ = LoadDeviceGroupsAsync();
+            // The membership service handles its own failures.
+            _ = _groupMembership.RefreshAsync();
 
             return Task.CompletedTask;
         }, () => _session.IsConnected && !IsBusy);
@@ -156,9 +143,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
-        _groupMembershipRefreshTimer = new DispatcherTimer { Interval = GroupMembershipRefreshInterval() };
-        _groupMembershipRefreshTimer.Tick += (_, _) => _ = LoadDeviceGroupsAsync();
-
+        _groupMembership.Changed += OnGroupMembershipChanged;
         _settings.Changed += OnSettingsChanged;
         _deviceMonitor.PollStarted += OnPollStarted;
         _deviceMonitor.Polled += OnPolled;
@@ -430,12 +415,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         // and leave it frozen between polls.
         _autoRefresh.Start();
 
-        if (!_hasLoadedGroupsOnce)
-        {
-            _hasLoadedGroupsOnce = true;
-            _ = LoadDeviceGroupsAsync();
-            _groupMembershipRefreshTimer.Start();
-        }
+        _groupMembership.EnsureStarted();
 
         if (_hasLoadedOnce)
         {
@@ -546,8 +526,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Rebuilds <see cref="GroupFilter"/>'s counts from the current device
     /// list against whatever group membership is currently known - called
-    /// both after a device poll and after <see cref="LoadDeviceGroupsAsync"/>
-    /// completes, since either can change independently of the other.
+    /// both after a device poll and after group membership changes
+    /// (<see cref="OnGroupMembershipChanged"/>), since either can change
+    /// independently of the other.
     /// </summary>
     private void RebuildGroupFilter(IReadOnlyList<Device> ordered)
     {
@@ -555,11 +536,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
         foreach (var device in ordered)
         {
-            var groups = _groupMembership.TryGetValue(device.DeviceId, out var names) && names.Count > 0
-                ? names
-                : NoGroupKey;
-
-            foreach (var group in groups)
+            foreach (var group in GroupsOrNone(device.DeviceId))
             {
                 counts[group] = counts.TryGetValue(group, out var existing) ? existing + 1 : 1;
             }
@@ -568,46 +545,24 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         GroupFilter.Apply(counts.Select(kv => (kv.Key, GroupDisplayText(kv.Key), kv.Value)));
     }
 
+    /// <summary>Forces an immediate re-fetch of group membership rather than waiting for the shared service's own periodic refresh - called by the Groups tab after it creates/edits/deletes a group, so the Group filters (here and on Alerts) don't look stale.</summary>
+    public void RequestGroupsRefresh() => _ = _groupMembership.RefreshAsync();
+
     /// <summary>
-    /// Fetches every device group's membership (see <see cref="IDeviceGroupsApi.GetMembershipByDeviceAsync"/>)
-    /// and rebuilds <see cref="GroupFilter"/> from it. Deliberately separate
-    /// from the regular device poll: LibreNMS has no bulk endpoint for this,
-    /// so building it costs one call per group - too expensive for every
-    /// 30-second background poll, but still kept automatically fresh via
-    /// <see cref="_groupMembershipRefreshTimer"/> (every
-    /// <see cref="GroupMembershipRefreshInterval"/>) rather than only ever
-    /// updating on first tab load or an explicit user-triggered refresh,
-    /// which could otherwise leave it stale for a whole session.
+    /// Group membership comes from the shared <see cref="IDeviceGroupMembershipService"/>
+    /// (also behind the Alerts tab's group filter), fetched separately from
+    /// the device poll - rebuild the facet's counts and re-apply the filter
+    /// whenever it changes.
     /// </summary>
-    /// <summary>Forces an immediate re-fetch of group membership rather than waiting for <see cref="_groupMembershipRefreshTimer"/> - called by the Groups tab after it creates/edits/deletes a group, so this tab's own Group filter does not look stale.</summary>
-    public void RequestGroupsRefresh() => _ = LoadDeviceGroupsAsync();
-
-    private async Task LoadDeviceGroupsAsync()
+    private void OnGroupMembershipChanged(object? sender, EventArgs e)
     {
-        if (!_session.IsConnected)
-        {
-            return;
-        }
-
-        try
-        {
-            var membership = await _client.DeviceGroups.GetMembershipByDeviceAsync().ConfigureAwait(false);
-
-            await _dispatcher.InvokeAsync(() =>
-            {
-                _groupMembership = membership;
-                RebuildGroupFilter(_lastOrderedDevices);
-            });
-        }
-        catch (LibreNmsApiException ex)
-        {
-            _logger.LogWarning(ex, "Could not load device group membership");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Could not load device group membership unexpectedly");
-        }
+        RebuildGroupFilter(_lastOrderedDevices);
+        OnFilterChanged();
     }
+
+    /// <summary>A device's group names, or the single "not in a group" key when it has none - so ungrouped devices are a filterable option of their own.</summary>
+    private IReadOnlyList<string> GroupsOrNone(int deviceId) =>
+        _groupMembership.GroupsFor(deviceId) is { Count: > 0 } names ? names : NoGroupKey;
 
     // --------------------------------------------------------------- commands
 
@@ -626,11 +581,11 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // Hostname is what the alerts list actually has to search against; the
-        // device list may be showing sysName or the display name instead.
+        // Filtered by device id (the Alerts tab's Device chip), so it matches
+        // exactly this device whichever name style either tab is showing.
         // Routed through IWindowService (rather than depending on MainViewModel
         // directly) so the two view models do not depend on each other.
-        _windows.ShowAlertsForDevice(device.Model.Hostname ?? device.Name);
+        _windows.ShowAlertsForDevice(device.DeviceId, device.Name);
     }
 
     /// <summary>
@@ -898,11 +853,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             return false;
         }
 
-        var groups = _groupMembership.TryGetValue(device.DeviceId, out var names) && names.Count > 0
-            ? names
-            : NoGroupKey;
-
-        if (!GroupFilter.AllowsAny(groups))
+        if (!GroupFilter.AllowsAny(GroupsOrNone(device.DeviceId)))
         {
             return false;
         }
@@ -956,11 +907,6 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             device.ApplyNameStyle(nameStyle);
         }
 
-        // Changing Interval on a running DispatcherTimer is safe and takes
-        // effect immediately - picks up a mid-session poll-interval change
-        // without needing a restart.
-        _groupMembershipRefreshTimer.Interval = GroupMembershipRefreshInterval();
-
         // Opening any Device View saves settings (see
         // DeviceDetailViewModel.RecordRecentlyViewed), so this is how the
         // strip picks up a new entry live rather than only on the next poll.
@@ -983,9 +929,6 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     private void OpenRecentlyViewedDevice(int deviceId) => _windows.ShowDeviceDetail(deviceId);
 
-    private TimeSpan GroupMembershipRefreshInterval()
-        => TimeSpan.FromSeconds(_settings.Current.PollIntervalSeconds * GroupMembershipRefreshMultiplier);
-
     private void RaiseCountsChanged()
     {
         OnPropertyChanged(nameof(UpCount));
@@ -1004,7 +947,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _autoRefresh.Dispose();
-        _groupMembershipRefreshTimer.Stop();
+        _groupMembership.Changed -= OnGroupMembershipChanged;
         _settings.Changed -= OnSettingsChanged;
         _deviceMonitor.PollStarted -= OnPollStarted;
         _deviceMonitor.Polled -= OnPolled;

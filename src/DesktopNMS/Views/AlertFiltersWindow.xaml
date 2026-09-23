@@ -1,0 +1,55 @@
+<Window x:Class="DesktopNMS.Views.AlertFiltersWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+        Title="Filter alerts"
+        Width="380"
+        Height="500"
+        ResizeMode="NoResize"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Background="{StaticResource BackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- The Alerts tab's counterpart to DeviceFiltersWindow (issue #162).
+         Only one facet so far - device group - so a heading rather than
+         a single-tab TabControl; the same shared section template, so a
+         second facet later is one more tab away. -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="18,18,18,0">
+            <TextBlock Text="Device group" Style="{StaticResource HeadingTextStyle}" />
+            <TextBlock Text="Show alerts on devices in the checked groups. Counts are alerts, not devices."
+                       Style="{StaticResource SubtleTextStyle}"
+                       TextWrapping="Wrap"
+                       Margin="0,4,0,0" />
+        </StackPanel>
+
+        <ContentControl Grid.Row="1"
+                        Content="{Binding GroupFilter}"
+                        ContentTemplate="{StaticResource FilterFacetSectionTemplate}"
+                        Focusable="False" />
+
+        <Border Grid.Row="2"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="24,14">
+            <!-- Live like the Devices filter dialog - no Apply step. -->
+            <Button Content="Close"
+                    IsCancel="True"
+                    IsDefault="True"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    Padding="20,7"
+                    HorizontalAlignment="Right" />
+        </Border>
+    </Grid>
+</Window>
