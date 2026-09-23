@@ -53,6 +53,9 @@ public interface IWindowService
     /// </summary>
     void ShowDevicesFilteredByLocation(string location);
 
+    /// <summary>Same, for several locations at once - the Geographical map's "show in Devices" for a pin covering more than one location.</summary>
+    void ShowDevicesFilteredByLocations(IReadOnlyCollection<string> locations);
+
     /// <summary>Same as <see cref="ShowDevicesFilteredByLocation"/>, but isolating the Group facet instead - used by the device view's Device Groups section.</summary>
     void ShowDevicesFilteredByGroup(string groupName);
 

@@ -97,8 +97,8 @@
                 <views:LoadingOverlay Text="{Binding LoadingText}"
                                       Visibility="{Binding ShowLoading, Converter={StaticResource BoolToVisibility}}" />
 
-                <!-- Key to the pins: the ring's colours are the share of
-                     devices in each state; the badge counts those down. -->
+                <!-- Colour key for the donut pins: each ring shows the share of
+                     a location's devices in each state. -->
                 <Border HorizontalAlignment="Left"
                         VerticalAlignment="Top"
                         Margin="12"
@@ -120,10 +120,6 @@
                             <Ellipse Width="9" Height="9" Fill="{Binding Source={x:Static vm:MapLegend.Inactive}}" VerticalAlignment="Center" />
                             <TextBlock Text="Disabled" Style="{StaticResource SubtleTextStyle}" FontSize="11" Margin="5,0,0,0" />
                         </StackPanel>
-                        <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                   FontSize="11"
-                                   Margin="0,5,0,0"
-                                   Text="Ring = share of devices in each state · red badge = devices down · solid red = every device down" />
                     </StackPanel>
                 </Border>
 
@@ -181,51 +177,79 @@
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1,0,0,0"
                     Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding SelectedPins}" Margin="18,12,18,18">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type vm:GeoPin}">
-                                <StackPanel Margin="0,6,0,12">
-                                    <TextBlock Text="{Binding Name}" Style="{StaticResource HeadingTextStyle}" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding SummaryText}" Style="{StaticResource SubtleTextStyle}" Margin="0,2,0,8" />
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                                    <ItemsControl ItemsSource="{Binding Devices}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate DataType="{x:Type vm:GeoDeviceRow}">
-                                                <Button Command="{Binding DataContext.OpenDeviceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        CommandParameter="{Binding}"
-                                                        Cursor="Hand"
-                                                        HorizontalContentAlignment="Stretch"
-                                                        ToolTip="Open this device">
-                                                    <Button.Template>
-                                                        <ControlTemplate TargetType="Button">
-                                                            <Border x:Name="Row" Background="Transparent" CornerRadius="4" Padding="6,4">
-                                                                <ContentPresenter />
-                                                            </Border>
-                                                            <ControlTemplate.Triggers>
-                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter TargetName="Row" Property="Background" Value="{StaticResource SurfaceAltBrush}" />
-                                                                </Trigger>
-                                                            </ControlTemplate.Triggers>
-                                                        </ControlTemplate>
-                                                    </Button.Template>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Ellipse Width="9"
-                                                                 Height="9"
-                                                                 Fill="{Binding State, Converter={StaticResource DeviceStateToBrush}}"
-                                                                 VerticalAlignment="Center"
-                                                                 Margin="0,0,8,0" />
-                                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                                    </StackPanel>
-                                                </Button>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+                    <!-- Pinned above the list, so it's there however long
+                         the device list gets. -->
+                    <Border Grid.Row="0"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="18,14">
+                        <Button Command="{Binding ShowInDevicesCommand}"
+                                ToolTip="Open the Devices tab filtered to just this location"
+                                HorizontalAlignment="Stretch"
+                                Padding="12,7">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE71C;"
+                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                           FontSize="13"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding ShowInDevicesLabel}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding SelectedPins}" Margin="18,12,18,18">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:GeoPin}">
+                                    <StackPanel Margin="0,6,0,12">
+                                        <TextBlock Text="{Binding Name}" Style="{StaticResource HeadingTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding SummaryText}" Style="{StaticResource SubtleTextStyle}" Margin="0,2,0,8" />
+    
+                                        <ItemsControl ItemsSource="{Binding Devices}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type vm:GeoDeviceRow}">
+                                                    <Button Command="{Binding DataContext.OpenDeviceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Cursor="Hand"
+                                                            HorizontalContentAlignment="Stretch"
+                                                            ToolTip="Open this device">
+                                                        <Button.Template>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border x:Name="Row" Background="Transparent" CornerRadius="4" Padding="6,4">
+                                                                    <ContentPresenter />
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="Row" Property="Background" Value="{StaticResource SurfaceAltBrush}" />
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Button.Template>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <Ellipse Width="9"
+                                                                     Height="9"
+                                                                     Fill="{Binding State, Converter={StaticResource DeviceStateToBrush}}"
+                                                                     VerticalAlignment="Center"
+                                                                     Margin="0,0,8,0" />
+                                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
             </Border>
         </Grid>
     </Grid>

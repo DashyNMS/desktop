@@ -153,6 +153,13 @@ public sealed class GeoMapViewModel : ObservableObject, IDisposable
             }
         });
         OpenAttributionCommand = new RelayCommand(() => _windows.OpenUrl(new Uri("https://www.openstreetmap.org/copyright")));
+        ShowInDevicesCommand = new RelayCommand(() =>
+        {
+            if (_selectedPins.Count > 0)
+            {
+                _windows.ShowDevicesFilteredByLocations(_selectedPins.Select(p => p.Name).ToList());
+            }
+        });
         ClearFiltersCommand = new RelayCommand(() => SearchText = string.Empty);
 
         _deviceMonitor.Polled += OnDevicesPolled;
@@ -206,11 +213,19 @@ public sealed class GeoMapViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _selectedPins, value ?? Array.Empty<GeoPin>()))
             {
                 OnPropertyChanged(nameof(HasSelection));
+                OnPropertyChanged(nameof(ShowInDevicesLabel));
             }
         }
     }
 
     public bool HasSelection => _selectedPins.Count > 0;
+
+    /// <summary>Opens the Devices tab filtered to the selected location(s) - every location under the pin, when it's a merged one.</summary>
+    public RelayCommand ShowInDevicesCommand { get; }
+
+    public string ShowInDevicesLabel => _selectedPins.Count > 1
+        ? $"Show these {_selectedPins.Count} locations in Devices"
+        : "Show in Devices";
 
     /// <summary>The tile server in use - the setting, or OpenStreetMap's standard tiles when that's unset or unusable.</summary>
     public string TileTemplate => TileUrlTemplate.Normalise(_settings.Current.MapTileUrl) ?? TileUrlTemplate.Default;

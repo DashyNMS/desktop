@@ -18,7 +18,8 @@ namespace DesktopNMS.Views;
 /// Draws the Geographical map: web map tiles (see <see cref="IMapTileService"/>)
 /// with a pin per location on top, like LibreNMS's own Leaflet world map.
 /// Wheel to zoom around the cursor, drag to pan, click a pin to select it,
-/// double-click a merged pin to zoom into it. Pins that would overlap on
+/// double-click a merged pin to zoom into it. Each pin is a donut of its
+/// devices' states around the device count. Pins that would overlap on
 /// screen draw as one, with their device counts added together.
 /// </summary>
 public sealed class GeoMapCanvas : FrameworkElement
@@ -275,37 +276,26 @@ public sealed class GeoMapCanvas : FrameworkElement
             var radius = PinRadius(count);
             var isSelected = cluster.Any(selected.Contains);
 
-            // Solid red only when everything that's being monitored there is
-            // down - a genuine site outage. A partial outage keeps a neutral
-            // pin and shows its share of red in the ring, plus a badge.
-            var fullyDown = down > 0 && up == 0 && maintenance == 0;
-
             if (isSelected)
             {
                 dc.DrawEllipse(null, selectedRing, centre, radius + 5, radius + 5);
             }
 
-            dc.DrawEllipse(fullyDown ? SeverityToBrushConverter.Critical : surface, null, centre, radius, radius);
-
-            if (!fullyDown)
-            {
-                DrawStateRing(dc, centre, radius, up, down, maintenance, inactive);
-            }
+            // A donut: the ring is the mix of device states, the hole holds
+            // the device count. A visual impression of the site's health, not
+            // a precise figure - the details panel has the exact numbers.
+            dc.DrawEllipse(surface, null, centre, radius, radius);
+            DrawStateRing(dc, centre, radius, up, down, maintenance, inactive);
 
             var countText = new FormattedText(
                 count.ToString(CultureInfo.CurrentCulture),
                 CultureInfo.CurrentUICulture,
                 FlowDirection.LeftToRight,
                 new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal),
-                count >= 100 ? 10 : 11,
-                fullyDown ? Brushes.White : text,
+                count >= 100 ? 9 : 10,
+                text,
                 dpi);
             dc.DrawText(countText, new Point(centre.X - countText.Width / 2, centre.Y - countText.Height / 2));
-
-            if (down > 0 && !fullyDown)
-            {
-                DrawDownBadge(dc, centre, radius, down, dpi);
-            }
 
             // Names only for the hovered/selected pin, or once zoomed in far
             // enough that labels won't collide.
@@ -341,11 +331,10 @@ public sealed class GeoMapCanvas : FrameworkElement
     private static double PinRadius(int deviceCount) => Math.Clamp(9 + Math.Log2(Math.Max(deviceCount, 1)) * 2, 10, 20);
 
     /// <summary>
-    /// The pin's edge as a ring split by device state, each arc in proportion
-    /// to how many devices there are in it - so a mostly-green ring with a
-    /// thin red slice reads as "a couple down", not "site down". Starts at
-    /// twelve o'clock with down first, so the red slice sits at the top
-    /// right, beside the down-count badge.
+    /// The donut's ring, split by device state in proportion to how many
+    /// devices are in each - a mostly-green ring with a thin red slice reads
+    /// as "a couple down", not "site down". Starts at twelve o'clock, down
+    /// first.
     /// </summary>
     private static void DrawStateRing(DrawingContext dc, Point centre, double radius, int up, int down, int maintenance, int inactive)
     {
@@ -355,7 +344,7 @@ public sealed class GeoMapCanvas : FrameworkElement
             return;
         }
 
-        var thickness = Math.Max(3.5, radius * 0.32);
+        var thickness = Math.Max(4, radius * 0.4);
         var ringRadius = radius - thickness / 2;
         var start = -90.0;
 
@@ -412,26 +401,6 @@ public sealed class GeoMapCanvas : FrameworkElement
 
         geometry.Freeze();
         return geometry;
-    }
-
-    /// <summary>A small red count of devices down, on the pin's top-right edge.</summary>
-    private static void DrawDownBadge(DrawingContext dc, Point centre, double radius, int down, double dpi)
-    {
-        var text = new FormattedText(
-            down.ToString(CultureInfo.CurrentCulture),
-            CultureInfo.CurrentUICulture,
-            FlowDirection.LeftToRight,
-            new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal),
-            9,
-            Brushes.White,
-            dpi);
-
-        var badgeRadius = Math.Max(7.5, text.Width / 2 + 3);
-        var offset = radius * 0.72;
-        var badgeCentre = new Point(centre.X + offset, centre.Y - offset);
-
-        dc.DrawEllipse(SeverityToBrushConverter.Critical, new Pen(Brushes.White, 1.5), badgeCentre, badgeRadius, badgeRadius);
-        dc.DrawText(text, new Point(badgeCentre.X - text.Width / 2, badgeCentre.Y - text.Height / 2));
     }
 
     private Point ClusterCentre(List<GeoPin> cluster) => new(
