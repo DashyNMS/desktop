@@ -1668,6 +1668,31 @@
                               CanUserAddRows="False"
                               SelectionChanged="OnUnimusBackupsSelectionChanged">
                         <DataGrid.Columns>
+                            <!-- A tick box that is the row's own selection, not
+                                 separate state: bound two-way to the containing
+                                 DataGridRow's IsSelected, so ticking adds that
+                                 row to the selection (like ctrl-click) and a
+                                 plain row click still ticks just that one. The
+                                 SelectionChanged handler then does the rest -
+                                 two ticked rows diff automatically. -->
+                            <DataGridTemplateColumn Width="36" CanUserResize="False" CanUserSort="False">
+                                <DataGridTemplateColumn.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="✓"
+                                                   HorizontalAlignment="Center"
+                                                   ToolTip="Tick two backups to compare them" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Focusable="False"
+                                                  ToolTip="Tick two backups to compare them"
+                                                  IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}, Mode=TwoWay}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Date" Width="*" Binding="{Binding DateText}" />
                             <DataGridTextColumn Header="Status" Width="90" Binding="{Binding StatusText}" />
                         </DataGrid.Columns>
@@ -1759,7 +1784,7 @@
                             </Grid>
 
                             <TextBlock Grid.Row="1"
-                                       Text="Select a backup to view it, or select two to compare them."
+                                       Text="Click a backup to view it, or tick two to compare them."
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
                                        TextWrapping="Wrap"
@@ -1791,7 +1816,7 @@
                                        Visibility="{Binding IsDiffing, Converter={StaticResource BoolToVisibility}}" />
 
                             <TextBlock Grid.Row="1"
-                                       Text="Select exactly two backups to compare them."
+                                       Text="Tick exactly two backups to compare them."
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
                                        TextWrapping="Wrap"
