@@ -25,6 +25,9 @@ public partial class MainWindow : Window
     /// <summary>Same debounced hover-flyout behaviour as <see cref="_devicesFlyoutCloseTimer"/>, for Rules/Templates under the Alerts button.</summary>
     private readonly DispatcherTimer _alertsFlyoutCloseTimer;
 
+    /// <summary>Same again, for Network/Geographical/Custom Maps under the Maps button.</summary>
+    private readonly DispatcherTimer _mapsFlyoutCloseTimer;
+
     private bool _allowClose;
 
     public MainWindow(MainViewModel viewModel, ISettingsStore settings)
@@ -51,6 +54,14 @@ public partial class MainWindow : Window
             AlertsFlyout.IsOpen = false;
         };
         AlertsFlyout.PlacementTarget = AlertsTabButton;
+
+        _mapsFlyoutCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        _mapsFlyoutCloseTimer.Tick += (_, _) =>
+        {
+            _mapsFlyoutCloseTimer.Stop();
+            MapsFlyout.IsOpen = false;
+        };
+        MapsFlyout.PlacementTarget = MapsTabButton;
 
         RestorePlacement();
         ApplyGridLayouts();
@@ -90,6 +101,24 @@ public partial class MainWindow : Window
     {
         _alertsFlyoutCloseTimer.Stop();
         AlertsFlyout.IsOpen = false;
+    }
+
+    private void MapsTabButton_MouseEnter(object sender, MouseEventArgs e)
+    {
+        _mapsFlyoutCloseTimer.Stop();
+        MapsFlyout.IsOpen = true;
+    }
+
+    private void MapsTabButton_MouseLeave(object sender, MouseEventArgs e) => _mapsFlyoutCloseTimer.Start();
+
+    private void MapsFlyoutContent_MouseEnter(object sender, MouseEventArgs e) => _mapsFlyoutCloseTimer.Stop();
+
+    private void MapsFlyoutContent_MouseLeave(object sender, MouseEventArgs e) => _mapsFlyoutCloseTimer.Start();
+
+    private void MapsFlyoutItem_Click(object sender, RoutedEventArgs e)
+    {
+        _mapsFlyoutCloseTimer.Stop();
+        MapsFlyout.IsOpen = false;
     }
 
     /// <summary>
@@ -138,6 +167,14 @@ public partial class MainWindow : Window
         else if (_viewModel.IsLocationsTabSelected)
         {
             LocationsViewControl.FocusSearch();
+        }
+        else if (_viewModel.IsNetworkMapTabSelected)
+        {
+            NetworkMapViewControl.FocusSearch();
+        }
+        else if (_viewModel.IsGeoMapTabSelected)
+        {
+            GeoMapViewControl.FocusSearch();
         }
 
         // Dashboard has no search box yet.

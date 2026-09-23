@@ -1,0 +1,31 @@
+<UserControl x:Class="DesktopNMS.Views.CustomMapsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="1100">
+
+    <!-- The Maps tab's Custom Maps page - deliberately empty for now.
+         Custom maps (hand-arranged diagrams, like LibreNMS's own Custom
+         Maps) come later; once they exist, one can also be chosen as the
+         Default map in Settings. -->
+    <Grid Background="{StaticResource BackgroundBrush}">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
+            <TextBlock Text="&#xE707;"
+                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                       FontSize="40"
+                       HorizontalAlignment="Center"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       Margin="0,0,0,14" />
+            <TextBlock Text="No custom maps yet"
+                       Style="{StaticResource HeadingTextStyle}"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="Custom maps will let you lay out your own diagrams of devices and links. Once you have some, you'll be able to pick one as the map the Maps tab opens on."
+                       Style="{StaticResource SubtleTextStyle}"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       Margin="0,8,0,0" />
+        </StackPanel>
+    </Grid>
+</UserControl>

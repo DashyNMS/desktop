@@ -206,11 +206,20 @@ public sealed class FilterFacet : ObservableObject
     /// value has not been indexed for some reason), every option ends up
     /// unchecked, same as "select none".
     /// </summary>
-    public void IsolateOne(string key, bool notify = true)
+    public void IsolateOne(string key, bool notify = true) => IsolateAny(new[] { key }, notify);
+
+    /// <summary>
+    /// <see cref="IsolateOne"/> for several values at once - checks exactly
+    /// these (e.g. every location under one Geographical map pin) and
+    /// unchecks everything else.
+    /// </summary>
+    public void IsolateAny(IReadOnlyCollection<string> keys, bool notify = true)
     {
+        var wanted = new HashSet<string>(keys, StringComparer.OrdinalIgnoreCase);
+
         foreach (var option in Options)
         {
-            option.SetCheckedQuietly(string.Equals(option.Key, key, StringComparison.OrdinalIgnoreCase));
+            option.SetCheckedQuietly(wanted.Contains(option.Key));
         }
 
         OnPropertyChanged(nameof(HasActiveFilter));

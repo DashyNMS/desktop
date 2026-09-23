@@ -134,6 +134,12 @@ public sealed class WindowService : IWindowService
         ShowDevicesTab();
     }
 
+    public void ShowDevicesFilteredByLocations(IReadOnlyCollection<string> locations)
+    {
+        _services.GetRequiredService<DeviceListViewModel>().FilterByLocationsOnly(locations);
+        ShowDevicesTab();
+    }
+
     public void ShowDevicesFilteredByGroup(string groupName)
     {
         _services.GetRequiredService<DeviceListViewModel>().FilterByGroupOnly(groupName);

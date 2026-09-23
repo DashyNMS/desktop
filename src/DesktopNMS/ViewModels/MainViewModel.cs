@@ -48,6 +48,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly LocationsViewModel _locations;
     private readonly RulesViewModel _rulesTab;
     private readonly TemplatesViewModel _templates;
+    private readonly NetworkMapViewModel _networkMap;
+    private readonly GeoMapViewModel _geoMap;
     private readonly IServerBrandingService _branding;
     private readonly ISelfActionTracker _selfActions;
     private readonly ILogger<MainViewModel> _logger;
@@ -108,6 +110,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         LocationsViewModel locations,
         RulesViewModel rulesTab,
         TemplatesViewModel templates,
+        NetworkMapViewModel networkMap,
+        GeoMapViewModel geoMap,
         IServerBrandingService branding,
         ISelfActionTracker selfActions,
         ILogger<MainViewModel> logger)
@@ -127,6 +131,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _locations = locations;
         _rulesTab = rulesTab;
         _templates = templates;
+        _networkMap = networkMap;
+        _geoMap = geoMap;
         _branding = branding;
         _selfActions = selfActions;
         _logger = logger;
@@ -168,6 +174,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectLocationsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Locations);
         SelectRulesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Rules);
         SelectTemplatesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Templates);
+        SelectMapsTabCommand = new RelayCommand(SelectDefaultMap);
+        SelectNetworkMapTabCommand = new RelayCommand(() => SelectedTab = MainTab.MapsNetwork);
+        SelectGeoMapTabCommand = new RelayCommand(() => SelectedTab = MainTab.MapsGeographical);
+        SelectCustomMapsTabCommand = new RelayCommand(() => SelectedTab = MainTab.MapsCustom);
         RefreshCurrentTabCommand = new RelayCommand(RefreshCurrentTab);
         ClearCurrentTabFiltersCommand = new RelayCommand(ClearCurrentTabFilters);
         SettingsCommand = new RelayCommand(OpenSettings);
@@ -257,6 +267,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectTemplatesTabCommand { get; }
 
+    /// <summary>Clicking Maps itself - opens whichever map Settings names as the default.</summary>
+    public RelayCommand SelectMapsTabCommand { get; }
+
+    public RelayCommand SelectNetworkMapTabCommand { get; }
+
+    public RelayCommand SelectGeoMapTabCommand { get; }
+
+    public RelayCommand SelectCustomMapsTabCommand { get; }
+
     /// <summary>F5: refreshes whichever tab is currently showing.</summary>
     public RelayCommand RefreshCurrentTabCommand { get; }
 
@@ -289,6 +308,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The alert template list, for the Templates tab's content to bind to.</summary>
     public TemplatesViewModel Templates => _templates;
+
+    /// <summary>The network map, for the Map tab's content to bind to.</summary>
+    public NetworkMapViewModel NetworkMap => _networkMap;
+
+    /// <summary>The geographical map, for Maps → Geographical to bind to.</summary>
+    public GeoMapViewModel GeoMap => _geoMap;
 
     /// <summary>The connected server's favicon, shown next to the tabs. Null until it loads, or if there isn't one.</summary>
     public BitmapImage? ServerLogo => _branding.Logo;
@@ -333,6 +358,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsLocationsTabSelected));
                 OnPropertyChanged(nameof(IsRulesTabSelected));
                 OnPropertyChanged(nameof(IsTemplatesTabSelected));
+                OnPropertyChanged(nameof(IsMapsFamilyTabSelected));
+                OnPropertyChanged(nameof(IsNetworkMapTabSelected));
+                OnPropertyChanged(nameof(IsGeoMapTabSelected));
+                OnPropertyChanged(nameof(IsCustomMapsTabSelected));
 
                 // Loaded once, lazily, the first time a tab is actually looked at.
                 if (value == MainTab.Devices)
@@ -363,6 +392,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 {
                     _templates.OnShown();
                 }
+                else if (value == MainTab.MapsNetwork)
+                {
+                    _networkMap.OnShown();
+                }
+                else if (value == MainTab.MapsGeographical)
+                {
+                    _geoMap.OnShown();
+                }
             }
         }
     }
@@ -388,6 +425,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public bool IsRulesTabSelected => SelectedTab == MainTab.Rules;
 
     public bool IsTemplatesTabSelected => SelectedTab == MainTab.Templates;
+
+    /// <summary>True for any of the three maps - keeps the Maps nav button highlighted, same "family" pattern as Devices and Alerts.</summary>
+    public bool IsMapsFamilyTabSelected => SelectedTab is MainTab.MapsNetwork or MainTab.MapsGeographical or MainTab.MapsCustom;
+
+    public bool IsNetworkMapTabSelected => SelectedTab == MainTab.MapsNetwork;
+
+    public bool IsGeoMapTabSelected => SelectedTab == MainTab.MapsGeographical;
+
+    public bool IsCustomMapsTabSelected => SelectedTab == MainTab.MapsCustom;
 
     // -------------------------------------------------------------- filtering
 
@@ -711,6 +757,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         else if (SelectedTab == MainTab.Templates)
         {
             _templates.OnShown();
+        }
+        else if (SelectedTab == MainTab.MapsNetwork)
+        {
+            _networkMap.OnShown();
+        }
+        else if (SelectedTab == MainTab.MapsGeographical)
+        {
+            _geoMap.OnShown();
         }
     }
 
@@ -1288,6 +1342,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Clicking Maps itself opens the Default map from Settings. Custom maps
+    /// ("custom:{id}") don't exist yet, so anything unrecognised - including
+    /// a custom map that's since been deleted - falls back to Network.
+    /// </summary>
+    private void SelectDefaultMap()
+    {
+        SelectedTab = _settings.Current.DefaultMap switch
+        {
+            AppSettings.DefaultMapGeographical => MainTab.MapsGeographical,
+            _ => MainTab.MapsNetwork,
+        };
+    }
+
     private void RefreshCurrentTab()
     {
         switch (SelectedTab)
@@ -1352,6 +1420,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
                 break;
 
+            case MainTab.MapsNetwork:
+                if (_networkMap.RefreshCommand.CanExecute(null))
+                {
+                    _networkMap.RefreshCommand.Execute(null);
+                }
+
+                break;
+
+            case MainTab.MapsGeographical:
+                if (_geoMap.RefreshCommand.CanExecute(null))
+                {
+                    _geoMap.RefreshCommand.Execute(null);
+                }
+
+                break;
+
             default:
                 break;
         }
@@ -1387,6 +1471,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
             case MainTab.Templates:
                 _templates.ClearFiltersCommand.Execute(null);
+                break;
+
+            case MainTab.MapsNetwork:
+                _networkMap.ClearFiltersCommand.Execute(null);
+                break;
+
+            case MainTab.MapsGeographical:
+                _geoMap.ClearFiltersCommand.Execute(null);
                 break;
 
             case MainTab.Dashboard:

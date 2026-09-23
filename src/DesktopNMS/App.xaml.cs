@@ -9,6 +9,7 @@ using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Security;
+using DesktopNMS.Core.Topology;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using DesktopNMS.ViewModels;
@@ -242,6 +243,8 @@ public partial class App : Application
         services.AddSingleton<IDeviceCache, DeviceCache>();
         services.AddSingleton<IAlertRuleCache, AlertRuleCache>();
         services.AddSingleton<IDeviceGroupMembershipService, DeviceGroupMembershipService>();
+        services.AddSingleton<IMapLayoutStore, MapLayoutStore>();
+        services.AddSingleton<IMapTileService, MapTileService>();
         services.AddSingleton<IUnimusDeviceResolver, UnimusDeviceResolver>();
         services.AddSingleton<AlertMonitor>();
         services.AddSingleton<SensorMonitor>();
@@ -266,6 +269,8 @@ public partial class App : Application
         services.AddSingleton<LocationsViewModel>();
         services.AddSingleton<RulesViewModel>();
         services.AddSingleton<TemplatesViewModel>();
+        services.AddSingleton<NetworkMapViewModel>();
+        services.AddSingleton<GeoMapViewModel>();
         services.AddTransient<ConnectionViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AddDeviceViewModel>();

@@ -181,6 +181,24 @@ public sealed class AppSettings
     /// </summary>
     public bool ShowServerLogo { get; set; } = true;
 
+    /// <summary>
+    /// Which map the Maps tab opens on: "Network", "Geographical", or (once
+    /// custom maps exist) "custom:{id}". A string rather than an enum so a
+    /// specific custom map can be named - see <see cref="DefaultMapNetwork"/>.
+    /// </summary>
+    public string DefaultMap { get; set; } = DefaultMapNetwork;
+
+    public const string DefaultMapNetwork = "Network";
+
+    public const string DefaultMapGeographical = "Geographical";
+
+    /// <summary>
+    /// The Geographical map's tile server - null for OpenStreetMap's standard
+    /// tiles (LibreNMS's own default). Takes a full {z}/{x}/{y} template or
+    /// LibreNMS's host-only leaflet.tile_url form - see Topology.TileUrlTemplate.
+    /// </summary>
+    public string? MapTileUrl { get; set; }
+
     public WindowPlacement? Window { get; set; }
 
     /// <summary>Remembered column widths/order and sort per DataGrid, keyed by a stable per-grid name (e.g. "Devices", "DeviceDetail.Ports") - see DataGridLayoutHelper.</summary>
@@ -220,6 +238,8 @@ public sealed class AppSettings
         AccentColor = AccentColor,
         Theme = Theme,
         ShowServerLogo = ShowServerLogo,
+        DefaultMap = DefaultMap,
+        MapTileUrl = MapTileUrl,
         Window = Window?.Clone(),
         GridLayouts = GridLayouts.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
     };
@@ -234,6 +254,16 @@ public sealed class AppSettings
 
         Notifications ??= new NotificationSettings();
         Filter ??= new AlertFilterSettings();
+
+        if (string.IsNullOrWhiteSpace(DefaultMap))
+        {
+            DefaultMap = DefaultMapNetwork;
+        }
+
+        if (string.IsNullOrWhiteSpace(MapTileUrl))
+        {
+            MapTileUrl = null;
+        }
         DashboardWidgets ??= new List<DashboardWidget>();
 
         if (RecentlyViewedDeviceCount < 1) RecentlyViewedDeviceCount = 1;

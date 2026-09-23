@@ -771,7 +771,14 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// devices at that location and nothing left over from whatever was
     /// filtered before.
     /// </summary>
-    public void FilterByLocationOnly(string location)
+    public void FilterByLocationOnly(string location) => FilterByLocationsOnly(new[] { location });
+
+    /// <summary>
+    /// <see cref="FilterByLocationOnly"/> for several locations at once -
+    /// the Geographical map's "show in Devices" for a pin that stands for
+    /// more than one location.
+    /// </summary>
+    public void FilterByLocationsOnly(IReadOnlyCollection<string> locations)
     {
         ShowUp = true;
         ShowDown = true;
@@ -781,7 +788,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
         TypeFilter.SetAllChecked(true, notify: false);
         GroupFilter.SetAllChecked(true, notify: false);
-        LocationFilter.IsolateOne(location, notify: false);
+        LocationFilter.IsolateAny(locations, notify: false);
 
         OnFilterChanged();
     }

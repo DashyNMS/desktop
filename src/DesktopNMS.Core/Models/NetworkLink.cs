@@ -13,6 +13,10 @@ public sealed class NetworkLink
     [JsonPropertyName("id")]
     public int Id { get; set; }
 
+    /// <summary>The device this link was discovered on. Present on both the per-device and fleet-wide (<c>resources/links</c>) endpoints; the fleet-wide one is what the network map needs it for.</summary>
+    [JsonPropertyName("local_device_id")]
+    public int LocalDeviceId { get; set; }
+
     [JsonPropertyName("local_port_id")]
     public int LocalPortId { get; set; }
 
