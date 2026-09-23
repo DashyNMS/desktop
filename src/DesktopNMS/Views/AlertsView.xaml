@@ -345,9 +345,6 @@
                         <Separator />
                         <MenuItem Header="Open device" Command="{Binding OpenDeviceCommand}" FontWeight="SemiBold" />
                         <MenuItem Header="Open procedure" Command="{Binding OpenProcedureCommand}" />
-                        <Separator />
-                        <MenuItem Header="Open alert in LibreNMS" Command="{Binding OpenAlertCommand}" />
-                        <MenuItem Header="Open device in LibreNMS" Command="{Binding OpenDeviceInLibreNmsCommand}" />
                     </ContextMenu>
                 </DataGrid.ContextMenu>
             </DataGrid>
@@ -618,19 +615,11 @@
                             </UniformGrid>
 
                             <StackPanel Visibility="{Binding IsSingleSelection, Converter={StaticResource BoolToVisibility}}">
-                                <!-- Open device stays in the app (issue #158);
-                                     the website is still one click away for
-                                     the alert's own history page. -->
-                                <UniformGrid Columns="2">
-                                    <Button Content="Open device"
-                                            Command="{Binding OpenDeviceCommand}"
-                                            ToolTip="Open this device's details in DashyNMS"
-                                            Margin="0,0,4,0" />
-                                    <Button Content="View in LibreNMS"
-                                            Command="{Binding OpenAlertCommand}"
-                                            ToolTip="Open this alert's page on the LibreNMS website"
-                                            Margin="4,0,0,0" />
-                                </UniformGrid>
+                                <!-- Open device stays in the app (issue #158) -
+                                     no links out to the LibreNMS website. -->
+                                <Button Content="Open device"
+                                        Command="{Binding OpenDeviceCommand}"
+                                        ToolTip="Open this device's details in DashyNMS" />
 
                                 <Button Content="Open procedure"
                                         Command="{Binding OpenProcedureCommand}"

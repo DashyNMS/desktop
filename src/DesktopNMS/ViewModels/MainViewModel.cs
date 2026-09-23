@@ -146,9 +146,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RefreshCommand = new RelayCommand(RequestRefresh, () => _isConnected && !_isBusy);
         AcknowledgeCommand = new AsyncRelayCommand(AcknowledgeSelectedAsync, () => CanAcknowledge);
         UnacknowledgeCommand = new AsyncRelayCommand(UnacknowledgeSelectedAsync, () => CanUnacknowledge);
-        OpenAlertCommand = new RelayCommand(OpenSelectedAlert, () => SelectedAlert?.AlertUrl is not null);
         OpenDeviceCommand = new RelayCommand(OpenSelectedDevice, () => SelectedAlert is not null);
-        OpenDeviceInLibreNmsCommand = new RelayCommand(OpenSelectedDeviceInLibreNms, () => SelectedAlert?.DeviceUrl is not null);
         // The row's procedure icon passes its own alert as the parameter
         // (clicking it needn't select the row first); the context menu and
         // detail pane pass nothing and act on the selection.
@@ -216,13 +214,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public AsyncRelayCommand UnacknowledgeCommand { get; }
 
-    public RelayCommand OpenAlertCommand { get; }
-
     /// <summary>Opens the alert's device in this app's own Device Details window (issue #158) - also what double-clicking a row does.</summary>
     public RelayCommand OpenDeviceCommand { get; }
-
-    /// <summary>The device's page on the LibreNMS website - kept as an explicit secondary action now that <see cref="OpenDeviceCommand"/> stays in-app.</summary>
-    public RelayCommand OpenDeviceInLibreNmsCommand { get; }
 
     public RelayCommand OpenProcedureCommand { get; }
 
@@ -1263,27 +1256,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _ => ("Confirm", $"Apply this to all {count} selected alerts?"),
     };
 
-    private void OpenSelectedAlert()
-    {
-        if (SelectedAlert?.AlertUrl is { } url)
-        {
-            _windows.OpenUrl(url);
-        }
-    }
-
     private void OpenSelectedDevice()
     {
         if (SelectedAlert is { } alert)
         {
             _windows.ShowDeviceDetail(alert.DeviceId);
-        }
-    }
-
-    private void OpenSelectedDeviceInLibreNms()
-    {
-        if (SelectedAlert?.DeviceUrl is { } url)
-        {
-            _windows.OpenUrl(url);
         }
     }
 
@@ -1667,9 +1644,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RefreshCommand.RaiseCanExecuteChanged();
         AcknowledgeCommand.RaiseCanExecuteChanged();
         UnacknowledgeCommand.RaiseCanExecuteChanged();
-        OpenAlertCommand.RaiseCanExecuteChanged();
         OpenDeviceCommand.RaiseCanExecuteChanged();
-        OpenDeviceInLibreNmsCommand.RaiseCanExecuteChanged();
         OpenProcedureCommand.RaiseCanExecuteChanged();
         FilterBySelectedRuleCommand.RaiseCanExecuteChanged();
         FilterBySelectedDeviceCommand.RaiseCanExecuteChanged();
