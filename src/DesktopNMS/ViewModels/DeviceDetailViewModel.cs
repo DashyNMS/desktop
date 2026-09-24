@@ -1745,26 +1745,48 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public bool HasAlternateName => AlternateName is not null;
 
-    /// <summary>The polled identifier - what LibreNMS connects to.</summary>
-    public string HostnameText => Blank(_device?.Hostname);
-
-    /// <summary>What the device reports over SNMP.</summary>
-    public string SysNameText => Blank(_device?.SysName);
-
-    /// <summary>LibreNMS's resolved display name (from the display template, or a manual override).</summary>
-    public string DisplayNameText => Blank(_device?.Display);
-
     /// <summary>
-    /// The Overview identity card shows hostname, sysName and display name
-    /// separately (#126) only when they don't all agree - when they do, the
-    /// window title already says everything there is to say.
+    /// The device's names for the Overview identity card (#126) - hostname
+    /// (what LibreNMS polls), sysName (what the device reports over SNMP)
+    /// and display name - one row per distinct value, so names that agree
+    /// share a row ("sysName and display name") rather than repeating it.
+    /// Blank names are left out.
     /// </summary>
-    public bool ShowNameDetails => _device is not null
-        && new[] { _device.Hostname, _device.SysName, _device.Display }
-            .Where(n => !string.IsNullOrWhiteSpace(n))
-            .Select(n => n!.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count() > 1;
+    public IReadOnlyList<DeviceNameRow> NameDetails
+    {
+        get
+        {
+            if (_device is null)
+            {
+                return Array.Empty<DeviceNameRow>();
+            }
+
+            var names = new (string Label, string? Value)[]
+            {
+                ("Hostname", _device.Hostname),
+                ("sysName", _device.SysName),
+                ("Display name", _device.Display),
+            };
+
+            return names
+                .Where(n => !string.IsNullOrWhiteSpace(n.Value))
+                .GroupBy(n => n.Value!.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => new DeviceNameRow(JoinLabels(g.Select(n => n.Label).ToList()), g.Key))
+                .ToList();
+        }
+    }
+
+    /// <summary>Only when the names don't all agree - when they do, the window title already says everything there is to say.</summary>
+    public bool ShowNameDetails => NameDetails.Count > 1;
+
+    /// <summary>"Hostname", "sysName and display name", "Hostname, sysName and display name" - later labels lower-cased, except sysName, which is its own spelling.</summary>
+    private static string JoinLabels(IReadOnlyList<string> labels)
+    {
+        var parts = labels.Select((label, i) => i == 0 || label == "sysName" ? label : label.ToLowerInvariant()).ToList();
+        return parts.Count == 1
+            ? parts[0]
+            : string.Join(", ", parts.Take(parts.Count - 1)) + " and " + parts[^1];
+    }
 
     /// <summary>The raw SNMP system description, e.g. "Onyx,SN2010M,SWv3.10.4408" - shown under the device name, matching where LibreNMS's own device page puts it.</summary>
     public string? SysDescr => string.IsNullOrWhiteSpace(_device?.SysDescr) ? null : _device.SysDescr;
@@ -3637,9 +3659,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(AlternateName));
         OnPropertyChanged(nameof(HasAlternateName));
-        OnPropertyChanged(nameof(HostnameText));
-        OnPropertyChanged(nameof(SysNameText));
-        OnPropertyChanged(nameof(DisplayNameText));
+        OnPropertyChanged(nameof(NameDetails));
         OnPropertyChanged(nameof(ShowNameDetails));
         OnPropertyChanged(nameof(State));
         OnPropertyChanged(nameof(StateText));
@@ -4506,3 +4526,6 @@ file static class ResourceByteFormat
         return value.ToString(unit == 0 ? "0" : "0.#", CultureInfo.InvariantCulture) + " " + Units[unit];
     }
 }
+
+/// <summary>One row of the Overview identity card's names (#126) - see <see cref="DeviceDetailViewModel.NameDetails"/>.</summary>
+public sealed record DeviceNameRow(string Label, string Value);

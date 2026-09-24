@@ -306,16 +306,21 @@
                                 Margin="0,0,6,0">
                             <StackPanel>
                                 <!-- Only when hostname, sysName and display
-                                     name disagree (#126) - when they match,
-                                     the window title already covers it. -->
-                                <StackPanel Visibility="{Binding ShowNameDetails, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock Text="Hostname" Style="{StaticResource SectionHeaderStyle}" />
-                                    <TextBlock Text="{Binding HostnameText}" TextWrapping="Wrap" Margin="0,0,0,14" />
-                                    <TextBlock Text="sysName" Style="{StaticResource SectionHeaderStyle}" />
-                                    <TextBlock Text="{Binding SysNameText}" TextWrapping="Wrap" Margin="0,0,0,14" />
-                                    <TextBlock Text="Display name" Style="{StaticResource SectionHeaderStyle}" />
-                                    <TextBlock Text="{Binding DisplayNameText}" TextWrapping="Wrap" Margin="0,0,0,14" />
-                                </StackPanel>
+                                     name don't all agree (#126), one row per
+                                     distinct value - names that match share a
+                                     row. When all three match, the window title
+                                     already covers it. -->
+                                <ItemsControl ItemsSource="{Binding NameDetails}"
+                                              Visibility="{Binding ShowNameDetails, Converter={StaticResource BoolToVisibility}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Label}" Style="{StaticResource SectionHeaderStyle}" />
+                                                <TextBlock Text="{Binding Value}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                                 <TextBlock Text="IP address" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,0" />
                                 <TextBlock Text="{Binding Ip}" TextWrapping="Wrap" Margin="0,0,0,14" />
                                 <TextBlock Text="Operating system" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,0" />
