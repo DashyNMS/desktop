@@ -173,58 +173,6 @@
                                       Style="{StaticResource NavTabButtonStyle}"
                                       IsChecked="{Binding IsHealthTabSelected, Mode=OneWay}"
                                       Command="{Binding SelectHealthTabCommand}" />
-                        <!-- Alerts' own click still goes straight to the
-                             Alerts tab; hovering reveals Rules/Templates as a
-                             flyout below it, since both are facets of
-                             alerting configuration rather than peers of
-                             Devices/Health/Alerts - same "family" pattern as
-                             the Devices/Groups/Locations flyout above. -->
-                        <Grid>
-                            <ToggleButton x:Name="AlertsTabButton"
-                                          Style="{StaticResource NavTabButtonStyle}"
-                                          IsChecked="{Binding IsAlertsFamilyTabSelected, Mode=OneWay}"
-                                          Command="{Binding SelectAlertsTabCommand}"
-                                          MouseEnter="AlertsTabButton_MouseEnter"
-                                          MouseLeave="AlertsTabButton_MouseLeave">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Alerts" />
-                                    <TextBlock Text="&#xE70D;"
-                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                               FontSize="9"
-                                               Margin="5,0,0,0"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                            </ToggleButton>
-
-                            <Popup x:Name="AlertsFlyout"
-                                   Placement="Bottom"
-                                   AllowsTransparency="True"
-                                   StaysOpen="True">
-                                <Border x:Name="AlertsFlyoutContent"
-                                        Background="{StaticResource SurfaceBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="4"
-                                        Margin="0,4,0,0"
-                                        MouseEnter="AlertsFlyoutContent_MouseEnter"
-                                        MouseLeave="AlertsFlyoutContent_MouseLeave">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
-                                    </Border.Effect>
-                                    <StackPanel MinWidth="120">
-                                        <Button Content="Rules"
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectRulesTabCommand}"
-                                                Click="AlertsFlyoutItem_Click" />
-                                        <Button Content="Templates"
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectTemplatesTabCommand}"
-                                                Click="AlertsFlyoutItem_Click" />
-                                    </StackPanel>
-                                </Border>
-                            </Popup>
-                        </Grid>
                         <!-- Maps' own click opens the Default map (Settings);
                              hovering offers all three, same flyout pattern
                              as Devices and Alerts. -->
@@ -278,17 +226,30 @@
                                 </Border>
                             </Popup>
                         </Grid>
-                        <!-- Logs: Graylog for now, with the same hover menu
-                             as Maps so other log sources can join it later. -->
+                        <!-- Logs: Graylog is its only source so far, so no
+                             hover menu yet (add one, like Maps, when a second
+                             source arrives) - and the tab only shows while
+                             Graylog is set up. -->
+                        <ToggleButton Content="Logs"
+                                      Style="{StaticResource NavTabButtonStyle}"
+                                      IsChecked="{Binding IsLogsFamilyTabSelected, Mode=OneWay}"
+                                      Command="{Binding SelectLogsTabCommand}"
+                                      Visibility="{Binding ShowLogsTab, Converter={StaticResource BoolToVisibility}}" />
+                        <!-- Alerts' own click still goes straight to the
+                             Alerts tab; hovering reveals Rules/Templates as a
+                             flyout below it, since both are facets of
+                             alerting configuration rather than peers of
+                             Devices/Health/Alerts - same "family" pattern as
+                             the Devices/Groups/Locations flyout above. -->
                         <Grid>
-                            <ToggleButton x:Name="LogsTabButton"
+                            <ToggleButton x:Name="AlertsTabButton"
                                           Style="{StaticResource NavTabButtonStyle}"
-                                          IsChecked="{Binding IsLogsFamilyTabSelected, Mode=OneWay}"
-                                          Command="{Binding SelectLogsTabCommand}"
-                                          MouseEnter="LogsTabButton_MouseEnter"
-                                          MouseLeave="LogsTabButton_MouseLeave">
+                                          IsChecked="{Binding IsAlertsFamilyTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectAlertsTabCommand}"
+                                          MouseEnter="AlertsTabButton_MouseEnter"
+                                          MouseLeave="AlertsTabButton_MouseLeave">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Logs" />
+                                    <TextBlock Text="Alerts" />
                                     <TextBlock Text="&#xE70D;"
                                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                FontSize="9"
@@ -297,27 +258,31 @@
                                 </StackPanel>
                             </ToggleButton>
 
-                            <Popup x:Name="LogsFlyout"
+                            <Popup x:Name="AlertsFlyout"
                                    Placement="Bottom"
                                    AllowsTransparency="True"
                                    StaysOpen="True">
-                                <Border x:Name="LogsFlyoutContent"
+                                <Border x:Name="AlertsFlyoutContent"
                                         Background="{StaticResource SurfaceBrush}"
                                         BorderBrush="{StaticResource BorderBrush}"
                                         BorderThickness="1"
                                         CornerRadius="6"
                                         Padding="4"
                                         Margin="0,4,0,0"
-                                        MouseEnter="LogsFlyoutContent_MouseEnter"
-                                        MouseLeave="LogsFlyoutContent_MouseLeave">
+                                        MouseEnter="AlertsFlyoutContent_MouseEnter"
+                                        MouseLeave="AlertsFlyoutContent_MouseLeave">
                                     <Border.Effect>
                                         <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
                                     </Border.Effect>
-                                    <StackPanel MinWidth="140">
-                                        <Button Content="Graylog"
+                                    <StackPanel MinWidth="120">
+                                        <Button Content="Rules"
                                                 Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectLogsTabCommand}"
-                                                Click="LogsFlyoutItem_Click" />
+                                                Command="{Binding SelectRulesTabCommand}"
+                                                Click="AlertsFlyoutItem_Click" />
+                                        <Button Content="Templates"
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding SelectTemplatesTabCommand}"
+                                                Click="AlertsFlyoutItem_Click" />
                                     </StackPanel>
                                 </Border>
                             </Popup>

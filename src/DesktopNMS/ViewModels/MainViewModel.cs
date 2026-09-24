@@ -52,6 +52,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly GeoMapViewModel _geoMap;
     private readonly CustomMapsViewModel _customMaps;
     private readonly LogsViewModel _logs;
+    private readonly IGraylogApi _graylog;
     private readonly IServerBrandingService _branding;
     private readonly ISelfActionTracker _selfActions;
     private readonly ILogger<MainViewModel> _logger;
@@ -116,6 +117,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         GeoMapViewModel geoMap,
         CustomMapsViewModel customMaps,
         LogsViewModel logs,
+        IGraylogApi graylog,
         IServerBrandingService branding,
         ISelfActionTracker selfActions,
         ILogger<MainViewModel> logger)
@@ -139,6 +141,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _geoMap = geoMap;
         _customMaps = customMaps;
         _logs = logs;
+        _graylog = graylog;
+        _graylog.ConfigurationChanged += OnGraylogConfigurationChanged;
         _branding = branding;
         _selfActions = selfActions;
         _logger = logger;
@@ -329,6 +333,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public LogsViewModel Logs => _logs;
 
+    /// <summary>The Logs tab only shows while Graylog - its only source so far - is set up.</summary>
+    public bool ShowLogsTab => _graylog.IsConfigured;
+
     /// <summary>The connected server's favicon, shown next to the tabs. Null until it loads, or if there isn't one.</summary>
     public BitmapImage? ServerLogo => _branding.Logo;
 
@@ -433,6 +440,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 }
             }
         }
+    }
+
+    /// <summary>Graylog switched on or off in Settings: show or hide the Logs tab, leaving it first if it's the one showing.</summary>
+    private void OnGraylogConfigurationChanged(object? sender, EventArgs e)
+    {
+        _dispatcher.InvokeAsync(() =>
+        {
+            if (!_graylog.IsConfigured && SelectedTab == MainTab.LogsGraylog)
+            {
+                SelectedTab = MainTab.Dashboard;
+            }
+
+            OnPropertyChanged(nameof(ShowLogsTab));
+        });
     }
 
     /// <summary>
@@ -1838,6 +1859,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _monitor.Polled -= OnPolled;
         _monitor.PollStarted -= OnPollStarted;
         _session.StateChanged -= OnSessionStateChanged;
+        _graylog.ConfigurationChanged -= OnGraylogConfigurationChanged;
         _branding.Changed -= OnBrandingChanged;
         _settings.Changed -= OnLogoSettingChanged;
         _groupMembership.Changed -= OnGroupMembershipChanged;

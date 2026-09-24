@@ -48,10 +48,21 @@ public sealed record GraylogRangeOption(int Seconds, string Label)
     public override string ToString() => Label;
 }
 
-/// <summary>A device filter choice on the Logs tab; a null <see cref="Device"/> is "All devices".</summary>
-public sealed record GraylogDeviceOption(Device? Device, string Label)
+/// <summary>
+/// A device filter choice on the Logs tab: one device, every device at a
+/// location (<see cref="LocationDevices"/>), or neither - "All devices".
+/// </summary>
+public sealed record GraylogDeviceOption(Device? Device, string Label, string? LocationName = null, IReadOnlyList<Device>? LocationDevices = null)
 {
     public int? DeviceId => Device?.DeviceId;
+
+    public bool IsLocation => LocationDevices is not null;
+
+    /// <summary>The devices this choice searches - none for "All devices" (no device filter at all).</summary>
+    public IReadOnlyList<Device> Devices => LocationDevices ?? (Device is null ? Array.Empty<Device>() : new[] { Device });
+
+    /// <summary>Identifies the choice across refreshes of the device list, so the selection survives one.</summary>
+    public string Key => IsLocation ? "location:" + LocationName : Device is null ? "all" : "device:" + Device.DeviceId;
 
     public override string ToString() => Label;
 }
@@ -86,6 +97,9 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
 {
     private const string NewestFirst = "timestamp:desc";
 
+    /// <summary>Longest query sent - Graylog's search is a GET, and servers and proxies commonly cap a request line at 8 KB; the query roughly doubles once URL-encoded.</summary>
+    private const int MaxQueryLength = 3500;
+
     /// <summary>How long to wait for the hostname lookup LibreNMS does (gethostbyname) before carrying on without it.</summary>
     private static readonly TimeSpan HostnameLookupTimeout = TimeSpan.FromSeconds(3);
 
@@ -108,6 +122,7 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
     private bool _suppressReload;
     private bool _isActive;
     private DateTimeOffset? _lastUpdated;
+    private string _matchingKey;
 
     private GraylogStreamOption _selectedStream;
     private GraylogLevelOption _selectedLevel;
@@ -192,7 +207,9 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
             _autoUpdateTimer.Tick += OnAutoUpdateTick;
         }
 
+        _matchingKey = MatchingKey(options);
         _settings.Changed += OnSettingsChanged;
+        _graylog.ConfigurationChanged += OnConfigurationChanged;
     }
 
     /// <summary>For Device Details' Graylog tab - this one device's messages.</summary>
@@ -541,8 +558,8 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Replaces the Logs tab's device filter choices with the current device
-    /// list (from the shared device poll), keeping the selected device when
-    /// it's still there.
+    /// list (from the shared device poll): every location that has devices,
+    /// then every device - keeping the selected choice when it's still there.
     /// </summary>
     public void UpdateDevices(IReadOnlyList<Device> devices)
     {
@@ -552,15 +569,27 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
         }
 
         var style = _settings.Current.DeviceNameStyle;
-        var options = devices
+
+        var locations = devices
+            .Where(d => !string.IsNullOrWhiteSpace(d.Location))
+            .GroupBy(d => d.Location!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var members = g.OrderBy(d => d.DeviceId).ToList();
+                var noun = members.Count == 1 ? "device" : "devices";
+                return new GraylogDeviceOption(null, $"{g.Key} (location, {members.Count} {noun})", g.Key, members);
+            })
+            .OrderBy(o => o.LocationName, StringComparer.CurrentCultureIgnoreCase);
+
+        var single = devices
             .Select(d => new GraylogDeviceOption(d, style.Resolve(d, d.Hostname)))
-            .OrderBy(o => o.Label, StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
+            .OrderBy(o => o.Label, StringComparer.CurrentCultureIgnoreCase);
+
+        var options = locations.Concat(single).ToList();
 
         // Unchanged (the usual case for a poll) - leave the list alone so an
         // open drop-down isn't disturbed.
-        if (options.Count == DeviceOptions.Count - 1
-            && options.Zip(DeviceOptions.Skip(1)).All(p => p.First.DeviceId == p.Second.DeviceId && p.First.Label == p.Second.Label))
+        if (Signature(options) == Signature(DeviceOptions.Skip(1)))
         {
             return;
         }
@@ -568,7 +597,7 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
         _suppressReload = true;
         try
         {
-            var selectedId = SelectedDevice.DeviceId;
+            var selectedKey = SelectedDevice.Key;
             while (DeviceOptions.Count > 1)
             {
                 DeviceOptions.RemoveAt(DeviceOptions.Count - 1);
@@ -579,7 +608,7 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
                 DeviceOptions.Add(option);
             }
 
-            SelectedDevice = DeviceOptions.FirstOrDefault(o => o.DeviceId == selectedId) ?? DeviceOptions[0];
+            SelectedDevice = DeviceOptions.FirstOrDefault(o => o.Key == selectedKey) ?? DeviceOptions[0];
         }
         finally
         {
@@ -588,6 +617,10 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
 
         _sourceNames.Clear();
     }
+
+    /// <summary>Each choice's identity, label and (for a location) members - equal when nothing worth rebuilding the list for has changed.</summary>
+    private static string Signature(IEnumerable<GraylogDeviceOption> options) =>
+        string.Join('\n', options.Select(o => o.Key + "|" + o.Label + "|" + string.Join(',', o.Devices.Select(d => d.DeviceId))));
 
     /// <summary>Selects a device in the Logs tab's device filter (e.g. from "Show logs" elsewhere).</summary>
     public void SelectDevice(int deviceId)
@@ -602,6 +635,7 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _settings.Changed -= OnSettingsChanged;
+        _graylog.ConfigurationChanged -= OnConfigurationChanged;
 
         if (_autoUpdateTimer is not null)
         {
@@ -648,24 +682,20 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Settings saved: Graylog may have been switched on, off or pointed
-    /// somewhere else, and the query field or "match any address" may have
-    /// changed which addresses a device is matched on - so forget the worked
-    /// out addresses and, if showing, search again.
+    /// Graylog was switched on or off, or pointed somewhere else, in
+    /// Settings: show or hide accordingly and, if the Logs tab is showing,
+    /// search again against the new server.
     /// </summary>
-    private void OnSettingsChanged(object? sender, AppSettings settings)
+    private void OnConfigurationChanged(object? sender, EventArgs e)
     {
         _dispatcher.InvokeAsync(() =>
         {
-            _addressesByDevice.Clear();
-            _sourceNames.Clear();
             OnPropertyChanged(nameof(IsConfigured));
-            OnPropertyChanged(nameof(AutoUpdate));
-            OnPropertyChanged(nameof(SelectedAutoUpdateInterval));
             UpdateAutoUpdateTimer();
 
             if (!_graylog.IsConfigured)
             {
+                _searchCts?.Cancel();
                 return;
             }
 
@@ -674,10 +704,45 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
             if (IsFleet && _isActive)
             {
                 _hasLoaded = false;
-                EnsureLoaded();
+                _ = LoadStreamsAsync();
+                _ = LoadAsync(silent: false);
             }
         });
     }
+
+    /// <summary>
+    /// Settings are saved for all sorts of reasons (window placement, filter
+    /// chips, this tab's own auto-update toggle) - only a change to how
+    /// messages are matched or shown (query field, match any address, time
+    /// zone) forgets the worked-out addresses and searches again.
+    /// </summary>
+    private void OnSettingsChanged(object? sender, AppSettings settings)
+    {
+        _dispatcher.InvokeAsync(() =>
+        {
+            OnPropertyChanged(nameof(AutoUpdate));
+            OnPropertyChanged(nameof(SelectedAutoUpdateInterval));
+            UpdateAutoUpdateTimer();
+
+            var key = MatchingKey(_settings.Current.Graylog);
+            if (key == _matchingKey)
+            {
+                return;
+            }
+
+            _matchingKey = key;
+            _addressesByDevice.Clear();
+            _sourceNames.Clear();
+
+            if (IsFleet && _isActive && _hasLoaded && _graylog.IsConfigured)
+            {
+                _ = LoadAsync(silent: false);
+            }
+        });
+    }
+
+    private static string MatchingKey(GraylogSettings settings) =>
+        string.Join('\n', settings.QueryField, settings.MatchAnyAddress, settings.Timezone);
 
     private void UpdateAutoUpdateTimer()
     {
@@ -803,26 +868,42 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
 
         try
         {
-            IReadOnlyList<string>? addresses = null;
-            var device = CurrentDevice();
+            List<string>? addresses = null;
+            var devices = CurrentDevices();
 
-            if (!IsFleet || device is not null)
+            if (!IsFleet && devices.Count == 0)
             {
-                if (device is null)
-                {
-                    // Without an address, the query would match every
-                    // device's messages - never show those as this device's.
-                    ErrorMessage = "This device's details haven't loaded yet, so there's nothing to search Graylog for. Try Refresh in a moment.";
-                    return;
-                }
+                // Without an address, the query would match every device's
+                // messages - never show those as this device's.
+                ErrorMessage = "This device's details haven't loaded yet, so there's nothing to search Graylog for. Try Refresh in a moment.";
+                return;
+            }
 
-                addresses = await GetAddressesAsync(device, cts.Token).ConfigureAwait(true);
+            if (devices.Count > 0)
+            {
+                // Worked out side by side - each may wait on a DNS lookup.
+                var perDevice = await Task.WhenAll(devices.Select(d => GetAddressesAsync(d, cts.Token))).ConfigureAwait(true);
+                addresses = perDevice.SelectMany(a => a).Distinct(StringComparer.Ordinal).ToList();
             }
 
             var options = _settings.Current.Graylog;
             var query = GraylogQuery.WithMaxLevel(
-                GraylogQuery.BuildSimpleQuery(SearchText, options.QueryField, addresses?.ToList()),
+                GraylogQuery.BuildSimpleQuery(SearchText, options.QueryField, addresses),
                 SelectedLevel.Level);
+
+            // A big location's addresses can make a query longer than Graylog
+            // (or a proxy in front of it) accepts in a URL - say so plainly
+            // rather than failing with an obscure HTTP error.
+            if (query.Length > MaxQueryLength)
+            {
+                ErrorMessage = devices.Count > 1
+                    ? $"{SelectedDevice.LocationName ?? "This location"} has too many devices to search Graylog for in one go. Pick one of its devices instead."
+                    : "This device has too many addresses to search Graylog for in one go. Turning off \"Match any address\" in Settings, Integrations, Graylog searches its main addresses only.";
+                _hasLoaded = true;
+                Messages.Clear();
+                TotalResults = 0;
+                return;
+            }
 
             var result = await _graylog.SearchAsync(
                 query,
@@ -904,8 +985,16 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>The fixed device, or the Logs tab's chosen one (null for all devices).</summary>
-    private Device? CurrentDevice() => _fixedDevice is not null ? _fixedDevice() : SelectedDevice.Device;
+    /// <summary>The fixed device, or the devices the Logs tab's device filter covers (none for all devices).</summary>
+    private IReadOnlyList<Device> CurrentDevices()
+    {
+        if (_fixedDevice is not null)
+        {
+            return _fixedDevice() is { } device ? new[] { device } : Array.Empty<Device>();
+        }
+
+        return SelectedDevice.Devices;
+    }
 
     /// <summary>
     /// A device's addresses for the query field (see

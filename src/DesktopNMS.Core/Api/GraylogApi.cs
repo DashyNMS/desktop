@@ -22,6 +22,9 @@ public interface IGraylogApi
     /// <summary>True once <see cref="Configure"/> has been called and not since undone by <see cref="Clear"/> - the integration is enabled and set up, not necessarily reachable.</summary>
     bool IsConfigured { get; }
 
+    /// <summary>Raised after <see cref="Configure"/> or <see cref="Clear"/>, on the calling thread - so anything shown only when Graylog is set up (the Logs tab, a device's Graylog tab) can appear or go.</summary>
+    event EventHandler? ConfigurationChanged;
+
     void Configure(GraylogConnection connection);
 
     void Clear();
@@ -87,6 +90,8 @@ public sealed class GraylogApi : IGraylogApi, IDisposable
         }
     }
 
+    public event EventHandler? ConfigurationChanged;
+
     public void Configure(GraylogConnection connection)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -132,6 +137,7 @@ public sealed class GraylogApi : IGraylogApi, IDisposable
         oldHandler?.Dispose();
 
         _logger.LogInformation("Graylog client configured for {Root}", connection.Root);
+        ConfigurationChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void Clear()
@@ -150,6 +156,11 @@ public sealed class GraylogApi : IGraylogApi, IDisposable
 
         oldHttp?.Dispose();
         oldHandler?.Dispose();
+
+        if (oldHttp is not null)
+        {
+            ConfigurationChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     public async Task<IReadOnlyList<GraylogStream>> GetStreamsAsync(CancellationToken cancellationToken = default)

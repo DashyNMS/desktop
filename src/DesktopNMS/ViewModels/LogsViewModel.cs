@@ -12,7 +12,8 @@ namespace DesktopNMS.ViewModels;
 /// now - LibreNMS's Overview, Graylog page: every device's messages, with
 /// device, stream, level, range and text filters and auto-update - but the
 /// tab is Logs rather than Graylog so other log sources can sit alongside it
-/// later under the same hover menu.
+/// later (with a hover menu, like Maps, once there's more than one). The tab
+/// only shows while Graylog is set up - see MainViewModel.ShowLogsTab.
 /// </summary>
 public sealed class LogsViewModel : ObservableObject
 {

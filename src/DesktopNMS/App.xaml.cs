@@ -73,6 +73,11 @@ public partial class App : Application
         // is constructed - see ApplyTheme's remarks.
         ApplyTheme(settings.Current.Theme);
 
+        // Before the main window exists, so the Logs tab (only shown when
+        // Graylog is set up) is right from the first frame. Graylog doesn't
+        // depend on the LibreNMS session, so there's no need to wait for it.
+        ConfigureGraylogIfEnabled();
+
         AccentTheme.Apply(settings.Current.AccentColor);
         settings.Changed += (_, s) => AccentTheme.Apply(s.AccentColor);
 
@@ -140,7 +145,6 @@ public partial class App : Application
         // enable/disable toggle and credentials (see UnimusSettings), set up
         // in Settings rather than tied to LibreNMS sign-in/out.
         ConfigureUnimusIfEnabled();
-        ConfigureGraylogIfEnabled();
     }
 
     /// <summary>The same shape as <see cref="ConfigureUnimusIfEnabled"/> - Graylog is independent of LibreNMS sign-in too.</summary>

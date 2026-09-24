@@ -81,8 +81,8 @@
                       TextSearch.TextPath="Label"
                       IsEditable="True"
                       IsTextSearchEnabled="True"
-                      ToolTip="Device - type to find one"
-                      Width="200"
+                      ToolTip="Device or location - type to find one"
+                      Width="250"
                       Margin="0,0,8,6"
                       Visibility="{Binding IsFleet, Converter={StaticResource BoolToVisibility}}" />
             <ComboBox ItemsSource="{Binding Streams}"

@@ -247,6 +247,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
         Graphs = new GraphsSectionViewModel(deviceId, client, logger);
         Graylog = GraylogMessagesViewModel.ForDevice(deviceId, () => _device, graylog, client, deviceCache, settings, windows, logger, _loadCts.Token);
+        Graylog.PropertyChanged += OnGraylogPropertyChanged;
 
         // Ping response is the one graph essentially every monitored
         // device has (unlike processor/storage, which only some do), so
@@ -754,6 +755,23 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>The INTEGRATIONS nav header - shown when any integration's tab is.</summary>
     public bool ShowIntegrationsGroup => ShowUnimusSection || ShowGraylogSection;
+
+    /// <summary>Graylog switched on or off in Settings while this window is open - show or hide its tab, leaving it first if it's showing.</summary>
+    private void OnGraylogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(GraylogMessagesViewModel.IsConfigured))
+        {
+            return;
+        }
+
+        if (!Graylog.IsConfigured && SelectedSection == DeviceDetailSection.Graylog)
+        {
+            SelectedSection = DeviceDetailSection.Overview;
+        }
+
+        OnPropertyChanged(nameof(ShowGraylogSection));
+        OnPropertyChanged(nameof(ShowIntegrationsGroup));
+    }
 
     /// <summary>
     /// Config loads lazily on first visit, unlike every other section (which
@@ -3661,6 +3679,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        Graylog.PropertyChanged -= OnGraylogPropertyChanged;
         Graylog.Dispose();
         _loadCts.Cancel();
         _loadCts.Dispose();
