@@ -178,23 +178,24 @@
                         <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsSensorsSelected, Mode=OneWay}"
                                       Command="{Binding SelectSensorsCommand}" Content="Sensors" />
-                        <ToggleButton Content="Resources"
-                                      Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsResourcesSelected, Mode=OneWay}"
-                                      Command="{Binding SelectResourcesCommand}"
-                                      Visibility="{Binding ShowResourcesNav, Converter={StaticResource BoolToVisibility}}" />
                         <ToggleButton Content="Graphs"
                                       Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsGraphsSelected, Mode=OneWay}"
                                       Command="{Binding SelectGraphsCommand}" />
 
-                        <!-- Hidden once loaded and found empty (see
-                             InventorySectionViewModel.ShowNav) - most
-                             ping-only and small devices have none. -->
+                        <!-- Resources (CPU, memory, storage) and Inventory
+                             (the physical parts) - each hidden once loaded
+                             and found empty, as most ping-only devices have
+                             neither; the heading goes with them. -->
                         <TextBlock Text="HARDWARE"
                                    Style="{StaticResource SectionHeaderStyle}"
                                    Margin="14,16,0,6"
-                                   Visibility="{Binding Inventory.ShowNav, Converter={StaticResource BoolToVisibility}}" />
+                                   Visibility="{Binding ShowHardwareGroup, Converter={StaticResource BoolToVisibility}}" />
+                        <ToggleButton Content="Resources"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsResourcesSelected, Mode=OneWay}"
+                                      Command="{Binding SelectResourcesCommand}"
+                                      Visibility="{Binding ShowResourcesNav, Converter={StaticResource BoolToVisibility}}" />
                         <ToggleButton Content="Inventory"
                                       Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsInventorySelected, Mode=OneWay}"

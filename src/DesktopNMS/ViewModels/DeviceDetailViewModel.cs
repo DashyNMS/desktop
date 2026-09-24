@@ -253,6 +253,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Graylog = GraylogMessagesViewModel.ForDevice(deviceId, () => _device, graylog, client, deviceCache, settings, windows, logger, _loadCts.Token);
         Graylog.PropertyChanged += OnGraylogPropertyChanged;
         Inventory = new InventorySectionViewModel(deviceId, client, logger, _loadCts.Token);
+        Inventory.PropertyChanged += OnInventoryPropertyChanged;
 
         // Ping response is the one graph essentially every monitored
         // device has (unlike processor/storage, which only some do), so
@@ -2042,6 +2043,17 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// <summary>Whether the sidebar's Resources item (and Overview's Resources card) should show - see <see cref="ShowPortsNav"/>'s remarks, which apply equally here.</summary>
     public bool ShowResourcesNav => IsLoadingResources || HasResources;
 
+    /// <summary>The HARDWARE nav heading - shown while either of its items (Resources, Inventory) is.</summary>
+    public bool ShowHardwareGroup => ShowResourcesNav || Inventory.ShowNav;
+
+    private void OnInventoryPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(InventorySectionViewModel.ShowNav))
+        {
+            OnPropertyChanged(nameof(ShowHardwareGroup));
+        }
+    }
+
     /// <summary>Shown once loading has finished and the device genuinely reports none of CPU/memory/disk.</summary>
     public bool ShowResourcesEmptyMessage => !IsLoadingResources && !HasResources;
 
@@ -2881,6 +2893,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             _hasLoadedResources = true;
             OnPropertyChanged(nameof(IsLoadingResources));
             OnPropertyChanged(nameof(ShowResourcesNav));
+            OnPropertyChanged(nameof(ShowHardwareGroup));
             OnPropertyChanged(nameof(ShowResourcesEmptyMessage));
         }
     }
@@ -3740,6 +3753,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         Graylog.PropertyChanged -= OnGraylogPropertyChanged;
+        Inventory.PropertyChanged -= OnInventoryPropertyChanged;
         Graylog.Dispose();
         _loadCts.Cancel();
         _loadCts.Dispose();
