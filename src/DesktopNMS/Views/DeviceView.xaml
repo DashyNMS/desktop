@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
         xmlns:views="clr-namespace:DesktopNMS.Views"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         xmlns:svgc="clr-namespace:SharpVectors.Converters;assembly=SharpVectors.Converters.Wpf"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:DeviceDetailViewModel}"
@@ -31,20 +32,6 @@
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
-            <!-- A plain-text label is drawn here rather than by the
-                 ContentPresenter's own TextBlock: the app-wide implicit
-                 TextBlock style would otherwise reset its colour and size,
-                 so it wouldn't follow this button's state. Same settings as
-                 the explicit TextBlocks in the Alerts item. -->
-            <Setter Property="ContentTemplate">
-                <Setter.Value>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding}"
-                                   FontSize="13"
-                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
-                    </DataTemplate>
-                </Setter.Value>
-            </Setter>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
@@ -60,7 +47,23 @@
                                            FontSize="13"
                                            Foreground="{TemplateBinding Foreground}"
                                            VerticalAlignment="Center" />
-                                <ContentPresenter Grid.Column="1" VerticalAlignment="Center" />
+                                <!-- Plain-text labels are drawn by this
+                                     string-only template, not the presenter's
+                                     own TextBlock, which the app-wide implicit
+                                     TextBlock style would reset (colour, size)
+                                     so it wouldn't follow the button's state.
+                                     Keyed by type, it leaves panel content
+                                     (the Alerts item's badge) alone - a
+                                     ContentTemplate would blank that. -->
+                                <ContentPresenter Grid.Column="1" VerticalAlignment="Center">
+                                    <ContentPresenter.Resources>
+                                        <DataTemplate DataType="{x:Type sys:String}">
+                                            <TextBlock Text="{Binding}"
+                                                       FontSize="13"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                                        </DataTemplate>
+                                    </ContentPresenter.Resources>
+                                </ContentPresenter>
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -98,19 +101,6 @@
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <!-- As DeviceNavItemStyle: drawn here so every heading - plain
-                 text or not (Alerts & logs carries a badge) - has the same
-                 size, weight and colour. -->
-            <Setter Property="ContentTemplate">
-                <Setter.Value>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding}"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                    </DataTemplate>
-                </Setter.Value>
-            </Setter>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -126,7 +116,18 @@
                                            FontSize="9"
                                            Foreground="{TemplateBinding Foreground}"
                                            VerticalAlignment="Center" />
-                                <ContentPresenter Grid.Column="1" VerticalAlignment="Center" />
+                                <!-- As DeviceNavItemStyle: text headings drawn
+                                     to match Alerts & logs' explicit text. -->
+                                <ContentPresenter Grid.Column="1" VerticalAlignment="Center">
+                                    <ContentPresenter.Resources>
+                                        <DataTemplate DataType="{x:Type sys:String}">
+                                            <TextBlock Text="{Binding}"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                        </DataTemplate>
+                                    </ContentPresenter.Resources>
+                                </ContentPresenter>
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
