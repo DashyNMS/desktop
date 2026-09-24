@@ -14,15 +14,53 @@ namespace DesktopNMS.Views;
 
 public partial class DevicesView : UserControl
 {
+    private DeviceListViewModel? _viewModel;
+
     public DevicesView()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
     }
+
+    /// <summary>
+    /// The pin column follows Settings' pinned devices option (#98). A
+    /// DataGrid column isn't in the visual tree, so its Visibility can't be
+    /// bound - it's set here instead, and re-applied after a saved layout is
+    /// restored, since that sets every column's visibility too.
+    /// </summary>
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_viewModel is not null)
+        {
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        }
+
+        _viewModel = e.NewValue as DeviceListViewModel;
+
+        if (_viewModel is not null)
+        {
+            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
+
+        ApplyPinColumnVisibility();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DeviceListViewModel.PinningEnabled))
+        {
+            ApplyPinColumnVisibility();
+        }
+    }
+
+    private void ApplyPinColumnVisibility() =>
+        PinColumn.Visibility = _viewModel?.PinningEnabled == false ? Visibility.Collapsed : Visibility.Visible;
 
     /// <summary>Restores a saved column layout - sort goes through <see cref="ApplyPinnedFirstSort"/> instead of <see cref="DataGridLayoutHelper"/>'s own generic sort restore, so pinned devices stay on top of whatever sort is restored, same as a live column click.</summary>
     public void ApplyGridLayout(GridLayout? layout)
     {
         DataGridLayoutHelper.Apply(DeviceGrid, layout, restoreSort: false);
+        ApplyPinColumnVisibility();
 
         if (layout?.SortColumnIndex is { } index && index >= 0 && index < DeviceGrid.Columns.Count)
         {

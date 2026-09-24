@@ -21,13 +21,12 @@
 
         <TextBlock Text="Name" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
         <TextBox x:Name="NameBox"
-                 Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
-                 IsEnabled="{Binding IsNameEditable}" />
+                 Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
         <TextBlock Style="{StaticResource SubtleTextStyle}"
                    TextWrapping="Wrap"
                    Margin="0,4,0,0"
-                   Text="LibreNMS does not support renaming a location once created."
-                   Visibility="{Binding IsNameEditable, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                   Text="Renaming keeps every device at this location. A device that reports its own location over SNMP (and doesn't override it) may bring the old name back as a new location on its next discovery."
+                   Visibility="{Binding IsEditMode, Converter={StaticResource BoolToVisibility}}" />
 
         <Grid Margin="0,14,0,0">
             <Grid.ColumnDefinitions>
@@ -47,8 +46,14 @@
 
         <CheckBox Content="Keep coordinates fixed"
                   IsChecked="{Binding FixedCoordinates}"
+                  IsEnabled="{Binding IsFixedCoordinatesEditable}"
                   ToolTip="Off lets a device's own reported coordinates overwrite these"
                   Margin="0,16,0,0" />
+        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                   TextWrapping="Wrap"
+                   Margin="0,4,0,0"
+                   Text="LibreNMS's API only sets this when a location is created - change it in LibreNMS itself for an existing one."
+                   Visibility="{Binding IsEditMode, Converter={StaticResource BoolToVisibility}}" />
 
         <Border Background="#33DA3633"
                 BorderBrush="{StaticResource CriticalBrush}"

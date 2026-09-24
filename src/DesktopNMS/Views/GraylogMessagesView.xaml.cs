@@ -14,6 +14,13 @@ public partial class GraylogMessagesView : UserControl
         InitializeComponent();
     }
 
+    /// <summary>Puts the caret in the search box (Ctrl+F).</summary>
+    public void FocusSearch()
+    {
+        SearchBox.Focus();
+        SearchBox.SelectAll();
+    }
+
     /// <summary>Double-clicking a message opens the device it came from, when it's a known one - only on the Logs tab, where it's a different device each row.</summary>
     private void OnGridDoubleClick(object sender, MouseButtonEventArgs e)
     {

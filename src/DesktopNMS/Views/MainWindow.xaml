@@ -52,6 +52,7 @@
         <KeyBinding Key="F5" Command="{Binding RefreshCurrentTabCommand}" />
         <KeyBinding Key="A" Modifiers="Control" Command="{Binding AcknowledgeCommand}" />
         <KeyBinding Key="L" Modifiers="Control" Command="{Binding ClearCurrentTabFiltersCommand}" />
+        <KeyBinding Key="F1" Command="{Binding ShowKeyboardShortcutsCommand}" />
     </Window.InputBindings>
 
     <Window.CommandBindings>
@@ -249,7 +250,35 @@
                                           MouseEnter="AlertsTabButton_MouseEnter"
                                           MouseLeave="AlertsTabButton_MouseLeave">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Alerts" />
+                                    <TextBlock Text="Alerts" VerticalAlignment="Center" />
+                                    <!-- The count badge (Settings, Alert display):
+                                         red while any counted alert is
+                                         critical, orange otherwise. -->
+                                    <Border CornerRadius="8"
+                                            MinWidth="18"
+                                            Height="18"
+                                            Padding="5,0"
+                                            Margin="7,0,0,0"
+                                            VerticalAlignment="Center"
+                                            ToolTip="{Binding AlertBadgeToolTip}"
+                                            Visibility="{Binding ShowAlertBadge, Converter={StaticResource BoolToVisibility}}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="{StaticResource WarningBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding AlertBadgeIsCritical}" Value="True">
+                                                        <Setter Property="Background" Value="{StaticResource CriticalBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding AlertBadgeText}"
+                                                   Foreground="White"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
                                     <TextBlock Text="&#xE70D;"
                                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                FontSize="9"
@@ -301,6 +330,12 @@
                             ToolTip="Refresh now (F5)"
                             Margin="0,0,8,0">
                         <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                    </Button>
+                    <Button Command="{Binding ShowKeyboardShortcutsCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Keyboard shortcuts (F1)"
+                            Margin="0,0,8,0">
+                        <TextBlock Text="&#xE765;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
                     </Button>
                     <Button Command="{Binding SettingsCommand}"
                             Style="{StaticResource IconButtonStyle}"

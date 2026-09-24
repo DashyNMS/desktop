@@ -226,6 +226,25 @@
                     <StackPanel Visibility="{Binding IsAlertDisplaySectionSelected, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="Alert display" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Alerts tab count" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <CheckBox Content="Show an alert count on the Alerts tab"
+                                          IsChecked="{Binding ShowAlertTabBadge}" />
+                                <CheckBox Content="Include acknowledged alerts in the count"
+                                          IsChecked="{Binding AlertTabBadgeIncludesAcknowledged}"
+                                          IsEnabled="{Binding ShowAlertTabBadge}"
+                                          Margin="0,8,0,0" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Red while any counted alert is critical, orange otherwise. Counts every alert, whatever the Alerts tab's own filters are showing." />
+                            </StackPanel>
+                        </Border>
+
                         <!-- Three separate cards rather than grouped - unlike
                              Polling's pairs, these three genuinely don't
                              relate to each other (naming, data-fetching,
@@ -568,6 +587,18 @@
                                 </Grid>
                             </StackPanel>
                         </Border>
+
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12" Margin="0,12,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Pinned devices" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <CheckBox Content="Let me pin devices to the top of the Devices tab"
+                                          IsChecked="{Binding EnablePinnedDevices}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Off hides the pin column and pin actions, stops pinned devices sorting first and removes the Pinned devices Dashboard widget from the add menu. Your pins are kept, so turning this back on restores them." />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- ==================== Maps ==================== -->
@@ -688,8 +719,14 @@
                                     <StackPanel Orientation="Horizontal">
                                         <ToggleButton Content="Dark" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsDarkTheme}" />
                                         <ToggleButton Content="Light" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsLightTheme}" />
+                                        <ToggleButton Content="Match Windows" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsSystemTheme}" />
                                     </StackPanel>
                                 </Border>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,8,0,0"
+                                           Text="Match Windows uses your Windows app mode (Settings, Personalisation, Colours) each time DashyNMS starts."
+                                           Visibility="{Binding IsSystemTheme, Converter={StaticResource BoolToVisibility}}" />
                                 <TextBlock Style="{StaticResource SubtleTextStyle}"
                                            TextWrapping="Wrap"
                                            Margin="0,8,0,0"
@@ -1203,11 +1240,16 @@
                                                        IsToolBarVisible="False" />
                         </Border>
 
-                        <Button Content="View all releases on GitHub"
-                                Command="{Binding ViewReleasesPageCommand}"
-                                HorizontalAlignment="Left"
-                                Padding="10,6"
-                                Margin="0,14,0,0" />
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <Button Content="View all releases on GitHub"
+                                    Command="{Binding ViewReleasesPageCommand}"
+                                    Padding="10,6" />
+                            <Button Content="Report a bug"
+                                    Command="{Binding ReportBugCommand}"
+                                    ToolTip="Opens a new GitHub issue with your DashyNMS, Windows and LibreNMS versions filled in - nothing is sent until you submit it there"
+                                    Padding="10,6"
+                                    Margin="8,0,0,0" />
+                        </StackPanel>
                     </StackPanel>
 
                 </Grid>

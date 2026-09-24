@@ -22,7 +22,7 @@ public sealed class LocationEditorViewModel : ObservableObject
     private readonly ILibreNmsClient _client;
     private readonly ILogger<LocationEditorViewModel> _logger;
 
-    /// <summary>Null in create mode. In edit mode, the location's id, used to address the PATCH/DELETE calls - not its name, which LibreNMS's own edit_location endpoint does not document as renameable.</summary>
+    /// <summary>Null in create mode. In edit mode, the location's id, used to address the PATCH/DELETE calls - by id rather than name, so a rename addresses the right location.</summary>
     private int? _originalId;
 
     private string _name = string.Empty;
@@ -54,8 +54,12 @@ public sealed class LocationEditorViewModel : ObservableObject
 
     public string Title => IsEditMode ? "Edit location" : "Add location";
 
-    /// <summary>False once in edit mode - LibreNMS's own edit_location endpoint only documents lat/lng as editable, not a rename.</summary>
-    public bool IsNameEditable => !IsEditMode;
+    /// <summary>
+    /// Only when creating: LibreNMS's add_location reads fixed_coordinates,
+    /// but edit_location only fills location/lat/lng (see
+    /// <see cref="ILocationsApi.UpdateAsync"/>), so an edit can't change it.
+    /// </summary>
+    public bool IsFixedCoordinatesEditable => !IsEditMode;
 
     public event EventHandler<bool>? RequestClose;
 
@@ -132,7 +136,7 @@ public sealed class LocationEditorViewModel : ObservableObject
 
     private bool CanSave() =>
         !IsBusy
-        && (IsEditMode || !string.IsNullOrWhiteSpace(Name))
+        && !string.IsNullOrWhiteSpace(Name)
         && double.TryParse(Latitude, NumberStyles.Float, CultureInfo.InvariantCulture, out _)
         && double.TryParse(Longitude, NumberStyles.Float, CultureInfo.InvariantCulture, out _);
 
@@ -153,11 +157,11 @@ public sealed class LocationEditorViewModel : ObservableObject
         {
             if (_originalId is { } id)
             {
-                await _client.Locations.UpdateAsync(id, lat, lng, FixedCoordinates).ConfigureAwait(true);
+                await _client.Locations.UpdateAsync(id, Name.Trim(), lat, lng).ConfigureAwait(true);
             }
             else
             {
-                await _client.Locations.CreateAsync(Name, lat, lng, FixedCoordinates).ConfigureAwait(true);
+                await _client.Locations.CreateAsync(Name.Trim(), lat, lng, FixedCoordinates).ConfigureAwait(true);
             }
 
             RequestClose?.Invoke(this, true);

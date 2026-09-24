@@ -183,6 +183,10 @@ public partial class MainWindow : Window
         {
             GeoMapViewControl.FocusSearch();
         }
+        else if (_viewModel.IsGraylogLogsTabSelected)
+        {
+            LogsViewControl.FocusSearch();
+        }
 
         // Dashboard has no search box yet.
     }

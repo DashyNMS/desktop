@@ -147,6 +147,18 @@ public sealed class WindowService : IWindowService
         ShowDevicesTab();
     }
 
+    public void ShowKeyboardShortcuts()
+    {
+        var window = new KeyboardShortcutsWindow();
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        window.ShowDialog();
+    }
+
     public bool ShowSettingsDialog()
     {
         var viewModel = _services.GetRequiredService<SettingsViewModel>();

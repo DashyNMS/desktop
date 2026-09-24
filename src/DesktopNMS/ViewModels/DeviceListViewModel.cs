@@ -90,7 +90,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         DevicesView.SortDescriptions.Add(new SortDescription(nameof(DeviceItemViewModel.IsPinned), ListSortDirection.Descending));
         DevicesView.SortDescriptions.Add(new SortDescription(nameof(DeviceItemViewModel.Name), ListSortDirection.Ascending));
 
-        _pinnedIds = _settings.Current.PinnedDevices.Select(p => p.DeviceId).ToHashSet();
+        _pinnedIds = EffectivePinnedIds(_settings.Current);
 
         RecentlyViewedDevices = new ObservableCollection<RecentlyViewedDeviceItemViewModel>();
         RebuildRecentlyViewed(_settings.Current.RecentlyViewedDevices);
@@ -308,10 +308,10 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// action that would be a no-op for every device in it. A mixed
     /// selection shows both, since either one still does something.
     /// </summary>
-    public bool ShowPinSelectedAction => _selectedDevices.Any(d => !d.IsPinned);
+    public bool ShowPinSelectedAction => PinningEnabled && _selectedDevices.Any(d => !d.IsPinned);
 
     /// <summary>True when unpinning would do something - see <see cref="ShowPinSelectedAction"/>.</summary>
-    public bool ShowUnpinSelectedAction => _selectedDevices.Any(d => d.IsPinned);
+    public bool ShowUnpinSelectedAction => PinningEnabled && _selectedDevices.Any(d => d.IsPinned);
 
     /// <summary>
     /// Forwards the grid's multi-selection from code-behind - DataGrid.SelectedItems
@@ -341,6 +341,12 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// <see cref="RefreshPinnedState"/> in case a still-selected device's
     /// own pin state changed elsewhere (e.g. the Dashboard's Unpin button).
     /// </summary>
+    /// <summary>Settings' pinned devices option (#98) - off, nothing counts as pinned here, so nothing sorts first and the pin column/actions hide.</summary>
+    public bool PinningEnabled => _settings.Current.EnablePinnedDevices;
+
+    private static HashSet<int> EffectivePinnedIds(AppSettings settings) =>
+        settings.EnablePinnedDevices ? settings.PinnedDevices.Select(p => p.DeviceId).ToHashSet() : new HashSet<int>();
+
     private void RaiseSelectedPinStateChanged()
     {
         OnPropertyChanged(nameof(PinSelectedLabel));
@@ -348,6 +354,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(RediscoverSelectedLabel));
         OnPropertyChanged(nameof(ShowPinSelectedAction));
         OnPropertyChanged(nameof(ShowUnpinSelectedAction));
+        OnPropertyChanged(nameof(PinningEnabled));
     }
 
     public string StatusMessage
@@ -488,6 +495,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
                 existing.Update(device, nameStyle);
                 existing.IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId);
                 existing.IsPinned = _pinnedIds.Contains(device.DeviceId);
+                existing.ServerTimestampsAreUtc = _settings.Current.ServerTimestampsAreUtc;
 
                 var currentIndex = Devices.IndexOf(existing);
                 if (currentIndex >= 0 && currentIndex != target && target < Devices.Count)
@@ -501,6 +509,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
                 {
                     IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId),
                     IsPinned = _pinnedIds.Contains(device.DeviceId),
+                    ServerTimestampsAreUtc = _settings.Current.ServerTimestampsAreUtc,
                 };
                 _index[device.DeviceId] = item;
                 Devices.Insert(Math.Min(target, Devices.Count), item);
@@ -716,7 +725,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     private void RefreshPinnedState(IReadOnlyList<PinnedDevice> pinned)
     {
-        _pinnedIds = pinned.Select(p => p.DeviceId).ToHashSet();
+        _pinnedIds = PinningEnabled ? pinned.Select(p => p.DeviceId).ToHashSet() : new HashSet<int>();
 
         foreach (var device in Devices)
         {

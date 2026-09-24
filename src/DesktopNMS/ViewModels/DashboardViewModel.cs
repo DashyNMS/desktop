@@ -133,6 +133,9 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
     public RelayCommand AddPinnedDevicesWidgetCommand { get; }
 
+    /// <summary>The "Pinned devices" widget is only offered while pinning is on in Settings (#98).</summary>
+    public bool ShowPinnedDevicesWidgetOption => _settings.Current.EnablePinnedDevices;
+
     public RelayCommand AddGraphWidgetCommand { get; }
 
     /// <summary>True while the user is arranging the dashboard: widgets show drag/resize/remove handles.</summary>
@@ -291,6 +294,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
     private void OnSettingsChanged(object? sender, AppSettings settings)
     {
+        OnPropertyChanged(nameof(ShowPinnedDevicesWidgetOption));
+
         foreach (var widget in Widgets.OfType<SensorWidgetViewModel>())
         {
             widget.ApplyThresholds(settings);

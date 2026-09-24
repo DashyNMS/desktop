@@ -314,12 +314,14 @@ public interface ILocationsApi
     Task CreateAsync(string name, double lat, double lng, bool fixedCoordinates, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// PATCH /api/v0/locations/{id}. Addressed by id, not name (unlike
-    /// <see cref="IDeviceGroupsApi.UpdateAsync"/>) - LibreNMS's own docs only
-    /// list lat/lng as editable here, no rename parameter, so there is
-    /// nothing to rename anyway.
+    /// PATCH /api/v0/locations/{id}: renames and/or moves a location.
+    /// LibreNMS's edit_location applies every key sent
+    /// (<c>$location->fill($request->all())</c>) and only location, lat and
+    /// lng are fillable - so the name is always sent (a missing one used to
+    /// go as null and wipe it, #169), and "fixed coordinates" can't be
+    /// changed after a location is created.
     /// </summary>
-    Task UpdateAsync(int id, double lat, double lng, bool fixedCoordinates, CancellationToken cancellationToken = default);
+    Task UpdateAsync(int id, string name, double lat, double lng, CancellationToken cancellationToken = default);
 
     /// <summary>DELETE /api/v0/locations/{id}.</summary>
     Task DeleteAsync(int id, CancellationToken cancellationToken = default);

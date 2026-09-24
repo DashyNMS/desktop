@@ -1,0 +1,132 @@
+<Window x:Class="DesktopNMS.Views.KeyboardShortcutsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Keyboard shortcuts"
+        Width="460"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Background="{StaticResource BackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Every shortcut the app has (#65) - F1 or the keyboard button in the
+         header opens this; Esc or Enter closes it. Keep in step with the
+         KeyBindings in MainWindow.xaml and any KeyDown handlers. -->
+    <Window.Resources>
+        <Style x:Key="KeyChipStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1,1,1,2" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="KeyTextStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="24">
+        <TextBlock Text="Keyboard shortcuts" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,16" />
+
+        <TextBlock Text="EVERYWHERE" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,8" />
+        <Grid Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="130" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="32" />
+                <RowDefinition Height="32" />
+                <RowDefinition Height="32" />
+                <RowDefinition Height="32" />
+                <RowDefinition Height="32" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Orientation="Horizontal">
+                <Border Style="{StaticResource KeyChipStyle}"><TextBlock Text="F5" Style="{StaticResource KeyTextStyle}" /></Border>
+            </StackPanel>
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="Refresh the tab you're on" VerticalAlignment="Center" />
+
+            <StackPanel Grid.Row="1" Orientation="Horizontal">
+                <Border Style="{StaticResource KeyChipStyle}"><TextBlock Text="Ctrl" Style="{StaticResource KeyTextStyle}" /></Border>
+                <Border Style="{StaticResource KeyChipStyle}"><TextBlock Text="F" Style="{StaticResource KeyTextStyle}" /></Border>
+            </StackPanel>
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="Jump to the tab's search box" VerticalAlignment="Center" />
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal">
+                <Border Style="{StaticResource KeyChipStyle}"><TextBlock Text="Ctrl" Style="{StaticResource KeyTextStyle}" /></Border>
+                <Border Style="{StaticResource KeyChipStyle}"><TextBlock Text="L" Style="{StaticResource KeyTextStyle}" /></Border>
+            </StackPanel>
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="Clear the tab's filters" VerticalAlignment="Center" />
+
+            <StackPanel Grid.Row="3" Orientation="Horizontal">
+                <Border Style="{StaticResource KeyChipStyle}"><TextBlock Text="Ctrl" Style="{StaticResource KeyTextStyle}" /></Border>
+                <Border Style="{StaticResource KeyChipStyle}"><TextBlock Text="C" Style="{StaticResource KeyTextStyle}" /></Border>
+            </StackPanel>
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="Copy the selected rows of a table" VerticalAlignment="Center" />
+
+            <StackPanel Grid.Row="4" Orientation="Horizontal">
+                <Border Style="{StaticResource KeyChipStyle}"><TextBlock Text="F1" Style="{StaticResource KeyTextStyle}" /></Border>
+            </StackPanel>
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="Show these shortcuts" VerticalAlignment="Center" />
+        </Grid>
+
+        <TextBlock Text="ALERTS" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,8" />
+        <Grid Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="130" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Height="32">
+                <Border Style="{StaticResource KeyChipStyle}"><TextBlock Text="Ctrl" Style="{StaticResource KeyTextStyle}" /></Border>
+                <Border Style="{StaticResource KeyChipStyle}"><TextBlock Text="A" Style="{StaticResource KeyTextStyle}" /></Border>
+            </StackPanel>
+            <TextBlock Grid.Column="1" Text="Acknowledge the selected alerts" VerticalAlignment="Center" />
+        </Grid>
+
+        <TextBlock Text="CUSTOM MAPS (EDITING)" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,8" />
+        <Grid Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="130" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Height="32">
+                <Border Style="{StaticResource KeyChipStyle}"><TextBlock Text="Delete" Style="{StaticResource KeyTextStyle}" /></Border>
+            </StackPanel>
+            <TextBlock Grid.Column="1" Text="Remove the selected node or link" VerticalAlignment="Center" />
+        </Grid>
+
+        <TextBlock Text="DIALOGS" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,8" />
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="130" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="32" />
+                <RowDefinition Height="32" />
+            </Grid.RowDefinitions>
+            <StackPanel Grid.Row="0" Orientation="Horizontal">
+                <Border Style="{StaticResource KeyChipStyle}"><TextBlock Text="Enter" Style="{StaticResource KeyTextStyle}" /></Border>
+            </StackPanel>
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="The main button (Save, Add, OK...)" VerticalAlignment="Center" />
+            <StackPanel Grid.Row="1" Orientation="Horizontal">
+                <Border Style="{StaticResource KeyChipStyle}"><TextBlock Text="Esc" Style="{StaticResource KeyTextStyle}" /></Border>
+            </StackPanel>
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="Cancel or close" VerticalAlignment="Center" />
+        </Grid>
+
+        <Button Content="Close"
+                IsCancel="True"
+                IsDefault="True"
+                HorizontalAlignment="Right"
+                Padding="14,6"
+                Margin="0,20,0,0" />
+    </StackPanel>
+</Window>
