@@ -18,6 +18,20 @@ public class AppThemeTests
     }
 
     [Fact]
+    public void The_alerts_tab_count_is_on_by_default_including_acknowledged_and_survives_a_clone()
+    {
+        var settings = new AppSettings();
+        Assert.True(settings.ShowAlertTabBadge);
+        Assert.True(settings.AlertTabBadgeIncludesAcknowledged);
+
+        settings.ShowAlertTabBadge = false;
+        settings.AlertTabBadgeIncludesAcknowledged = false;
+        var clone = settings.Clone();
+        Assert.False(clone.ShowAlertTabBadge);
+        Assert.False(clone.AlertTabBadgeIncludesAcknowledged);
+    }
+
+    [Fact]
     public void Pinned_devices_are_on_by_default_and_survive_a_clone()
     {
         var settings = new AppSettings();

@@ -124,6 +124,12 @@ public sealed class AppSettings
     /// </summary>
     public bool SuppressBulkAlertActionConfirmation { get; set; }
 
+    /// <summary>A count badge on the main window's Alerts tab - red when any counted alert is critical, orange otherwise.</summary>
+    public bool ShowAlertTabBadge { get; set; } = true;
+
+    /// <summary>Whether <see cref="ShowAlertTabBadge"/>'s count includes acknowledged alerts, not just active ones.</summary>
+    public bool AlertTabBadgeIncludesAcknowledged { get; set; } = true;
+
     public NotificationSettings Notifications { get; set; } = new();
 
     public AlertFilterSettings Filter { get; set; } = new();
@@ -250,6 +256,8 @@ public sealed class AppSettings
         LastNotifiedUpdateVersion = LastNotifiedUpdateVersion,
         IncludePreviewBuilds = IncludePreviewBuilds,
         SuppressBulkAlertActionConfirmation = SuppressBulkAlertActionConfirmation,
+        ShowAlertTabBadge = ShowAlertTabBadge,
+        AlertTabBadgeIncludesAcknowledged = AlertTabBadgeIncludesAcknowledged,
         Notifications = Notifications.Clone(),
         Filter = Filter.Clone(),
         Unimus = Unimus.Clone(),

@@ -362,6 +362,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void OnLogoSettingChanged(object? sender, AppSettings settings)
     {
+        RaiseAlertBadgeChanged();
         OnPropertyChanged(nameof(HeaderLogo));
         OnPropertyChanged(nameof(HasHeaderLogo));
     }
@@ -787,6 +788,37 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public int AcknowledgedCount => Alerts.Count(a => a.State == AlertState.Acknowledged);
 
     public int TotalCount => Alerts.Count;
+
+    /// <summary>
+    /// What the Alerts tab's count badge counts: active alerts, plus
+    /// acknowledged ones unless Settings says otherwise - never recovered
+    /// ones, and regardless of the tab's own filters, so the badge always
+    /// reflects everything that's wrong.
+    /// </summary>
+    private IEnumerable<AlertItemViewModel> BadgeAlerts => Alerts.Where(a =>
+        a.State == AlertState.Active
+        || (a.State == AlertState.Acknowledged && _settings.Current.AlertTabBadgeIncludesAcknowledged));
+
+    public int AlertBadgeCount => BadgeAlerts.Count();
+
+    /// <summary>Red while any counted alert is critical; orange otherwise.</summary>
+    public bool AlertBadgeIsCritical => BadgeAlerts.Any(a => a.Severity == AlertSeverity.Critical);
+
+    /// <summary>"99+" past 99, so the badge stays small.</summary>
+    public string AlertBadgeText => AlertBadgeCount > 99 ? "99+" : AlertBadgeCount.ToString(System.Globalization.CultureInfo.CurrentCulture);
+
+    public bool ShowAlertBadge => _settings.Current.ShowAlertTabBadge && AlertBadgeCount > 0;
+
+    public string AlertBadgeToolTip
+    {
+        get
+        {
+            var critical = BadgeAlerts.Count(a => a.Severity == AlertSeverity.Critical);
+            var others = AlertBadgeCount - critical;
+            var scope = _settings.Current.AlertTabBadgeIncludesAcknowledged ? "active or acknowledged" : "active";
+            return $"{AlertBadgeCount} {scope} alert{(AlertBadgeCount == 1 ? string.Empty : "s")}: {critical} critical, {others} other";
+        }
+    }
 
     public int VisibleCount => AlertsView.Cast<object>().Count();
 
@@ -1835,8 +1867,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    private void RaiseAlertBadgeChanged()
+    {
+        OnPropertyChanged(nameof(AlertBadgeCount));
+        OnPropertyChanged(nameof(AlertBadgeIsCritical));
+        OnPropertyChanged(nameof(AlertBadgeText));
+        OnPropertyChanged(nameof(ShowAlertBadge));
+        OnPropertyChanged(nameof(AlertBadgeToolTip));
+    }
+
     private void RaiseCountsChanged()
     {
+        RaiseAlertBadgeChanged();
         OnPropertyChanged(nameof(CriticalCount));
         OnPropertyChanged(nameof(WarningCount));
         OnPropertyChanged(nameof(AcknowledgedCount));

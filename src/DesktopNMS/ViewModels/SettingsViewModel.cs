@@ -1408,6 +1408,38 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>See <see cref="AppSettings.ShowAlertTabBadge"/>.</summary>
+    public bool ShowAlertTabBadge
+    {
+        get => _draft.ShowAlertTabBadge;
+        set
+        {
+            if (_draft.ShowAlertTabBadge == value)
+            {
+                return;
+            }
+
+            _draft.ShowAlertTabBadge = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>See <see cref="AppSettings.AlertTabBadgeIncludesAcknowledged"/>.</summary>
+    public bool AlertTabBadgeIncludesAcknowledged
+    {
+        get => _draft.AlertTabBadgeIncludesAcknowledged;
+        set
+        {
+            if (_draft.AlertTabBadgeIncludesAcknowledged == value)
+            {
+                return;
+            }
+
+            _draft.AlertTabBadgeIncludesAcknowledged = value;
+            OnPropertyChanged();
+        }
+    }
+
     // ------------------------------------------------------ health thresholds
 
     /// <summary>

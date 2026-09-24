@@ -226,6 +226,25 @@
                     <StackPanel Visibility="{Binding IsAlertDisplaySectionSelected, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="Alert display" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Alerts tab count" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <CheckBox Content="Show an alert count on the Alerts tab"
+                                          IsChecked="{Binding ShowAlertTabBadge}" />
+                                <CheckBox Content="Include acknowledged alerts in the count"
+                                          IsChecked="{Binding AlertTabBadgeIncludesAcknowledged}"
+                                          IsEnabled="{Binding ShowAlertTabBadge}"
+                                          Margin="0,8,0,0" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Red while any counted alert is critical, orange otherwise. Counts every alert, whatever the Alerts tab's own filters are showing." />
+                            </StackPanel>
+                        </Border>
+
                         <!-- Three separate cards rather than grouped - unlike
                              Polling's pairs, these three genuinely don't
                              relate to each other (naming, data-fetching,
