@@ -171,6 +171,13 @@ public sealed class NetworkMapCanvas : FrameworkElement
             var thickness = (edge.LinkCount > 1 ? 2.5 : 1.2) * (highlighted ? 1.6 : 1);
             var pen = new Pen(highlighted ? accent : lineBrush, thickness);
 
+            // A link to a device that's down is dotted.
+            if (edge.IsToOfflineDevice)
+            {
+                pen.DashStyle = new DashStyle(new[] { 1.0, 2.5 }, 0);
+                pen.DashCap = PenLineCap.Round;
+            }
+
             dc.PushOpacity(highlighted ? 1 : dimOthers ? 0.15 : 0.5);
             dc.DrawLine(pen, ToScreen(edge.A), ToScreen(edge.B));
             dc.Pop();
