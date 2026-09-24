@@ -2056,6 +2056,7 @@ public sealed class SettingsViewModel : ObservableObject
         _draft.DashboardWidgets = _store.Current.DashboardWidgets;
         _draft.RecentlyViewedDevices = _store.Current.RecentlyViewedDevices;
         _draft.PinnedDevices = _store.Current.PinnedDevices;
+        _draft.CollapsedDeviceNavGroups = _store.Current.CollapsedDeviceNavGroups;
 
         ApplyUnimusConfiguration();
         ApplyGraylogConfiguration();

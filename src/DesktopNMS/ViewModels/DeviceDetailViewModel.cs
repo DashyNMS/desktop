@@ -255,6 +255,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Inventory = new InventorySectionViewModel(deviceId, client, logger, _loadCts.Token);
         Inventory.PropertyChanged += OnInventoryPropertyChanged;
 
+        HealthGroup = new DeviceNavGroup(DeviceNavGroup.Health, settings, () => SelectedSection is DeviceDetailSection.Sensors or DeviceDetailSection.Graphs);
+        HardwareGroup = new DeviceNavGroup(DeviceNavGroup.Hardware, settings, () => SelectedSection is DeviceDetailSection.Resources or DeviceDetailSection.Inventory);
+        NetworkGroup = new DeviceNavGroup(DeviceNavGroup.Network, settings, () => SelectedSection is DeviceDetailSection.Ports or DeviceDetailSection.Vlans or DeviceDetailSection.Fdb or DeviceDetailSection.Arp);
+        LogsGroup = new DeviceNavGroup(DeviceNavGroup.Logs, settings, () => SelectedSection is DeviceDetailSection.Alerts or DeviceDetailSection.EventLog);
+        IntegrationsGroup = new DeviceNavGroup(DeviceNavGroup.Integrations, settings, () => SelectedSection is DeviceDetailSection.Graylog or DeviceDetailSection.Config);
+        LogsGroup.PropertyChanged += (_, _) => OnPropertyChanged(nameof(ShowCollapsedAlertBadge));
+
         // Ping response is the one graph essentially every monitored
         // device has (unlike processor/storage, which only some do), so
         // it's the natural "at a glance" default for Overview's sparkline
@@ -724,6 +731,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsConfigSelected));
                 OnPropertyChanged(nameof(IsGraylogSelected));
                 OnPropertyChanged(nameof(IsInventorySelected));
+                RefreshNavGroups();
 
                 if (value == DeviceDetailSection.Graylog)
                 {
@@ -2046,6 +2054,29 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// <summary>The HARDWARE nav heading - shown while either of its items (Resources, Inventory) is.</summary>
     public bool ShowHardwareGroup => ShowResourcesNav || Inventory.ShowNav;
 
+    // The sidebar's foldable groups - see DeviceNavGroup.
+    public DeviceNavGroup HealthGroup { get; }
+
+    public DeviceNavGroup HardwareGroup { get; }
+
+    public DeviceNavGroup NetworkGroup { get; }
+
+    public DeviceNavGroup LogsGroup { get; }
+
+    public DeviceNavGroup IntegrationsGroup { get; }
+
+    /// <summary>With Alerts &amp; logs folded away, its heading carries the active-alert badge instead, so alerts are never hidden.</summary>
+    public bool ShowCollapsedAlertBadge => !LogsGroup.IsExpanded && HasActiveAlerts;
+
+    private void RefreshNavGroups()
+    {
+        HealthGroup.Refresh();
+        HardwareGroup.Refresh();
+        NetworkGroup.Refresh();
+        LogsGroup.Refresh();
+        IntegrationsGroup.Refresh();
+    }
+
     private void OnInventoryPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(InventorySectionViewModel.ShowNav))
@@ -2305,6 +2336,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
 
         OnPropertyChanged(nameof(HasActiveAlerts));
+        OnPropertyChanged(nameof(ShowCollapsedAlertBadge));
         OnPropertyChanged(nameof(ShowNoActiveAlertsMessage));
         OnPropertyChanged(nameof(ActiveCriticalCount));
         OnPropertyChanged(nameof(ActiveWarningCount));

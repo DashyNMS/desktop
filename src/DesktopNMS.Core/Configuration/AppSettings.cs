@@ -194,6 +194,9 @@ public sealed class AppSettings
     /// </summary>
     public List<PinnedDevice> PinnedDevices { get; set; } = new();
 
+    /// <summary>Device Details sidebar groups the user has folded away ("health", "hardware", "network", "logs", "integrations") - the same for every device window.</summary>
+    public List<string> CollapsedDeviceNavGroups { get; set; } = new();
+
     /// <summary>
     /// The accent colour used for buttons, selection highlights and links
     /// throughout the app, as "#RRGGBB". Deliberately separate from the fixed
@@ -273,6 +276,7 @@ public sealed class AppSettings
         EnablePinnedDevices = EnablePinnedDevices,
         RecentlyViewedDeviceCount = RecentlyViewedDeviceCount,
         PinnedDevices = PinnedDevices.Select(d => d.Clone()).ToList(),
+        CollapsedDeviceNavGroups = CollapsedDeviceNavGroups.ToList(),
         AccentColor = AccentColor,
         Theme = Theme,
         ShowServerLogo = ShowServerLogo,
@@ -313,6 +317,7 @@ public sealed class AppSettings
             RecentlyViewedDevices = RecentlyViewedDevices.Take(RecentlyViewedDeviceCount).ToList();
         }
         PinnedDevices ??= new List<PinnedDevice>();
+        CollapsedDeviceNavGroups ??= new List<string>();
         GridLayouts ??= new Dictionary<string, GridLayout>();
         DbmThresholds ??= new DbmThresholdSettings();
         SignalThresholds ??= new SignalThresholdSettings();
