@@ -16,6 +16,9 @@ public static class AppPaths
     /// <summary>DPAPI-encrypted Unimus API token - kept separate from <see cref="TokenFile"/> since it is a distinct secret for a distinct service.</summary>
     public static string UnimusTokenFile => Path.Combine(DataDirectory, "unimus-token.dat");
 
+    /// <summary>DPAPI-encrypted Graylog API password - its own file for the same reason as <see cref="UnimusTokenFile"/>.</summary>
+    public static string GraylogPasswordFile => Path.Combine(DataDirectory, "graylog-password.dat");
+
     /// <summary>Alert ids and states already notified about, so a restart is quiet.</summary>
     public static string NotificationStateFile => Path.Combine(DataDirectory, "notified.json");
 

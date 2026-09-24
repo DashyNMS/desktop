@@ -73,6 +73,11 @@ public partial class App : Application
         // is constructed - see ApplyTheme's remarks.
         ApplyTheme(settings.Current.Theme);
 
+        // Before the main window exists, so the Logs tab (only shown when
+        // Graylog is set up) is right from the first frame. Graylog doesn't
+        // depend on the LibreNMS session, so there's no need to wait for it.
+        ConfigureGraylogIfEnabled();
+
         AccentTheme.Apply(settings.Current.AccentColor);
         settings.Changed += (_, s) => AccentTheme.Apply(s.AccentColor);
 
@@ -140,6 +145,31 @@ public partial class App : Application
         // enable/disable toggle and credentials (see UnimusSettings), set up
         // in Settings rather than tied to LibreNMS sign-in/out.
         ConfigureUnimusIfEnabled();
+    }
+
+    /// <summary>The same shape as <see cref="ConfigureUnimusIfEnabled"/> - Graylog is independent of LibreNMS sign-in too.</summary>
+    private void ConfigureGraylogIfEnabled()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        var settings = _services.GetRequiredService<ISettingsStore>().Current.Graylog;
+        if (!settings.Enabled || string.IsNullOrWhiteSpace(settings.Server))
+        {
+            return;
+        }
+
+        var password = _services.GetRequiredService<IGraylogPasswordProtector>().Load();
+        var connection = GraylogConnection.FromSettings(settings, password, out var error);
+        if (connection is null)
+        {
+            _logger?.LogWarning("Graylog is enabled but can't be connected to: {Error}", error);
+            return;
+        }
+
+        _services.GetRequiredService<IGraylogApi>().Configure(connection);
     }
 
     private void ConfigureUnimusIfEnabled()
@@ -274,6 +304,7 @@ public partial class App : Application
         services.AddSingleton<NetworkMapViewModel>();
         services.AddSingleton<GeoMapViewModel>();
         services.AddSingleton<CustomMapsViewModel>();
+        services.AddSingleton<LogsViewModel>();
         services.AddTransient<ConnectionViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AddDeviceViewModel>();

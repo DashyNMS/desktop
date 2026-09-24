@@ -63,6 +63,10 @@ public partial class MainWindow : Window
         };
         MapsFlyout.PlacementTarget = MapsTabButton;
 
+        // Hidden to the tray or minimised: nothing on screen to keep live.
+        IsVisibleChanged += (_, _) => NotifyVisibility();
+        StateChanged += (_, _) => NotifyVisibility();
+
         RestorePlacement();
         ApplyGridLayouts();
     }
@@ -120,6 +124,9 @@ public partial class MainWindow : Window
         _mapsFlyoutCloseTimer.Stop();
         MapsFlyout.IsOpen = false;
     }
+
+    private void NotifyVisibility() =>
+        _viewModel.OnWindowVisibilityChanged(IsVisible && WindowState != WindowState.Minimized);
 
     /// <summary>
     /// Lets the app close the window for real. Without this the Closing handler

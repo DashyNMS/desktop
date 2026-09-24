@@ -247,14 +247,18 @@
                              checking) - not just because Unimus is
                              configured at all, so a device Unimus doesn't
                              know about never gets a tab that only ever says
-                             "nothing here". Unimus is the only integration
-                             for now, so the group header shares its
-                             visibility; a second integration would need the
-                             header shown when any of them is. -->
+                             "nothing here". Graylog shows whenever it's set
+                             up (see ShowGraylogSection for why). The header
+                             shows when any integration's tab does. -->
                         <TextBlock Text="INTEGRATIONS"
                                    Style="{StaticResource SectionHeaderStyle}"
                                    Margin="14,16,0,6"
-                                   Visibility="{Binding ShowUnimusSection, Converter={StaticResource BoolToVisibility}}" />
+                                   Visibility="{Binding ShowIntegrationsGroup, Converter={StaticResource BoolToVisibility}}" />
+                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsGraylogSelected, Mode=OneWay}"
+                                      Command="{Binding SelectGraylogCommand}"
+                                      Visibility="{Binding ShowGraylogSection, Converter={StaticResource BoolToVisibility}}"
+                                      Content="Graylog" />
                         <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsConfigSelected, Mode=OneWay}"
                                       Command="{Binding SelectConfigCommand}"
@@ -1961,6 +1965,13 @@
                            TextAlignment="Center"
                            Foreground="{StaticResource CriticalBrush}"
                            Visibility="{Binding HasConfigError, Converter={StaticResource BoolToVisibility}}" />
+            </Grid>
+
+            <!-- ==================== Graylog (issue #114) ==================== -->
+            <!-- Shared with the Logs tab - see GraylogMessagesView. -->
+            <Grid Margin="24"
+                  Visibility="{Binding IsGraylogSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:GraylogMessagesView DataContext="{Binding Graylog}" />
             </Grid>
 
             <!-- ==================== Edit ==================== -->

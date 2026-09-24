@@ -22,6 +22,9 @@ public partial class SettingsWindow : Window
     private void OnUnimusTokenChanged(object sender, RoutedEventArgs e)
         => _viewModel.UnimusTokenInput = ((PasswordBox)sender).Password;
 
+    private void OnGraylogPasswordChanged(object sender, RoutedEventArgs e)
+        => _viewModel.GraylogPasswordInput = ((PasswordBox)sender).Password;
+
     private void OnRequestClose(object? sender, bool saved)
     {
         _viewModel.RequestClose -= OnRequestClose;

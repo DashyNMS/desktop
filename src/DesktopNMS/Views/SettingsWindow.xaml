@@ -84,10 +84,14 @@
                                       IsChecked="{Binding IsMapsSectionSelected, Mode=OneWay}"
                                       Command="{Binding SelectMapsSectionCommand}" />
 
-                        <!-- Its own group, like Devices - the natural home
-                             for future integrations (Graylog, #114) rather
-                             than only ever having one item. -->
+                        <!-- Its own group, like Devices - one page per
+                             integration, each talking to its service
+                             directly rather than through LibreNMS. -->
                         <TextBlock Text="INTEGRATIONS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
+                        <ToggleButton Content="Graylog"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsGraylogSectionSelected, Mode=OneWay}"
+                                      Command="{Binding SelectGraylogSectionCommand}" />
                         <ToggleButton Content="Unimus"
                                       Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsIntegrationsSectionSelected, Mode=OneWay}"
@@ -955,6 +959,193 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                 </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Integrations (Graylog) ==================== -->
+                    <!-- The same fields, order and help as LibreNMS's own
+                         Settings, External, Graylog page (its graylog.*
+                         config), plus the SSL option Unimus has here. -->
+                    <StackPanel Visibility="{Binding IsGraylogSectionSelected, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Graylog" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14"
+                                   Text="Shows a device's log messages from Graylog on the Graylog tab in Device Details, found the same way LibreNMS finds them. Talks to Graylog directly with its own credentials - not through LibreNMS - so copy these from LibreNMS's Settings, External, Graylog." />
+
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12" Margin="0,0,0,12">
+                            <StackPanel>
+                                <CheckBox Content="Enable Graylog integration" IsChecked="{Binding GraylogEnabled}" />
+
+                                <Grid Margin="0,16,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="110" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Server" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                        <TextBox Text="{Binding GraylogServer, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="e.g. https://graylog.example.com" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Port" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                        <TextBox Text="{Binding GraylogPortText, UpdateSourceTrigger=LostFocus}"
+                                                 ToolTip="e.g. 9000" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="The address of the Graylog server's API. With no port, 80 is used for http:// and 443 for https://." />
+
+                                <TextBlock Text="Version" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <ComboBox ItemsSource="{Binding GraylogVersionOptions}"
+                                          SelectedItem="{Binding SelectedGraylogVersion}"
+                                          DisplayMemberPath="Label"
+                                          Width="220"
+                                          HorizontalAlignment="Left" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="Used to work out where the API is. If you've changed Graylog's API address from the default, choose Other and enter its base URI." />
+
+                                <StackPanel Visibility="{Binding IsGraylogBaseUriVisible, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Base URI" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                    <TextBox Text="{Binding GraylogBaseUri, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="e.g. /api/search/universal/relative" />
+                                    <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0"
+                                               Text="The search API's path on the server, if you changed it from Graylog's default." />
+                                </StackPanel>
+
+                                <TextBlock Text="Username" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding GraylogUsername, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Password" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <PasswordBox x:Name="GraylogPasswordBox" PasswordChanged="OnGraylogPasswordChanged" />
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding GraylogPasswordStatusText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1"
+                                            Content="Clear"
+                                            Command="{Binding ClearGraylogPasswordCommand}"
+                                            Padding="10,4" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="Leave blank and save to keep the password already stored. To use a Graylog access token instead, enter the token as the username and the word token as the password." />
+
+                                <CheckBox Content="Ignore SSL certificate errors"
+                                          IsChecked="{Binding GraylogAllowUntrustedCertificate}"
+                                          Margin="0,16,0,0" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="Only enable this if Graylog uses a self-signed or internally-issued certificate you trust." />
+
+                                <TextBlock Text="Display time zone" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding GraylogTimezone, UpdateSourceTrigger=PropertyChanged, Delay=300}"
+                                         ToolTip="e.g. Europe/London" />
+                                <TextBlock Text="{Binding GraylogTimezoneStatusText}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsGraylogTimezoneInvalid}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,2,0,0"
+                                           Text="Graylog stores times in UTC. Enter a time zone (the same name LibreNMS uses, e.g. Europe/London) to show them in that zone instead." />
+
+                                <TextBlock Text="Query field" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding GraylogQueryField, UpdateSourceTrigger=LostFocus}"
+                                         Width="220"
+                                         HorizontalAlignment="Left" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="The Graylog message field matched against a device's addresses. LibreNMS's default is source." />
+
+                                <CheckBox Content="Match any address"
+                                          IsChecked="{Binding GraylogMatchAnyAddress}"
+                                          Margin="0,16,0,0" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="Match every IP address on a device, not just its hostname and primary address, against the source of a message." />
+
+                                <Grid Margin="0,16,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0"
+                                            Content="Test connection"
+                                            Command="{Binding TestGraylogConnectionCommand}"
+                                            Padding="10,6" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding GraylogTestStatusText}"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0,0,0"
+                                               Visibility="{Binding HasGraylogTestStatus, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding GraylogTestSucceeded}" Value="False">
+                                                        <Setter Property="Foreground" Value="{StaticResource CriticalBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
+                            <StackPanel>
+                                <TextBlock Text="Device Graylog tab" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Log level" Style="{StaticResource SubtleTextStyle}" Margin="0,0,0,6" />
+                                        <ComboBox ItemsSource="{Binding GraylogLogLevelOptions}"
+                                                  SelectedItem="{Binding SelectedGraylogLogLevel}"
+                                                  DisplayMemberPath="Label"
+                                                  Width="200" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Row count" Style="{StaticResource SubtleTextStyle}" Margin="0,0,0,6" />
+                                        <TextBox Text="{Binding GraylogRowCountText, UpdateSourceTrigger=LostFocus}"
+                                                 Width="80"
+                                                 HorizontalAlignment="Left" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="What a device's Graylog tab starts on: the least severe level shown (each level includes everything more severe) and how many messages per page. Both can be changed on the tab itself." />
                             </StackPanel>
                         </Border>
                     </StackPanel>
