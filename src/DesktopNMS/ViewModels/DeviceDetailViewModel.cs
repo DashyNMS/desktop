@@ -16,6 +16,7 @@ using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Core.Topology;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
@@ -4193,51 +4194,58 @@ public sealed class VlanItemViewModel : ObservableObject
     public string NameText => string.IsNullOrWhiteSpace(_vlan.VlanName) ? "-" : _vlan.VlanName!;
 
     /// <summary>
-    /// Every port whose own untagged/native VLAN (Port.IfVlan) matches this
-    /// one - NOT full trunk membership. LibreNMS's per-VLAN trunk-membership
-    /// endpoint (/devices/{id}/ports/vlan/{vlan}) would cover a trunk port
-    /// carrying this VLAN tagged too, but it 500s unconditionally on every
-    /// server tried this was built against (confirmed with several id/format
-    /// variations, and with no working alternative route found) - a bug in
-    /// that LibreNMS build, not something fixable from here. This is the
-    /// reliable subset the API actually gives back. Queried live against the
-    /// shared Ports collection rather than cached, so a Ports refresh is
-    /// reflected without this row needing to rebuild.
+    /// This VLAN's ports, split into untagged (access/native) and tagged
+    /// (trunk) - see <see cref="VlanMembership"/> for how, including the
+    /// fallback to each port's own VLAN for a device that reports no
+    /// memberships. Worked out live against the shared Ports collection
+    /// rather than cached, so a Ports refresh is reflected without this row
+    /// needing to rebuild.
     /// </summary>
-    public IReadOnlyList<PortItemViewModel> AccessPorts =>
-        _allPorts.Where(p => p.Model.IfVlan == _vlan.VlanNumber).ToList();
-
-    /// <summary>
-    /// "12 ports: Gi1/1, Gi1/2, ..." or "-" for none - one string doing
-    /// double duty as the DataGrid cell (ellipsis-trimmed) and its tooltip
-    /// (shown in full), rather than a separate count column plus a
-    /// truncated-with-"+N more" string to keep in sync with it. Deliberately
-    /// labelled "access ports" (see the column header in DeviceView.xaml),
-    /// not just "ports", so it doesn't imply full trunk membership - see
-    /// AccessPorts' remarks.
-    /// </summary>
-    public string AccessPortsSummaryText
+    private (IReadOnlyList<PortItemViewModel> Untagged, IReadOnlyList<PortItemViewModel> Tagged) Members()
     {
-        get
-        {
-            var ports = AccessPorts;
-            if (ports.Count == 0)
-            {
-                return "-";
-            }
-
-            var countLabel = ports.Count == 1 ? "1 port: " : $"{ports.Count} ports: ";
-            return countLabel + string.Join(", ", ports.Select(p => p.DisplayName));
-        }
+        var byModel = _allPorts.ToDictionary(p => p.Model);
+        var ports = VlanMembership.For(_vlan.VlanNumber, byModel.Keys.ToList());
+        return (ports.Untagged.Select(p => byModel[p]).ToList(), ports.Tagged.Select(p => byModel[p]).ToList());
     }
 
-    public bool Matches(string term) =>
-        NumberText.Contains(term, StringComparison.OrdinalIgnoreCase)
-        || NameText.Contains(term, StringComparison.OrdinalIgnoreCase)
-        || AccessPorts.Any(p => p.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
+    /// <summary>Whether the device reports tagged membership at all - without it, only untagged ports can be shown (see <see cref="VlanMembership"/>).</summary>
+    public bool HasTaggedData => VlanMembership.HasMembershipData(_allPorts.Select(p => p.Model));
 
-    /// <summary>Called once Ports finishes loading (or reloads), in case it resolved after or changed since this row was already created - see <see cref="AccessPorts"/>'s remarks.</summary>
-    public void RefreshPorts() => OnPropertyChanged(nameof(AccessPortsSummaryText));
+    /// <summary>"12 ports: Gi1/1, Gi1/2, ..." or "-" - one string doing double duty as the cell (ellipsis-trimmed) and its tooltip (in full).</summary>
+    public string UntaggedPortsSummaryText => Summarise(Members().Untagged);
+
+    /// <summary>As <see cref="UntaggedPortsSummaryText"/>, for trunk ports carrying this VLAN tagged - "n/a" when the device doesn't report tagged membership.</summary>
+    public string TaggedPortsSummaryText => HasTaggedData ? Summarise(Members().Tagged) : "n/a";
+
+    private static string Summarise(IReadOnlyList<PortItemViewModel> ports)
+    {
+        if (ports.Count == 0)
+        {
+            return "-";
+        }
+
+        var countLabel = ports.Count == 1 ? "1 port: " : $"{ports.Count} ports: ";
+        return countLabel + string.Join(", ", ports.Select(p => p.DisplayName));
+    }
+
+    public bool Matches(string term)
+    {
+        if (NumberText.Contains(term, StringComparison.OrdinalIgnoreCase) || NameText.Contains(term, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var (untagged, tagged) = Members();
+        return untagged.Concat(tagged).Any(p => p.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Called once Ports finishes loading (or reloads), in case it resolved after or changed since this row was already created - see <see cref="Members"/>.</summary>
+    public void RefreshPorts()
+    {
+        OnPropertyChanged(nameof(UntaggedPortsSummaryText));
+        OnPropertyChanged(nameof(TaggedPortsSummaryText));
+        OnPropertyChanged(nameof(HasTaggedData));
+    }
 }
 
 /// <summary>

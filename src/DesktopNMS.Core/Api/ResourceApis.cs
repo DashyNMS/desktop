@@ -356,7 +356,9 @@ internal sealed class PortsApi : IPortsApi
 
     public Task<IReadOnlyList<Port>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default)
     {
-        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/ports?columns=" + Columns;
+        // with=vlans adds each port's VLAN memberships, tagged and untagged
+        // (#99) - an older LibreNMS that doesn't know it just ignores it.
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/ports?columns=" + Columns + "&with=vlans";
         return _transport.GetCollectionAsync<Port>(url, "ports", cancellationToken);
     }
 
