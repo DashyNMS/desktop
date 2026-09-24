@@ -38,6 +38,8 @@ public interface ILibreNmsClient
 
     ILocationsApi Locations { get; }
 
+    IRoutingApi Routing { get; }
+
     IPollerGroupsApi PollerGroups { get; }
 
     ILogsApi Logs { get; }

@@ -345,7 +345,7 @@ internal sealed class PortsApi : IPortsApi
     private const string Columns =
         "port_id,device_id,ifIndex,ifName,ifDescr,ifAlias,ifType,ifSpeed,ifDuplex,ifMtu," +
         "ifPhysAddress,ifOperStatus,ifAdminStatus,ifInOctets_rate,ifOutOctets_rate," +
-        "ifInErrors_delta,ifOutErrors_delta,ifVlan,ignore,disabled,deleted";
+        "ifInErrors_delta,ifOutErrors_delta,ifVlan,ifVrf,ignore,disabled,deleted";
 
     private readonly ILibreNmsTransport _transport;
 
@@ -838,5 +838,47 @@ internal sealed class GraphsApi : IGraphsApi
         }
 
         return _transport.SendRawAsync(url, cancellationToken);
+    }
+}
+
+/// <summary>Implementation of <see cref="IRoutingApi"/>.</summary>
+internal sealed class RoutingApi : IRoutingApi
+{
+    private readonly ILibreNmsTransport _transport;
+
+    public RoutingApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<BgpSession>> ListBgpSessionsAsync(int deviceId, CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<BgpSession>("bgp?hostname=" + Id(deviceId), "bgp_sessions", cancellationToken);
+
+    public Task<IReadOnlyList<OspfNeighbour>> ListOspfNeighboursAsync(int deviceId, CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<OspfNeighbour>("ospf?hostname=" + Id(deviceId), "ospf_neighbours", cancellationToken);
+
+    public Task<IReadOnlyList<Ospfv3Neighbour>> ListOspfv3NeighboursAsync(int deviceId, CancellationToken cancellationToken = default)
+        => EmptyWhen(
+            _transport.GetCollectionAsync<Ospfv3Neighbour>("ospfv3?hostname=" + Id(deviceId), "ospfv3_neighbours", cancellationToken),
+            System.Net.HttpStatusCode.InternalServerError,
+            "Error retrieving ospfv3_nbrs");
+
+    public Task<IReadOnlyList<Vrf>> ListVrfsAsync(int deviceId, CancellationToken cancellationToken = default)
+        => EmptyWhen(
+            _transport.GetCollectionAsync<Vrf>("routing/vrf?hostname=" + Id(deviceId), "vrfs", cancellationToken),
+            System.Net.HttpStatusCode.NotFound,
+            "VRFs do not exist");
+
+    private static string Id(int deviceId) => deviceId.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>LibreNMS's way of saying "none" on some routes - that exact status and message - becomes an empty list; anything else still throws.</summary>
+    private static async Task<IReadOnlyList<T>> EmptyWhen<T>(Task<IReadOnlyList<T>> request, System.Net.HttpStatusCode status, string message)
+    {
+        try
+        {
+            return await request.ConfigureAwait(false);
+        }
+        catch (LibreNmsApiException ex) when (ex.StatusCode == status
+                                              && string.Equals(ex.ServerMessage?.Trim(), message, StringComparison.OrdinalIgnoreCase))
+        {
+            return Array.Empty<T>();
+        }
     }
 }

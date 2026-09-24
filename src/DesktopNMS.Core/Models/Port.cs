@@ -52,6 +52,10 @@ public sealed class Port
     [JsonPropertyName("ifVlan")]
     public int? IfVlan { get; set; }
 
+    /// <summary>The VRF this interface is in - a <see cref="Vrf.Id"/>, or null/0 for none.</summary>
+    [JsonPropertyName("ifVrf")]
+    public int? IfVrf { get; set; }
+
     /// <summary>"up", "down", "testing", "unknown", ... (RFC 1213 ifOperStatus).</summary>
     [JsonPropertyName("ifOperStatus")]
     public string? IfOperStatus { get; set; }

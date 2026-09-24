@@ -364,3 +364,25 @@ public interface IDeviceHealthApi
     /// <summary>GET /api/v0/devices/{id}/health/storage(/{sensor_id}) - see <see cref="ListProcessorsAsync"/>.</summary>
     Task<IReadOnlyList<StorageVolume>> ListStorageAsync(int deviceId, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Routing data for one device (#53): BGP sessions, OSPF/OSPFv3 neighbours
+/// and VRFs. LibreNMS answers "none" differently per route - an empty list,
+/// a 404 ("VRFs do not exist") or a 500 ("Error retrieving ospfv3_nbrs") -
+/// so every method here turns "none" into an empty list and only throws for
+/// a real failure.
+/// </summary>
+public interface IRoutingApi
+{
+    /// <summary>GET /api/v0/bgp?hostname={id}.</summary>
+    Task<IReadOnlyList<BgpSession>> ListBgpSessionsAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>GET /api/v0/ospf?hostname={id}.</summary>
+    Task<IReadOnlyList<OspfNeighbour>> ListOspfNeighboursAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>GET /api/v0/ospfv3?hostname={id} - a 500 when there are none.</summary>
+    Task<IReadOnlyList<Ospfv3Neighbour>> ListOspfv3NeighboursAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>GET /api/v0/routing/vrf?hostname={id} - a 404 when there are none.</summary>
+    Task<IReadOnlyList<Vrf>> ListVrfsAsync(int deviceId, CancellationToken cancellationToken = default);
+}
