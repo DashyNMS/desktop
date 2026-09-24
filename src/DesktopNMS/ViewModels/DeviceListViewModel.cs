@@ -131,6 +131,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         // AddDevice has nothing to gate: a failed add while disconnected
         // surfaces as an inline error in the dialog itself.
         AddDeviceCommand = new RelayCommand(AddDevice);
+        BulkAddDevicesCommand = new RelayCommand(BulkAddDevices);
 
         // Bulk actions (issue #39) - mirror MainViewModel's Acknowledge/
         // Unacknowledge pair for the Alerts grid: both always available for
@@ -210,6 +211,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     /// <summary>Opens the "Add device" dialog - see <see cref="AddDevice"/>.</summary>
     public RelayCommand AddDeviceCommand { get; }
+
+    /// <summary>Opens "Bulk add devices" - see <see cref="BulkAddDevices"/>.</summary>
+    public RelayCommand BulkAddDevicesCommand { get; }
 
     /// <summary>Pins every currently-selected device - see <see cref="SetSelectedPinned"/>.</summary>
     public RelayCommand PinSelectedCommand { get; }
@@ -731,6 +735,15 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     private void AddDevice()
     {
         if (_windows.ShowAddDeviceDialog())
+        {
+            _deviceMonitor.RequestRefresh();
+        }
+    }
+
+    /// <summary>The same as <see cref="AddDevice"/>, for many devices at once - refreshes once when it closes if anything was added.</summary>
+    private void BulkAddDevices()
+    {
+        if (_windows.ShowBulkAddDevicesDialog())
         {
             _deviceMonitor.RequestRefresh();
         }

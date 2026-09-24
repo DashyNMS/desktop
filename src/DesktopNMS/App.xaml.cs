@@ -308,6 +308,7 @@ public partial class App : Application
         services.AddTransient<ConnectionViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AddDeviceViewModel>();
+        services.AddTransient<BulkAddDevicesViewModel>();
         services.AddTransient<DeviceGroupEditorViewModel>();
         services.AddTransient<AddDevicesToGroupViewModel>();
         services.AddTransient<LocationEditorViewModel>();

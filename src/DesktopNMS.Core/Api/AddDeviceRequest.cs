@@ -94,4 +94,19 @@ public sealed class AddDeviceRequest
     [JsonPropertyName("ping_fallback")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? PingFallback { get; init; }
+
+    /// <summary>A location by name - LibreNMS finds it, or creates it if there's no location with that name yet.</summary>
+    [JsonPropertyName("location")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Location { get; init; }
+
+    /// <summary>The device's display name, or a template for it such as "{{ $sysName }}".</summary>
+    [JsonPropertyName("display_template")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DisplayTemplate { get; init; }
+
+    /// <summary>An IP address to poll instead of resolving the hostname.</summary>
+    [JsonPropertyName("overwrite_ip")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OverwriteIp { get; init; }
 }
