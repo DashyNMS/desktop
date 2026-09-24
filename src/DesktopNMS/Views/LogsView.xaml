@@ -8,7 +8,7 @@
         <!-- Visibility on a wrapper: on the view itself it would resolve
              against the view's own (overridden) DataContext. -->
         <Grid Visibility="{Binding Graylog.IsConfigured, Converter={StaticResource BoolToVisibility}}">
-            <views:GraylogMessagesView DataContext="{Binding Graylog}" />
+            <views:GraylogMessagesView x:Name="GraylogView" DataContext="{Binding Graylog}" />
         </Grid>
 
         <!-- Not set up: say where to do it rather than showing an empty table. -->

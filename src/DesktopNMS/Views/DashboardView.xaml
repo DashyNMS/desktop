@@ -1028,7 +1028,8 @@
                                     </StackPanel>
                                 </MenuItem.Header>
                             </MenuItem>
-                            <MenuItem Command="{Binding AddPinnedDevicesWidgetCommand}">
+                            <MenuItem Command="{Binding AddPinnedDevicesWidgetCommand}"
+                                      Visibility="{Binding ShowPinnedDevicesWidgetOption, Converter={StaticResource BoolToVisibility}}">
                                 <MenuItem.Header>
                                     <StackPanel Margin="0,2">
                                         <TextBlock Text="Pinned devices" FontWeight="SemiBold" />

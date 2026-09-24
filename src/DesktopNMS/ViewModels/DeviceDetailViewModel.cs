@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Threading;
+using DesktopNMS.Core;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
@@ -1744,6 +1745,27 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public bool HasAlternateName => AlternateName is not null;
 
+    /// <summary>The polled identifier - what LibreNMS connects to.</summary>
+    public string HostnameText => Blank(_device?.Hostname);
+
+    /// <summary>What the device reports over SNMP.</summary>
+    public string SysNameText => Blank(_device?.SysName);
+
+    /// <summary>LibreNMS's resolved display name (from the display template, or a manual override).</summary>
+    public string DisplayNameText => Blank(_device?.Display);
+
+    /// <summary>
+    /// The Overview identity card shows hostname, sysName and display name
+    /// separately (#126) only when they don't all agree - when they do, the
+    /// window title already says everything there is to say.
+    /// </summary>
+    public bool ShowNameDetails => _device is not null
+        && new[] { _device.Hostname, _device.SysName, _device.Display }
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Select(n => n!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count() > 1;
+
     /// <summary>The raw SNMP system description, e.g. "Onyx,SN2010M,SWv3.10.4408" - shown under the device name, matching where LibreNMS's own device page puts it.</summary>
     public string? SysDescr => string.IsNullOrWhiteSpace(_device?.SysDescr) ? null : _device.SysDescr;
 
@@ -1812,16 +1834,16 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// Elapsed time since LibreNMS added this device, e.g. "36d 4h ago" -
     /// same compact style as <see cref="UptimeText"/>/alert ages elsewhere in
     /// this app, not LibreNMS's own spelled-out "1 month ago" wording.
-    /// Not converted from server time, matching how the event log and alert
-    /// history timestamps in this same file are already treated - both are
-    /// the same ambiguous MySQL datetime format this field also uses.
+    /// Converted from server time per Settings' "server stores timestamps in
+    /// UTC" (<see cref="ServerTime"/>, #150), like every other LibreNMS
+    /// datetime shown in this window.
     /// </summary>
-    public string? InsertedText => _device?.Inserted is { } t ? DurationFormat.Format(DateTime.Now - t) + " ago" : null;
+    public string? InsertedText => _device?.Inserted is { } t ? DurationFormat.Format(ServerTime.Age(t, _settings.Current.ServerTimestampsAreUtc)) + " ago" : null;
 
     public bool HasInserted => InsertedText is not null;
 
     /// <summary>When LibreNMS last ran full discovery (not just a poll) against this device - see <see cref="InsertedText"/>'s remarks on formatting and timezone.</summary>
-    public string? LastDiscoveredText => _device?.LastDiscovered is { } t ? DurationFormat.Format(DateTime.Now - t) + " ago" : null;
+    public string? LastDiscoveredText => _device?.LastDiscovered is { } t ? DurationFormat.Format(ServerTime.Age(t, _settings.Current.ServerTimestampsAreUtc)) + " ago" : null;
 
     public bool HasLastDiscovered => LastDiscoveredText is not null;
 
@@ -2437,7 +2459,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 rulesByRule.TryGetValue(entry.RuleId, out var rule);
                 fieldsByRule.TryGetValue(entry.RuleId, out var fields);
                 var detail = AlertFaultParser.Parse(entry, fields);
-                AlertHistory.Add(new AlertLogItemViewModel(entry, rule, detail));
+                AlertHistory.Add(new AlertLogItemViewModel(entry, rule, detail, _settings.Current.ServerTimestampsAreUtc));
             }
 
             OnPropertyChanged(nameof(HasAlertHistory));
@@ -2697,7 +2719,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
             FdbEntries.ReplaceAll(entries
                 .OrderBy(e => e.MacAddress, StringComparer.OrdinalIgnoreCase)
-                .Select(entry => new FdbItemViewModel(entry, _portNamesByPortId, _vlansById)));
+                .Select(entry => new FdbItemViewModel(entry, _portNamesByPortId, _vlansById, _settings.Current.ServerTimestampsAreUtc)));
 
             OnPropertyChanged(nameof(HasFdbEntries));
             OnPropertyChanged(nameof(HasVisibleFdbEntries));
@@ -2998,7 +3020,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             var eventLogItems = new List<EventLogItemViewModel>();
             foreach (var entry in entries)
             {
-                eventLogItems.Add(new EventLogItemViewModel(entry));
+                eventLogItems.Add(new EventLogItemViewModel(entry, _settings.Current.ServerTimestampsAreUtc));
                 _loadedEventLogIds.Add(entry.Id);
             }
 
@@ -3056,7 +3078,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             {
                 if (_loadedEventLogIds.Add(entry.Id))
                 {
-                    EventLog.Add(new EventLogItemViewModel(entry));
+                    EventLog.Add(new EventLogItemViewModel(entry, _settings.Current.ServerTimestampsAreUtc));
                     added++;
                 }
             }
@@ -3615,6 +3637,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(AlternateName));
         OnPropertyChanged(nameof(HasAlternateName));
+        OnPropertyChanged(nameof(HostnameText));
+        OnPropertyChanged(nameof(SysNameText));
+        OnPropertyChanged(nameof(DisplayNameText));
+        OnPropertyChanged(nameof(ShowNameDetails));
         OnPropertyChanged(nameof(State));
         OnPropertyChanged(nameof(StateText));
         OnPropertyChanged(nameof(Ip));
@@ -3818,8 +3844,13 @@ public sealed class SensorGraphLinkViewModel
 public sealed class EventLogItemViewModel
 {
     private readonly EventLogEntry _entry;
+    private readonly bool _serverTimestampsAreUtc;
 
-    public EventLogItemViewModel(EventLogEntry entry) => _entry = entry;
+    public EventLogItemViewModel(EventLogEntry entry, bool serverTimestampsAreUtc)
+    {
+        _entry = entry;
+        _serverTimestampsAreUtc = serverTimestampsAreUtc;
+    }
 
     public string Message => string.IsNullOrWhiteSpace(_entry.Message) ? "-" : _entry.Message!;
 
@@ -3828,7 +3859,7 @@ public sealed class EventLogItemViewModel
     public string Username => string.IsNullOrWhiteSpace(_entry.Username) ? "-" : _entry.Username!;
 
     public string TimeText => _entry.Timestamp is { } t
-        ? t.ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
+        ? ServerTime.ToLocal(t, _serverTimestampsAreUtc).ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
         : "-";
 }
 
@@ -3960,12 +3991,14 @@ public sealed class FdbItemViewModel : ObservableObject
     private readonly FdbEntry _entry;
     private readonly Dictionary<int, string> _portNamesByPortId;
     private readonly Dictionary<int, Vlan> _vlansById;
+    private readonly bool _serverTimestampsAreUtc;
 
-    public FdbItemViewModel(FdbEntry entry, Dictionary<int, string> portNamesByPortId, Dictionary<int, Vlan> vlansById)
+    public FdbItemViewModel(FdbEntry entry, Dictionary<int, string> portNamesByPortId, Dictionary<int, Vlan> vlansById, bool serverTimestampsAreUtc)
     {
         _entry = entry;
         _portNamesByPortId = portNamesByPortId;
         _vlansById = vlansById;
+        _serverTimestampsAreUtc = serverTimestampsAreUtc;
     }
 
     public string MacAddressText => MacAddressFormat.Format(_entry.MacAddress);
@@ -4017,7 +4050,7 @@ public sealed class FdbItemViewModel : ObservableObject
     public bool HasVlanName => VlanNameText is not null;
 
     public string UpdatedText => _entry.UpdatedAt is { } t
-        ? t.ToLocalTime().ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
+        ? ServerTime.ToLocal(t, _serverTimestampsAreUtc).ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
         : "-";
 
     public bool Matches(string term) =>
@@ -4194,15 +4227,18 @@ public sealed class AlertLogItemViewModel
     private readonly AlertRule? _rule;
     private readonly AlertDetail _detail;
 
-    public AlertLogItemViewModel(AlertLogEntry entry, AlertRule? rule, AlertDetail detail)
+    public AlertLogItemViewModel(AlertLogEntry entry, AlertRule? rule, AlertDetail detail, bool serverTimestampsAreUtc)
     {
         _entry = entry;
         _rule = rule;
         _detail = detail;
+        _serverTimestampsAreUtc = serverTimestampsAreUtc;
     }
 
+    private readonly bool _serverTimestampsAreUtc;
+
     public string TimeText => _entry.TimeLogged is { } t
-        ? t.ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
+        ? ServerTime.ToLocal(t, _serverTimestampsAreUtc).ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
         : "-";
 
     public string RuleName => _rule?.Name ?? $"Rule {_entry.RuleId}";

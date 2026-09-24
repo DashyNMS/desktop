@@ -9,4 +9,7 @@ public partial class LogsView : UserControl
     {
         InitializeComponent();
     }
+
+    /// <summary>Called by the shell window on Ctrl+F.</summary>
+    public void FocusSearch() => GraylogView.FocusSearch();
 }

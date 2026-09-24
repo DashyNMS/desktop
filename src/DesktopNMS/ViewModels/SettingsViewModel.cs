@@ -197,6 +197,11 @@ public sealed class SettingsViewModel : ObservableObject
             () => _latestRelease?.HtmlUrl is not null);
         ViewReleasesPageCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri("https://github.com/DashyNMS/desktop/releases")));
+        ReportBugCommand = new RelayCommand(
+            () => _windows.OpenUrl(BugReportLink.Build(
+                _updates.CurrentVersion.ToString(),
+                System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+                _serverInfo?.LocalVersion)));
 
         TestUnimusConnectionCommand = new AsyncRelayCommand(TestUnimusConnectionAsync, () => !IsTestingUnimusConnection && !string.IsNullOrWhiteSpace(UnimusUrl));
         ClearUnimusTokenCommand = new RelayCommand(ClearUnimusToken, () => HasStoredUnimusToken || !string.IsNullOrEmpty(UnimusTokenInput));
@@ -315,8 +320,25 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Only true once the draft actually differs from what is running - so the notice does not show before anyone has touched anything.</summary>
-    public bool ThemeChangeRequiresRestart => _draft.Theme != _store.Current.Theme;
+    /// <summary>"Match Windows" (#81) - resolved each time DashyNMS starts.</summary>
+    public bool IsSystemTheme
+    {
+        get => _draft.Theme == AppTheme.System;
+        set
+        {
+            if (value)
+            {
+                SetDraftTheme(AppTheme.System);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Only true when the palette the draft would give differs from the one
+    /// running - so the notice doesn't show before anything has changed, or
+    /// for switching to "Match Windows" when Windows already matches.
+    /// </summary>
+    public bool ThemeChangeRequiresRestart => _draft.Theme.Resolve(ThemeState.WindowsUsesLightTheme()) != ThemeState.Effective;
 
     private void SetDraftTheme(AppTheme theme)
     {
@@ -328,6 +350,7 @@ public sealed class SettingsViewModel : ObservableObject
         _draft.Theme = theme;
         OnPropertyChanged(nameof(IsDarkTheme));
         OnPropertyChanged(nameof(IsLightTheme));
+        OnPropertyChanged(nameof(IsSystemTheme));
         OnPropertyChanged(nameof(ThemeChangeRequiresRestart));
     }
 
@@ -1129,6 +1152,9 @@ public sealed class SettingsViewModel : ObservableObject
 
     public RelayCommand ViewReleasesPageCommand { get; }
 
+    /// <summary>Opens a new GitHub issue with the app, Windows and LibreNMS versions filled in (#149) - see <see cref="BugReportLink"/>.</summary>
+    public RelayCommand ReportBugCommand { get; }
+
     public string CurrentVersionText => $"Version {_updates.CurrentVersion}";
 
     /// <summary>
@@ -1561,6 +1587,22 @@ public sealed class SettingsViewModel : ObservableObject
             }
 
             _draft.ShowRecentlyViewedDevices = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>See <see cref="AppSettings.EnablePinnedDevices"/> (#98).</summary>
+    public bool EnablePinnedDevices
+    {
+        get => _draft.EnablePinnedDevices;
+        set
+        {
+            if (_draft.EnablePinnedDevices == value)
+            {
+                return;
+            }
+
+            _draft.EnablePinnedDevices = value;
             OnPropertyChanged();
         }
     }

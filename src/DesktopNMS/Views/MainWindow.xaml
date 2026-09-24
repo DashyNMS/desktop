@@ -52,6 +52,7 @@
         <KeyBinding Key="F5" Command="{Binding RefreshCurrentTabCommand}" />
         <KeyBinding Key="A" Modifiers="Control" Command="{Binding AcknowledgeCommand}" />
         <KeyBinding Key="L" Modifiers="Control" Command="{Binding ClearCurrentTabFiltersCommand}" />
+        <KeyBinding Key="F1" Command="{Binding ShowKeyboardShortcutsCommand}" />
     </Window.InputBindings>
 
     <Window.CommandBindings>
@@ -301,6 +302,12 @@
                             ToolTip="Refresh now (F5)"
                             Margin="0,0,8,0">
                         <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                    </Button>
+                    <Button Command="{Binding ShowKeyboardShortcutsCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Keyboard shortcuts (F1)"
+                            Margin="0,0,8,0">
+                        <TextBlock Text="&#xE765;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
                     </Button>
                     <Button Command="{Binding SettingsCommand}"
                             Style="{StaticResource IconButtonStyle}"

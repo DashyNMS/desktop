@@ -209,7 +209,7 @@
                              DeviceListViewModel's IsPinned SortDescription and
                              DevicesView.xaml.cs's Sorting handler, which keeps
                              it ahead of whichever column the user clicks. -->
-                        <DataGridTemplateColumn Header="" Width="40" CanUserSort="False">
+                        <DataGridTemplateColumn x:Name="PinColumn" Header="" Width="40" CanUserSort="False">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Button Command="{Binding TogglePinCommand}"

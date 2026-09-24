@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using DesktopNMS.Core;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
@@ -552,7 +553,7 @@ public sealed class AlertNotificationService : IAlertNotificationService
     private string BuildAttribution(Alert alert)
     {
         var host = _session.Connection?.WebRoot.Host ?? "LibreNMS";
-        var time = alert.Timestamp?.ToString("HH:mm", CultureInfo.CurrentCulture);
+        var time = ServerTime.ToLocal(alert.Timestamp, _settings.Current.ServerTimestampsAreUtc)?.ToString("HH:mm", CultureInfo.CurrentCulture);
 
         return time is null ? host : $"{host} at {time}";
     }

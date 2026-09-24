@@ -13,4 +13,11 @@
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
   </ItemGroup>
 
+  <!-- So request bodies built by the internal resource APIs can be checked
+       key by key against a fake transport - LibreNMS applies whichever keys
+       are present, so an extra or missing one is a real bug (see #169). -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="DesktopNMS.Core.Tests" />
+  </ItemGroup>
+
 </Project>

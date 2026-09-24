@@ -27,6 +27,20 @@ public enum AppTheme
 {
     Dark,
     Light,
+
+    /// <summary>Whichever Windows is set to for apps (Settings, Personalisation, Colours) when DashyNMS starts (#81).</summary>
+    System,
+}
+
+public static class AppThemeExtensions
+{
+    /// <summary>The palette to actually use: Dark or Light, with <see cref="AppTheme.System"/> resolved from Windows' own app setting.</summary>
+    public static AppTheme Resolve(this AppTheme theme, bool windowsUsesLightTheme) => theme switch
+    {
+        AppTheme.Light => AppTheme.Light,
+        AppTheme.System => windowsUsesLightTheme ? AppTheme.Light : AppTheme.Dark,
+        _ => AppTheme.Dark,
+    };
 }
 
 /// <summary>
@@ -155,6 +169,14 @@ public sealed class AppSettings
     /// <summary>Shows the recently-viewed strip above the Devices tab's grid. Does not affect the Dashboard widget, which is opt-in by adding it.</summary>
     public bool ShowRecentlyViewedDevices { get; set; } = true;
 
+    /// <summary>
+    /// Pinning devices to the top of the Devices tab (#98). Off hides the pin
+    /// column and actions and stops pinned devices sorting first, and takes
+    /// "Pinned devices" off the Dashboard's widget menu - without forgetting
+    /// <see cref="PinnedDevices"/>, so turning it back on restores them.
+    /// </summary>
+    public bool EnablePinnedDevices { get; set; } = true;
+
     /// <summary>How many devices <see cref="RecentlyViewedDevices"/> remembers - the same number is shown everywhere it appears.</summary>
     public int RecentlyViewedDeviceCount { get; set; } = 10;
 
@@ -240,6 +262,7 @@ public sealed class AppSettings
         DashboardWidgets = DashboardWidgets.Select(w => w.Clone()).ToList(),
         RecentlyViewedDevices = RecentlyViewedDevices.Select(d => d.Clone()).ToList(),
         ShowRecentlyViewedDevices = ShowRecentlyViewedDevices,
+        EnablePinnedDevices = EnablePinnedDevices,
         RecentlyViewedDeviceCount = RecentlyViewedDeviceCount,
         PinnedDevices = PinnedDevices.Select(d => d.Clone()).ToList(),
         AccentColor = AccentColor,

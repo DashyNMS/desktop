@@ -242,7 +242,10 @@ public partial class App : Application
     /// </remarks>
     private void ApplyTheme(AppTheme theme)
     {
-        var paletteFile = theme == AppTheme.Light ? "Palette.Light.xaml" : "Palette.Dark.xaml";
+        // "Match Windows" (#81) is resolved here, once - see ThemeState.
+        ThemeState.Effective = theme.Resolve(ThemeState.WindowsUsesLightTheme());
+
+        var paletteFile = ThemeState.Effective == AppTheme.Light ? "Palette.Light.xaml" : "Palette.Dark.xaml";
 
         Resources.MergedDictionaries.Add(new ResourceDictionary
         {

@@ -554,14 +554,21 @@ internal sealed class LocationsApi : ILocationsApi
         using var _ = await _transport.SendAsync(HttpMethod.Post, "locations/", body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task UpdateAsync(int id, double lat, double lng, bool fixedCoordinates, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(int id, string name, double lat, double lng, CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
         var url = "locations/" + id.ToString(CultureInfo.InvariantCulture);
+
+        // Exactly the keys LibreNMS's edit_location can change: it does
+        // $location->fill($request->all()), so every key present is applied
+        // (a null "location" wiped the name - #169), and only location, lat
+        // and lng are fillable - fixed_coordinates would be ignored.
         var request = new LocationWriteRequest
         {
+            Name = name,
             Latitude = lat,
             Longitude = lng,
-            FixedCoordinates = fixedCoordinates ? 1 : 0,
         };
 
         using var _ = await _transport.SendAsync(HttpMethod.Patch, url, body: request, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -574,11 +581,16 @@ internal sealed class LocationsApi : ILocationsApi
     }
 }
 
-/// <summary>Body for creating/updating a location. Name is omitted (left null) on an update - LibreNMS's own edit_location endpoint does not document a rename parameter.</summary>
+/// <summary>
+/// Body for creating/updating a location. Every key present is applied by
+/// LibreNMS, so the name is always sent (never null), and
+/// fixed_coordinates - which only add_location reads - is left out of an
+/// update entirely.
+/// </summary>
 internal sealed class LocationWriteRequest
 {
     [System.Text.Json.Serialization.JsonPropertyName("location")]
-    public string? Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     [System.Text.Json.Serialization.JsonPropertyName("lat")]
     public double Latitude { get; set; }
@@ -587,7 +599,8 @@ internal sealed class LocationWriteRequest
     public double Longitude { get; set; }
 
     [System.Text.Json.Serialization.JsonPropertyName("fixed_coordinates")]
-    public int FixedCoordinates { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? FixedCoordinates { get; set; }
 }
 
 /// <summary>Implementation of <see cref="IPollerGroupsApi"/>.</summary>
