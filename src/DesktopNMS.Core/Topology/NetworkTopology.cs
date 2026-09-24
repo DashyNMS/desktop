@@ -67,7 +67,17 @@ public sealed class TopologyGraph
 public static class NetworkTopology
 {
     /// <param name="scopeDeviceIds">The devices this map covers - the whole fleet, or one device group's members.</param>
-    public static TopologyGraph Build(IEnumerable<int> scopeDeviceIds, IEnumerable<NetworkLink> links)
+    /// <param name="links">LibreNMS's fleet-wide link list.</param>
+    /// <param name="portNames">
+    /// Port id to name, for every port LibreNMS knows (see
+    /// <see cref="PortLabels.ForPort"/>). A link record only names the port at
+    /// its far end in text; its own end is just a <c>local_port_id</c>. So a
+    /// cable reported from one side only - always the case for a ping-only
+    /// device such as a Bolero antenna, which LibreNMS never runs discovery
+    /// on - has no name for the reporting device's own port unless it's
+    /// looked up here. Without it, only the far ends are named.
+    /// </param>
+    public static TopologyGraph Build(IEnumerable<int> scopeDeviceIds, IEnumerable<NetworkLink> links, IReadOnlyDictionary<int, string>? portNames = null)
     {
         var scope = scopeDeviceIds.ToHashSet();
         var byPair = new Dictionary<(int A, int B), Dictionary<(string, string), TopologyConnection>>();
@@ -93,9 +103,11 @@ public static class NetworkTopology
             // The same cable is normally reported from both ends (A's port ->
             // B's port, and B's port -> A's port), so it's keyed by the two
             // port ids in a fixed order. Without a remote port id, the
-            // remote port's name stands in for it.
+            // remote port's name stands in for it. LibreNMS sends a missing
+            // remote port id as null, "" or 0 - all mean "not known".
+            var remotePortId = link.RemotePortId is > 0 ? link.RemotePortId : null;
             var local = "p" + link.LocalPortId;
-            var far = link.RemotePortId is { } rp ? "p" + rp : "n" + link.RemoteDeviceId + ":" + (link.RemotePort ?? string.Empty);
+            var far = remotePortId is { } rp ? "p" + rp : "n" + link.RemoteDeviceId + ":" + (link.RemotePort ?? string.Empty);
             var key = string.CompareOrdinal(local, far) <= 0 ? (local, far) : (far, local);
 
             if (!physical.TryGetValue(key, out var connection))
@@ -104,14 +116,20 @@ public static class NetworkTopology
                 physical[key] = connection;
             }
 
-            // This record names the port at its far end.
+            // Each end named from its own port where LibreNMS has it, the
+            // far end falling back to the name the discovery protocol gave.
+            var nearName = PortName(portNames, link.LocalPortId);
+            var farName = PortName(portNames, remotePortId) ?? PortLabels.FromNeighbourPort(link.RemotePort);
+
             if (link.LocalDeviceId == pair.Item1)
             {
-                connection.PortB ??= Blank(link.RemotePort);
+                connection.PortA ??= nearName;
+                connection.PortB ??= farName;
             }
             else
             {
-                connection.PortA ??= Blank(link.RemotePort);
+                connection.PortB ??= nearName;
+                connection.PortA ??= farName;
             }
         }
 
@@ -131,5 +149,45 @@ public static class NetworkTopology
         };
     }
 
-    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+    private static string? PortName(IReadOnlyDictionary<int, string>? portNames, int? portId) =>
+        portNames is not null && portId is > 0 && portNames.TryGetValue(portId.Value, out var name) ? name : null;
+}
+
+/// <summary>How ports are named on the network map.</summary>
+public static class PortLabels
+{
+    private static readonly System.Text.RegularExpressions.Regex MacAddress = new(
+        @"^(?<mac>([0-9a-f]{2}[\s:\-]?){5}[0-9a-f]{2})(\s*\([0-9a-f]{12}\))?$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>A port's short name (ifName, e.g. "Gi1/0/48") - what fits beside a line on a map - or its ifDescr, or null.</summary>
+    public static string? ForPort(Port port) =>
+        !string.IsNullOrWhiteSpace(port.IfName) ? port.IfName.Trim()
+        : !string.IsNullOrWhiteSpace(port.IfDescr) ? port.IfDescr.Trim()
+        : null;
+
+    /// <summary>
+    /// The port name a neighbour announced over LLDP/CDP, tidied: many
+    /// devices (Riedel Bolero antennas among them) announce their MAC address
+    /// as their port, which LibreNMS stores as e.g. "00 19 7C 02 E8 8B
+    /// (00197c02e88b)" - shown as "00:19:7C:02:E8:8B". Anything else is kept
+    /// as announced; blank is null.
+    /// </summary>
+    public static string? FromNeighbourPort(string? announced)
+    {
+        if (string.IsNullOrWhiteSpace(announced))
+        {
+            return null;
+        }
+
+        var text = announced.Trim();
+        var match = MacAddress.Match(text);
+        if (!match.Success)
+        {
+            return text;
+        }
+
+        var hex = new string(match.Groups["mac"].Value.Where(Uri.IsHexDigit).ToArray()).ToUpperInvariant();
+        return string.Join(":", Enumerable.Range(0, 6).Select(i => hex.Substring(i * 2, 2)));
+    }
 }

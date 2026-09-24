@@ -195,11 +195,19 @@ public interface ILinksApi
 public interface IPortsApi
 {
     /// <summary>
-    /// GET /api/v0/devices/{id}/ports. Unlike sensors, LibreNMS has no
-    /// fleet-wide ports endpoint - only per device - so this is fetched on
-    /// demand by whatever needs one device's interfaces, not by a shared poller.
+    /// GET /api/v0/devices/{id}/ports - one device's interfaces with
+    /// everything the Ports tab shows, fetched on demand rather than by a
+    /// shared poller.
     /// </summary>
     Task<IReadOnlyList<Port>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/ports with just port_id, device_id, ifName and ifDescr -
+    /// every port in the fleet, for naming the ends of the network map's
+    /// links (see <see cref="Topology.NetworkTopology.Build"/>). Checked
+    /// live: about 1.4 MB for 9,000 ports, fine to fetch alongside the links.
+    /// </summary>
+    Task<IReadOnlyList<Port>> ListAllNamesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// GET /api/v0/devices/{id}/ip. Every IPv4/IPv6 address bound to any of

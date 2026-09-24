@@ -344,6 +344,9 @@ internal sealed class PortsApi : IPortsApi
 
     public PortsApi(ILibreNmsTransport transport) => _transport = transport;
 
+    public Task<IReadOnlyList<Port>> ListAllNamesAsync(CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<Port>("ports?columns=port_id,device_id,ifName,ifDescr", "ports", cancellationToken);
+
     public Task<IReadOnlyList<Port>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default)
     {
         var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/ports?columns=" + Columns;

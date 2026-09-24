@@ -56,6 +56,14 @@ public sealed class MapEdge
 
     public int LinkCount => Source.LinkCount;
 
+    /// <summary>
+    /// Either end is down - drawn dotted, so a link to something that's
+    /// gone offline reads differently from a working one. Maintenance and
+    /// disabled devices aren't "down" here: the first is still up, and the
+    /// second isn't polled, so there's no telling.
+    /// </summary>
+    public bool IsToOfflineDevice => A.State == DeviceState.Down || B.State == DeviceState.Down;
+
     public bool Touches(MapNode node) => ReferenceEquals(A, node) || ReferenceEquals(B, node);
 }
 
@@ -144,6 +152,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     private IReadOnlyList<Device> _devices = Array.Empty<Device>();
     private IReadOnlySet<int> _maintenanceIds = new HashSet<int>();
     private IReadOnlyList<NetworkLink>? _links;
+    private IReadOnlyDictionary<int, string>? _portNames;
     private DateTimeOffset _linksFetchedAt;
     private bool _hasDevices;
 
@@ -425,7 +434,11 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
 
         try
         {
+            // Port names are fetched alongside, so each end of a link can be
+            // named from its own port - see NetworkTopology.Build.
+            var portsTask = LoadPortNamesAsync();
             _links = await _client.Links.ListAllAsync().ConfigureAwait(true);
+            _portNames = await portsTask.ConfigureAwait(true);
             _linksFetchedAt = DateTimeOffset.Now;
             await RebuildAsync(fit: _nodes.Count == 0).ConfigureAwait(true);
         }
@@ -437,6 +450,34 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Every port's name by id. Not worth failing the map over - without
+    /// them, a link reported from one side only just shows "?" for that
+    /// side's own port, as it did before.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<int, string>?> LoadPortNamesAsync()
+    {
+        try
+        {
+            var ports = await _client.Ports.ListAllNamesAsync().ConfigureAwait(false);
+            var names = new Dictionary<int, string>(ports.Count);
+            foreach (var port in ports)
+            {
+                if (PortLabels.ForPort(port) is { } name)
+                {
+                    names[port.PortId] = name;
+                }
+            }
+
+            return names;
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load port names for the network map; one-sided links will show ? for their own port");
+            return null;
         }
     }
 
@@ -493,6 +534,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         if (!_session.IsConnected)
         {
             _links = null;
+            _portNames = null;
             _devices = Array.Empty<Device>();
             _hasDevices = false;
             SelectedNode = null;
@@ -534,7 +576,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             ? _devices.Where(d => _groupMembership.GroupsFor(d.DeviceId).Contains(group, StringComparer.OrdinalIgnoreCase)).Select(d => d.DeviceId)
             : _devices.Select(d => d.DeviceId);
 
-        var graph = NetworkTopology.Build(scopeIds, _links);
+        var graph = NetworkTopology.Build(scopeIds, _links, _portNames);
         var linkedIds = graph.DeviceIds.Except(graph.UnlinkedDeviceIds).ToList();
         var unlinkedIds = _showUnlinkedDevices ? graph.UnlinkedDeviceIds : Array.Empty<int>();
         var saved = _layouts.Get(LayoutKey(scope));

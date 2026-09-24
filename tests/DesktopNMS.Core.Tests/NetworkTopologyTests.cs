@@ -102,6 +102,67 @@ public class NetworkTopologyTests
 
         Assert.Equal(1, Assert.Single(NetworkTopology.Build(new[] { 1, 2 }, links).Edges).LinkCount);
     }
+
+    [Fact]
+    public void A_one_sided_link_names_its_own_port_from_the_port_list()
+    {
+        // A switch (1) sees a ping-only Bolero antenna (2) - the antenna never
+        // reports the link back, so the switch's port only comes from its id.
+        var links = new[] { Link(1, 531, 2, 0, "00 19 7C 02 E8 8B (00197c02e88b)") };
+        var ports = new Dictionary<int, string> { [531] = "17" };
+
+        var connection = Assert.Single(Assert.Single(NetworkTopology.Build(new[] { 1, 2 }, links, ports).Edges).Connections);
+
+        Assert.Equal("17", connection.PortA);
+        Assert.Equal("00:19:7C:02:E8:8B", connection.PortB);
+    }
+
+    [Fact]
+    public void A_known_remote_port_id_wins_over_the_announced_name()
+    {
+        var links = new[] { Link(1, 101, 2, 201, "GigabitEthernet1/0/48") };
+        var ports = new Dictionary<int, string> { [101] = "1/1/1", [201] = "Gi1/0/48" };
+
+        var connection = Assert.Single(Assert.Single(NetworkTopology.Build(new[] { 1, 2 }, links, ports).Edges).Connections);
+
+        Assert.Equal("1/1/1", connection.PortA);
+        Assert.Equal("Gi1/0/48", connection.PortB);
+    }
+
+    [Fact]
+    public void A_remote_port_id_of_zero_means_unknown_not_port_zero()
+    {
+        // Two different cables to the same neighbour, both with remote port
+        // id 0 - they must stay two connections, told apart by their names.
+        var links = new[]
+        {
+            Link(1, 101, 2, 0, "aa"),
+            Link(1, 102, 2, 0, "bb"),
+        };
+
+        Assert.Equal(2, Assert.Single(NetworkTopology.Build(new[] { 1, 2 }, links).Edges).LinkCount);
+    }
+
+    [Theory]
+    [InlineData("00 19 7C 02 E8 8B (00197c02e88b)", "00:19:7C:02:E8:8B")]
+    [InlineData("00:19:7c:02:e8:8b", "00:19:7C:02:E8:8B")]
+    [InlineData("00-19-7C-02-E8-8B", "00:19:7C:02:E8:8B")]
+    [InlineData("Gi1/0/48", "Gi1/0/48")]
+    [InlineData("ethernet1/1/12", "ethernet1/1/12")]
+    [InlineData("  ", null)]
+    [InlineData(null, null)]
+    public void Announced_MAC_port_ids_are_shown_as_MAC_addresses(string? announced, string? expected)
+    {
+        Assert.Equal(expected, PortLabels.FromNeighbourPort(announced));
+    }
+
+    [Fact]
+    public void A_port_is_named_by_its_short_name_first()
+    {
+        Assert.Equal("Gi1/0/48", PortLabels.ForPort(new Port { IfName = "Gi1/0/48", IfDescr = "GigabitEthernet1/0/48" }));
+        Assert.Equal("GigabitEthernet1/0/48", PortLabels.ForPort(new Port { IfDescr = "GigabitEthernet1/0/48" }));
+        Assert.Null(PortLabels.ForPort(new Port()));
+    }
 }
 
 public class ForceDirectedLayoutTests
