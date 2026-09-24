@@ -48,21 +48,10 @@ public sealed record GraylogRangeOption(int Seconds, string Label)
     public override string ToString() => Label;
 }
 
-/// <summary>
-/// A device filter choice on the Logs tab: one device, every device at a
-/// location (<see cref="LocationDevices"/>), or neither - "All devices".
-/// </summary>
-public sealed record GraylogDeviceOption(Device? Device, string Label, string? LocationName = null, IReadOnlyList<Device>? LocationDevices = null)
+/// <summary>A device filter choice on the Logs tab; a null <see cref="Device"/> is "All devices".</summary>
+public sealed record GraylogDeviceOption(Device? Device, string Label)
 {
     public int? DeviceId => Device?.DeviceId;
-
-    public bool IsLocation => LocationDevices is not null;
-
-    /// <summary>The devices this choice searches - none for "All devices" (no device filter at all).</summary>
-    public IReadOnlyList<Device> Devices => LocationDevices ?? (Device is null ? Array.Empty<Device>() : new[] { Device });
-
-    /// <summary>Identifies the choice across refreshes of the device list, so the selection survives one.</summary>
-    public string Key => IsLocation ? "location:" + LocationName : Device is null ? "all" : "device:" + Device.DeviceId;
 
     public override string ToString() => Label;
 }
@@ -558,8 +547,8 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Replaces the Logs tab's device filter choices with the current device
-    /// list (from the shared device poll): every location that has devices,
-    /// then every device - keeping the selected choice when it's still there.
+    /// list (from the shared device poll), keeping the selected device when
+    /// it's still there.
     /// </summary>
     public void UpdateDevices(IReadOnlyList<Device> devices)
     {
@@ -569,27 +558,15 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
         }
 
         var style = _settings.Current.DeviceNameStyle;
-
-        var locations = devices
-            .Where(d => !string.IsNullOrWhiteSpace(d.Location))
-            .GroupBy(d => d.Location!.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Select(g =>
-            {
-                var members = g.OrderBy(d => d.DeviceId).ToList();
-                var noun = members.Count == 1 ? "device" : "devices";
-                return new GraylogDeviceOption(null, $"{g.Key} (location, {members.Count} {noun})", g.Key, members);
-            })
-            .OrderBy(o => o.LocationName, StringComparer.CurrentCultureIgnoreCase);
-
-        var single = devices
+        var options = devices
             .Select(d => new GraylogDeviceOption(d, style.Resolve(d, d.Hostname)))
-            .OrderBy(o => o.Label, StringComparer.CurrentCultureIgnoreCase);
-
-        var options = locations.Concat(single).ToList();
+            .OrderBy(o => o.Label, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
 
         // Unchanged (the usual case for a poll) - leave the list alone so an
         // open drop-down isn't disturbed.
-        if (Signature(options) == Signature(DeviceOptions.Skip(1)))
+        if (options.Count == DeviceOptions.Count - 1
+            && options.Zip(DeviceOptions.Skip(1)).All(p => p.First.DeviceId == p.Second.DeviceId && p.First.Label == p.Second.Label))
         {
             return;
         }
@@ -597,7 +574,7 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
         _suppressReload = true;
         try
         {
-            var selectedKey = SelectedDevice.Key;
+            var selectedId = SelectedDevice.DeviceId;
             while (DeviceOptions.Count > 1)
             {
                 DeviceOptions.RemoveAt(DeviceOptions.Count - 1);
@@ -608,7 +585,7 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
                 DeviceOptions.Add(option);
             }
 
-            SelectedDevice = DeviceOptions.FirstOrDefault(o => o.Key == selectedKey) ?? DeviceOptions[0];
+            SelectedDevice = DeviceOptions.FirstOrDefault(o => o.DeviceId == selectedId) ?? DeviceOptions[0];
         }
         finally
         {
@@ -617,10 +594,6 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
 
         _sourceNames.Clear();
     }
-
-    /// <summary>Each choice's identity, label and (for a location) members - equal when nothing worth rebuilding the list for has changed.</summary>
-    private static string Signature(IEnumerable<GraylogDeviceOption> options) =>
-        string.Join('\n', options.Select(o => o.Key + "|" + o.Label + "|" + string.Join(',', o.Devices.Select(d => d.DeviceId))));
 
     /// <summary>Selects a device in the Logs tab's device filter (e.g. from "Show logs" elsewhere).</summary>
     public void SelectDevice(int deviceId)
@@ -868,37 +841,34 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
 
         try
         {
-            List<string>? addresses = null;
-            var devices = CurrentDevices();
+            IReadOnlyList<string>? addresses = null;
+            var device = CurrentDevice();
 
-            if (!IsFleet && devices.Count == 0)
+            if (!IsFleet || device is not null)
             {
-                // Without an address, the query would match every device's
-                // messages - never show those as this device's.
-                ErrorMessage = "This device's details haven't loaded yet, so there's nothing to search Graylog for. Try Refresh in a moment.";
-                return;
-            }
+                if (device is null)
+                {
+                    // Without an address, the query would match every
+                    // device's messages - never show those as this device's.
+                    ErrorMessage = "This device's details haven't loaded yet, so there's nothing to search Graylog for. Try Refresh in a moment.";
+                    return;
+                }
 
-            if (devices.Count > 0)
-            {
-                // Worked out side by side - each may wait on a DNS lookup.
-                var perDevice = await Task.WhenAll(devices.Select(d => GetAddressesAsync(d, cts.Token))).ConfigureAwait(true);
-                addresses = perDevice.SelectMany(a => a).Distinct(StringComparer.Ordinal).ToList();
+                addresses = await GetAddressesAsync(device, cts.Token).ConfigureAwait(true);
             }
 
             var options = _settings.Current.Graylog;
             var query = GraylogQuery.WithMaxLevel(
-                GraylogQuery.BuildSimpleQuery(SearchText, options.QueryField, addresses),
+                GraylogQuery.BuildSimpleQuery(SearchText, options.QueryField, addresses?.ToList()),
                 SelectedLevel.Level);
 
-            // A big location's addresses can make a query longer than Graylog
-            // (or a proxy in front of it) accepts in a URL - say so plainly
-            // rather than failing with an obscure HTTP error.
+            // A device with "match any address" on and a great many interface
+            // addresses can make a query longer than Graylog (or a proxy in
+            // front of it) accepts in a URL - say so plainly rather than
+            // failing with an obscure HTTP error.
             if (query.Length > MaxQueryLength)
             {
-                ErrorMessage = devices.Count > 1
-                    ? $"{SelectedDevice.LocationName ?? "This location"} has too many devices to search Graylog for in one go. Pick one of its devices instead."
-                    : "This device has too many addresses to search Graylog for in one go. Turning off \"Match any address\" in Settings, Integrations, Graylog searches its main addresses only.";
+                ErrorMessage = "This device has too many addresses to search Graylog for in one go. Turning off \"Match any address\" in Settings, Integrations, Graylog searches its main addresses only.";
                 _hasLoaded = true;
                 Messages.Clear();
                 TotalResults = 0;
@@ -985,16 +955,8 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>The fixed device, or the devices the Logs tab's device filter covers (none for all devices).</summary>
-    private IReadOnlyList<Device> CurrentDevices()
-    {
-        if (_fixedDevice is not null)
-        {
-            return _fixedDevice() is { } device ? new[] { device } : Array.Empty<Device>();
-        }
-
-        return SelectedDevice.Devices;
-    }
+    /// <summary>The fixed device, or the Logs tab's chosen one (null for all devices).</summary>
+    private Device? CurrentDevice() => _fixedDevice is not null ? _fixedDevice() : SelectedDevice.Device;
 
     /// <summary>
     /// A device's addresses for the query field (see
