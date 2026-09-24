@@ -7,6 +7,7 @@ using System.Windows.Media;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.CustomMaps;
+using DesktopNMS.Core.Graylog;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Updates;
@@ -28,6 +29,7 @@ public enum SettingsSection
     Appearance,
     Server,
     Integrations,
+    Graylog,
     About,
 }
 
@@ -107,6 +109,8 @@ public sealed class SettingsViewModel : ObservableObject
     private readonly IUnimusApi _unimus;
     private readonly IUnimusTokenProtector _unimusTokens;
     private readonly IUnimusDeviceResolver _unimusResolver;
+    private readonly IGraylogApi _graylog;
+    private readonly IGraylogPasswordProtector _graylogPasswords;
     private readonly AppSettings _draft;
 
     private SettingsSection _selectedSection = SettingsSection.Polling;
@@ -124,6 +128,12 @@ public sealed class SettingsViewModel : ObservableObject
     private string? _unimusTestStatusText;
     private bool? _unimusTestSucceeded;
 
+    private bool _hasStoredGraylogPassword;
+    private string _graylogPasswordInput = string.Empty;
+    private bool _isTestingGraylogConnection;
+    private string? _graylogTestStatusText;
+    private bool? _graylogTestSucceeded;
+
     public SettingsViewModel(
         ISettingsStore store,
         IStartupRegistration startup,
@@ -135,6 +145,8 @@ public sealed class SettingsViewModel : ObservableObject
         IUnimusApi unimus,
         IUnimusTokenProtector unimusTokens,
         IUnimusDeviceResolver unimusResolver,
+        IGraylogApi graylog,
+        IGraylogPasswordProtector graylogPasswords,
         ICustomMapStore customMaps)
     {
         _store = store;
@@ -148,9 +160,12 @@ public sealed class SettingsViewModel : ObservableObject
         _unimus = unimus;
         _unimusTokens = unimusTokens;
         _unimusResolver = unimusResolver;
+        _graylog = graylog;
+        _graylogPasswords = graylogPasswords;
         _serverInfo = session.ServerInfo;
         _draft = store.Current.Clone();
         _hasStoredUnimusToken = unimusTokens.HasStoredToken;
+        _hasStoredGraylogPassword = graylogPasswords.HasStoredPassword;
 
         // The registry is the source of truth for auto-start, not the settings file.
         _draft.StartWithWindows = startup.IsEnabled;
@@ -169,6 +184,7 @@ public sealed class SettingsViewModel : ObservableObject
         SelectAppearanceSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Appearance);
         SelectServerSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Server);
         SelectIntegrationsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Integrations);
+        SelectGraylogSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Graylog);
         SelectMapsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Maps);
         ResetMapTileUrlCommand = new RelayCommand(() => MapTileUrl = null);
         SelectAboutSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.About);
@@ -184,6 +200,8 @@ public sealed class SettingsViewModel : ObservableObject
 
         TestUnimusConnectionCommand = new AsyncRelayCommand(TestUnimusConnectionAsync, () => !IsTestingUnimusConnection && !string.IsNullOrWhiteSpace(UnimusUrl));
         ClearUnimusTokenCommand = new RelayCommand(ClearUnimusToken, () => HasStoredUnimusToken || !string.IsNullOrEmpty(UnimusTokenInput));
+        TestGraylogConnectionCommand = new AsyncRelayCommand(TestGraylogConnectionAsync, () => !IsTestingGraylogConnection && !string.IsNullOrWhiteSpace(GraylogServer));
+        ClearGraylogPasswordCommand = new RelayCommand(ClearGraylogPassword, () => HasStoredGraylogPassword || !string.IsNullOrEmpty(GraylogPasswordInput));
 
         _ = CheckForUpdatesAsync(notifyIfNewer: false);
     }
@@ -218,6 +236,8 @@ public sealed class SettingsViewModel : ObservableObject
 
     public RelayCommand SelectIntegrationsSectionCommand { get; }
 
+    public RelayCommand SelectGraylogSectionCommand { get; }
+
     public RelayCommand SelectMapsSectionCommand { get; }
 
     public RelayCommand SelectAboutSectionCommand { get; }
@@ -238,6 +258,7 @@ public sealed class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsAppearanceSectionSelected));
                 OnPropertyChanged(nameof(IsServerSectionSelected));
                 OnPropertyChanged(nameof(IsIntegrationsSectionSelected));
+                OnPropertyChanged(nameof(IsGraylogSectionSelected));
                 OnPropertyChanged(nameof(IsMapsSectionSelected));
                 OnPropertyChanged(nameof(IsAboutSectionSelected));
             }
@@ -261,6 +282,8 @@ public sealed class SettingsViewModel : ObservableObject
     public bool IsServerSectionSelected => SelectedSection == SettingsSection.Server;
 
     public bool IsIntegrationsSectionSelected => SelectedSection == SettingsSection.Integrations;
+
+    public bool IsGraylogSectionSelected => SelectedSection == SettingsSection.Graylog;
 
     public bool IsMapsSectionSelected => SelectedSection == SettingsSection.Maps;
 
@@ -731,6 +754,371 @@ public sealed class SettingsViewModel : ObservableObject
         {
             IsTestingUnimusConnection = false;
         }
+    }
+
+    // ------------------------------------------------------------------ integrations (Graylog, issue #114)
+
+    /// <summary>LibreNMS's <c>graylog.version</c> choices, with its own labels.</summary>
+    public IReadOnlyList<DefaultMapOption> GraylogVersionOptions { get; } = new[]
+    {
+        new DefaultMapOption(GraylogSettings.Version21, "2.1 or newer"),
+        new DefaultMapOption(GraylogSettings.Version20, "Less than 2.1"),
+        new DefaultMapOption(GraylogSettings.VersionOther, "Other"),
+    };
+
+    /// <summary>LibreNMS's <c>graylog.device-page.loglevel</c> choices - each includes every more severe level.</summary>
+    public IReadOnlyList<GraylogLevelOption> GraylogLogLevelOptions { get; } = GraylogLevelOption.All;
+
+    public bool GraylogEnabled
+    {
+        get => _draft.Graylog.Enabled;
+        set
+        {
+            if (_draft.Graylog.Enabled == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.Enabled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? GraylogServer
+    {
+        get => _draft.Graylog.Server;
+        set
+        {
+            if (_draft.Graylog.Server == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.Server = value;
+            OnPropertyChanged();
+            TestGraylogConnectionCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    /// <summary>Text so it can be blank (the scheme's default port); anything that isn't a whole number counts as blank.</summary>
+    public string GraylogPortText
+    {
+        get => _draft.Graylog.Port?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+        set
+        {
+            int? port = int.TryParse(value?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
+            if (_draft.Graylog.Port == port)
+            {
+                return;
+            }
+
+            _draft.Graylog.Port = port;
+            OnPropertyChanged();
+        }
+    }
+
+    public DefaultMapOption SelectedGraylogVersion
+    {
+        get => GraylogVersionOptions.FirstOrDefault(o => o.Value == _draft.Graylog.Version) ?? GraylogVersionOptions[0];
+        set
+        {
+            if (value is null || _draft.Graylog.Version == value.Value)
+            {
+                return;
+            }
+
+            _draft.Graylog.Version = value.Value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsGraylogBaseUriVisible));
+        }
+    }
+
+    /// <summary>LibreNMS only shows Base URI when the version is "Other".</summary>
+    public bool IsGraylogBaseUriVisible => _draft.Graylog.Version == GraylogSettings.VersionOther;
+
+    public string? GraylogBaseUri
+    {
+        get => _draft.Graylog.BaseUri;
+        set
+        {
+            if (_draft.Graylog.BaseUri == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.BaseUri = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? GraylogUsername
+    {
+        get => _draft.Graylog.Username;
+        set
+        {
+            if (_draft.Graylog.Username == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.Username = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Fed by the password PasswordBox's code-behind, like <see cref="UnimusTokenInput"/>; blank on save keeps the stored password.</summary>
+    public string GraylogPasswordInput
+    {
+        get => _graylogPasswordInput;
+        set
+        {
+            if (SetProperty(ref _graylogPasswordInput, value ?? string.Empty))
+            {
+                ClearGraylogPasswordCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool HasStoredGraylogPassword
+    {
+        get => _hasStoredGraylogPassword;
+        private set
+        {
+            if (SetProperty(ref _hasStoredGraylogPassword, value))
+            {
+                OnPropertyChanged(nameof(GraylogPasswordStatusText));
+                ClearGraylogPasswordCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string GraylogPasswordStatusText => HasStoredGraylogPassword ? "A password is saved." : "No password saved yet.";
+
+    public RelayCommand ClearGraylogPasswordCommand { get; }
+
+    private void ClearGraylogPassword()
+    {
+        GraylogPasswordInput = string.Empty;
+        HasStoredGraylogPassword = false;
+        _graylogPasswords.Clear();
+        _graylog.Clear();
+        GraylogTestStatusText = null;
+    }
+
+    public bool GraylogAllowUntrustedCertificate
+    {
+        get => _draft.Graylog.AllowUntrustedCertificate;
+        set
+        {
+            if (_draft.Graylog.AllowUntrustedCertificate == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.AllowUntrustedCertificate = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? GraylogTimezone
+    {
+        get => _draft.Graylog.Timezone;
+        set
+        {
+            if (_draft.Graylog.Timezone == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.Timezone = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(GraylogTimezoneStatusText));
+            OnPropertyChanged(nameof(IsGraylogTimezoneInvalid));
+        }
+    }
+
+    public bool IsGraylogTimezoneInvalid =>
+        !string.IsNullOrWhiteSpace(_draft.Graylog.Timezone) && GraylogQuery.FindTimeZone(_draft.Graylog.Timezone) is null;
+
+    public string GraylogTimezoneStatusText
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_draft.Graylog.Timezone))
+            {
+                return "Blank shows times in this PC's own time zone.";
+            }
+
+            var zone = GraylogQuery.FindTimeZone(_draft.Graylog.Timezone);
+            return zone is null
+                ? "Not a time zone Windows recognises - times will show in this PC's own time zone."
+                : $"Times will show in {zone.DisplayName}.";
+        }
+    }
+
+    public GraylogLevelOption SelectedGraylogLogLevel
+    {
+        get => GraylogLevelOption.For(_draft.Graylog.DeviceLogLevel);
+        set
+        {
+            if (value is null || _draft.Graylog.DeviceLogLevel == value.Level)
+            {
+                return;
+            }
+
+            _draft.Graylog.DeviceLogLevel = value.Level;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Text for the same reason as <see cref="GraylogPortText"/>; anything that isn't a positive whole number keeps the previous value.</summary>
+    public string GraylogRowCountText
+    {
+        get => _draft.Graylog.DeviceRowCount.ToString(CultureInfo.InvariantCulture);
+        set
+        {
+            if (!int.TryParse(value?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var rows) || rows < 1)
+            {
+                return;
+            }
+
+            rows = Math.Min(rows, GraylogSettings.MaxRowCount);
+            if (_draft.Graylog.DeviceRowCount == rows)
+            {
+                return;
+            }
+
+            _draft.Graylog.DeviceRowCount = rows;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? GraylogQueryField
+    {
+        get => _draft.Graylog.QueryField;
+        set
+        {
+            var queryField = string.IsNullOrWhiteSpace(value) ? GraylogSettings.DefaultQueryField : value.Trim();
+            if (_draft.Graylog.QueryField == queryField)
+            {
+                return;
+            }
+
+            _draft.Graylog.QueryField = queryField;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool GraylogMatchAnyAddress
+    {
+        get => _draft.Graylog.MatchAnyAddress;
+        set
+        {
+            if (_draft.Graylog.MatchAnyAddress == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.MatchAnyAddress = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public AsyncRelayCommand TestGraylogConnectionCommand { get; }
+
+    public bool IsTestingGraylogConnection
+    {
+        get => _isTestingGraylogConnection;
+        private set
+        {
+            if (SetProperty(ref _isTestingGraylogConnection, value))
+            {
+                TestGraylogConnectionCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? GraylogTestStatusText
+    {
+        get => _graylogTestStatusText;
+        private set
+        {
+            if (SetProperty(ref _graylogTestStatusText, value))
+            {
+                OnPropertyChanged(nameof(HasGraylogTestStatus));
+            }
+        }
+    }
+
+    public bool HasGraylogTestStatus => !string.IsNullOrEmpty(_graylogTestStatusText);
+
+    public bool? GraylogTestSucceeded
+    {
+        get => _graylogTestSucceeded;
+        private set => SetProperty(ref _graylogTestSucceeded, value);
+    }
+
+    /// <summary>Tries what's in the form without touching the live <see cref="IGraylogApi"/> until Save - the same approach as <see cref="TestUnimusConnectionAsync"/>.</summary>
+    private async Task TestGraylogConnectionAsync()
+    {
+        GraylogTestStatusText = null;
+
+        var password = string.IsNullOrEmpty(GraylogPasswordInput) ? _graylogPasswords.Load() : GraylogPasswordInput;
+        var connection = GraylogConnection.FromSettings(_draft.Graylog, password, out var error);
+        if (connection is null)
+        {
+            GraylogTestSucceeded = false;
+            GraylogTestStatusText = error;
+            return;
+        }
+
+        IsTestingGraylogConnection = true;
+
+        using var probe = new GraylogApi(Microsoft.Extensions.Logging.Abstractions.NullLogger<GraylogApi>.Instance);
+        probe.Configure(connection);
+
+        try
+        {
+            var streams = await probe.TestConnectionAsync().ConfigureAwait(true);
+            GraylogTestSucceeded = true;
+            GraylogTestStatusText = streams == 1
+                ? "Connected to Graylog - 1 stream available."
+                : $"Connected to Graylog - {streams} streams available.";
+        }
+        catch (GraylogApiException ex)
+        {
+            GraylogTestSucceeded = false;
+            GraylogTestStatusText = ex.ToUserMessage();
+        }
+        finally
+        {
+            IsTestingGraylogConnection = false;
+        }
+    }
+
+    /// <summary>Saves a newly-typed password and reconfigures the live <see cref="IGraylogApi"/> - mirrors <c>App.ConfigureGraylogIfEnabled</c> for the running app.</summary>
+    private void ApplyGraylogConfiguration()
+    {
+        if (!string.IsNullOrEmpty(GraylogPasswordInput))
+        {
+            _graylogPasswords.Save(GraylogPasswordInput);
+        }
+
+        if (!GraylogEnabled)
+        {
+            _graylog.Clear();
+            return;
+        }
+
+        var password = string.IsNullOrEmpty(GraylogPasswordInput) ? _graylogPasswords.Load() : GraylogPasswordInput;
+        var connection = GraylogConnection.FromSettings(_draft.Graylog, password, out _);
+        if (connection is null)
+        {
+            _graylog.Clear();
+            return;
+        }
+
+        _graylog.Configure(connection);
     }
 
     // ------------------------------------------------------------------ about
@@ -1596,6 +1984,7 @@ public sealed class SettingsViewModel : ObservableObject
         _draft.PinnedDevices = _store.Current.PinnedDevices;
 
         ApplyUnimusConfiguration();
+        ApplyGraylogConfiguration();
 
         _store.Replace(_draft);
         RequestClose?.Invoke(this, true);

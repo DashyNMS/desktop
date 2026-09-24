@@ -32,6 +32,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IUnimusApi>(sp => sp.GetRequiredService<UnimusApi>());
         services.AddSingleton<IUnimusTokenProtector, DpapiUnimusTokenProtector>();
 
+        // Graylog (issue #114): the same independent, Settings-driven lifetime
+        // as Unimus - see GraylogApi's own remarks.
+        services.AddSingleton<GraylogApi>();
+        services.AddSingleton<IGraylogApi>(sp => sp.GetRequiredService<GraylogApi>());
+        services.AddSingleton<IGraylogPasswordProtector, DpapiGraylogPasswordProtector>();
+
         services.AddSingleton<IGitHubReleaseService, GitHubReleaseService>();
 
         return services;

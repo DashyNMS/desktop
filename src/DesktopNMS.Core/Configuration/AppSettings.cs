@@ -117,6 +117,9 @@ public sealed class AppSettings
     /// <summary>Unimus config-backup integration (issue #115) - see <see cref="UnimusSettings"/>. The API token itself is encrypted separately by <see cref="Security.IUnimusTokenProtector"/>, the same split as the main LibreNMS token.</summary>
     public UnimusSettings Unimus { get; set; } = new();
 
+    /// <summary>Graylog log integration (issue #114) - see <see cref="GraylogSettings"/>. The password itself is encrypted separately by <see cref="Security.IGraylogPasswordProtector"/>, the same split as the Unimus token.</summary>
+    public GraylogSettings Graylog { get; set; } = new();
+
     /// <summary>Warning/critical bands applied to dBm sensors on the Health tab.</summary>
     public DbmThresholdSettings DbmThresholds { get; set; } = new();
 
@@ -228,6 +231,7 @@ public sealed class AppSettings
         Notifications = Notifications.Clone(),
         Filter = Filter.Clone(),
         Unimus = Unimus.Clone(),
+        Graylog = Graylog.Clone(),
         DbmThresholds = DbmThresholds.Clone(),
         SignalThresholds = SignalThresholds.Clone(),
         TemperatureThresholds = TemperatureThresholds.Clone(),
@@ -1012,6 +1016,88 @@ public sealed class UnimusSettings
         Url = Url,
         AllowUntrustedCertificate = AllowUntrustedCertificate,
         MyDomain = MyDomain,
+    };
+}
+
+/// <summary>
+/// Configuration for the Graylog log integration (issue #114) - mirrors
+/// LibreNMS's own Graylog settings (Settings, External, Graylog; the
+/// <c>graylog.*</c> keys in its <c>config_definitions.json</c>) field for
+/// field, since LibreNMS's API doesn't expose its config for this app to
+/// read. Like Unimus, this app talks to Graylog directly with its own
+/// credentials rather than through LibreNMS, whose Graylog pages only exist
+/// in its web UI.
+/// </summary>
+public sealed class GraylogSettings
+{
+    /// <summary>LibreNMS's <c>graylog.version</c> values.</summary>
+    public const string Version20 = "2.0";
+
+    public const string Version21 = "2.1";
+
+    public const string VersionOther = "other";
+
+    /// <summary>LibreNMS's <c>graylog.device-page.loglevel</c> default - every level.</summary>
+    public const int DefaultLogLevel = 7;
+
+    /// <summary>LibreNMS's <c>graylog.device-page.rowCount</c> default.</summary>
+    public const int DefaultRowCount = 10;
+
+    /// <summary>LibreNMS's <c>graylog.query.field</c> default.</summary>
+    public const string DefaultQueryField = "source";
+
+    /// <summary>The most messages a page can ask Graylog for - LibreNMS's own largest page size is 250; this leaves room without asking for a huge page.</summary>
+    public const int MaxRowCount = 500;
+
+    public bool Enabled { get; set; }
+
+    /// <summary><c>graylog.server</c> - the Graylog server's address, e.g. https://graylog.example.com.</summary>
+    public string? Server { get; set; }
+
+    /// <summary><c>graylog.port</c> - optional; blank means the scheme's default (80/443).</summary>
+    public int? Port { get; set; }
+
+    /// <summary><c>graylog.version</c> - "2.1" (2.1 or newer, the API lives under /api), "2.0" (older, no /api prefix) or "other" (use <see cref="BaseUri"/>).</summary>
+    public string Version { get; set; } = Version21;
+
+    /// <summary><c>graylog.base_uri</c> - the search path to use instead of the default, only when <see cref="Version"/> is "other".</summary>
+    public string? BaseUri { get; set; }
+
+    /// <summary><c>graylog.username</c>. For a Graylog access token, this is the token and the password is the word "token".</summary>
+    public string? Username { get; set; }
+
+    /// <summary>Accept a self-signed or internally-issued certificate - not a LibreNMS setting (LibreNMS uses its own server-wide HTTP client options), but the same per-integration choice Unimus has here.</summary>
+    public bool AllowUntrustedCertificate { get; set; }
+
+    /// <summary><c>graylog.timezone</c> - show message times in this zone rather than this PC's own. Takes a Windows or IANA name (e.g. "Europe/London", as LibreNMS itself would); blank means local time.</summary>
+    public string? Timezone { get; set; }
+
+    /// <summary><c>graylog.device-page.loglevel</c> - the highest syslog level (0-7) shown by default on a device's Graylog tab.</summary>
+    public int DeviceLogLevel { get; set; } = DefaultLogLevel;
+
+    /// <summary><c>graylog.device-page.rowCount</c> - how many messages a device's Graylog tab shows per page by default.</summary>
+    public int DeviceRowCount { get; set; } = DefaultRowCount;
+
+    /// <summary><c>graylog.query.field</c> - the Graylog message field matched against a device's addresses.</summary>
+    public string QueryField { get; set; } = DefaultQueryField;
+
+    /// <summary><c>graylog.match-any-address</c> - match every IP address on the device, not just its primary addresses and names.</summary>
+    public bool MatchAnyAddress { get; set; }
+
+    public GraylogSettings Clone() => new()
+    {
+        Enabled = Enabled,
+        Server = Server,
+        Port = Port,
+        Version = Version,
+        BaseUri = BaseUri,
+        Username = Username,
+        AllowUntrustedCertificate = AllowUntrustedCertificate,
+        Timezone = Timezone,
+        DeviceLogLevel = DeviceLogLevel,
+        DeviceRowCount = DeviceRowCount,
+        QueryField = QueryField,
+        MatchAnyAddress = MatchAnyAddress,
     };
 }
 

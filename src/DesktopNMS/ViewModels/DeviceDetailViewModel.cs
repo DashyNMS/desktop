@@ -43,6 +43,9 @@ public enum DeviceDetailSection
 
     /// <summary>Config backups via Unimus (issue #115) - only meaningful once the integration is set up in Settings.</summary>
     Config,
+
+    /// <summary>This device's Graylog messages (issue #114) - only shown once Graylog is set up in Settings.</summary>
+    Graylog,
 }
 
 /// <summary>
@@ -208,6 +211,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         IWindowService windows,
         IUnimusApi unimus,
         IUnimusDeviceResolver unimusResolver,
+        IGraylogApi graylog,
         ILogger<DeviceDetailViewModel> logger)
     {
         _deviceId = deviceId;
@@ -242,6 +246,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         ConfigBackups = new ObservableCollection<UnimusBackupItemViewModel>();
         PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
         Graphs = new GraphsSectionViewModel(deviceId, client, logger);
+        Graylog = new GraylogSectionViewModel(deviceId, () => _device, graylog, client, deviceCache, settings, logger, _loadCts.Token);
 
         // Ping response is the one graph essentially every monitored
         // device has (unlike processor/storage, which only some do), so
@@ -302,6 +307,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectAlertsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Alerts);
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
         SelectConfigCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Config);
+        SelectGraylogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Graylog);
         BackupNowCommand = new AsyncRelayCommand(BackupNowAsync, () => !IsBackingUpNow && HasUnimusMatch);
         RefreshConfigCommand = new AsyncRelayCommand(LoadConfigAsync, () => !IsLoadingConfig);
         NextChangeCommand = new RelayCommand(() => GoToChange(_currentChangeIndex + 1), CanGoToNextChange);
@@ -525,6 +531,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// <summary>Device-wide graphs (issues #14/#13/#17/#20) - see <see cref="GraphsSectionViewModel"/>.</summary>
     public GraphsSectionViewModel Graphs { get; }
 
+    /// <summary>The Integrations, Graylog tab (issue #114) - see <see cref="GraylogSectionViewModel"/>.</summary>
+    public GraylogSectionViewModel Graylog { get; }
+
     /// <summary>Overview's "at a glance" ping-response graph (issue #11) - see <see cref="SingleGraphViewModel"/>.</summary>
     public SingleGraphViewModel OverviewGraph { get; }
 
@@ -545,6 +554,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public RelayCommand SelectEventLogCommand { get; }
 
     public RelayCommand SelectConfigCommand { get; }
+
+    public RelayCommand SelectGraylogCommand { get; }
 
     /// <summary>Navigates to the Edit section and refreshes its draft fields from the current device - see <see cref="SelectEdit"/>.</summary>
     public RelayCommand SelectEditCommand { get; }
@@ -697,6 +708,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsEventLogSelected));
                 OnPropertyChanged(nameof(IsEditSelected));
                 OnPropertyChanged(nameof(IsConfigSelected));
+                OnPropertyChanged(nameof(IsGraylogSelected));
+
+                if (value == DeviceDetailSection.Graylog)
+                {
+                    Graylog.EnsureLoaded();
+                }
             }
         }
     }
@@ -724,6 +741,19 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsEditSelected => SelectedSection == DeviceDetailSection.Edit;
 
     public bool IsConfigSelected => SelectedSection == DeviceDetailSection.Config;
+
+    public bool IsGraylogSelected => SelectedSection == DeviceDetailSection.Graylog;
+
+    /// <summary>
+    /// The Graylog nav item - whenever Graylog is set up, unlike Unimus's
+    /// match-first gating (see <see cref="ShowUnimusSection"/>): finding
+    /// out whether Graylog has anything for this device means searching it,
+    /// and nothing is searched until the tab is opened.
+    /// </summary>
+    public bool ShowGraylogSection => Graylog.IsConfigured;
+
+    /// <summary>The INTEGRATIONS nav header - shown when any integration's tab is.</summary>
+    public bool ShowIntegrationsGroup => ShowUnimusSection || ShowGraylogSection;
 
     /// <summary>
     /// Config loads lazily on first visit, unlike every other section (which
@@ -781,6 +811,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             {
                 OnPropertyChanged(nameof(HasConfigError));
                 OnPropertyChanged(nameof(ShowUnimusSection));
+                OnPropertyChanged(nameof(ShowIntegrationsGroup));
             }
         }
     }
@@ -799,6 +830,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             {
                 BackupNowCommand.RaiseCanExecuteChanged();
                 OnPropertyChanged(nameof(ShowUnimusSection));
+                OnPropertyChanged(nameof(ShowIntegrationsGroup));
             }
         }
     }
@@ -3127,6 +3159,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             tasks.Add(LoadConfigAsync());
         }
+
+        // Only once its tab has been opened - see GraylogSectionViewModel.
+        tasks.Add(Graylog.RefreshIfLoadedAsync());
 
         return Task.WhenAll(tasks);
     }

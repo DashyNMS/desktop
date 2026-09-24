@@ -140,6 +140,32 @@ public partial class App : Application
         // enable/disable toggle and credentials (see UnimusSettings), set up
         // in Settings rather than tied to LibreNMS sign-in/out.
         ConfigureUnimusIfEnabled();
+        ConfigureGraylogIfEnabled();
+    }
+
+    /// <summary>The same shape as <see cref="ConfigureUnimusIfEnabled"/> - Graylog is independent of LibreNMS sign-in too.</summary>
+    private void ConfigureGraylogIfEnabled()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        var settings = _services.GetRequiredService<ISettingsStore>().Current.Graylog;
+        if (!settings.Enabled || string.IsNullOrWhiteSpace(settings.Server))
+        {
+            return;
+        }
+
+        var password = _services.GetRequiredService<IGraylogPasswordProtector>().Load();
+        var connection = GraylogConnection.FromSettings(settings, password, out var error);
+        if (connection is null)
+        {
+            _logger?.LogWarning("Graylog is enabled but can't be connected to: {Error}", error);
+            return;
+        }
+
+        _services.GetRequiredService<IGraylogApi>().Configure(connection);
     }
 
     private void ConfigureUnimusIfEnabled()
