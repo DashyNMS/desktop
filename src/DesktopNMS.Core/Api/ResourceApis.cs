@@ -174,6 +174,13 @@ internal sealed class DevicesApi : IDevicesApi
         return _transport.GetCollectionAsync<DeviceOutage>(url, "outages", cancellationToken);
     }
 
+    public Task<IReadOnlyList<InventoryEntry>> GetInventoryAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        // The {hostname} route segment takes an all-digits value as a device id.
+        var url = "inventory/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/all";
+        return _transport.GetCollectionAsync<InventoryEntry>(url, "inventory", cancellationToken);
+    }
+
     public async Task<string> DiscoverAsync(int deviceId, CancellationToken cancellationToken = default)
     {
         var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/discover";

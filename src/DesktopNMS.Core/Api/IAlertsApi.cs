@@ -106,6 +106,13 @@ public interface IDevicesApi
     Task<IReadOnlyList<DeviceOutage>> GetOutagesAsync(int deviceId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// GET /api/v0/inventory/{id}/all - every ENTITY-MIB physical inventory
+    /// row for the device in one call (#164). The route without /all only
+    /// returns one level at a time, as LibreNMS's website expands its tree.
+    /// </summary>
+    Task<IReadOnlyList<InventoryEntry>> GetInventoryAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// GET /api/v0/devices/{id}/discover. Queues an on-demand rediscovery of
     /// the device - a GET despite the side effect, per LibreNMS's own API.
     /// There is no separate "poll now" endpoint; discovery is the closest the

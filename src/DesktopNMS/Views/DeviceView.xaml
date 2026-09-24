@@ -188,6 +188,19 @@
                                       IsChecked="{Binding IsGraphsSelected, Mode=OneWay}"
                                       Command="{Binding SelectGraphsCommand}" />
 
+                        <!-- Hidden once loaded and found empty (see
+                             InventorySectionViewModel.ShowNav) - most
+                             ping-only and small devices have none. -->
+                        <TextBlock Text="HARDWARE"
+                                   Style="{StaticResource SectionHeaderStyle}"
+                                   Margin="14,16,0,6"
+                                   Visibility="{Binding Inventory.ShowNav, Converter={StaticResource BoolToVisibility}}" />
+                        <ToggleButton Content="Inventory"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsInventorySelected, Mode=OneWay}"
+                                      Command="{Binding SelectInventoryCommand}"
+                                      Visibility="{Binding Inventory.ShowNav, Converter={StaticResource BoolToVisibility}}" />
+
                         <!-- ShowXNav (not HasX) stays visible while its section
                              is still loading, only disappearing once loading
                              has finished and genuinely found nothing - so it
@@ -1987,6 +2000,12 @@
                            TextAlignment="Center"
                            Foreground="{StaticResource CriticalBrush}"
                            Visibility="{Binding HasConfigError, Converter={StaticResource BoolToVisibility}}" />
+            </Grid>
+
+            <!-- ==================== Inventory (#164) ==================== -->
+            <Grid Margin="24"
+                  Visibility="{Binding IsInventorySelected, Converter={StaticResource BoolToVisibility}}">
+                <views:InventoryView DataContext="{Binding Inventory}" />
             </Grid>
 
             <!-- ==================== Graylog (issue #114) ==================== -->

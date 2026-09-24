@@ -47,6 +47,9 @@ public enum DeviceDetailSection
 
     /// <summary>This device's Graylog messages (issue #114) - only shown once Graylog is set up in Settings.</summary>
     Graylog,
+
+    /// <summary>ENTITY-MIB physical inventory (#164) - chassis, slots, power supplies, fans, modules.</summary>
+    Inventory,
 }
 
 /// <summary>
@@ -249,6 +252,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Graphs = new GraphsSectionViewModel(deviceId, client, logger);
         Graylog = GraylogMessagesViewModel.ForDevice(deviceId, () => _device, graylog, client, deviceCache, settings, windows, logger, _loadCts.Token);
         Graylog.PropertyChanged += OnGraylogPropertyChanged;
+        Inventory = new InventorySectionViewModel(deviceId, client, logger, _loadCts.Token);
 
         // Ping response is the one graph essentially every monitored
         // device has (unlike processor/storage, which only some do), so
@@ -310,6 +314,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
         SelectConfigCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Config);
         SelectGraylogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Graylog);
+        SelectInventoryCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Inventory);
         BackupNowCommand = new AsyncRelayCommand(BackupNowAsync, () => !IsBackingUpNow && HasUnimusMatch);
         RefreshConfigCommand = new AsyncRelayCommand(LoadConfigAsync, () => !IsLoadingConfig);
         NextChangeCommand = new RelayCommand(() => GoToChange(_currentChangeIndex + 1), CanGoToNextChange);
@@ -356,6 +361,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _ = LoadFdbAsync();
         _ = LoadArpAsync();
         _ = LoadEventLogAsync();
+        _ = Inventory.LoadAsync();
 
         // Eager, unlike everything else being conditional on Unimus being
         // configured at all - deliberately so, even though it costs one
@@ -536,6 +542,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// <summary>The Integrations, Graylog tab (issue #114) - see <see cref="GraylogMessagesViewModel"/>.</summary>
     public GraylogMessagesViewModel Graylog { get; }
 
+    /// <summary>The Inventory section (#164) - see <see cref="InventorySectionViewModel"/>.</summary>
+    public InventorySectionViewModel Inventory { get; }
+
     /// <summary>Overview's "at a glance" ping-response graph (issue #11) - see <see cref="SingleGraphViewModel"/>.</summary>
     public SingleGraphViewModel OverviewGraph { get; }
 
@@ -558,6 +567,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public RelayCommand SelectConfigCommand { get; }
 
     public RelayCommand SelectGraylogCommand { get; }
+
+    public RelayCommand SelectInventoryCommand { get; }
 
     /// <summary>Navigates to the Edit section and refreshes its draft fields from the current device - see <see cref="SelectEdit"/>.</summary>
     public RelayCommand SelectEditCommand { get; }
@@ -711,6 +722,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsEditSelected));
                 OnPropertyChanged(nameof(IsConfigSelected));
                 OnPropertyChanged(nameof(IsGraylogSelected));
+                OnPropertyChanged(nameof(IsInventorySelected));
 
                 if (value == DeviceDetailSection.Graylog)
                 {
@@ -745,6 +757,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsConfigSelected => SelectedSection == DeviceDetailSection.Config;
 
     public bool IsGraylogSelected => SelectedSection == DeviceDetailSection.Graylog;
+
+    public bool IsInventorySelected => SelectedSection == DeviceDetailSection.Inventory;
 
     /// <summary>
     /// The Graylog nav item - whenever Graylog is set up, unlike Unimus's
@@ -3211,7 +3225,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         var tasks = new List<Task>
         {
             LoadAlertHistoryAsync(), LoadPortsAsync(), LoadResourcesAsync(), LoadAvailabilityAsync(),
-            LoadDeviceGroupsAsync(), LoadVlansAsync(), LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync(),
+            LoadDeviceGroupsAsync(), LoadVlansAsync(), LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync(), Inventory.LoadAsync(),
         };
 
         // Unlike every other section here, only actually calls out to
