@@ -1168,35 +1168,20 @@
                             <DataGridTextColumn Header="VLAN" Width="90" Binding="{Binding NumberText}" />
                             <DataGridTextColumn Header="Name" Width="200" Binding="{Binding NameText}" />
 
-                            <!-- Untagged (access/native) and tagged (trunk)
-                                 ports, from each port's VLAN memberships
-                                 (#99 - see VlanMembership). A device that
-                                 reports none falls back to each port's own
-                                 VLAN for untagged, and tagged reads "n/a". -->
-                            <DataGridTemplateColumn Width="*" SortMemberPath="UntaggedPortsSummaryText">
+                            <!-- Every port carrying the VLAN, untagged ones
+                                 marked (U), as LibreNMS's VLAN page lists them
+                                 - from each port's VLAN memberships (#99, see
+                                 VlanMembership). A device that reports none
+                                 falls back to each port's own VLAN, all (U). -->
+                            <DataGridTemplateColumn Width="*" SortMemberPath="PortsSummaryText">
                                 <DataGridTemplateColumn.Header>
-                                    <TextBlock Text="Untagged ports"
-                                               ToolTip="Ports carrying this VLAN untagged - access ports, or a trunk's native VLAN" />
+                                    <TextBlock Text="Ports"
+                                               ToolTip="Ports carrying this VLAN. (U) is untagged - an access port, or a trunk's native VLAN; the rest carry it tagged." />
                                 </DataGridTemplateColumn.Header>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding UntaggedPortsSummaryText}"
-                                                   ToolTip="{Binding UntaggedPortsSummaryText}"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   VerticalAlignment="Center"
-                                                   Margin="8,0" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Width="*" SortMemberPath="TaggedPortsSummaryText">
-                                <DataGridTemplateColumn.Header>
-                                    <TextBlock Text="Tagged ports"
-                                               ToolTip="Trunk ports carrying this VLAN tagged. n/a when the device doesn't report tagged membership to LibreNMS." />
-                                </DataGridTemplateColumn.Header>
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding TaggedPortsSummaryText}"
-                                                   ToolTip="{Binding TaggedPortsSummaryText}"
+                                        <TextBlock Text="{Binding PortsSummaryText}"
+                                                   ToolTip="{Binding PortsSummaryText}"
                                                    TextTrimming="CharacterEllipsis"
                                                    VerticalAlignment="Center"
                                                    Margin="8,0" />

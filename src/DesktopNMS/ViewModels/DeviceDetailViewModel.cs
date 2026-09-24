@@ -4208,24 +4208,31 @@ public sealed class VlanItemViewModel : ObservableObject
         return (ports.Untagged.Select(p => byModel[p]).ToList(), ports.Tagged.Select(p => byModel[p]).ToList());
     }
 
-    /// <summary>Whether the device reports tagged membership at all - without it, only untagged ports can be shown (see <see cref="VlanMembership"/>).</summary>
-    public bool HasTaggedData => VlanMembership.HasMembershipData(_allPorts.Select(p => p.Model));
-
-    /// <summary>"12 ports: Gi1/1, Gi1/2, ..." or "-" - one string doing double duty as the cell (ellipsis-trimmed) and its tooltip (in full).</summary>
-    public string UntaggedPortsSummaryText => Summarise(Members().Untagged);
-
-    /// <summary>As <see cref="UntaggedPortsSummaryText"/>, for trunk ports carrying this VLAN tagged - "n/a" when the device doesn't report tagged membership.</summary>
-    public string TaggedPortsSummaryText => HasTaggedData ? Summarise(Members().Tagged) : "n/a";
-
-    private static string Summarise(IReadOnlyList<PortItemViewModel> ports)
+    /// <summary>
+    /// "12 ports: 1 (U), 2 (U), ..., A1, A2" or "-" - every port carrying
+    /// this VLAN in port order, untagged ones marked "(U)" and tagged ones
+    /// not, as LibreNMS's own VLAN page lists them. One string doing double
+    /// duty as the cell (ellipsis-trimmed) and its tooltip (in full).
+    /// </summary>
+    public string PortsSummaryText
     {
-        if (ports.Count == 0)
+        get
         {
-            return "-";
-        }
+            var (untagged, tagged) = Members();
+            var members = untagged.Concat(tagged).ToHashSet();
+            if (members.Count == 0)
+            {
+                return "-";
+            }
 
-        var countLabel = ports.Count == 1 ? "1 port: " : $"{ports.Count} ports: ";
-        return countLabel + string.Join(", ", ports.Select(p => p.DisplayName));
+            var untaggedSet = untagged.ToHashSet();
+            var names = _allPorts
+                .Where(members.Contains)
+                .Select(p => untaggedSet.Contains(p) ? p.DisplayName + " (U)" : p.DisplayName);
+
+            var countLabel = members.Count == 1 ? "1 port: " : $"{members.Count} ports: ";
+            return countLabel + string.Join(", ", names);
+        }
     }
 
     public bool Matches(string term)
@@ -4240,12 +4247,7 @@ public sealed class VlanItemViewModel : ObservableObject
     }
 
     /// <summary>Called once Ports finishes loading (or reloads), in case it resolved after or changed since this row was already created - see <see cref="Members"/>.</summary>
-    public void RefreshPorts()
-    {
-        OnPropertyChanged(nameof(UntaggedPortsSummaryText));
-        OnPropertyChanged(nameof(TaggedPortsSummaryText));
-        OnPropertyChanged(nameof(HasTaggedData));
-    }
+    public void RefreshPorts() => OnPropertyChanged(nameof(PortsSummaryText));
 }
 
 /// <summary>
