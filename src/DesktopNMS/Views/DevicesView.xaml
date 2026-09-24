@@ -30,6 +30,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -133,6 +134,15 @@
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Add device">
                         <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                    </Button>
+
+                    <!-- A list glyph next to the single "+", for adding many at once. -->
+                    <Button Grid.Column="4"
+                            Command="{Binding BulkAddDevicesCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Bulk add devices - paste a list or import a CSV"
+                            Margin="6,0,0,0">
+                        <TextBlock Text="&#xE8FD;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
                     </Button>
                 </Grid>
 

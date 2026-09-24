@@ -76,8 +76,11 @@ public interface IWindowService
     /// <summary>Shows the sign-in dialog. Returns true if a session was established.</summary>
     bool ShowSignInDialog();
 
-    /// <summary>Shows the "Add device" dialog. Returns true if a device was added.</summary>
+    /// <summary>Shows the "Add device" dialog (which can hand over to "Bulk add devices"). Returns true if any device was added.</summary>
     bool ShowAddDeviceDialog();
+
+    /// <summary>Shows "Bulk add devices". Returns true if any device was added.</summary>
+    bool ShowBulkAddDevicesDialog();
 
     /// <summary>Shows the "Add device group" dialog. Returns true if a group was created.</summary>
     bool ShowAddDeviceGroupDialog();

@@ -298,7 +298,24 @@ public sealed class WindowService : IWindowService
             window.Owner = _mainWindow;
         }
 
-        return window.ShowDialog() == true;
+        var added = window.ShowDialog() == true;
+
+        // "Add several..." closes this dialog and opens the bulk one in its place.
+        return window.SwitchToBulkAdd ? ShowBulkAddDevicesDialog() : added;
+    }
+
+    public bool ShowBulkAddDevicesDialog()
+    {
+        var viewModel = _services.GetRequiredService<BulkAddDevicesViewModel>();
+        var window = new BulkAddDevicesWindow(viewModel);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        window.ShowDialog();
+        return viewModel.AnyAdded;
     }
 
     public bool ShowAddDeviceGroupDialog()

@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using DesktopNMS.ViewModels;
 
@@ -15,24 +16,30 @@ public partial class AddDeviceWindow : Window
 
         DataContext = viewModel;
         _viewModel.RequestClose += OnRequestClose;
+        _viewModel.RequestBulkAdd += OnRequestBulkAdd;
 
         Loaded += (_, _) => HostnameBox.Focus();
     }
 
-    /// <summary>
-    /// PasswordBox does not expose a bindable password, by design, so the
-    /// value is pushed to the view model here instead - same as
-    /// ConnectionWindow's API token field.
-    /// </summary>
-    private void OnAuthPassChanged(object sender, RoutedEventArgs e)
-        => _viewModel.AuthPass = AuthPassBox.Password;
-
-    private void OnCryptoPassChanged(object sender, RoutedEventArgs e)
-        => _viewModel.CryptoPass = CryptoPassBox.Password;
+    /// <summary>True when closed via "Add several..." - the caller opens Bulk add devices in its place.</summary>
+    public bool SwitchToBulkAdd { get; private set; }
 
     private void OnRequestClose(object? sender, bool added)
     {
-        _viewModel.RequestClose -= OnRequestClose;
+        Unsubscribe();
         DialogResult = added;
+    }
+
+    private void OnRequestBulkAdd(object? sender, EventArgs e)
+    {
+        Unsubscribe();
+        SwitchToBulkAdd = true;
+        DialogResult = false;
+    }
+
+    private void Unsubscribe()
+    {
+        _viewModel.RequestClose -= OnRequestClose;
+        _viewModel.RequestBulkAdd -= OnRequestBulkAdd;
     }
 }
