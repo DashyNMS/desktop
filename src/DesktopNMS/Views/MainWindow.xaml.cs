@@ -28,6 +28,9 @@ public partial class MainWindow : Window
     /// <summary>Same again, for Network/Geographical/Custom Maps under the Maps button.</summary>
     private readonly DispatcherTimer _mapsFlyoutCloseTimer;
 
+    /// <summary>Same again, for the log sources under the Logs button.</summary>
+    private readonly DispatcherTimer _logsFlyoutCloseTimer;
+
     private bool _allowClose;
 
     public MainWindow(MainViewModel viewModel, ISettingsStore settings)
@@ -62,6 +65,18 @@ public partial class MainWindow : Window
             MapsFlyout.IsOpen = false;
         };
         MapsFlyout.PlacementTarget = MapsTabButton;
+
+        _logsFlyoutCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        _logsFlyoutCloseTimer.Tick += (_, _) =>
+        {
+            _logsFlyoutCloseTimer.Stop();
+            LogsFlyout.IsOpen = false;
+        };
+        LogsFlyout.PlacementTarget = LogsTabButton;
+
+        // Hidden to the tray or minimised: nothing on screen to keep live.
+        IsVisibleChanged += (_, _) => NotifyVisibility();
+        StateChanged += (_, _) => NotifyVisibility();
 
         RestorePlacement();
         ApplyGridLayouts();
@@ -120,6 +135,27 @@ public partial class MainWindow : Window
         _mapsFlyoutCloseTimer.Stop();
         MapsFlyout.IsOpen = false;
     }
+
+    private void LogsTabButton_MouseEnter(object sender, MouseEventArgs e)
+    {
+        _logsFlyoutCloseTimer.Stop();
+        LogsFlyout.IsOpen = true;
+    }
+
+    private void LogsTabButton_MouseLeave(object sender, MouseEventArgs e) => _logsFlyoutCloseTimer.Start();
+
+    private void LogsFlyoutContent_MouseEnter(object sender, MouseEventArgs e) => _logsFlyoutCloseTimer.Stop();
+
+    private void LogsFlyoutContent_MouseLeave(object sender, MouseEventArgs e) => _logsFlyoutCloseTimer.Start();
+
+    private void LogsFlyoutItem_Click(object sender, RoutedEventArgs e)
+    {
+        _logsFlyoutCloseTimer.Stop();
+        LogsFlyout.IsOpen = false;
+    }
+
+    private void NotifyVisibility() =>
+        _viewModel.OnWindowVisibilityChanged(IsVisible && WindowState != WindowState.Minimized);
 
     /// <summary>
     /// Lets the app close the window for real. Without this the Closing handler

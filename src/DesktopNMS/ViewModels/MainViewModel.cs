@@ -51,6 +51,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly NetworkMapViewModel _networkMap;
     private readonly GeoMapViewModel _geoMap;
     private readonly CustomMapsViewModel _customMaps;
+    private readonly LogsViewModel _logs;
     private readonly IServerBrandingService _branding;
     private readonly ISelfActionTracker _selfActions;
     private readonly ILogger<MainViewModel> _logger;
@@ -114,6 +115,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         NetworkMapViewModel networkMap,
         GeoMapViewModel geoMap,
         CustomMapsViewModel customMaps,
+        LogsViewModel logs,
         IServerBrandingService branding,
         ISelfActionTracker selfActions,
         ILogger<MainViewModel> logger)
@@ -136,6 +138,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _networkMap = networkMap;
         _geoMap = geoMap;
         _customMaps = customMaps;
+        _logs = logs;
         _branding = branding;
         _selfActions = selfActions;
         _logger = logger;
@@ -181,6 +184,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectNetworkMapTabCommand = new RelayCommand(() => SelectedTab = MainTab.MapsNetwork);
         SelectGeoMapTabCommand = new RelayCommand(() => SelectedTab = MainTab.MapsGeographical);
         SelectCustomMapsTabCommand = new RelayCommand(() => SelectedTab = MainTab.MapsCustom);
+        SelectLogsTabCommand = new RelayCommand(() => SelectedTab = MainTab.LogsGraylog);
         RefreshCurrentTabCommand = new RelayCommand(RefreshCurrentTab);
         ClearCurrentTabFiltersCommand = new RelayCommand(ClearCurrentTabFilters);
         SettingsCommand = new RelayCommand(OpenSettings);
@@ -279,6 +283,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectCustomMapsTabCommand { get; }
 
+    public RelayCommand SelectLogsTabCommand { get; }
+
     /// <summary>F5: refreshes whichever tab is currently showing.</summary>
     public RelayCommand RefreshCurrentTabCommand { get; }
 
@@ -320,6 +326,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The custom maps, for Maps → Custom Maps to bind to.</summary>
     public CustomMapsViewModel CustomMaps => _customMaps;
+
+    public LogsViewModel Logs => _logs;
 
     /// <summary>The connected server's favicon, shown next to the tabs. Null until it loads, or if there isn't one.</summary>
     public BitmapImage? ServerLogo => _branding.Logo;
@@ -368,6 +376,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsNetworkMapTabSelected));
                 OnPropertyChanged(nameof(IsGeoMapTabSelected));
                 OnPropertyChanged(nameof(IsCustomMapsTabSelected));
+                OnPropertyChanged(nameof(IsLogsFamilyTabSelected));
+                OnPropertyChanged(nameof(IsGraylogLogsTabSelected));
 
                 // Loaded once, lazily, the first time a tab is actually looked at.
                 if (value == MainTab.Devices)
@@ -410,7 +420,35 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 {
                     _customMaps.OnShown();
                 }
+
+                // Unlike the others, Logs also needs telling when it's left -
+                // its auto-update only runs while it's on screen.
+                if (value == MainTab.LogsGraylog)
+                {
+                    _logs.OnShown();
+                }
+                else
+                {
+                    _logs.OnHidden();
+                }
             }
+        }
+    }
+
+    /// <summary>
+    /// The main window was shown or hidden (to the tray, or minimised) -
+    /// pauses or resumes anything that only runs while it's on screen (the
+    /// Logs tab's auto-update).
+    /// </summary>
+    public void OnWindowVisibilityChanged(bool isVisible)
+    {
+        if (isVisible && SelectedTab == MainTab.LogsGraylog)
+        {
+            _logs.OnShown();
+        }
+        else
+        {
+            _logs.OnHidden();
         }
     }
 
@@ -444,6 +482,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public bool IsGeoMapTabSelected => SelectedTab == MainTab.MapsGeographical;
 
     public bool IsCustomMapsTabSelected => SelectedTab == MainTab.MapsCustom;
+
+    /// <summary>True for any Logs view (only Graylog so far) - keeps the Logs nav button highlighted, same "family" pattern as Maps.</summary>
+    public bool IsLogsFamilyTabSelected => SelectedTab is MainTab.LogsGraylog;
+
+    public bool IsGraylogLogsTabSelected => SelectedTab == MainTab.LogsGraylog;
 
     // -------------------------------------------------------------- filtering
 
@@ -779,6 +822,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         else if (SelectedTab == MainTab.MapsCustom)
         {
             _customMaps.OnShown();
+        }
+        else if (SelectedTab == MainTab.LogsGraylog)
+        {
+            _logs.OnShown();
         }
     }
 
@@ -1465,6 +1512,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 _ = _customMaps.RefreshAsync();
                 break;
 
+            case MainTab.LogsGraylog:
+                if (_logs.RefreshCommand.CanExecute(null))
+                {
+                    _logs.RefreshCommand.Execute(null);
+                }
+
+                break;
+
             default:
                 break;
         }
@@ -1508,6 +1563,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
             case MainTab.MapsGeographical:
                 _geoMap.ClearFiltersCommand.Execute(null);
+                break;
+
+            case MainTab.LogsGraylog:
+                _logs.ClearFiltersCommand.Execute(null);
                 break;
 
             case MainTab.Dashboard:

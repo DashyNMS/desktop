@@ -278,6 +278,50 @@
                                 </Border>
                             </Popup>
                         </Grid>
+                        <!-- Logs: Graylog for now, with the same hover menu
+                             as Maps so other log sources can join it later. -->
+                        <Grid>
+                            <ToggleButton x:Name="LogsTabButton"
+                                          Style="{StaticResource NavTabButtonStyle}"
+                                          IsChecked="{Binding IsLogsFamilyTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectLogsTabCommand}"
+                                          MouseEnter="LogsTabButton_MouseEnter"
+                                          MouseLeave="LogsTabButton_MouseLeave">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Logs" />
+                                    <TextBlock Text="&#xE70D;"
+                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                               FontSize="9"
+                                               Margin="5,0,0,0"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ToggleButton>
+
+                            <Popup x:Name="LogsFlyout"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   StaysOpen="True">
+                                <Border x:Name="LogsFlyoutContent"
+                                        Background="{StaticResource SurfaceBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="4"
+                                        Margin="0,4,0,0"
+                                        MouseEnter="LogsFlyoutContent_MouseEnter"
+                                        MouseLeave="LogsFlyoutContent_MouseLeave">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
+                                    </Border.Effect>
+                                    <StackPanel MinWidth="140">
+                                        <Button Content="Graylog"
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding SelectLogsTabCommand}"
+                                                Click="LogsFlyoutItem_Click" />
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
                     </StackPanel>
                 </Border>
 
@@ -348,6 +392,10 @@
 
             <Grid Visibility="{Binding IsCustomMapsTabSelected, Converter={StaticResource BoolToVisibility}}">
                 <views:CustomMapsView x:Name="CustomMapsViewControl" DataContext="{Binding CustomMaps}" />
+            </Grid>
+
+            <Grid Visibility="{Binding IsGraylogLogsTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:LogsView x:Name="LogsViewControl" DataContext="{Binding Logs}" />
             </Grid>
 
             <Grid Visibility="{Binding IsRulesTabSelected, Converter={StaticResource BoolToVisibility}}">

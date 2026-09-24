@@ -300,6 +300,7 @@ public partial class App : Application
         services.AddSingleton<NetworkMapViewModel>();
         services.AddSingleton<GeoMapViewModel>();
         services.AddSingleton<CustomMapsViewModel>();
+        services.AddSingleton<LogsViewModel>();
         services.AddTransient<ConnectionViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AddDeviceViewModel>();

@@ -318,11 +318,15 @@ public class GraylogModelTests
         Assert.Equal(10, settings.DeviceRowCount);
         Assert.Equal("source", settings.QueryField);
         Assert.False(settings.MatchAnyAddress);
+        Assert.True(settings.LogsAutoUpdate);
+        Assert.Equal(30, settings.LogsAutoUpdateSeconds);
 
         settings.Server = "graylog";
         settings.Port = 9000;
         settings.MatchAnyAddress = true;
         settings.Timezone = "Europe/London";
+        settings.LogsAutoUpdate = false;
+        settings.LogsAutoUpdateSeconds = 300;
 
         var clone = settings.Clone();
         Assert.Equal(JsonSerializer.Serialize(settings), JsonSerializer.Serialize(clone));

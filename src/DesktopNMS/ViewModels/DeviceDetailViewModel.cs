@@ -246,7 +246,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         ConfigBackups = new ObservableCollection<UnimusBackupItemViewModel>();
         PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
         Graphs = new GraphsSectionViewModel(deviceId, client, logger);
-        Graylog = new GraylogSectionViewModel(deviceId, () => _device, graylog, client, deviceCache, settings, logger, _loadCts.Token);
+        Graylog = GraylogMessagesViewModel.ForDevice(deviceId, () => _device, graylog, client, deviceCache, settings, windows, logger, _loadCts.Token);
 
         // Ping response is the one graph essentially every monitored
         // device has (unlike processor/storage, which only some do), so
@@ -531,8 +531,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// <summary>Device-wide graphs (issues #14/#13/#17/#20) - see <see cref="GraphsSectionViewModel"/>.</summary>
     public GraphsSectionViewModel Graphs { get; }
 
-    /// <summary>The Integrations, Graylog tab (issue #114) - see <see cref="GraylogSectionViewModel"/>.</summary>
-    public GraylogSectionViewModel Graylog { get; }
+    /// <summary>The Integrations, Graylog tab (issue #114) - see <see cref="GraylogMessagesViewModel"/>.</summary>
+    public GraylogMessagesViewModel Graylog { get; }
 
     /// <summary>Overview's "at a glance" ping-response graph (issue #11) - see <see cref="SingleGraphViewModel"/>.</summary>
     public SingleGraphViewModel OverviewGraph { get; }
@@ -3160,7 +3160,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             tasks.Add(LoadConfigAsync());
         }
 
-        // Only once its tab has been opened - see GraylogSectionViewModel.
+        // Only once its tab has been opened - see GraylogMessagesViewModel.
         tasks.Add(Graylog.RefreshIfLoadedAsync());
 
         return Task.WhenAll(tasks);
@@ -3661,6 +3661,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        Graylog.Dispose();
         _loadCts.Cancel();
         _loadCts.Dispose();
         _deviceMonitor.Polled -= OnDevicePolled;

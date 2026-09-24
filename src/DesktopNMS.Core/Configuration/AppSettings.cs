@@ -1084,6 +1084,17 @@ public sealed class GraylogSettings
     /// <summary><c>graylog.match-any-address</c> - match every IP address on the device, not just its primary addresses and names.</summary>
     public bool MatchAnyAddress { get; set; }
 
+    /// <summary>Whether the Logs tab's Graylog view re-fetches on its own - its Auto-update toggle, remembered between sessions. Not a LibreNMS setting.</summary>
+    public bool LogsAutoUpdate { get; set; } = true;
+
+    /// <summary>How often the Logs tab auto-updates, in seconds.</summary>
+    public int LogsAutoUpdateSeconds { get; set; } = DefaultLogsAutoUpdateSeconds;
+
+    public const int DefaultLogsAutoUpdateSeconds = 30;
+
+    /// <summary>How many messages the Logs tab loads per page by default.</summary>
+    public const int DefaultLogsRowCount = 50;
+
     public GraylogSettings Clone() => new()
     {
         Enabled = Enabled,
@@ -1098,6 +1109,8 @@ public sealed class GraylogSettings
         DeviceRowCount = DeviceRowCount,
         QueryField = QueryField,
         MatchAnyAddress = MatchAnyAddress,
+        LogsAutoUpdate = LogsAutoUpdate,
+        LogsAutoUpdateSeconds = LogsAutoUpdateSeconds,
     };
 }
 

@@ -966,7 +966,7 @@ public sealed class SettingsViewModel : ObservableObject
                 return;
             }
 
-            _draft.Graylog.DeviceLogLevel = value.Level;
+            _draft.Graylog.DeviceLogLevel = value.Level ?? GraylogSettings.DefaultLogLevel;
             OnPropertyChanged();
         }
     }
