@@ -395,6 +395,22 @@ internal sealed class ArpApi : IArpApi
         var url = "resources/ip/arp/all?device=" + deviceId.ToString(CultureInfo.InvariantCulture);
         return _transport.GetCollectionAsync<ArpEntry>(url, "arp", cancellationToken);
     }
+
+    public Task<IReadOnlyList<ArpEntry>> FindByMacAsync(string mac, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mac);
+
+        // LibreNMS only recognises a MAC in the route (PHP's
+        // FILTER_VALIDATE_MAC) with separators - colons here.
+        var hex = new string(mac.Where(Uri.IsHexDigit).ToArray()).ToLowerInvariant();
+        if (hex.Length != 12)
+        {
+            throw new ArgumentException("Not a MAC address.", nameof(mac));
+        }
+
+        var colons = string.Join(":", Enumerable.Range(0, 6).Select(i => hex.Substring(i * 2, 2)));
+        return _transport.GetCollectionAsync<ArpEntry>("resources/ip/arp/" + colons, "arp", cancellationToken);
+    }
 }
 
 /// <summary>Implementation of <see cref="IDeviceGroupsApi"/>.</summary>

@@ -78,6 +78,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private readonly IWindowService _windows;
     private readonly IUnimusApi _unimus;
     private readonly IUnimusDeviceResolver _unimusResolver;
+    private readonly IDeviceCache _deviceCache;
     private readonly ILogger<DeviceDetailViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, SensorItemViewModel> _sensorIndex = new();
@@ -233,6 +234,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _windows = windows;
         _unimus = unimus;
         _unimusResolver = unimusResolver;
+        _deviceCache = deviceCache;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -2600,6 +2602,93 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// - many devices genuinely have no SNMP interfaces at all, and treating
     /// that the same as an error would raise a false alarm on every one of them.
     /// </summary>
+    /// <summary>Most MAC lookups one Ports load will make - a big switch with many unmonitored neighbours shouldn't turn into a burst of requests.</summary>
+    private const int MaxNeighbourMacLookups = 32;
+
+    /// <summary>
+    /// For each neighbour LibreNMS didn't match to a device (no
+    /// remote_device_id), the monitored device it is when that can be told
+    /// reliably, keyed by local port id: by its announced name, ignoring case
+    /// and punctuation (see <see cref="NeighbourMatcher"/>), or - for one
+    /// announcing its MAC as its port, as Bolero antennas do - by that MAC's
+    /// ARP entry leading to a device's IP. Only a single, unambiguous device
+    /// counts. Never throws: a failed lookup just leaves that neighbour
+    /// unlinked, as it was.
+    /// </summary>
+    private async Task<Dictionary<int, NeighbourMatch>> MatchUnlinkedNeighboursAsync(IReadOnlyDictionary<int, NetworkLink> linksByPort)
+    {
+        var matches = new Dictionary<int, NeighbourMatch>();
+        var unlinked = linksByPort.Where(kv => kv.Value.RemoteDeviceId is not > 0).ToList();
+        if (unlinked.Count == 0)
+        {
+            return matches;
+        }
+
+        try
+        {
+            await _deviceCache.EnsureCurrentAsync(new[] { _deviceId }, _loadCts.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return matches;
+        }
+
+        var devices = _deviceCache.All.Where(d => d.DeviceId != _deviceId).ToList();
+        var byMac = new List<(int PortId, string Mac)>();
+
+        foreach (var (portId, link) in unlinked)
+        {
+            if (NeighbourMatcher.MatchByName(link.RemoteHostname, devices) is { } byName)
+            {
+                matches[portId] = new NeighbourMatch(byName, $"Matched to a monitored device by its name, \"{link.RemoteHostname}\" - LibreNMS itself didn't link it.");
+            }
+            else if (NeighbourMatcher.MacFromPortId(link.RemotePort) is { } mac)
+            {
+                byMac.Add((portId, mac));
+            }
+        }
+
+        using var gate = new SemaphoreSlim(4);
+        var lookups = byMac.Take(MaxNeighbourMacLookups).Select(async item =>
+        {
+            await gate.WaitAsync(_loadCts.Token).ConfigureAwait(true);
+            try
+            {
+                var entries = await _client.Arp.FindByMacAsync(item.Mac, _loadCts.Token).ConfigureAwait(true);
+                var ids = entries
+                    .Select(e => _deviceCache.FindByAddress(e.Ipv4Address))
+                    .Where(d => d is not null && d.DeviceId != _deviceId)
+                    .Select(d => d!.DeviceId)
+                    .Distinct()
+                    .ToList();
+
+                if (ids.Count == 1)
+                {
+                    matches[item.PortId] = new NeighbourMatch(ids[0], "Matched to a monitored device by its MAC address, through an ARP entry for its IP - LibreNMS itself didn't link it.");
+                }
+            }
+            catch (LibreNmsApiException ex)
+            {
+                _logger.LogDebug(ex, "ARP lookup for neighbour MAC {Mac} failed", item.Mac);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        try
+        {
+            await Task.WhenAll(lookups).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // Window closed - whatever matched so far is fine to drop.
+        }
+
+        return matches;
+    }
+
     private async Task LoadPortsAsync()
     {
         try
@@ -2623,13 +2712,16 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 .GroupBy(a => a.PortId)
                 .ToDictionary(g => g.Key, g => (IReadOnlyList<DeviceIpAddress>)g.ToList());
 
+            var neighbourMatches = await MatchUnlinkedNeighboursAsync(linksByPort).ConfigureAwait(true);
+
             _portNamesByPortId.Clear();
             var portItems = new List<PortItemViewModel>();
             foreach (var port in ports.OrderBy(p => p.IfIndex ?? int.MaxValue))
             {
                 linksByPort.TryGetValue(port.PortId, out var link);
                 addressesByPort.TryGetValue(port.PortId, out var addresses);
-                portItems.Add(new PortItemViewModel(port, link, addresses ?? Array.Empty<DeviceIpAddress>(), _windows));
+                neighbourMatches.TryGetValue(port.PortId, out var match);
+                portItems.Add(new PortItemViewModel(port, link, addresses ?? Array.Empty<DeviceIpAddress>(), _windows, match));
                 _portNamesByPortId[port.PortId] = port.DisplayName;
             }
 
@@ -3977,17 +4069,28 @@ public sealed class PortItemViewModel
     private readonly IReadOnlyList<DeviceIpAddress> _addresses;
     private readonly IWindowService _windows;
 
-    public PortItemViewModel(Port port, NetworkLink? link, IReadOnlyList<DeviceIpAddress> addresses, IWindowService windows)
+    private readonly NeighbourMatch? _match;
+
+    public PortItemViewModel(Port port, NetworkLink? link, IReadOnlyList<DeviceIpAddress> addresses, IWindowService windows, NeighbourMatch? match = null)
     {
         _port = port;
         _link = link;
         _addresses = addresses;
         _windows = windows;
+        _match = match;
 
         OpenNeighborCommand = new RelayCommand(
-            () => _windows.ShowDeviceDetail(_link!.RemoteDeviceId!.Value),
-            () => _link?.RemoteDeviceId is > 0);
+            () => _windows.ShowDeviceDetail(NeighborDeviceId!.Value),
+            () => NeighborDeviceId is > 0);
     }
+
+    /// <summary>The monitored device the neighbour is - LibreNMS's own match, or failing that one this app made (see DeviceDetailViewModel.MatchUnlinkedNeighboursAsync).</summary>
+    private int? NeighborDeviceId => _link?.RemoteDeviceId is > 0 ? _link.RemoteDeviceId : _match?.DeviceId;
+
+    /// <summary>How an app-made neighbour match was made, for its tooltip - null for LibreNMS's own.</summary>
+    public string NeighborToolTip => _link?.RemoteDeviceId is > 0 || _match is null
+        ? "Open this device"
+        : _match.How;
 
     public Port Model => _port;
 
@@ -4053,10 +4156,10 @@ public sealed class PortItemViewModel
     /// <summary>e.g. "r-sw-pit-10 (Gi0/1)" - the device and port this one is physically connected to, if LibreNMS has discovered one.</summary>
     public string? NeighborText => _link is null
         ? null
-        : string.IsNullOrWhiteSpace(_link.RemotePort) ? _link.DisplayRemoteName : $"{_link.DisplayRemoteName} ({_link.RemotePort})";
+        : PortLabels.FromNeighbourPort(_link.RemotePort) is { } port ? $"{_link.DisplayRemoteName} ({port})" : _link.DisplayRemoteName;
 
     /// <summary>True only when the neighbour is itself a device this LibreNMS instance monitors, so there is somewhere to jump to.</summary>
-    public bool CanOpenNeighbor => _link?.RemoteDeviceId is > 0;
+    public bool CanOpenNeighbor => NeighborDeviceId is > 0;
 
     public bool Matches(string term) =>
         DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase)
@@ -4624,3 +4727,6 @@ file static class ResourceByteFormat
 
 /// <summary>One row of the Overview identity card's names (#126) - see <see cref="DeviceDetailViewModel.NameDetails"/>.</summary>
 public sealed record DeviceNameRow(string Label, string Value);
+
+/// <summary>A neighbour LibreNMS didn't link, matched to a monitored device by this app - which device, and how (for the tooltip).</summary>
+public sealed record NeighbourMatch(int DeviceId, string How);

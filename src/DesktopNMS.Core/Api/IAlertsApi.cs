@@ -243,6 +243,13 @@ public interface IArpApi
     /// own API groups ARP by IP/network/MAC query first, device second.
     /// </summary>
     Task<IReadOnlyList<ArpEntry>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/resources/ip/arp/{mac} - every ARP entry, fleet-wide, for
+    /// one MAC address (12 hex digits, any case). How an LLDP neighbour that
+    /// announces its MAC is traced to a monitored device's IP.
+    /// </summary>
+    Task<IReadOnlyList<ArpEntry>> FindByMacAsync(string mac, CancellationToken cancellationToken = default);
 }
 
 /// <summary>VLAN endpoints.</summary>

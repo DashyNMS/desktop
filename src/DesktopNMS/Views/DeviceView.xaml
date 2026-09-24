@@ -1098,6 +1098,7 @@
                                         <TextBlock VerticalAlignment="Center"
                                                    TextTrimming="CharacterEllipsis"
                                                    Cursor="Hand"
+                                                   ToolTip="{Binding NeighborToolTip}"
                                                    Visibility="{Binding CanOpenNeighbor, Converter={StaticResource BoolToVisibility}}">
                                             <Hyperlink Command="{Binding OpenNeighborCommand}">
                                                 <Run Text="{Binding NeighborText, Mode=OneWay}" />
