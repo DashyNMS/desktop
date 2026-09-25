@@ -104,7 +104,6 @@
                                 <Hyperlink Command="{Binding OpenAccessPointCommand}" ToolTip="Open the Access points page, with each AP's traffic graph">Open Access points</Hyperlink>
                             </TextBlock>
                         </Grid>
-                        <TextBlock Text="{Binding AccessPointsSummaryText}" Margin="0,0,0,2" />
                         <TextBlock Text="Every AP your switches see over LLDP. LibreNMS's API doesn't say which controller each one is joined to, or its clients."
                                    Style="{StaticResource SubtleTextStyle}"
                                    FontSize="11"

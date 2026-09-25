@@ -116,9 +116,6 @@ public sealed class WirelessSectionViewModel : ObservableObject
 
     public bool HasAccessPointsError => !string.IsNullOrEmpty(_accessPointsError);
 
-    /// <summary>"50 access points - 48 up - AP-345 x26, ...", as on the Access points page.</summary>
-    public string AccessPointsSummaryText => AccessPointItemViewModel.Summarise(AccessPoints);
-
     public bool HasAny => Classes.Count > 0;
 
     public bool IsLoading
@@ -244,7 +241,6 @@ public sealed class WirelessSectionViewModel : ObservableObject
         {
             IsLoadingAccessPoints = false;
             OnPropertyChanged(nameof(HasAccessPoints));
-            OnPropertyChanged(nameof(AccessPointsSummaryText));
             OnPropertyChanged(nameof(ShowAccessPointsCard));
         }
     }

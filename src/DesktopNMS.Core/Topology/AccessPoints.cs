@@ -54,6 +54,51 @@ public static class AccessPoints
     }
 
     /// <summary>
+    /// A map node id for an AP: negative, so it can never collide with a
+    /// LibreNMS device id, and stable across sessions (the network map
+    /// remembers node positions by id) - a hash of its name, or of its MAC
+    /// for one without a name. An AP on two switch ports is one node.
+    /// </summary>
+    public static int NodeId(AccessPoint accessPoint)
+    {
+        ArgumentNullException.ThrowIfNull(accessPoint);
+
+        var key = "ap:" + (accessPoint.IsUnnamed ? accessPoint.Mac ?? accessPoint.Name : accessPoint.Name).ToLowerInvariant();
+
+        // FNV-1a - string.GetHashCode is randomised per process.
+        var hash = 2166136261u;
+        foreach (var c in key)
+        {
+            hash = (hash ^ c) * 16777619u;
+        }
+
+        return -1 - (int)(hash & 0x3FFFFFFF);
+    }
+
+    /// <summary>
+    /// The network map's line for each AP-to-switch cable: from the AP's
+    /// node (<see cref="NodeId"/>) to its switch, named at the switch end
+    /// from <paramref name="portNames"/>. The AP end is its uplink - Aruba
+    /// APs announce their MAC there rather than a port name.
+    /// </summary>
+    public static IReadOnlyList<TopologyEdge> MapEdges(IEnumerable<AccessPoint> accessPoints, IReadOnlyDictionary<int, string>? portNames)
+    {
+        ArgumentNullException.ThrowIfNull(accessPoints);
+
+        return accessPoints
+            .GroupBy(ap => (Node: NodeId(ap), ap.SwitchDeviceId))
+            .Select(g => new TopologyEdge(
+                g.Key.Node,
+                g.Key.SwitchDeviceId,
+                g.Select(ap => new TopologyConnection
+                {
+                    PortA = "Uplink",
+                    PortB = portNames is not null && portNames.TryGetValue(ap.SwitchPortId, out var name) ? name : null,
+                }).ToList()))
+            .ToList();
+    }
+
+    /// <summary>
     /// Every access point in <paramref name="links"/>, one per link - an AP
     /// seen on two switch ports (a second uplink, or an old link LibreNMS
     /// hasn't aged out yet) is listed on both. Ordered by name.

@@ -39,9 +39,6 @@ public sealed class AccessPointsViewModel : ObservableObject
     private string _searchText = string.Empty;
     private AccessPointItemViewModel? _selected;
     private string? _pendingSelection;
-    private string? _graphSvg;
-    private bool _isGraphLoading;
-    private string? _graphError;
     private int _graphVersion;
 
     public AccessPointsViewModel(
@@ -63,8 +60,18 @@ public sealed class AccessPointsViewModel : ObservableObject
         ItemsView = CollectionViewSource.GetDefaultView(Items);
         ItemsView.Filter = item => item is AccessPointItemViewModel ap && ap.Matches(SearchText);
 
+        // The port graphs LibreNMS draws for any port (checked live - the
+        // rest, like PAgP or FDB count, only exist on some).
+        PortGraphs = new ObservableCollection<PortGraphViewModel>
+        {
+            new("port_bits", "Traffic"),
+            new("port_upkts", "Unicast packets"),
+            new("port_nupkts", "Broadcast and multicast packets"),
+            new("port_errors", "Errors"),
+        };
+
         TimeRange = new GraphTimeRangeViewModel();
-        TimeRange.Changed += (_, _) => _ = LoadGraphAsync();
+        TimeRange.Changed += (_, _) => _ = LoadGraphsAsync();
 
         RefreshCommand = new AsyncRelayCommand(() => LoadAsync(refresh: true), () => _session.IsConnected && !IsBusy);
         ClearFiltersCommand = new RelayCommand(() => SearchText = string.Empty);
@@ -134,9 +141,6 @@ public sealed class AccessPointsViewModel : ObservableObject
 
     public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
 
-    /// <summary>"50 access points - 48 up - AP-345 x26, AP-535 x23".</summary>
-    public string SummaryText => AccessPointItemViewModel.Summarise(Items);
-
     public AccessPointItemViewModel? SelectedItem
     {
         get => _selected;
@@ -145,41 +149,15 @@ public sealed class AccessPointsViewModel : ObservableObject
             if (SetProperty(ref _selected, value))
             {
                 OnPropertyChanged(nameof(HasSelection));
-                GraphSvg = null;
-                GraphError = null;
-                _ = LoadGraphAsync();
+                _ = LoadGraphsAsync();
             }
         }
     }
 
     public bool HasSelection => _selected is not null;
 
-    /// <summary>The selected AP's switch port traffic graph, themed.</summary>
-    public string? GraphSvg
-    {
-        get => _graphSvg;
-        private set => SetProperty(ref _graphSvg, value);
-    }
-
-    public bool IsGraphLoading
-    {
-        get => _isGraphLoading;
-        private set => SetProperty(ref _isGraphLoading, value);
-    }
-
-    public string? GraphError
-    {
-        get => _graphError;
-        private set
-        {
-            if (SetProperty(ref _graphError, value))
-            {
-                OnPropertyChanged(nameof(HasGraphError));
-            }
-        }
-    }
-
-    public bool HasGraphError => !string.IsNullOrEmpty(_graphError);
+    /// <summary>The selected AP's switch port graphs - traffic, packets and errors - shown side by side.</summary>
+    public ObservableCollection<PortGraphViewModel> PortGraphs { get; }
 
     /// <summary>Loads once, lazily, the first time the tab is shown - same convention as every other tab.</summary>
     public void OnShown()
@@ -218,8 +196,6 @@ public sealed class AccessPointsViewModel : ObservableObject
                 Items.Add(new AccessPointItemViewModel(ap, snapshot.PortOf(ap), _devices.Get(ap.SwitchDeviceId)));
             }
 
-            OnPropertyChanged(nameof(SummaryText));
-
             if (_pendingSelection is null && selectedKey is not null)
             {
                 SelectedItem = Items.FirstOrDefault(i => i.Key == selectedKey);
@@ -254,43 +230,104 @@ public sealed class AccessPointsViewModel : ObservableObject
         }
     }
 
-    private async Task LoadGraphAsync()
+    /// <summary>Every port graph for the selected AP, all at once; a newer selection or time range wins over one still loading.</summary>
+    private async Task LoadGraphsAsync()
     {
         var version = ++_graphVersion;
 
         if (_selected is not { PortIfName: { } ifName } item)
         {
-            IsGraphLoading = false;
-            GraphError = _selected is null ? null : "LibreNMS doesn't know this AP's switch port.";
+            foreach (var graph in PortGraphs)
+            {
+                graph.Show(null, _selected is null ? null : "LibreNMS doesn't know this AP's switch port.");
+            }
+
             return;
         }
 
-        IsGraphLoading = true;
-        try
+        var range = TimeRange.ToTimeRange();
+
+        async Task LoadOne(PortGraphViewModel graph)
         {
-            var svg = await _client.Graphs.GetPortSvgAsync(item.SwitchDeviceId, ifName, "port_bits", TimeRange.ToTimeRange(), width: 900, height: 220).ConfigureAwait(true);
-            if (version == _graphVersion)
+            graph.BeginLoad();
+            try
             {
-                GraphSvg = GraphSvgTheming.ApplyCurrentTheme(svg);
-                GraphError = null;
+                var svg = await _client.Graphs.GetPortSvgAsync(item.SwitchDeviceId, ifName, graph.GraphType, range, width: 560, height: 150).ConfigureAwait(true);
+                if (version == _graphVersion)
+                {
+                    graph.Show(GraphSvgTheming.ApplyCurrentTheme(svg), null);
+                }
+            }
+            catch (LibreNmsApiException ex)
+            {
+                _logger.LogWarning(ex, "Could not load the {GraphType} graph for access point {Name}", graph.GraphType, item.Name);
+                if (version == _graphVersion)
+                {
+                    graph.Show(null, ex.ToUserMessage());
+                }
             }
         }
-        catch (LibreNmsApiException ex)
+
+        await Task.WhenAll(PortGraphs.Select(LoadOne)).ConfigureAwait(true);
+    }
+}
+
+/// <summary>One of the selected access point's port graphs.</summary>
+public sealed class PortGraphViewModel : ObservableObject
+{
+    private string? _svg;
+    private bool _isLoading;
+    private string? _errorMessage;
+
+    public PortGraphViewModel(string graphType, string title)
+    {
+        GraphType = graphType;
+        Title = title;
+    }
+
+    /// <summary>LibreNMS's graph name, e.g. "port_errors".</summary>
+    public string GraphType { get; }
+
+    public string Title { get; }
+
+    public string? Svg
+    {
+        get => _svg;
+        private set => SetProperty(ref _svg, value);
+    }
+
+    public bool IsLoading
+    {
+        get => _isLoading;
+        private set => SetProperty(ref _isLoading, value);
+    }
+
+    public string? ErrorMessage
+    {
+        get => _errorMessage;
+        private set
         {
-            _logger.LogWarning(ex, "Could not load the traffic graph for access point {Name}", item.Name);
-            if (version == _graphVersion)
+            if (SetProperty(ref _errorMessage, value))
             {
-                GraphSvg = null;
-                GraphError = ex.ToUserMessage();
+                OnPropertyChanged(nameof(HasError));
             }
         }
-        finally
-        {
-            if (version == _graphVersion)
-            {
-                IsGraphLoading = false;
-            }
-        }
+    }
+
+    public bool HasError => !string.IsNullOrEmpty(_errorMessage);
+
+    public void BeginLoad()
+    {
+        Svg = null;
+        ErrorMessage = null;
+        IsLoading = true;
+    }
+
+    public void Show(string? svg, string? error)
+    {
+        Svg = svg;
+        ErrorMessage = error;
+        IsLoading = false;
     }
 }
 
@@ -391,42 +428,6 @@ public sealed class AccessPointItemViewModel
             || PortText.Contains(t, StringComparison.OrdinalIgnoreCase)
             || MacText.Contains(t, StringComparison.OrdinalIgnoreCase)
             || StateText.Contains(t, StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>"50 access points - 48 up - AP-345 x26, AP-535 x23, AP-567 x1".</summary>
-    public static string Summarise(IReadOnlyCollection<AccessPointItemViewModel> items)
-    {
-        if (items.Count == 0)
-        {
-            return string.Empty;
-        }
-
-        // An AP seen on two ports counts once - by name, for the named ones.
-        var distinct = items.GroupBy(i => i.AccessPoint.IsUnnamed ? i.Key : i.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.OrderBy(i => i.State).First())
-            .ToList();
-
-        var up = distinct.Count(i => i.State == AccessPointState.Up);
-        var models = distinct
-            .Where(i => i.AccessPoint.Model is not null)
-            .GroupBy(i => i.AccessPoint.Model!, StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(g => g.Count())
-            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(g => $"{g.Key} ×{g.Count()}");
-
-        var parts = new List<string>
-        {
-            distinct.Count.ToString(CultureInfo.CurrentCulture) + (distinct.Count == 1 ? " access point" : " access points"),
-            up.ToString(CultureInfo.CurrentCulture) + " up",
-        };
-
-        var modelText = string.Join(", ", models);
-        if (modelText.Length > 0)
-        {
-            parts.Add(modelText);
-        }
-
-        return string.Join(" - ", parts);
     }
 
     private static string Rate(double bps) => bps <= 0 ? "0 bps" : LinkUtilisation.Rate(bps);

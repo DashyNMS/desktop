@@ -33,13 +33,11 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding SummaryText}" FontWeight="SemiBold" />
-                    <TextBlock Text="From what the switches see over LLDP. LibreNMS doesn't share each AP's clients or channel through its API."
-                               Style="{StaticResource SubtleTextStyle}"
-                               FontSize="11"
-                               Margin="0,2,0,0" />
-                </StackPanel>
+                <TextBlock Grid.Column="0"
+                           Text="From what the switches see over LLDP. LibreNMS doesn't share each AP's clients or channel through its API."
+                           Style="{StaticResource SubtleTextStyle}"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap" />
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBox x:Name="SearchBox"
@@ -144,7 +142,9 @@
                        Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}" />
         </Grid>
 
-        <!-- ======================== Selected AP's traffic ======================== -->
+        <!-- ======================== Selected AP's port graphs ======================== -->
+        <!-- Traffic, packets and errors for the selected AP's switch port,
+             two across. -->
         <Border Grid.Row="3"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
@@ -154,7 +154,7 @@
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="260" />
+                    <RowDefinition Height="420" />
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0" Margin="0,0,0,10">
@@ -164,35 +164,59 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
                         <Run Text="{Binding SelectedItem.Name, Mode=OneWay}" FontWeight="SemiBold" />
-                        <Run Text=" - traffic on " Foreground="{StaticResource TextSecondaryBrush}" />
-                        <Run Text="{Binding SelectedItem.SwitchName, Mode=OneWay}" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <Run Text=" - port " Foreground="{StaticResource TextSecondaryBrush}" />
                         <Run Text="{Binding SelectedItem.PortText, Mode=OneWay}" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <Run Text=" on " Foreground="{StaticResource TextSecondaryBrush}" />
+                        <Run Text="{Binding SelectedItem.SwitchName, Mode=OneWay}" Foreground="{StaticResource TextSecondaryBrush}" />
                     </TextBlock>
                     <views:GraphTimeRangePicker Grid.Column="1" DataContext="{Binding TimeRange}" VerticalAlignment="Center" />
                 </Grid>
 
-                <Grid Grid.Row="1">
-                    <svgc:SvgViewbox SvgSource="{Binding GraphSvg}"
-                                     Stretch="Uniform"
-                                     HorizontalAlignment="Left"
-                                     VerticalAlignment="Top"
-                                     Visibility="{Binding GraphSvg, Converter={StaticResource NullToVisibility}}" />
-
-                    <TextBlock Text="Loading graph..."
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Style="{StaticResource SubtleTextStyle}"
-                               Visibility="{Binding IsGraphLoading, Converter={StaticResource BoolToVisibility}}" />
-
-                    <TextBlock Text="{Binding GraphError}"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               TextWrapping="Wrap"
-                               IsHitTestVisible="False"
-                               Style="{StaticResource SubtleTextStyle}"
-                               Visibility="{Binding HasGraphError, Converter={StaticResource BoolToVisibility}}" />
-                </Grid>
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding PortGraphs}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="2" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource SurfaceAltBrush}"
+                                        CornerRadius="5"
+                                        Padding="10,8"
+                                        Margin="0,0,10,10">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="170" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="{Binding Title}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                        <Grid Grid.Row="1">
+                                            <svgc:SvgViewbox SvgSource="{Binding Svg}"
+                                                             Stretch="Uniform"
+                                                             HorizontalAlignment="Left"
+                                                             VerticalAlignment="Top"
+                                                             Visibility="{Binding Svg, Converter={StaticResource NullToVisibility}}" />
+                                            <TextBlock Text="Loading graph..."
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       IsHitTestVisible="False"
+                                                       Style="{StaticResource SubtleTextStyle}"
+                                                       Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
+                                            <TextBlock Text="{Binding ErrorMessage}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextWrapping="Wrap"
+                                                       IsHitTestVisible="False"
+                                                       Style="{StaticResource SubtleTextStyle}"
+                                                       Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
             </Grid>
         </Border>
     </Grid>

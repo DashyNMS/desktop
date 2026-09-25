@@ -50,6 +50,12 @@
                               VerticalAlignment="Center"
                               Margin="16,0,0,0" />
 
+                    <CheckBox Content="Access points"
+                              IsChecked="{Binding ShowAccessPoints}"
+                              ToolTip="Also show the access points your switches see over LLDP, each joined to its switch - drawn as small squares. Double-click one to open it on the Access points page."
+                              VerticalAlignment="Center"
+                              Margin="16,0,0,0" />
+
                     <TextBlock Text="{Binding SummaryText}"
                                Style="{StaticResource SubtleTextStyle}"
                                VerticalAlignment="Center"

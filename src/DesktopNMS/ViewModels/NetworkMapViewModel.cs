@@ -33,6 +33,11 @@ public sealed class MapNode
 
     public DeviceState State { get; set; } = DeviceState.Down;
 
+    /// <summary>Set for an access point (#55) rather than a LibreNMS device - its <see cref="DeviceId"/> is then a negative id of the map's own (see <see cref="AccessPoints.NodeId"/>).</summary>
+    public AccessPoint? AccessPoint { get; init; }
+
+    public bool IsAccessPoint => AccessPoint is not null;
+
     public double X { get; set; }
 
     public double Y { get; set; }
@@ -129,9 +134,10 @@ public sealed class MapConnectionItem
 /// network map, for the whole fleet or one device group. Nodes are coloured
 /// by device up/down state from the shared <see cref="DeviceMonitor"/> poll;
 /// links come from one fleet-wide <c>resources/links</c> call, re-fetched on
-/// Refresh and when the tab is shown again after a while. Only devices
-/// LibreNMS monitors appear - neighbours it doesn't (phones, APs) are left
-/// out. Positions are auto-laid-out, then remembered per scope (and per
+/// Refresh and when the tab is shown again after a while. Devices LibreNMS
+/// monitors appear, plus the access points the switches see (see
+/// <see cref="ShowAccessPoints"/>) - other neighbours it doesn't monitor,
+/// such as phones, are left out. Positions are auto-laid-out, then remembered per scope (and per
 /// server) once laid out or dragged, until Reset layout.
 /// </summary>
 public sealed class NetworkMapViewModel : ObservableObject, IDisposable
@@ -147,6 +153,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
     private readonly ILogger<NetworkMapViewModel> _logger;
+    private readonly IAccessPointDirectory _accessPointDirectory;
     private readonly Dispatcher _dispatcher;
 
     private IReadOnlyList<Device> _devices = Array.Empty<Device>();
@@ -161,6 +168,8 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     private MapScopeOption _selectedScope;
     private MapNode? _selectedNode;
     private bool _showUnlinkedDevices;
+    private bool _showAccessPoints = true;
+    private AccessPointSnapshot? _accessPoints;
     private string _searchText = string.Empty;
     private bool _isLoading;
     private string? _errorMessage;
@@ -177,6 +186,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         ISessionService session,
         ISettingsStore settings,
         IWindowService windows,
+        IAccessPointDirectory accessPointDirectory,
         ILogger<NetworkMapViewModel> logger)
     {
         _deviceMonitor = deviceMonitor;
@@ -186,6 +196,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         _session = session;
         _settings = settings;
         _windows = windows;
+        _accessPointDirectory = accessPointDirectory;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -268,7 +279,14 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
 
     public bool HasSelectedNode => _selectedNode is not null;
 
-    public string SelectedNodeStateText => _selectedNode?.State switch
+    public string SelectedNodeStateText => _selectedNode is { IsAccessPoint: true } ap
+        ? ap.State switch
+        {
+            DeviceState.Up => "Access point - port up",
+            DeviceState.Down => "Access point - port down",
+            _ => "Access point",
+        }
+        : _selectedNode?.State switch
     {
         null => string.Empty,
         DeviceState.Up => "Up",
@@ -284,6 +302,11 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     {
         get
         {
+            if (_selectedNode?.AccessPoint is { } ap)
+            {
+                return string.Join(" · ", new[] { ap.Model, ap.Mac }.Where(s => !string.IsNullOrWhiteSpace(s)));
+            }
+
             if (_selectedNode is null || _devices.FirstOrDefault(d => d.DeviceId == _selectedNode.DeviceId) is not { } device)
             {
                 return string.Empty;
@@ -304,6 +327,28 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _showUnlinkedDevices, value))
             {
                 _ = RebuildAsync(fit: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Draw the access points the switches see over LLDP (#55), each joined
+    /// to its switch - on by default. They aren't LibreNMS devices, so
+    /// they're drawn smaller and square, coloured by their switch port's state.
+    /// </summary>
+    public bool ShowAccessPoints
+    {
+        get => _showAccessPoints;
+        set
+        {
+            if (SetProperty(ref _showAccessPoints, value))
+            {
+                if (value && _accessPoints is null)
+                {
+                    _ = LoadAccessPointsAsync(refresh: false);
+                }
+
+                _ = RebuildAsync(fit: false);
             }
         }
     }
@@ -377,9 +422,21 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     public bool IsEmpty => !ShowLoading && !HasError && _links is not null && _hasDevices && _nodes.Count == 0;
 
     /// <summary>"42 devices · 51 connections"</summary>
-    public string SummaryText => _nodes.Count == 0
-        ? string.Empty
-        : $"{_nodes.Count} {(_nodes.Count == 1 ? "device" : "devices")} · {_edges.Count} {(_edges.Count == 1 ? "connection" : "connections")}";
+    public string SummaryText
+    {
+        get
+        {
+            if (_nodes.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var aps = _nodes.Count(n => n.IsAccessPoint);
+            var devices = _nodes.Count - aps;
+            var text = $"{devices} {(devices == 1 ? "device" : "devices")} · {_edges.Count} {(_edges.Count == 1 ? "connection" : "connections")}";
+            return aps > 0 ? text + $" · {aps} {(aps == 1 ? "access point" : "access points")}" : text;
+        }
+    }
 
     public AsyncRelayCommand RefreshCommand { get; }
 
@@ -406,20 +463,57 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         if (_links is null || DateTimeOffset.Now - _linksFetchedAt > LinksMaxAge)
         {
             _ = LoadLinksAsync();
+
+            if (_showAccessPoints)
+            {
+                _ = LoadAccessPointsAsync(refresh: false);
+            }
         }
     }
 
     /// <summary>Called by the view after the user drops a dragged node - remembers the whole scope's layout.</summary>
     public void OnNodeMoved(MapNode node) => SaveLayout();
 
-    /// <summary>Double-clicking a node.</summary>
-    public void OpenDevice(MapNode node) => _windows.ShowDeviceDetail(node.DeviceId);
+    /// <summary>Double-clicking a node - an access point opens on the Access points page.</summary>
+    public void OpenDevice(MapNode node)
+    {
+        if (node.IsAccessPoint)
+        {
+            _windows.ShowAccessPoint(node.Name);
+        }
+        else
+        {
+            _windows.ShowDeviceDetail(node.DeviceId);
+        }
+    }
 
     private async Task RefreshAsync()
     {
         _deviceMonitor.RequestRefresh();
         _ = _groupMembership.RefreshAsync();
+        if (_showAccessPoints)
+        {
+            _ = LoadAccessPointsAsync(refresh: true);
+        }
+
         await LoadLinksAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>The APs and their switch ports' state - shared with the Access points page. Not worth failing the map over.</summary>
+    private async Task LoadAccessPointsAsync(bool refresh)
+    {
+        try
+        {
+            _accessPoints = await _accessPointDirectory.GetAsync(refresh).ConfigureAwait(true);
+            if (_showAccessPoints)
+            {
+                await RebuildAsync(fit: false).ConfigureAwait(true);
+            }
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load access points for the network map");
+        }
     }
 
     private async Task LoadLinksAsync()
@@ -535,6 +629,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         {
             _links = null;
             _portNames = null;
+            _accessPoints = null;
             _devices = Array.Empty<Device>();
             _hasDevices = false;
             SelectedNode = null;
@@ -577,10 +672,29 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             : _devices.Select(d => d.DeviceId);
 
         var graph = NetworkTopology.Build(scopeIds, _links, _portNames);
-        var linkedIds = graph.DeviceIds.Except(graph.UnlinkedDeviceIds).ToList();
-        var unlinkedIds = _showUnlinkedDevices ? graph.UnlinkedDeviceIds : Array.Empty<int>();
+
+        // Access points (#55): one node each, joined to the switches in
+        // scope they're plugged into - which makes those switches linked,
+        // even with nothing else connected to them.
+        var scopeSet = graph.DeviceIds.ToHashSet();
+        var accessPoints = _showAccessPoints && _accessPoints is { } snapshot
+            ? snapshot.AccessPoints.Where(ap => scopeSet.Contains(ap.SwitchDeviceId)).ToList()
+            : new List<AccessPoint>();
+        var apEdges = AccessPoints.MapEdges(accessPoints, _portNames);
+        var apNodes = accessPoints
+            .GroupBy(AccessPoints.NodeId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var allEdges = graph.Edges.Concat(apEdges).ToList();
+        var linkedIds = graph.DeviceIds.Except(graph.UnlinkedDeviceIds)
+            .Concat(apEdges.Select(e => e.DeviceB))
+            .Distinct()
+            .Concat(apNodes.Keys)
+            .ToList();
+        var linkedSet = linkedIds.ToHashSet();
+        var unlinkedIds = _showUnlinkedDevices ? graph.UnlinkedDeviceIds.Where(id => !linkedSet.Contains(id)).ToList() : new List<int>();
         var saved = _layouts.Get(LayoutKey(scope));
-        var edgePairs = graph.Edges.Select(e => (e.DeviceA, e.DeviceB)).ToList();
+        var edgePairs = allEdges.Select(e => (e.DeviceA, e.DeviceB)).ToList();
 
         _isLayingOut = true;
         RaiseLoadingState();
@@ -615,10 +729,12 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         foreach (var id in linkedIds.Concat(unlinkedIds))
         {
             var point = positions[id];
-            nodes[id] = new MapNode(id) { X = point.X, Y = point.Y };
+            nodes[id] = apNodes.TryGetValue(id, out var aps)
+                ? new MapNode(id) { X = point.X, Y = point.Y, AccessPoint = aps[0], Name = aps[0].Name, State = AccessPointState(aps) }
+                : new MapNode(id) { X = point.X, Y = point.Y };
         }
 
-        var edges = graph.Edges.Select(e => new MapEdge(nodes[e.DeviceA], nodes[e.DeviceB], e)).ToList();
+        var edges = allEdges.Select(e => new MapEdge(nodes[e.DeviceA], nodes[e.DeviceB], e)).ToList();
 
         var selectedId = _selectedNode?.DeviceId;
         Nodes = nodes.Values.ToList();
@@ -637,6 +753,18 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         {
             FitToViewRequested?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    /// <summary>An AP node's colour: up if any of its switch ports is up, down if one is down, otherwise unknown (grey).</summary>
+    private DeviceState AccessPointState(IReadOnlyList<AccessPoint> aps)
+    {
+        var states = aps
+            .Select(ap => new AccessPointItemViewModel(ap, _accessPoints?.PortOf(ap), null).State)
+            .ToList();
+
+        return states.Contains(ViewModels.AccessPointState.Up) ? DeviceState.Up
+            : states.Contains(ViewModels.AccessPointState.Down) ? DeviceState.Down
+            : DeviceState.Disabled;
     }
 
     private static Dictionary<int, MapPoint> Pinned(IReadOnlyDictionary<int, MapPoint> saved, IEnumerable<int> ids) =>

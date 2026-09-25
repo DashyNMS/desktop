@@ -60,6 +60,33 @@ public class AccessPointsTests
     }
 
     [Fact]
+    public void Map_node_ids_are_negative_stable_and_one_per_AP()
+    {
+        var a = new AccessPoint("r-ap-it-01", "AP-535", "00:4E:35:C5:7B:58", 1, 10, true);
+        var sameOnAnotherPort = a with { SwitchDeviceId = 2, SwitchPortId = 20 };
+        var other = a with { Name = "r-ap-it-02" };
+
+        Assert.True(AccessPoints.NodeId(a) < 0);
+        Assert.Equal(AccessPoints.NodeId(a), AccessPoints.NodeId(sameOnAnotherPort));
+        Assert.Equal(AccessPoints.NodeId(a), AccessPoints.NodeId(a with { Name = "R-AP-IT-01" }));
+        Assert.NotEqual(AccessPoints.NodeId(a), AccessPoints.NodeId(other));
+    }
+
+    [Fact]
+    public void Map_edges_join_each_AP_to_its_switch_named_at_the_switch_end()
+    {
+        var ap = new AccessPoint("r-ap-it-01", "AP-535", null, 7, 70, true);
+
+        var edge = Assert.Single(AccessPoints.MapEdges(new[] { ap }, new Dictionary<int, string> { [70] = "Gi1/0/5" }));
+
+        Assert.Equal(AccessPoints.NodeId(ap), edge.DeviceA);
+        Assert.Equal(7, edge.DeviceB);
+        var connection = Assert.Single(edge.Connections);
+        Assert.Equal("Uplink", connection.PortA);
+        Assert.Equal("Gi1/0/5", connection.PortB);
+    }
+
+    [Fact]
     public void A_link_parses_its_version_and_whether_it_is_active()
     {
         const string json = """{"id":1,"local_port_id":6730,"local_device_id":178,"remote_port_id":0,"active":0,"protocol":"lldp","remote_hostname":"r-ap-fer-pdc-02","remote_device_id":0,"remote_port":"00 4E 35 C5 7B 58 (004e35c57b58)","remote_platform":"","remote_version":"ArubaOS (MODEL: 345), Version Aruba AP"}""";

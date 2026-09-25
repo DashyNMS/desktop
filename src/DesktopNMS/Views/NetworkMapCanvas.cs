@@ -193,10 +193,23 @@ public sealed class NetworkMapCanvas : FrameworkElement
             var faded = dimOthers && !ReferenceEquals(node, selected) && !neighbours.Contains(node);
 
             dc.PushOpacity(faded ? 0.3 : 1);
-            dc.DrawEllipse(StateBrush(node.State), outline, centre, radius, radius);
-            if (ReferenceEquals(node, selected))
+            if (node.IsAccessPoint)
             {
-                dc.DrawEllipse(null, selectedRing, centre, radius + 4, radius + 4);
+                // An access point isn't a LibreNMS device - smaller, and square.
+                var half = radius * 0.7;
+                dc.DrawRoundedRectangle(StateBrush(node.State), outline, new Rect(centre.X - half, centre.Y - half, half * 2, half * 2), 2, 2);
+                if (ReferenceEquals(node, selected))
+                {
+                    dc.DrawRoundedRectangle(null, selectedRing, new Rect(centre.X - half - 4, centre.Y - half - 4, (half + 4) * 2, (half + 4) * 2), 3, 3);
+                }
+            }
+            else
+            {
+                dc.DrawEllipse(StateBrush(node.State), outline, centre, radius, radius);
+                if (ReferenceEquals(node, selected))
+                {
+                    dc.DrawEllipse(null, selectedRing, centre, radius + 4, radius + 4);
+                }
             }
 
             dc.Pop();
