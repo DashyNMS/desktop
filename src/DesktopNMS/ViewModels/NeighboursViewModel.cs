@@ -46,7 +46,6 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     private bool _showOther = true;
     private NeighbourItemViewModel? _selected;
     private (string Name, string? Mac)? _pendingSelection;
-    private int _graphVersion;
     private string _viewSearchText = string.Empty;
 
     public NeighboursViewModel(
@@ -71,18 +70,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         ItemsView = CollectionViewSource.GetDefaultView(Items);
         ItemsView.Filter = item => item is NeighbourItemViewModel n && IsStateShown(n.State) && n.Matches(SearchText);
 
-        // The port graphs LibreNMS draws for any port (checked live - the
-        // rest, like PAgP or FDB count, only exist on some).
-        PortGraphs = new ObservableCollection<PortGraphViewModel>
-        {
-            new("port_bits", "Traffic"),
-            new("port_upkts", "Unicast packets"),
-            new("port_nupkts", "Broadcast and multicast packets"),
-            new("port_errors", "Errors"),
-        };
-
-        TimeRange = new GraphTimeRangeViewModel();
-        TimeRange.Changed += (_, _) => _ = LoadGraphsAsync();
+        PortGraphs = new PortGraphsPanelViewModel(client, settings, logger);
 
         RefreshCommand = new AsyncRelayCommand(() => LoadAsync(refresh: true), () => _session.IsConnected && !IsBusy);
         ClearFiltersCommand = new RelayCommand(() =>
@@ -104,7 +92,6 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         });
         ShowViewListCommand = new RelayCommand(ShowViewList);
         ClearViewSearchCommand = new RelayCommand(() => ViewSearchText = string.Empty);
-        ToggleGraphsCommand = new RelayCommand(() => IsGraphsCollapsed = !IsGraphsCollapsed);
 
         ViewRows = new ObservableCollection<NeighbourViewRowViewModel>();
         ViewRowsView = CollectionViewSource.GetDefaultView(ViewRows);
@@ -187,32 +174,6 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
 
     public RelayCommand ClearViewSearchCommand { get; }
 
-    /// <summary>Folds the port graphs panel down to its header, so the table gets the full height - remembered.</summary>
-    public bool IsGraphsCollapsed
-    {
-        get => _settings.Current.NeighbourGraphsCollapsed;
-        set
-        {
-            if (_settings.Current.NeighbourGraphsCollapsed != value)
-            {
-                _settings.Current.NeighbourGraphsCollapsed = value;
-                _settings.SaveQuietly();
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(GraphsToggleGlyph));
-
-                if (!value)
-                {
-                    _ = LoadGraphsAsync();
-                }
-            }
-        }
-    }
-
-    /// <summary>Chevron down while open (fold it away), up while folded (bring it back).</summary>
-    public string GraphsToggleGlyph => IsGraphsCollapsed ? "" : "";
-
-    public RelayCommand ToggleGraphsCommand { get; }
-
     /// <summary>Back to the table of every view.</summary>
     public void ShowViewList() => SelectedView = null;
 
@@ -222,8 +183,6 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     public ObservableCollection<NeighbourItemViewModel> Items { get; }
 
     public ICollectionView ItemsView { get; }
-
-    public GraphTimeRangeViewModel TimeRange { get; }
 
     public AsyncRelayCommand RefreshCommand { get; }
 
@@ -321,7 +280,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _selected, value))
             {
                 OnPropertyChanged(nameof(HasSelection));
-                _ = LoadGraphsAsync();
+                ShowPortGraphs();
             }
         }
     }
@@ -329,7 +288,18 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     public bool HasSelection => _selected is not null;
 
     /// <summary>The selected neighbour's switch port graphs - traffic, packets and errors - side by side.</summary>
-    public ObservableCollection<PortGraphViewModel> PortGraphs { get; }
+    public PortGraphsPanelViewModel PortGraphs { get; }
+
+    private void ShowPortGraphs()
+    {
+        if (_selected is not { } item)
+        {
+            PortGraphs.Clear();
+            return;
+        }
+
+        PortGraphs.Show(item.SwitchDeviceId, item.PortIfName, item.Name, $" - port {item.PortText} on {item.SwitchName}", "LibreNMS doesn't know this neighbour's switch port.");
+    }
 
     /// <summary>Loads once, lazily, the first time the tab is shown - same convention as every other tab.</summary>
     public void OnShown()
@@ -580,53 +550,6 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         ItemsView.Refresh();
         OnPropertyChanged(nameof(HasAnyFilterApplied));
         LoadState.UpdateVisibleCount(ItemsView.Cast<object>().Count());
-    }
-
-    /// <summary>Every port graph for the selected neighbour, all at once; a newer selection or time range wins over one still loading.</summary>
-    private async Task LoadGraphsAsync()
-    {
-        var version = ++_graphVersion;
-
-        // Folded away: nothing to draw them in - they load when it's opened.
-        if (IsGraphsCollapsed)
-        {
-            return;
-        }
-
-        if (_selected is not { PortIfName: { } ifName } item)
-        {
-            foreach (var graph in PortGraphs)
-            {
-                graph.Show(null, _selected is null ? null : "LibreNMS doesn't know this neighbour's switch port.");
-            }
-
-            return;
-        }
-
-        var range = TimeRange.ToTimeRange();
-
-        async Task LoadOne(PortGraphViewModel graph)
-        {
-            graph.BeginLoad();
-            try
-            {
-                var svg = await _client.Graphs.GetPortSvgAsync(item.SwitchDeviceId, ifName, graph.GraphType, range, width: 560, height: 150).ConfigureAwait(true);
-                if (version == _graphVersion)
-                {
-                    graph.Show(GraphSvgTheming.ApplyCurrentTheme(svg), null);
-                }
-            }
-            catch (LibreNmsApiException ex)
-            {
-                _logger.LogWarning(ex, "Could not load the {GraphType} graph for neighbour {Name}", graph.GraphType, item.Name);
-                if (version == _graphVersion)
-                {
-                    graph.Show(null, ex.ToUserMessage());
-                }
-            }
-        }
-
-        await Task.WhenAll(PortGraphs.Select(LoadOne)).ConfigureAwait(true);
     }
 
     public void Dispose() => _settings.Changed -= OnSettingsChanged;
@@ -901,63 +824,4 @@ public sealed class NeighbourViewRowViewModel
         string.IsNullOrWhiteSpace(term)
         || Name.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase)
         || RulesText.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase);
-}
-
-/// <summary>One of the selected neighbour's port graphs.</summary>
-public sealed class PortGraphViewModel : ObservableObject
-{
-    private string? _svg;
-    private bool _isLoading;
-    private string? _errorMessage;
-
-    public PortGraphViewModel(string graphType, string title)
-    {
-        GraphType = graphType;
-        Title = title;
-    }
-
-    /// <summary>LibreNMS's graph name, e.g. "port_errors".</summary>
-    public string GraphType { get; }
-
-    public string Title { get; }
-
-    public string? Svg
-    {
-        get => _svg;
-        private set => SetProperty(ref _svg, value);
-    }
-
-    public bool IsLoading
-    {
-        get => _isLoading;
-        private set => SetProperty(ref _isLoading, value);
-    }
-
-    public string? ErrorMessage
-    {
-        get => _errorMessage;
-        private set
-        {
-            if (SetProperty(ref _errorMessage, value))
-            {
-                OnPropertyChanged(nameof(HasError));
-            }
-        }
-    }
-
-    public bool HasError => !string.IsNullOrEmpty(_errorMessage);
-
-    public void BeginLoad()
-    {
-        Svg = null;
-        ErrorMessage = null;
-        IsLoading = true;
-    }
-
-    public void Show(string? svg, string? error)
-    {
-        Svg = svg;
-        ErrorMessage = error;
-        IsLoading = false;
-    }
 }

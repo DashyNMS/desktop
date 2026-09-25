@@ -16,9 +16,6 @@ public partial class NeighboursView : UserControl
     public NeighboursView()
     {
         InitializeComponent();
-
-        // The time range picker only matters while the graphs are showing.
-        DataContextChanged += (_, _) => UpdateTimeRangeVisibility();
     }
 
     /// <summary>Focuses whichever search box is showing - the views table's, or the open view's.</summary>
@@ -32,24 +29,6 @@ public partial class NeighboursView : UserControl
     public void ApplyGridLayout(GridLayout? layout) => DataGridLayoutHelper.Apply(NeighboursGrid, layout);
 
     public GridLayout? CaptureGridLayout() => DataGridLayoutHelper.Capture(NeighboursGrid);
-
-    private void UpdateTimeRangeVisibility()
-    {
-        if (DataContext is NeighboursViewModel vm)
-        {
-            vm.PropertyChanged -= OnViewModelPropertyChanged;
-            vm.PropertyChanged += OnViewModelPropertyChanged;
-            GraphTimeRange.Visibility = vm.IsGraphsCollapsed ? Visibility.Collapsed : Visibility.Visible;
-        }
-    }
-
-    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(NeighboursViewModel.IsGraphsCollapsed))
-        {
-            UpdateTimeRangeVisibility();
-        }
-    }
 
     private void StateBadge_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {

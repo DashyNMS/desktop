@@ -1,0 +1,103 @@
+<UserControl x:Class="DesktopNMS.Views.PortGraphsPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:views="clr-namespace:DesktopNMS.Views"
+             xmlns:svgc="clr-namespace:SharpVectors.Converters;assembly=SharpVectors.Converters.Wpf"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:PortGraphsPanelViewModel}">
+
+    <!-- The port graphs panel - see PortGraphsPanelViewModel. Traffic,
+         packets and errors for one port, two across; the chevron folds it
+         down to this header line, so the table above can have the full
+         height. Shown once a port is picked. -->
+    <Border Background="{StaticResource SurfaceBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="0,1,0,0"
+            Padding="18,8,18,12"
+            Visibility="{Binding HasPort, Converter={StaticResource BoolToVisibility}}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0"
+                        Command="{Binding ToggleCommand}"
+                        Style="{StaticResource IconButtonStyle}"
+                        ToolTip="Show or hide the port graphs"
+                        VerticalAlignment="Center"
+                        Margin="0,0,8,0">
+                    <TextBlock Text="{Binding ToggleGlyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                </Button>
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                    <Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold" />
+                    <Run Text="{Binding Subtitle, Mode=OneWay}" Foreground="{StaticResource TextSecondaryBrush}" />
+                </TextBlock>
+                <Border Grid.Column="2"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding IsCollapsed, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                    <views:GraphTimeRangePicker DataContext="{Binding TimeRange}" />
+                </Border>
+            </Grid>
+
+            <ScrollViewer Grid.Row="1"
+                          Height="420"
+                          Margin="0,10,0,0"
+                          VerticalScrollBarVisibility="Auto"
+                          Visibility="{Binding IsCollapsed, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                <ItemsControl ItemsSource="{Binding Graphs}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="2" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{StaticResource SurfaceAltBrush}"
+                                    CornerRadius="5"
+                                    Padding="10,8"
+                                    Margin="0,0,10,10">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="170" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Text="{Binding Title}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                    <Grid Grid.Row="1">
+                                        <svgc:SvgViewbox SvgSource="{Binding Svg}"
+                                                         Stretch="Uniform"
+                                                         HorizontalAlignment="Left"
+                                                         VerticalAlignment="Top"
+                                                         Visibility="{Binding Svg, Converter={StaticResource NullToVisibility}}" />
+                                        <TextBlock Text="Loading graph..."
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   IsHitTestVisible="False"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Text="{Binding ErrorMessage}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   TextWrapping="Wrap"
+                                                   IsHitTestVisible="False"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+    </Border>
+</UserControl>

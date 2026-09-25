@@ -1029,6 +1029,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <TextBox Grid.Row="0"
@@ -1043,6 +1044,8 @@
                 <Grid Grid.Row="1">
                 <DataGrid x:Name="PortsGrid"
                           ItemsSource="{Binding PortsView}"
+                          SelectedItem="{Binding SelectedPort}"
+                          SelectionMode="Single"
                           Visibility="{Binding HasVisiblePorts, Converter={StaticResource BoolToVisibility}}"
                           IsReadOnly="True"
                           HeadersVisibility="Column">
@@ -1197,6 +1200,10 @@
                            Visibility="{Binding ShowPortsNoMatchesMessage, Converter={StaticResource BoolToVisibility}}"
                            Style="{StaticResource SubtleTextStyle}" />
                 </Grid>
+
+                <!-- The picked port's graphs (#8) - traffic, packets and
+                     errors; the chevron folds them away. -->
+                <views:PortGraphsPanel Grid.Row="2" Margin="-24,12,-24,-24" DataContext="{Binding PortGraphs}" />
             </Grid>
 
             <!-- ==================== VLANs ==================== -->

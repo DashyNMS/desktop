@@ -259,6 +259,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         ConfigBackups = new ObservableCollection<UnimusBackupItemViewModel>();
         PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
         Graphs = new GraphsSectionViewModel(deviceId, client, logger);
+        PortGraphs = new PortGraphsPanelViewModel(client, settings, logger);
         Graylog = GraylogMessagesViewModel.ForDevice(deviceId, () => _device, graylog, client, deviceCache, settings, windows, logger, _loadCts.Token);
         Graylog.PropertyChanged += OnGraylogPropertyChanged;
         Inventory = new InventorySectionViewModel(deviceId, client, logger, _loadCts.Token);
@@ -1787,6 +1788,35 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public bool HasEditSuccess => !string.IsNullOrEmpty(_editSuccessMessage);
 
+    // ------------------------------------------------------------------ port graphs (#8)
+
+    /// <summary>The picked port's graphs - traffic, packets and errors - under the Ports table.</summary>
+    public PortGraphsPanelViewModel PortGraphs { get; }
+
+    /// <summary>The port picked in the Ports table - its graphs show underneath.</summary>
+    public PortItemViewModel? SelectedPort
+    {
+        get => _selectedPort;
+        set
+        {
+            if (!SetProperty(ref _selectedPort, value))
+            {
+                return;
+            }
+
+            if (value is null)
+            {
+                PortGraphs.Clear();
+                return;
+            }
+
+            var subtitle = value.SecondaryName is { } alias ? " - " + alias : string.Empty;
+            PortGraphs.Show(_deviceId, value.Model.IfName, value.DisplayName, subtitle);
+        }
+    }
+
+    private PortItemViewModel? _selectedPort;
+
     // ------------------------------------------------------------------ navigation (#58)
 
     /// <summary>The window's back/forward history - shared by every device the window shows, set by the window's host.</summary>
@@ -2823,7 +2853,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 _portNamesByPortId[port.PortId] = port.DisplayName;
             }
 
+            var selectedPortId = _selectedPort?.Model.PortId;
             Ports.ReplaceAll(portItems);
+
+            // A refresh keeps the port that was picked, and its graphs.
+            if (selectedPortId is { } keepId)
+            {
+                SelectedPort = Ports.FirstOrDefault(p => p.Model.PortId == keepId);
+            }
             Routing.OnPortsLoaded(ports);
 
             // FDB/ARP may well have already loaded (this call fetches

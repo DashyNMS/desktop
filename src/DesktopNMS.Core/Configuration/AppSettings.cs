@@ -200,8 +200,8 @@ public sealed class AppSettings
     /// <summary>The Neighbours tab's views, in the order the user made them - see <see cref="NeighbourViewDefinition"/>.</summary>
     public List<NeighbourViewDefinition> NeighbourViews { get; set; } = new();
 
-    /// <summary>The Neighbours tab's port graphs panel is folded down, leaving the table the full height.</summary>
-    public bool NeighbourGraphsCollapsed { get; set; }
+    /// <summary>The port graphs panel (Device Details' Ports, the Neighbours tab) is folded down, leaving the table the full height.</summary>
+    public bool PortGraphsCollapsed { get; set; }
 
     /// <summary>
     /// The accent colour used for buttons, selection highlights and links
@@ -284,7 +284,7 @@ public sealed class AppSettings
         PinnedDevices = PinnedDevices.Select(d => d.Clone()).ToList(),
         CollapsedDeviceNavGroups = CollapsedDeviceNavGroups.ToList(),
         NeighbourViews = NeighbourViews.Select(v => v.Clone()).ToList(),
-        NeighbourGraphsCollapsed = NeighbourGraphsCollapsed,
+        PortGraphsCollapsed = PortGraphsCollapsed,
         AccentColor = AccentColor,
         Theme = Theme,
         ShowServerLogo = ShowServerLogo,
