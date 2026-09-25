@@ -34,11 +34,13 @@ public interface ISessionService
         string? backupAddress = null);
 
     /// <summary>
-    /// Sets or clears the server's backup address (see <see cref="ServerFailover"/>)
-    /// and applies it to the live connection straight away - back on the main
-    /// address. False if it isn't a usable address.
+    /// Settings' Save with changed connection details: tests the server
+    /// address, then (if it doesn't answer) the backup address, and switches
+    /// to whichever answered - see <see cref="SignInAsync"/>. A blank token
+    /// keeps the one in use.
     /// </summary>
-    bool SetBackupAddress(string? backupAddress);
+    Task<ConnectionTestResult> ReconnectAsync(string serverUrl, string? newApiToken, bool allowUntrustedCertificate, string? backupAddress, CancellationToken cancellationToken = default);
+
 
     /// <summary>
     /// Attempts to sign in with the saved address and token. Returns false when
@@ -90,6 +92,13 @@ public sealed class SessionService : ISessionService
             return ConnectionTestResult.Failure(urlError ?? "The server address is not valid.");
         }
 
+        // Left blank: the token in use, or the saved one - no retyping it
+        // just to change the address or add a backup.
+        if (string.IsNullOrWhiteSpace(apiToken))
+        {
+            apiToken = _client.Connection?.ApiToken ?? _tokens.Load() ?? string.Empty;
+        }
+
         if (string.IsNullOrWhiteSpace(apiToken))
         {
             return ConnectionTestResult.Failure("Enter the API token from LibreNMS (Settings, API, API Access).");
@@ -139,31 +148,9 @@ public sealed class SessionService : ISessionService
         return result;
     }
 
-    public bool SetBackupAddress(string? backupAddress)
+    public Task<ConnectionTestResult> ReconnectAsync(string serverUrl, string? newApiToken, bool allowUntrustedCertificate, string? backupAddress, CancellationToken cancellationToken = default)
     {
-        var address = string.IsNullOrWhiteSpace(backupAddress) ? null : backupAddress.Trim();
-        if (address is not null && !ServerFailover.IsValidAddress(address))
-        {
-            return false;
-        }
-
-        var settings = _settings.Current;
-        if (string.Equals(settings.BackupServerAddress, address, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        settings.BackupServerAddress = address;
-        _settings.Save();
-
-        // The live connection picks it up now, on the main address.
-        if (_client.Connection is { } current)
-        {
-            _client.Connect(new LibreNmsConnection(current.WebRoot, current.ApiToken, current.AllowUntrustedCertificate, current.TimeoutSeconds, address));
-        }
-
-        _logger.LogInformation("Backup server address {Change}", address is null ? "cleared" : $"set to {address}");
-        return true;
+        return SignInAsync(serverUrl, newApiToken ?? string.Empty, allowUntrustedCertificate, _settings.Current.RememberToken, cancellationToken, backupAddress);
     }
 
     public async Task<ConnectionTestResult?> TryRestoreAsync(CancellationToken cancellationToken = default)

@@ -40,6 +40,9 @@
 
         <TextBlock Text="API token" Style="{StaticResource SectionHeaderStyle}" />
         <PasswordBox x:Name="TokenBox" PasswordChanged="OnTokenChanged" />
+        <TextBlock Text="Leave blank to use the token already saved on this machine."
+                   Style="{StaticResource SubtleTextStyle}"
+                   Margin="0,4,0,0" />
 
         <CheckBox Content="Remember this token on this machine"
                   IsChecked="{Binding RememberToken}"

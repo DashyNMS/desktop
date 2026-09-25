@@ -33,6 +33,15 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
 
     public ServerFailover Failover => _failover;
 
+    /// <summary>
+    /// Whether a struggling or unreachable server gets the usual few retries
+    /// with growing waits (see <see cref="TransientRetryPolicy"/>). Off for a
+    /// connection test, which should answer quickly - one try at the server
+    /// address, then one at the backup - rather than retry an address that
+    /// isn't answering for a minute or more first.
+    /// </summary>
+    public bool RetryTransientFailures { get; init; } = true;
+
     public LibreNmsConnection? Connection
     {
         get
@@ -241,7 +250,8 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
             // of an instant hard failure - see TransientRetryPolicy for what
             // counts as transient and why only GET/PUT are eligible.
             catch (LibreNmsApiException ex) when (
-                attempt <= TransientRetryPolicy.MaxAttempts
+                RetryTransientFailures
+                && attempt <= TransientRetryPolicy.MaxAttempts
                 && TransientRetryPolicy.IsRetryable(method)
                 && TransientRetryPolicy.IsTransientFailure(ex)
                 && !cancellationToken.IsCancellationRequested)
@@ -341,7 +351,8 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
                 _logger.LogDebug(ex, "Retrying {Url} after a possible stale pooled connection", relativeUrl);
             }
             catch (LibreNmsApiException ex) when (
-                attempt <= TransientRetryPolicy.MaxAttempts
+                RetryTransientFailures
+                && attempt <= TransientRetryPolicy.MaxAttempts
                 && TransientRetryPolicy.IsRetryable(HttpMethod.Get)
                 && TransientRetryPolicy.IsTransientFailure(ex)
                 && !cancellationToken.IsCancellationRequested)

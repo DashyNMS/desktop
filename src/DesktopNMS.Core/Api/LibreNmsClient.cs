@@ -86,7 +86,7 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
 
         // Test against a throwaway transport so a failed attempt cannot replace
         // a working connection that is already in use.
-        using var probe = new LibreNmsTransport(NullLogger<LibreNmsTransport>.Instance);
+        using var probe = new LibreNmsTransport(NullLogger<LibreNmsTransport>.Instance) { RetryTransientFailures = false };
         probe.Configure(connection);
 
         var api = new SystemApi(probe);
@@ -123,7 +123,7 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
     /// <summary>The connection test again, dialling the backup address - the main address didn't answer.</summary>
     private async Task<ConnectionTestResult> TestBackupAsync(LibreNmsConnection connection, CancellationToken cancellationToken)
     {
-        using var probe = new LibreNmsTransport(NullLogger<LibreNmsTransport>.Instance);
+        using var probe = new LibreNmsTransport(NullLogger<LibreNmsTransport>.Instance) { RetryTransientFailures = false };
         probe.Configure(connection, startOnBackup: true);
 
         try
