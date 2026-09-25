@@ -22,6 +22,11 @@ public sealed class Sensor
     [JsonPropertyName("sensor_descr")]
     public string? Description { get; set; }
 
+    /// <summary>Which reading of its kind on the device this is, e.g. "hpicfPseAvailablePower.1001" - what pairs a PoE budget's total with its used figure (see <see cref="Alerting.PoeBudget"/>).</summary>
+    [JsonPropertyName("sensor_index")]
+    [JsonConverter(typeof(DesktopNMS.Core.Json.LooseStringConverter))]
+    public string? Index { get; set; }
+
     [JsonPropertyName("sensor_current")]
     public double Current { get; set; }
 

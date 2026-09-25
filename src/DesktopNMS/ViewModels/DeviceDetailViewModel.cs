@@ -2061,7 +2061,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// reports at least one of them - like <see cref="HasPorts"/>, plenty of
     /// devices (switches, PDUs, sensors-only appliances) expose none of these.
     /// </summary>
-    public bool HasResources => Processors.Count > 0 || Mempools.Count > 0 || Storage.Count > 0;
+    public bool HasResources => Processors.Count > 0 || Mempools.Count > 0 || Storage.Count > 0 || HasPoe;
 
     /// <summary>True until CPU/memory/disk have actually been fetched at least once - distinguishes "still loading" from "confirmed none of these" below.</summary>
     public bool IsLoadingResources => !_hasLoadedResources;
@@ -2431,6 +2431,51 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SensorWarningCount));
         OnPropertyChanged(nameof(SensorCriticalCount));
         OnPropertyChanged(nameof(SensorAlertSummaryText));
+        ApplyPoe(mine);
+    }
+
+    // ------------------------------------------------------------------ PoE (#54)
+
+    /// <summary>
+    /// The device's PoE budgets - used against total power, per switch or
+    /// stack unit - from its PoE power sensors (see <see cref="PoeBudget"/>).
+    /// LibreNMS has no per-port PoE data for most switches, so the budget is
+    /// what there is. Shown as its own card in Resources.
+    /// </summary>
+    public ObservableCollection<PoeBudgetItemViewModel> PoeBudgets { get; } = new();
+
+    public bool HasPoe => PoeBudgets.Count > 0 || PoeDevicesConnected is not null;
+
+    /// <summary>How many powered devices the switch reports (IOS-XE does), or null.</summary>
+    public int? PoeDevicesConnected { get; private set; }
+
+    public string? PoeDevicesConnectedText => PoeDevicesConnected is { } n
+        ? (n == 1 ? "1 powered device connected" : $"{n} powered devices connected")
+        : null;
+
+    private void ApplyPoe(IReadOnlyList<Sensor> mine)
+    {
+        var summary = PoeBudget.FromSensors(mine);
+        var hadPoe = HasPoe;
+
+        PoeBudgets.Clear();
+        foreach (var row in summary.Budgets)
+        {
+            PoeBudgets.Add(new PoeBudgetItemViewModel(row));
+        }
+
+        PoeDevicesConnected = summary.DevicesConnected;
+        OnPropertyChanged(nameof(PoeDevicesConnected));
+        OnPropertyChanged(nameof(PoeDevicesConnectedText));
+        OnPropertyChanged(nameof(HasPoe));
+
+        if (hadPoe != HasPoe)
+        {
+            OnPropertyChanged(nameof(HasResources));
+            OnPropertyChanged(nameof(ShowResourcesNav));
+            OnPropertyChanged(nameof(ShowResourcesEmptyMessage));
+            OnPropertyChanged(nameof(ShowHardwareGroup));
+        }
     }
 
     /// <summary>Rebuilds <see cref="SensorGroups"/> only when the grouping actually differs from what is already on screen - see <see cref="RebuildSensorGroups"/>.</summary>
@@ -4730,3 +4775,33 @@ public sealed record DeviceNameRow(string Label, string Value);
 
 /// <summary>A neighbour LibreNMS didn't link, matched to a monitored device by this app - which device, and how (for the tooltip).</summary>
 public sealed record NeighbourMatch(int DeviceId, string How);
+
+/// <summary>One PoE budget row in the Resources section's PoE card (#54).</summary>
+public sealed class PoeBudgetItemViewModel
+{
+    private readonly PoeBudgetRow _row;
+
+    public PoeBudgetItemViewModel(PoeBudgetRow row) => _row = row;
+
+    /// <summary>The stack unit or power supply, or "Budget" for a switch with just one.</summary>
+    public string Label => _row.Label ?? "Budget";
+
+    public double UsagePercent => _row.Percent ?? 0;
+
+    public string PercentText => _row.Percent is { } p ? p.ToString("0", CultureInfo.CurrentCulture) + "%" : "-";
+
+    /// <summary>"17 W of 1,440 W" - or whichever of the two is known.</summary>
+    public string UsageText => (_row.UsedWatts, _row.TotalWatts) switch
+    {
+        ({ } used, { } total) => $"{Watts(used)} of {Watts(total)}",
+        ({ } used, null) => $"{Watts(used)} used",
+        (null, { } total) => $"{Watts(total)} available",
+        _ => "-",
+    };
+
+    public string? RemainingText => _row.RemainingWatts is { } remaining ? $"{Watts(remaining)} spare" : null;
+
+    public AlertSeverity Severity => ResourceSeverity.Evaluate(_row.Percent, null);
+
+    private static string Watts(double watts) => watts.ToString(watts >= 100 ? "N0" : "0.#", CultureInfo.CurrentCulture) + " W";
+}
