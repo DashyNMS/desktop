@@ -56,6 +56,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly IGraylogApi _graylog;
     private readonly IServerBrandingService _branding;
     private readonly ISelfActionTracker _selfActions;
+    private readonly IUpdateCheckService _updates;
     private readonly ILogger<MainViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, AlertItemViewModel> _index = new();
@@ -122,6 +123,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IGraylogApi graylog,
         IServerBrandingService branding,
         ISelfActionTracker selfActions,
+        IUpdateCheckService updates,
         ILogger<MainViewModel> logger)
     {
         _client = client;
@@ -148,12 +150,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _graylog.ConfigurationChanged += OnGraylogConfigurationChanged;
         _branding = branding;
         _selfActions = selfActions;
+        _updates = updates;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         _branding.Changed += OnBrandingChanged;
         _client.Failover.Changed += OnFailoverChanged;
         SwitchBackToMainAddressCommand = new RelayCommand(SwitchBackToMainAddress);
+        _updates.ReadyUpdateChanged += OnReadyUpdateChanged;
+        InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => IsUpdateReady && !_isInstallingUpdate);
+        ViewUpdateNotesCommand = new RelayCommand(ViewUpdateNotes);
         _settings.Changed += OnLogoSettingChanged;
 
         Alerts = new ObservableCollection<AlertItemViewModel>();
@@ -341,6 +347,67 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     // The refresh follows from the switch itself - see OnFailoverChanged.
     private void SwitchBackToMainAddress() => _client.Failover.FailBack();
+
+    // ------------------------------------------------------------------ updates
+
+    private bool _isInstallingUpdate;
+
+    /// <summary>A newer version is downloaded and verified - the main bar's update icon shows.</summary>
+    public bool IsUpdateReady => _updates.ReadyUpdate is not null;
+
+    /// <summary>The update icon's tooltip and menu line: "DashyNMS v1.2.0 is ready to install (running 1.1.0)."</summary>
+    public string UpdateReadyText => _updates.ReadyUpdate is { } ready
+        ? $"DashyNMS {ready.Version} is ready to install (running {_updates.CurrentVersion})."
+        : string.Empty;
+
+    /// <summary>Installs the ready update: DashyNMS closes, updates, and reopens on the new version.</summary>
+    public AsyncRelayCommand InstallUpdateCommand { get; }
+
+    /// <summary>The ready update's release notes on GitHub.</summary>
+    public RelayCommand ViewUpdateNotesCommand { get; }
+
+    /// <summary>Also the update-ready toast's "Restart to update" - which may arrive before this process has fetched the update itself.</summary>
+    public async Task InstallUpdateAsync()
+    {
+        if (_isInstallingUpdate)
+        {
+            return;
+        }
+
+        _isInstallingUpdate = true;
+        InstallUpdateCommand.RaiseCanExecuteChanged();
+        try
+        {
+            // On success the app shuts down from under this (InstallStarted).
+            if (!await _updates.InstallAsync().ConfigureAwait(true))
+            {
+                _windows.ShowError(
+                    "Update",
+                    "The update couldn't be started. Check for updates again from Settings, About, or download it from the release page.");
+            }
+        }
+        finally
+        {
+            _isInstallingUpdate = false;
+            InstallUpdateCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    private void ViewUpdateNotes()
+    {
+        var url = _updates.ReadyUpdate?.ReleaseUrl ?? UpdateCheckService.ReleasePageUrl(_updates.CurrentVersion);
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            _windows.OpenUrl(uri);
+        }
+    }
+
+    private void OnReadyUpdateChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() =>
+    {
+        OnPropertyChanged(nameof(IsUpdateReady));
+        OnPropertyChanged(nameof(UpdateReadyText));
+        InstallUpdateCommand.RaiseCanExecuteChanged();
+    });
 
     private void OnFailoverChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() =>
     {
@@ -2031,6 +2098,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _monitor.PollStarted -= OnPollStarted;
         _session.StateChanged -= OnSessionStateChanged;
         _client.Failover.Changed -= OnFailoverChanged;
+        _updates.ReadyUpdateChanged -= OnReadyUpdateChanged;
         _graylog.ConfigurationChanged -= OnGraylogConfigurationChanged;
         _branding.Changed -= OnBrandingChanged;
         _settings.Changed -= OnLogoSettingChanged;

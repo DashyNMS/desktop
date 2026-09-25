@@ -584,9 +584,12 @@ public sealed class AlertNotificationService : IAlertNotificationService
                 ? parsed
                 : null;
 
-            var request = action.Equals("acknowledge", StringComparison.OrdinalIgnoreCase)
-                ? new ToastActionRequest(ToastAction.Acknowledge, alertId)
-                : new ToastActionRequest(ToastAction.Show, alertId);
+            var request = action.ToLowerInvariant() switch
+            {
+                "acknowledge" => new ToastActionRequest(ToastAction.Acknowledge, alertId),
+                "install-update" => new ToastActionRequest(ToastAction.InstallUpdate, null),
+                _ => new ToastActionRequest(ToastAction.Show, alertId),
+            };
 
             ActionRequested?.Invoke(this, request);
         }

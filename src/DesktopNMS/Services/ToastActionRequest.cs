@@ -10,6 +10,9 @@ public enum ToastAction
 
     /// <summary>The "Acknowledge" button was clicked.</summary>
     Acknowledge,
+
+    /// <summary>"Restart to update" on the update-ready toast.</summary>
+    InstallUpdate,
 }
 
 /// <summary>A toast activation, marshalled onto the UI thread by the app.</summary>

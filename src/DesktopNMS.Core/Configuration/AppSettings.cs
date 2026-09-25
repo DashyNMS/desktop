@@ -114,6 +114,9 @@ public sealed class AppSettings
     /// </summary>
     public string? LastNotifiedUpdateVersion { get; set; }
 
+    /// <summary>The version that last ran - a different one at start-up means DashyNMS was just updated, worth saying so.</summary>
+    public string? LastRunVersion { get; set; }
+
     /// <summary>
     /// Also consider GitHub pre-release ("preview") builds - rollups of
     /// in-progress work published between stable releases - when checking
@@ -271,6 +274,7 @@ public sealed class AppSettings
         StartWithWindows = StartWithWindows,
         StartupTab = StartupTab,
         LastNotifiedUpdateVersion = LastNotifiedUpdateVersion,
+        LastRunVersion = LastRunVersion,
         IncludePreviewBuilds = IncludePreviewBuilds,
         SuppressBulkAlertActionConfirmation = SuppressBulkAlertActionConfirmation,
         ShowAlertTabBadge = ShowAlertTabBadge,
