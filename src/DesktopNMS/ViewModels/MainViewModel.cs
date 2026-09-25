@@ -319,7 +319,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>The server stopped answering at its own address and the app is talking to it through the backup address - see ServerFailover.</summary>
     public bool IsOnBackupAddress => _client.Failover.IsOnBackup;
 
-    /// <summary>The main bar's backup address icon's tooltip and menu line: "Connected through the backup address 10.46.2.10 since 10:42 - nms.example.com stopped answering."</summary>
+    /// <summary>The main bar's backup address icon's tooltip and menu line: "Connected through the backup address 192.0.2.20 since 10:42 - nms.example.com stopped answering."</summary>
     public string BackupAddressStatusText
     {
         get

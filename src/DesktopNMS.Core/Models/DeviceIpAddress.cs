@@ -31,7 +31,7 @@ public sealed class DeviceIpAddress
 
     public bool IsIpv6 => Ipv6Address is not null;
 
-    /// <summary>"10.47.16.1/24" or "fe80::250:56ff:feb9:804c/64", whichever this row actually is.</summary>
+    /// <summary>"192.0.2.1/24" or "fe80::250:56ff:feb9:804c/64", whichever this row actually is.</summary>
     public string DisplayText => IsIpv6
         ? $"{Ipv6Compressed ?? Ipv6Address}/{Ipv6PrefixLength}"
         : $"{Ipv4Address}/{Ipv4PrefixLength}";

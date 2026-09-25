@@ -72,7 +72,7 @@ public sealed class PortGraphsPanelViewModel : ObservableObject
         private set => SetProperty(ref _title, value);
     }
 
-    /// <summary>The header's rest - " - port 5 on r-sw-it-01", " - uplink".</summary>
+    /// <summary>The header's rest - " - port 5 on sw-access-01", " - uplink".</summary>
     public string Subtitle
     {
         get => _subtitle;

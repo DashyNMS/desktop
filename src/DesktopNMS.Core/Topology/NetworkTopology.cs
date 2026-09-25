@@ -73,7 +73,7 @@ public static class NetworkTopology
     /// <see cref="PortLabels.ForPort"/>). A link record only names the port at
     /// its far end in text; its own end is just a <c>local_port_id</c>. So a
     /// cable reported from one side only - always the case for a ping-only
-    /// device such as a Bolero antenna, which LibreNMS never runs discovery
+    /// device such as a wireless antenna, which LibreNMS never runs discovery
     /// on - has no name for the reporting device's own port unless it's
     /// looked up here. Without it, only the far ends are named.
     /// </param>
@@ -168,7 +168,7 @@ public static class PortLabels
 
     /// <summary>
     /// The port name a neighbour announced over LLDP/CDP, tidied: many
-    /// devices (Riedel Bolero antennas among them) announce their MAC address
+    /// devices (wireless antennas among them) announce their MAC address
     /// as their port, which LibreNMS stores as e.g. "00 19 7C 02 E8 8B
     /// (00197c02e88b)" - shown as "00:19:7C:02:E8:8B". Anything else is kept
     /// as announced; blank is null.

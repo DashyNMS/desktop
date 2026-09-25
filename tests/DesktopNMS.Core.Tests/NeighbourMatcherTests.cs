@@ -8,18 +8,18 @@ public class NeighbourMatcherTests
 {
     private static readonly Device[] Devices =
     {
-        new() { DeviceId = 443, Hostname = "10.46.69.174", SysName = "00 red flag alp", Display = "00 red flag alp" },
+        new() { DeviceId = 443, Hostname = "192.0.2.174", SysName = "00 stage left a", Display = "00 stage left a" },
         new() { DeviceId = 315, Hostname = "10.45.69.101", SysName = "rack", Display = "g-bol-101" },
-        new() { DeviceId = 17, Hostname = "10.44.10.5", SysName = "g-ws-roc-05", Display = "g-ws-roc-05" },
-        new() { DeviceId = 368, Hostname = "10.46.69.101", SysName = "paddock_02" },
-        new() { DeviceId = 332, Hostname = "10.46.69.104", SysName = "paddock_02" },
+        new() { DeviceId = 17, Hostname = "192.0.2.5", SysName = "ws-lab-05", Display = "ws-lab-05" },
+        new() { DeviceId = 368, Hostname = "192.0.2.101", SysName = "studio_02" },
+        new() { DeviceId = 332, Hostname = "192.0.2.104", SysName = "studio_02" },
     };
 
     [Theory]
-    [InlineData("00 Red Flag (ALP)", 443)]
+    [InlineData("00 Stage Left (A)", 443)]
     [InlineData("Rack", 315)]
     [InlineData("G-BOL-101", 315)]
-    [InlineData("g-ws-roc-05.fia.riedel.local", 17)]
+    [InlineData("ws-lab-05.corp.example.net", 17)]
     [InlineData("10.45.69.101", 315)]
     public void Names_match_ignoring_case_punctuation_and_domain(string announced, int expected)
     {
@@ -27,8 +27,8 @@ public class NeighbourMatcherTests
     }
 
     [Theory]
-    [InlineData("paddock_02")]           // two devices share it
-    [InlineData("Riedel-UIC-128-08-AA-AD")] // nothing like it
+    [InlineData("studio_02")]           // two devices share it
+    [InlineData("Intercom-128-08-AA-AD")] // nothing like it
     [InlineData("ab")]                   // too short to trust
     [InlineData(null)]
     [InlineData("  ")]
@@ -40,7 +40,7 @@ public class NeighbourMatcherTests
     [Fact]
     public void An_IP_is_not_shortened_to_its_first_octet()
     {
-        // "10" would be too short anyway, but "10.46.69.1" mustn't become "10".
+        // "10" would be too short anyway, but "192.0.2.1" mustn't become "10".
         Assert.Null(NeighbourMatcher.MatchByName("10.99.99.99", Devices));
     }
 

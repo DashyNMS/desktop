@@ -151,8 +151,8 @@ public sealed class SessionService : ISessionService
     }
 
     /// <summary>
-    /// The backup address as a URL, like the server address - "10.46.2.10"
-    /// reads as https://10.46.2.10/. Blank is fine: no backup.
+    /// The backup address as a URL, like the server address - "192.0.2.20"
+    /// reads as https://192.0.2.20/. Blank is fine: no backup.
     /// </summary>
     public static bool TryParseBackup(string? text, out Uri? backup, out string? error)
     {

@@ -106,7 +106,7 @@ public class NetworkTopologyTests
     [Fact]
     public void A_one_sided_link_names_its_own_port_from_the_port_list()
     {
-        // A switch (1) sees a ping-only Bolero antenna (2) - the antenna never
+        // A switch (1) sees a ping-only wireless antenna (2) - the antenna never
         // reports the link back, so the switch's port only comes from its id.
         var links = new[] { Link(1, 531, 2, 0, "00 19 7C 02 E8 8B (00197c02e88b)") };
         var ports = new Dictionary<int, string> { [531] = "17" };

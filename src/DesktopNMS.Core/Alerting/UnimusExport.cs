@@ -11,7 +11,7 @@ namespace DesktopNMS.Core.Alerting;
 public static class UnimusExport
 {
     /// <summary>
-    /// "r-sw-core-01_2026-09-18_1801.cfg" - the device name plus the
+    /// "sw-core-01_2026-09-18_1801.cfg" - the device name plus the
     /// backup's own time, so several exports of the same device sort by date
     /// and never collide. Anything Windows won't allow in a file name becomes
     /// "_"; an empty name falls back to "device".
@@ -111,7 +111,7 @@ public static class UnimusExport
     }
 
     /// <summary>
-    /// "r-sw-core-01_2026-08-05_1801.cfg&lt;tab&gt;2026-08-05 18:01:00 +0100" -
+    /// "sw-core-01_2026-08-05_1801.cfg&lt;tab&gt;2026-08-05 18:01:00 +0100" -
     /// the conventional "file name, tab, timestamp" a unified diff's
     /// ---/+++ lines carry, so tools show which backup is which side.
     /// </summary>

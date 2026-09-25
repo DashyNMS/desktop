@@ -115,7 +115,7 @@ public static class MapScopes
     }
 }
 
-/// <summary>One line in the selected device's connection list: "Gi1/0/48 → r-sw-core-02 (1/1/1)".</summary>
+/// <summary>One line in the selected device's connection list: "Gi1/0/48 → sw-core-02 (1/1/1)".</summary>
 public sealed class MapConnectionItem
 {
     public MapConnectionItem(MapNode neighbour, string? localPort, string? remotePort)
@@ -305,7 +305,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         _ => string.Empty,
     };
 
-    /// <summary>"10.46.102.33 · Aruba JL320A" - IP and hardware for the details panel.</summary>
+    /// <summary>"192.0.2.33 · Aruba JL320A" - IP and hardware for the details panel.</summary>
     public string SelectedNodeDetail
     {
         get

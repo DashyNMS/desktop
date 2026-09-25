@@ -2738,7 +2738,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// remote_device_id), the monitored device it is when that can be told
     /// reliably, keyed by local port id: by its announced name, ignoring case
     /// and punctuation (see <see cref="NeighbourMatcher"/>), or - for one
-    /// announcing its MAC as its port, as Bolero antennas do - by that MAC's
+    /// announcing its MAC as its port, as Antennas do - by that MAC's
     /// ARP entry leading to a device's IP. Only a single, unambiguous device
     /// counts. Never throws: a failed lookup just leaves that neighbour
     /// unlinked, as it was.
@@ -4291,7 +4291,7 @@ public sealed class PortItemViewModel
 
     public bool HasNeighbor => _link is not null;
 
-    /// <summary>e.g. "r-sw-pit-10 (Gi0/1)" - the device and port this one is physically connected to, if LibreNMS has discovered one.</summary>
+    /// <summary>e.g. "sw-edge-10 (Gi0/1)" - the device and port this one is physically connected to, if LibreNMS has discovered one.</summary>
     public string? NeighborText => _link is null
         ? null
         : PortLabels.FromNeighbourPort(_link.RemotePort) is { } port ? $"{_link.DisplayRemoteName} ({port})" : _link.DisplayRemoteName;

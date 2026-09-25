@@ -16,7 +16,7 @@ public class ServerFailoverTests
     public void Two_unreachable_requests_in_a_row_switch_to_the_backup()
     {
         var failover = new ServerFailover();
-        failover.Configure("10.46.2.10");
+        failover.Configure("192.0.2.20");
         var changes = 0;
         failover.Changed += (_, _) => changes++;
 
@@ -32,7 +32,7 @@ public class ServerFailoverTests
     public void An_answer_in_between_starts_the_count_again()
     {
         var failover = new ServerFailover();
-        failover.Configure("10.46.2.10");
+        failover.Configure("192.0.2.20");
 
         failover.RecordUnreachable();
         failover.RecordSuccess();
@@ -55,7 +55,7 @@ public class ServerFailoverTests
     public void Once_on_the_backup_it_stays_until_switched_back_by_hand()
     {
         var failover = new ServerFailover();
-        failover.Configure("10.46.2.10", startOnBackup: true);
+        failover.Configure("192.0.2.20", startOnBackup: true);
 
         Assert.True(failover.IsOnBackup);
         Assert.False(failover.RecordUnreachable());
@@ -82,11 +82,11 @@ public class ServerFailoverTests
     }
 
     [Theory]
-    [InlineData("https://nms.example.com/", "https://10.46.2.10/", true)]
-    [InlineData("https://nms.example.com/librenms/", "https://10.46.2.10/librenms/", true)]
-    [InlineData("https://nms.example.com/", "http://10.46.2.10/", false)]
-    [InlineData("https://nms.example.com/", "https://10.46.2.10:8443/", false)]
-    [InlineData("https://nms.example.com/", "https://10.46.2.10/librenms/", false)]
+    [InlineData("https://nms.example.com/", "https://192.0.2.20/", true)]
+    [InlineData("https://nms.example.com/librenms/", "https://192.0.2.20/librenms/", true)]
+    [InlineData("https://nms.example.com/", "http://192.0.2.20/", false)]
+    [InlineData("https://nms.example.com/", "https://192.0.2.20:8443/", false)]
+    [InlineData("https://nms.example.com/", "https://192.0.2.20/librenms/", false)]
     public void A_backup_that_only_changes_the_host_is_another_route_to_the_server(string server, string backup, bool anotherRoute)
     {
         var connection = new LibreNmsConnection(new Uri(server), "token", backupWebRoot: new Uri(backup));

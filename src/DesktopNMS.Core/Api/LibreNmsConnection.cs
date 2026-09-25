@@ -31,7 +31,7 @@ public sealed class LibreNmsConnection
 
     /// <summary>
     /// Another address for the same server, as a URL like <see cref="WebRoot"/>
-    /// (https://10.46.2.10/, http://nms-backup:8080/librenms/) - used once the
+    /// (https://192.0.2.20/, http://nms-backup:8080/librenms/) - used once the
     /// server address stops answering; see <see cref="ServerFailover"/>.
     /// </summary>
     public Uri? BackupWebRoot { get; }
@@ -41,7 +41,7 @@ public sealed class LibreNmsConnection
 
     /// <summary>
     /// The backup differs from the server address only in its host - same
-    /// scheme, port and path (https://10.46.2.10/ for https://nms.example.com/).
+    /// scheme, port and path (https://192.0.2.20/ for https://nms.example.com/).
     /// Then it's just another route to the same server: the app dials the
     /// backup host but keeps asking for the server by its own name, so TLS
     /// still checks the certificate against that name. Otherwise the backup

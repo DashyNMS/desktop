@@ -9,9 +9,9 @@ public class UnimusExportTests
     [Fact]
     public void File_name_combines_device_and_backup_time()
     {
-        var name = UnimusExport.FileNameFor("r-sw-core-01", new DateTime(2026, 9, 18, 18, 1, 0), "cfg");
+        var name = UnimusExport.FileNameFor("sw-core-01", new DateTime(2026, 9, 18, 18, 1, 0), "cfg");
 
-        Assert.Equal("r-sw-core-01_2026-09-18_1801.cfg", name);
+        Assert.Equal("sw-core-01_2026-09-18_1801.cfg", name);
     }
 
     [Fact]

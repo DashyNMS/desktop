@@ -827,7 +827,7 @@
 
                                 <TextBlock Text="Backup address" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
                                 <TextBox Text="{Binding BackupServerAddress, UpdateSourceTrigger=PropertyChanged}"
-                                         ToolTip="Another address for the same server, e.g. https://10.44.100.100/" />
+                                         ToolTip="Another address for the same server, e.g. https://192.0.2.20/" />
                                 <TextBlock Text="{Binding BackupServerAddressError}"
                                            Foreground="{StaticResource CriticalBrush}"
                                            TextWrapping="Wrap"
@@ -836,7 +836,7 @@
                                 <TextBlock Style="{StaticResource SubtleTextStyle}"
                                            TextWrapping="Wrap"
                                            Margin="0,4,0,0"
-                                           Text="Optional. Another address for the same LibreNMS server, as a URL like the server address - https://10.44.100.100/ or http://nms-backup:8080/. Used if the server address stops answering twice in a row, until you switch back. If only the host differs, HTTPS still checks the certificate against the server's own name." />
+                                           Text="Optional. Another address for the same LibreNMS server, as a URL like the server address - https://192.0.2.20/ or http://nms-backup:8080/. Used if the server address stops answering twice in a row, until you switch back. If only the host differs, HTTPS still checks the certificate against the server's own name." />
 
                                 <TextBlock Text="API token" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
                                 <PasswordBox x:Name="ServerTokenBox" PasswordChanged="OnServerTokenChanged" />
