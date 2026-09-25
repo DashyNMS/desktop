@@ -479,7 +479,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     {
         if (node.IsAccessPoint)
         {
-            _windows.ShowAccessPoint(node.Name);
+            _windows.ShowAccessPoint(node.Name, node.AccessPoint?.Mac);
         }
         else
         {

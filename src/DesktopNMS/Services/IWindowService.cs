@@ -45,7 +45,7 @@ public interface IWindowService
     void ShowDeviceWireless(int deviceId);
 
     /// <summary>Shows the main window on the Access points page (#55), with this AP selected if one is named and listed.</summary>
-    void ShowAccessPoint(string? name);
+    void ShowAccessPoint(string? name, string? mac = null);
 
     /// <summary>Closes a device's detail window if it is currently open - a no-op otherwise.</summary>
     void CloseDeviceDetail(int deviceId);

@@ -65,7 +65,7 @@ public sealed class WirelessSectionViewModel : ObservableObject
                 _showGraph(item.GraphName);
             }
         });
-        OpenAccessPointCommand = new RelayCommand(parameter => windows.ShowAccessPoint((parameter as AccessPointItemViewModel)?.Name));
+        OpenAccessPointCommand = new RelayCommand(parameter => windows.ShowAccessPoint((parameter as AccessPointItemViewModel)?.Name, (parameter as AccessPointItemViewModel)?.AccessPoint.Mac));
     }
 
     public ObservableCollection<WirelessClassViewModel> Classes { get; }

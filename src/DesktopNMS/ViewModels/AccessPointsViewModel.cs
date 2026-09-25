@@ -42,6 +42,7 @@ public sealed class AccessPointsViewModel : ObservableObject
     private bool _showOther = true;
     private AccessPointItemViewModel? _selected;
     private string? _pendingSelection;
+    private string? _pendingSelectionMac;
     private int _graphVersion;
 
     public AccessPointsViewModel(
@@ -231,10 +232,11 @@ public sealed class AccessPointsViewModel : ObservableObject
         _ = LoadAsync(refresh: false);
     }
 
-    /// <summary>Selects the AP with this name - now if it's listed, or once the list loads.</summary>
-    public void Select(string name)
+    /// <summary>Selects the AP with this name - now if it's listed, or once the list loads. The MAC picks out which one, for several "Unknown AP"s.</summary>
+    public void Select(string name, string? mac = null)
     {
         _pendingSelection = name;
+        _pendingSelectionMac = mac;
         ApplyPendingSelection();
     }
 
@@ -286,8 +288,12 @@ public sealed class AccessPointsViewModel : ObservableObject
             return;
         }
 
+        var mac = _pendingSelectionMac;
         _pendingSelection = null;
-        if (Items.FirstOrDefault(i => string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase)) is { } match)
+        _pendingSelectionMac = null;
+
+        var named = Items.Where(i => string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase)).ToList();
+        if ((named.FirstOrDefault(i => mac is not null && string.Equals(i.AccessPoint.Mac, mac, StringComparison.OrdinalIgnoreCase)) ?? named.FirstOrDefault()) is { } match)
         {
             SearchText = string.Empty;
             SelectedItem = match;
@@ -480,7 +486,7 @@ public sealed class AccessPointItemViewModel
         : $"{Rate(OutBps)} to / {Rate(InBps)} from";
 
     public string ToolTip => AccessPoint.IsUnnamed
-        ? $"This AP doesn't announce a name - it's listed by its MAC address. Plugged into {SwitchName} {PortText}."
+        ? $"This AP doesn't announce a name over LLDP - its MAC is {(MacText.Length > 0 ? MacText : "unknown")}. Plugged into {SwitchName} {PortText}."
         : $"{Name} ({ModelText}) on {SwitchName} {PortText}" + (MacText.Length > 0 ? $" - MAC {MacText}" : string.Empty);
 
     public bool Matches(string? term)

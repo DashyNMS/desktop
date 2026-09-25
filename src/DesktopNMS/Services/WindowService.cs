@@ -79,14 +79,14 @@ public sealed class WindowService : IWindowService
         }
     }
 
-    public void ShowAccessPoint(string? name)
+    public void ShowAccessPoint(string? name, string? mac = null)
     {
         ShowMain();
         var main = _services.GetRequiredService<MainViewModel>();
         main.SelectAccessPointsTabCommand.Execute(null);
         if (!string.IsNullOrEmpty(name))
         {
-            main.AccessPoints.Select(name);
+            main.AccessPoints.Select(name, mac);
         }
     }
 

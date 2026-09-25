@@ -32,12 +32,13 @@ public class AccessPointsTests
     }
 
     [Fact]
-    public void An_AP_without_a_name_is_named_by_its_MAC_and_listed_last()
+    public void An_AP_without_a_name_is_an_unknown_AP_listed_last_with_its_MAC()
     {
         const string version = "ArubaOS (MODEL: 535), Version Aruba AP";
         var aps = AccessPoints.FromLinks(new[] { L(version, version), L("r-ap-zz-01", version) });
 
-        Assert.Equal(new[] { "r-ap-zz-01", "AP 00:4E:35:C5:7B:58" }, aps.Select(a => a.Name));
+        Assert.Equal(new[] { "r-ap-zz-01", "Unknown AP" }, aps.Select(a => a.Name));
+        Assert.Equal("00:4E:35:C5:7B:58", aps[1].Mac);
         Assert.True(aps[1].IsUnnamed);
     }
 

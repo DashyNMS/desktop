@@ -12,7 +12,7 @@ public sealed record AccessPoint(
     int SwitchPortId,
     bool Active)
 {
-    /// <summary>True when the AP doesn't announce a name of its own and <see cref="Name"/> is made from its MAC.</summary>
+    /// <summary>True when the AP doesn't announce a name of its own over LLDP - <see cref="Name"/> is then <see cref="AccessPoints.UnknownName"/>, and its MAC tells it apart.</summary>
     public bool IsUnnamed { get; init; }
 }
 
@@ -32,6 +32,9 @@ public static class AccessPoints
     [
         new(@"\bAruba AP\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant),
     ];
+
+    /// <summary>What an AP that announces no name of its own is called - its MAC, shown alongside, says which one it is.</summary>
+    public const string UnknownName = "Unknown AP";
 
     private static readonly Regex ModelPattern = new(@"MODEL:\s*([^)]+?)\s*\)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
@@ -120,7 +123,7 @@ public static class AccessPoints
                 var unnamed = string.IsNullOrEmpty(name) || string.Equals(name, link.RemoteVersion?.Trim(), StringComparison.OrdinalIgnoreCase);
                 if (unnamed)
                 {
-                    name = isMac && mac is not null ? "AP " + mac : "Unnamed AP";
+                    name = UnknownName;
                 }
 
                 return new AccessPoint(name!, ModelOf(link.RemoteVersion), isMac ? mac : null, link.LocalDeviceId, link.LocalPortId, link.Active)
@@ -130,6 +133,7 @@ public static class AccessPoints
             })
             .OrderBy(ap => ap.IsUnnamed)
             .ThenBy(ap => ap.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(ap => ap.Mac, StringComparer.Ordinal)
             .ToList();
     }
 }
