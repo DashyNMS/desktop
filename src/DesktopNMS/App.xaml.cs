@@ -302,8 +302,9 @@ public partial class App : Application
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<GroupsViewModel>();
         services.AddSingleton<LocationsViewModel>();
-        services.AddSingleton<IAccessPointDirectory, AccessPointDirectory>();
-        services.AddSingleton<AccessPointsViewModel>();
+        services.AddSingleton<INeighbourDirectory, NeighbourDirectory>();
+        services.AddSingleton<NeighboursViewModel>();
+        services.AddTransient<NeighbourViewEditorViewModel>();
         services.AddSingleton<RulesViewModel>();
         services.AddSingleton<TemplatesViewModel>();
         services.AddSingleton<NetworkMapViewModel>();

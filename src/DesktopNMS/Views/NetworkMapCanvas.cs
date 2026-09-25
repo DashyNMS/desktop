@@ -193,9 +193,9 @@ public sealed class NetworkMapCanvas : FrameworkElement
             var faded = dimOthers && !ReferenceEquals(node, selected) && !neighbours.Contains(node);
 
             dc.PushOpacity(faded ? 0.3 : 1);
-            if (node.IsAccessPoint)
+            if (node.IsNeighbour)
             {
-                // An access point isn't a LibreNMS device - smaller, and square.
+                // A neighbour isn't a LibreNMS device - smaller, and square.
                 var half = radius * 0.7;
                 dc.DrawRoundedRectangle(StateBrush(node.State), outline, new Rect(centre.X - half, centre.Y - half, half * 2, half * 2), 2, 2);
                 if (ReferenceEquals(node, selected))

@@ -79,15 +79,29 @@ public sealed class WindowService : IWindowService
         }
     }
 
-    public void ShowAccessPoint(string? name, string? mac = null)
+    public void ShowNeighbour(string viewId, string? name, string? mac = null)
     {
         ShowMain();
         var main = _services.GetRequiredService<MainViewModel>();
-        main.SelectAccessPointsTabCommand.Execute(null);
-        if (!string.IsNullOrEmpty(name))
+        main.SelectNeighboursTabCommand.Execute(null);
+        main.Neighbours.Show(viewId, name, mac);
+    }
+
+    public NeighbourViewDefinition? ShowNeighbourViewEditor(NeighbourViewDefinition? existing)
+    {
+        var viewModel = _services.GetRequiredService<NeighbourViewEditorViewModel>();
+        if (existing is not null)
         {
-            main.AccessPoints.Select(name, mac);
+            viewModel.Initialize(existing);
         }
+
+        var window = new NeighbourViewEditorWindow(viewModel);
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        return window.ShowDialog() == true ? viewModel.Result : null;
     }
 
     public void ShowDeviceWireless(int deviceId)

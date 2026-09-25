@@ -10,8 +10,8 @@ public enum MainTab
     Groups,
     Locations,
 
-    /// <summary>Every access point the switches see over LLDP (#55) - a sub-tab of Devices, like Groups and Locations.</summary>
-    AccessPoints,
+    /// <summary>The user's views of what the switches see over LLDP/CDP (#55) - its own tab, with a hover menu of views.</summary>
+    Neighbours,
     Rules,
     Templates,
 

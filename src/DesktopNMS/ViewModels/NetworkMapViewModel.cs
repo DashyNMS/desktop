@@ -33,10 +33,15 @@ public sealed class MapNode
 
     public DeviceState State { get; set; } = DeviceState.Down;
 
-    /// <summary>Set for an access point (#55) rather than a LibreNMS device - its <see cref="DeviceId"/> is then a negative id of the map's own (see <see cref="AccessPoints.NodeId"/>).</summary>
-    public AccessPoint? AccessPoint { get; init; }
+    /// <summary>Set for a switch neighbour from a Neighbours view (#55) rather than a LibreNMS device - its <see cref="DeviceId"/> is then a negative id of the map's own (see <see cref="Neighbours.NodeId"/>).</summary>
+    public Neighbour? Neighbour { get; init; }
 
-    public bool IsAccessPoint => AccessPoint is not null;
+    /// <summary>The view that put it on the map - where double-clicking it opens.</summary>
+    public string? NeighbourViewId { get; init; }
+
+    public string? NeighbourViewName { get; init; }
+
+    public bool IsNeighbour => Neighbour is not null;
 
     public double X { get; set; }
 
@@ -135,9 +140,9 @@ public sealed class MapConnectionItem
 /// by device up/down state from the shared <see cref="DeviceMonitor"/> poll;
 /// links come from one fleet-wide <c>resources/links</c> call, re-fetched on
 /// Refresh and when the tab is shown again after a while. Devices LibreNMS
-/// monitors appear, plus the access points the switches see (see
-/// <see cref="ShowAccessPoints"/>) - other neighbours it doesn't monitor,
-/// such as phones, are left out. Positions are auto-laid-out, then remembered per scope (and per
+/// monitors appear, plus the neighbours of Neighbours views set to show on it (see
+/// <see cref="ShowNeighbours"/>) - other neighbours it doesn't monitor are
+/// left out. Positions are auto-laid-out, then remembered per scope (and per
 /// server) once laid out or dragged, until Reset layout.
 /// </summary>
 public sealed class NetworkMapViewModel : ObservableObject, IDisposable
@@ -153,7 +158,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
     private readonly ILogger<NetworkMapViewModel> _logger;
-    private readonly IAccessPointDirectory _accessPointDirectory;
+    private readonly INeighbourDirectory _neighbourDirectory;
     private readonly Dispatcher _dispatcher;
 
     private IReadOnlyList<Device> _devices = Array.Empty<Device>();
@@ -168,8 +173,9 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     private MapScopeOption _selectedScope;
     private MapNode? _selectedNode;
     private bool _showUnlinkedDevices;
-    private bool _showAccessPoints = true;
-    private AccessPointSnapshot? _accessPoints;
+    private bool _showNeighbours = true;
+    private NeighbourSnapshot? _neighbours;
+    private string _mapViewsSignature = string.Empty;
     private string _searchText = string.Empty;
     private bool _isLoading;
     private string? _errorMessage;
@@ -186,7 +192,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         ISessionService session,
         ISettingsStore settings,
         IWindowService windows,
-        IAccessPointDirectory accessPointDirectory,
+        INeighbourDirectory neighbourDirectory,
         ILogger<NetworkMapViewModel> logger)
     {
         _deviceMonitor = deviceMonitor;
@@ -196,7 +202,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         _session = session;
         _settings = settings;
         _windows = windows;
-        _accessPointDirectory = accessPointDirectory;
+        _neighbourDirectory = neighbourDirectory;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -217,7 +223,9 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         });
         ClearFiltersCommand = new RelayCommand(() => SearchText = string.Empty);
 
+        _mapViewsSignature = MapViewsSignature(settings.Current);
         _deviceMonitor.Polled += OnDevicesPolled;
+        _settings.Changed += OnSettingsChanged;
         _groupMembership.Changed += OnGroupMembershipChanged;
         _session.StateChanged += OnSessionStateChanged;
     }
@@ -279,12 +287,12 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
 
     public bool HasSelectedNode => _selectedNode is not null;
 
-    public string SelectedNodeStateText => _selectedNode is { IsAccessPoint: true } ap
-        ? ap.State switch
+    public string SelectedNodeStateText => _selectedNode is { IsNeighbour: true } neighbour
+        ? neighbour.State switch
         {
-            DeviceState.Up => "Access point - up",
-            DeviceState.Down => "Access point - down",
-            _ => "Access point",
+            DeviceState.Up => $"{neighbour.NeighbourViewName} - up",
+            DeviceState.Down => $"{neighbour.NeighbourViewName} - down",
+            _ => neighbour.NeighbourViewName ?? string.Empty,
         }
         : _selectedNode?.State switch
     {
@@ -302,9 +310,9 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     {
         get
         {
-            if (_selectedNode?.AccessPoint is { } ap)
+            if (_selectedNode?.Neighbour is { } neighbour)
             {
-                return string.Join(" · ", new[] { ap.Model, ap.Mac }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                return string.Join(" · ", new[] { neighbour.Description, neighbour.Mac }.Where(s => !string.IsNullOrWhiteSpace(s)));
             }
 
             if (_selectedNode is null || _devices.FirstOrDefault(d => d.DeviceId == _selectedNode.DeviceId) is not { } device)
@@ -332,20 +340,21 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Draw the access points the switches see over LLDP (#55), each joined
-    /// to its switch - on by default. They aren't LibreNMS devices, so
-    /// they're drawn smaller and square, coloured by their switch port's state.
+    /// Draw the neighbours of every Neighbours view set to show on the map
+    /// (#55), each joined to its switch - on by default. Only the ones
+    /// LibreNMS doesn't monitor (those are on the map as devices already);
+    /// drawn smaller and square, coloured by their switch port's state.
     /// </summary>
-    public bool ShowAccessPoints
+    public bool ShowNeighbours
     {
-        get => _showAccessPoints;
+        get => _showNeighbours;
         set
         {
-            if (SetProperty(ref _showAccessPoints, value))
+            if (SetProperty(ref _showNeighbours, value))
             {
-                if (value && _accessPoints is null)
+                if (value && _neighbours is null)
                 {
-                    _ = LoadAccessPointsAsync(refresh: false);
+                    _ = LoadNeighboursAsync(refresh: false);
                 }
 
                 _ = RebuildAsync(fit: false);
@@ -431,10 +440,10 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
                 return string.Empty;
             }
 
-            var aps = _nodes.Count(n => n.IsAccessPoint);
-            var devices = _nodes.Count - aps;
+            var neighbours = _nodes.Count(n => n.IsNeighbour);
+            var devices = _nodes.Count - neighbours;
             var text = $"{devices} {(devices == 1 ? "device" : "devices")} · {_edges.Count} {(_edges.Count == 1 ? "connection" : "connections")}";
-            return aps > 0 ? text + $" · {aps} {(aps == 1 ? "access point" : "access points")}" : text;
+            return neighbours > 0 ? text + $" · {neighbours} {(neighbours == 1 ? "neighbour" : "neighbours")}" : text;
         }
     }
 
@@ -464,9 +473,9 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         {
             _ = LoadLinksAsync();
 
-            if (_showAccessPoints)
+            if (_showNeighbours)
             {
-                _ = LoadAccessPointsAsync(refresh: false);
+                _ = LoadNeighboursAsync(refresh: false);
             }
         }
     }
@@ -474,12 +483,12 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     /// <summary>Called by the view after the user drops a dragged node - remembers the whole scope's layout.</summary>
     public void OnNodeMoved(MapNode node) => SaveLayout();
 
-    /// <summary>Double-clicking a node - an access point opens on the Access points page.</summary>
+    /// <summary>Double-clicking a node - a neighbour opens on its Neighbours view.</summary>
     public void OpenDevice(MapNode node)
     {
-        if (node.IsAccessPoint)
+        if (node is { IsNeighbour: true, NeighbourViewId: { } viewId })
         {
-            _windows.ShowAccessPoint(node.Name, node.AccessPoint?.Mac);
+            _windows.ShowNeighbour(viewId, node.Name, node.Neighbour?.Mac);
         }
         else
         {
@@ -491,30 +500,56 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     {
         _deviceMonitor.RequestRefresh();
         _ = _groupMembership.RefreshAsync();
-        if (_showAccessPoints)
+        if (_showNeighbours)
         {
-            _ = LoadAccessPointsAsync(refresh: true);
+            _ = LoadNeighboursAsync(refresh: true);
         }
 
         await LoadLinksAsync().ConfigureAwait(true);
     }
 
-    /// <summary>The APs and their switch ports' state - shared with the Access points page. Not worth failing the map over.</summary>
-    private async Task LoadAccessPointsAsync(bool refresh)
+    /// <summary>The switch neighbours and their ports' state - shared with the Neighbours tab. Not worth failing the map over.</summary>
+    private async Task LoadNeighboursAsync(bool refresh)
     {
         try
         {
-            _accessPoints = await _accessPointDirectory.GetAsync(refresh).ConfigureAwait(true);
-            if (_showAccessPoints)
+            _neighbours = await _neighbourDirectory.GetAsync(refresh).ConfigureAwait(true);
+            if (_showNeighbours)
             {
                 await RebuildAsync(fit: false).ConfigureAwait(true);
             }
         }
         catch (LibreNmsApiException ex)
         {
-            _logger.LogWarning(ex, "Could not load access points for the network map");
+            _logger.LogWarning(ex, "Could not load switch neighbours for the network map");
         }
     }
+
+    /// <summary>Which views are on the map, and what they match - a change to it means a rebuild.</summary>
+    private static string MapViewsSignature(AppSettings settings) => string.Join(
+        "\n",
+        settings.NeighbourViews
+            .Where(v => v.ShowOnMap)
+            .Select(v => v.Id + "|" + v.Name + "|" + v.MatchAll + "|" + string.Join(";", v.Rules.Select(r => $"{r.Field}:{r.Operator}:{r.Value}"))));
+
+    private void OnSettingsChanged(object? sender, AppSettings settings) => _dispatcher.InvokeAsync(() =>
+    {
+        var signature = MapViewsSignature(settings);
+        if (signature == _mapViewsSignature)
+        {
+            return;
+        }
+
+        _mapViewsSignature = signature;
+        if (_showNeighbours && _neighbours is not null)
+        {
+            _ = RebuildAsync(fit: false);
+        }
+        else if (_showNeighbours && _hasDevices)
+        {
+            _ = LoadNeighboursAsync(refresh: false);
+        }
+    });
 
     private async Task LoadLinksAsync()
     {
@@ -629,7 +664,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         {
             _links = null;
             _portNames = null;
-            _accessPoints = null;
+            _neighbours = null;
             _devices = Array.Empty<Device>();
             _hasDevices = false;
             SelectedNode = null;
@@ -673,23 +708,22 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
 
         var graph = NetworkTopology.Build(scopeIds, _links, _portNames);
 
-        // Access points (#55): one node each, joined to the switches in
-        // scope they're plugged into - which makes those switches linked,
-        // even with nothing else connected to them.
+        // Neighbours of the views set to show on the map (#55): one node
+        // each, joined to the switches in scope they're plugged into - which
+        // makes those switches linked, even with nothing else connected to
+        // them. Ones LibreNMS monitors are on the map as devices already.
         var scopeSet = graph.DeviceIds.ToHashSet();
-        var accessPoints = _showAccessPoints && _accessPoints is { } snapshot
-            ? snapshot.AccessPoints.Where(ap => scopeSet.Contains(ap.SwitchDeviceId)).ToList()
-            : new List<AccessPoint>();
-        var apEdges = AccessPoints.MapEdges(accessPoints, _portNames);
-        var apNodes = accessPoints
-            .GroupBy(AccessPoints.NodeId)
+        var mapNeighbours = MapNeighbours(scopeSet);
+        var neighbourEdges = Neighbours.MapEdges(mapNeighbours.Select(m => m.Neighbour), _portNames);
+        var neighbourNodes = mapNeighbours
+            .GroupBy(m => Neighbours.NodeId(m.Neighbour))
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var allEdges = graph.Edges.Concat(apEdges).ToList();
+        var allEdges = graph.Edges.Concat(neighbourEdges).ToList();
         var linkedIds = graph.DeviceIds.Except(graph.UnlinkedDeviceIds)
-            .Concat(apEdges.Select(e => e.DeviceB))
+            .Concat(neighbourEdges.Select(e => e.DeviceB))
             .Distinct()
-            .Concat(apNodes.Keys)
+            .Concat(neighbourNodes.Keys)
             .ToList();
         var linkedSet = linkedIds.ToHashSet();
         var unlinkedIds = _showUnlinkedDevices ? graph.UnlinkedDeviceIds.Where(id => !linkedSet.Contains(id)).ToList() : new List<int>();
@@ -729,8 +763,17 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         foreach (var id in linkedIds.Concat(unlinkedIds))
         {
             var point = positions[id];
-            nodes[id] = apNodes.TryGetValue(id, out var aps)
-                ? new MapNode(id) { X = point.X, Y = point.Y, AccessPoint = aps[0], Name = aps[0].Name, State = AccessPointState(aps) }
+            nodes[id] = neighbourNodes.TryGetValue(id, out var found)
+                ? new MapNode(id)
+                {
+                    X = point.X,
+                    Y = point.Y,
+                    Neighbour = found[0].Neighbour,
+                    NeighbourViewId = found[0].View.Id,
+                    NeighbourViewName = found[0].View.Name,
+                    Name = found[0].Neighbour.Name,
+                    State = NeighbourNodeState(found.Select(f => f.Neighbour).ToList()),
+                }
                 : new MapNode(id) { X = point.X, Y = point.Y };
         }
 
@@ -755,15 +798,44 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>An AP node's colour: up if any of its switch ports is up, down if one is down, otherwise unknown (grey).</summary>
-    private DeviceState AccessPointState(IReadOnlyList<AccessPoint> aps)
+    /// <summary>
+    /// The neighbours to draw: those of every view set to show on the map,
+    /// on a switch in scope, that LibreNMS doesn't already monitor as a
+    /// device. One found by two views belongs to the first.
+    /// </summary>
+    private List<(Neighbour Neighbour, NeighbourViewDefinition View)> MapNeighbours(IReadOnlySet<int> scope)
     {
-        var states = aps
-            .Select(ap => new AccessPointItemViewModel(ap, _accessPoints?.PortOf(ap), _devices.FirstOrDefault(d => d.DeviceId == ap.SwitchDeviceId)).State)
+        var found = new List<(Neighbour, NeighbourViewDefinition)>();
+        if (!_showNeighbours || _neighbours is not { } snapshot)
+        {
+            return found;
+        }
+
+        var seen = new HashSet<Neighbour>();
+        var names = _devices.ToDictionary(d => d.DeviceId, d => d.BestName);
+        foreach (var view in _settings.Current.NeighbourViews.Where(v => v.ShowOnMap))
+        {
+            foreach (var neighbour in snapshot.For(view, id => names.GetValueOrDefault(id)))
+            {
+                if (!neighbour.IsMonitored && scope.Contains(neighbour.SwitchDeviceId) && seen.Add(neighbour))
+                {
+                    found.Add((neighbour, view));
+                }
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>A neighbour node's colour: up if any of its switch ports is up, down if one is down, otherwise unknown (grey) - as the Neighbours tab reads it.</summary>
+    private DeviceState NeighbourNodeState(IReadOnlyList<Neighbour> neighbours)
+    {
+        var states = neighbours
+            .Select(n => new NeighbourItemViewModel(n, _neighbours?.PortOf(n), _devices.FirstOrDefault(d => d.DeviceId == n.SwitchDeviceId), null).State)
             .ToList();
 
-        return states.Contains(ViewModels.AccessPointState.Up) ? DeviceState.Up
-            : states.Contains(ViewModels.AccessPointState.Down) ? DeviceState.Down
+        return states.Contains(NeighbourState.Up) ? DeviceState.Up
+            : states.Contains(NeighbourState.Down) ? DeviceState.Down
             : DeviceState.Disabled;
     }
 
@@ -783,10 +855,10 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
                 node.Name = nameStyle.Resolve(device, device.Hostname);
                 node.State = _maintenanceIds.Contains(node.DeviceId) ? DeviceState.Maintenance : device.State;
             }
-            else if (node.IsAccessPoint && _accessPoints is { } snapshot)
+            else if (node.IsNeighbour && _neighbours is { } snapshot)
             {
-                // An AP follows its switch - down with it, see AccessPointItemViewModel.
-                node.State = AccessPointState(snapshot.AccessPoints.Where(ap => AccessPoints.NodeId(ap) == node.DeviceId).ToList());
+                // A neighbour follows its switch - down with it, see NeighbourItemViewModel.
+                node.State = NeighbourNodeState(snapshot.Neighbours.Where(n => Neighbours.NodeId(n) == node.DeviceId).ToList());
             }
         }
 
@@ -891,6 +963,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _deviceMonitor.Polled -= OnDevicesPolled;
+        _settings.Changed -= OnSettingsChanged;
         _groupMembership.Changed -= OnGroupMembershipChanged;
         _session.StateChanged -= OnSessionStateChanged;
     }

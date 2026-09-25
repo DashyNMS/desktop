@@ -50,9 +50,9 @@
                               VerticalAlignment="Center"
                               Margin="16,0,0,0" />
 
-                    <CheckBox Content="Access points"
-                              IsChecked="{Binding ShowAccessPoints}"
-                              ToolTip="Also show the access points your switches see over LLDP, each joined to its switch - drawn as small squares. Double-click one to open it on the Access points page."
+                    <CheckBox Content="Neighbours"
+                              IsChecked="{Binding ShowNeighbours}"
+                              ToolTip="Also show what your Neighbours views find, for views set to show on the map (edit a view on the Neighbours tab) - drawn as small squares joined to their switches. Double-click one to open it on its view."
                               VerticalAlignment="Center"
                               Margin="16,0,0,0" />
 

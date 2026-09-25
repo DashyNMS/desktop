@@ -197,6 +197,12 @@ public sealed class AppSettings
     /// <summary>Device Details sidebar groups the user has folded away ("health", "hardware", "network", "logs", "integrations") - the same for every device window.</summary>
     public List<string> CollapsedDeviceNavGroups { get; set; } = new();
 
+    /// <summary>The Neighbours tab's views, in the order the user made them - see <see cref="NeighbourViewDefinition"/>.</summary>
+    public List<NeighbourViewDefinition> NeighbourViews { get; set; } = new();
+
+    /// <summary>The Neighbours view last looked at, so the tab opens on it again.</summary>
+    public string? LastNeighbourViewId { get; set; }
+
     /// <summary>
     /// The accent colour used for buttons, selection highlights and links
     /// throughout the app, as "#RRGGBB". Deliberately separate from the fixed
@@ -277,6 +283,8 @@ public sealed class AppSettings
         RecentlyViewedDeviceCount = RecentlyViewedDeviceCount,
         PinnedDevices = PinnedDevices.Select(d => d.Clone()).ToList(),
         CollapsedDeviceNavGroups = CollapsedDeviceNavGroups.ToList(),
+        NeighbourViews = NeighbourViews.Select(v => v.Clone()).ToList(),
+        LastNeighbourViewId = LastNeighbourViewId,
         AccentColor = AccentColor,
         Theme = Theme,
         ShowServerLogo = ShowServerLogo,
@@ -318,6 +326,13 @@ public sealed class AppSettings
         }
         PinnedDevices ??= new List<PinnedDevice>();
         CollapsedDeviceNavGroups ??= new List<string>();
+        NeighbourViews ??= new List<NeighbourViewDefinition>();
+        NeighbourViews.RemoveAll(v => v is null);
+        foreach (var view in NeighbourViews)
+        {
+            view.Normalise();
+        }
+
         GridLayouts ??= new Dictionary<string, GridLayout>();
         DbmThresholds ??= new DbmThresholdSettings();
         SignalThresholds ??= new SignalThresholdSettings();

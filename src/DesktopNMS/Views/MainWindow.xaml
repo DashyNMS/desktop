@@ -166,10 +166,6 @@
                                                 Style="{StaticResource FlyoutMenuItemStyle}"
                                                 Command="{Binding SelectLocationsTabCommand}"
                                                 Click="DevicesFlyoutItem_Click" />
-                                        <Button Content="Access points"
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectAccessPointsTabCommand}"
-                                                Click="DevicesFlyoutItem_Click" />
                                     </StackPanel>
                                 </Border>
                             </Popup>
@@ -227,6 +223,66 @@
                                                 Style="{StaticResource FlyoutMenuItemStyle}"
                                                 Command="{Binding SelectCustomMapsTabCommand}"
                                                 Click="MapsFlyoutItem_Click" />
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <!-- Neighbours (#55): the tab's own click opens the
+                             last view looked at; hovering lists every view
+                             plus New view, the same flyout pattern as Maps. -->
+                        <Grid>
+                            <ToggleButton x:Name="NeighboursTabButton"
+                                          Style="{StaticResource NavTabButtonStyle}"
+                                          IsChecked="{Binding IsNeighboursTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectNeighboursTabCommand}"
+                                          MouseEnter="NeighboursTabButton_MouseEnter"
+                                          MouseLeave="NeighboursTabButton_MouseLeave">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Neighbours" />
+                                    <TextBlock Text="&#xE70D;"
+                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                               FontSize="9"
+                                               Margin="5,0,0,0"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ToggleButton>
+
+                            <Popup x:Name="NeighboursFlyout"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   StaysOpen="True">
+                                <Border x:Name="NeighboursFlyoutContent"
+                                        Background="{StaticResource SurfaceBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="4"
+                                        Margin="0,4,0,0"
+                                        MouseEnter="NeighboursFlyoutContent_MouseEnter"
+                                        MouseLeave="NeighboursFlyoutContent_MouseLeave">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
+                                    </Border.Effect>
+                                    <StackPanel MinWidth="160">
+                                        <ItemsControl ItemsSource="{Binding Neighbours.Views}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="{Binding Name}"
+                                                            Style="{StaticResource FlyoutMenuItemStyle}"
+                                                            Command="{Binding DataContext.SelectNeighbourViewCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}"
+                                                            Click="NeighboursFlyoutItem_Click" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Rectangle Height="1"
+                                                   Fill="{StaticResource BorderBrush}"
+                                                   Margin="6,4"
+                                                   Visibility="{Binding Neighbours.HasViews, Converter={StaticResource BoolToVisibility}}" />
+                                        <Button Content="New view..."
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding NewNeighbourViewCommand}"
+                                                Click="NeighboursFlyoutItem_Click" />
                                     </StackPanel>
                                 </Border>
                             </Popup>
@@ -386,8 +442,8 @@
                 <views:LocationsView x:Name="LocationsViewControl" DataContext="{Binding Locations}" />
             </Grid>
 
-            <Grid Visibility="{Binding IsAccessPointsTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:AccessPointsView x:Name="AccessPointsViewControl" DataContext="{Binding AccessPoints}" />
+            <Grid Visibility="{Binding IsNeighboursTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:NeighboursView x:Name="NeighboursViewControl" DataContext="{Binding Neighbours}" />
             </Grid>
 
             <Grid Visibility="{Binding IsNetworkMapTabSelected, Converter={StaticResource BoolToVisibility}}">

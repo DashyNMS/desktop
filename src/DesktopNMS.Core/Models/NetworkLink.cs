@@ -41,7 +41,7 @@ public sealed class NetworkLink
     [JsonPropertyName("protocol")]
     public string? Protocol { get; set; }
 
-    /// <summary>What the neighbour announces about its software, e.g. "ArubaOS (MODEL: 535), Version Aruba AP" - how an access point is recognised (see <see cref="Topology.AccessPoints"/>).</summary>
+    /// <summary>What the neighbour announces about its software, e.g. "ArubaOS (MODEL: 535), Version Aruba AP" - what a Neighbours view rule tests (see <see cref="Topology.Neighbours"/>).</summary>
     [JsonPropertyName("remote_version")]
     public string? RemoteVersion { get; set; }
 

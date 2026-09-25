@@ -1,4 +1,4 @@
-<UserControl x:Class="DesktopNMS.Views.AccessPointsView"
+<UserControl x:Class="DesktopNMS.Views.NeighboursView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -7,12 +7,13 @@
              xmlns:views="clr-namespace:DesktopNMS.Views"
              xmlns:svgc="clr-namespace:SharpVectors.Converters;assembly=SharpVectors.Converters.Wpf"
              mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance Type=vm:AccessPointsViewModel}"
+             d:DataContext="{d:DesignInstance Type=vm:NeighboursViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100">
 
-    <!-- The Access points page (#55) - see AccessPointsViewModel. Every AP
-         the switches see over LLDP, with its switch port's state; selecting
-         one shows that port's traffic graph underneath. -->
+    <!-- The Neighbours tab (#55) - see NeighboursViewModel. One user-made
+         view at a time (picked from the tab's hover menu): what the
+         switches see over LLDP/CDP that matches its rules, with each one's
+         switch port; selecting one shows that port's graphs underneath. -->
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -21,36 +22,65 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- ======================== Summary + search ======================== -->
+        <!-- ======================== View + filters ======================== -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="18,12">
+                Padding="18,12"
+                Visibility="{Binding HasSelectedView, Converter={StaticResource BoolToVisibility}}">
             <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- State pills - the AP's switch port, which is what LibreNMS's
-                     API has; shift-click shows only that one. -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <ToggleButton IsChecked="{Binding ShowUp}" Tag="{x:Static vm:AccessPointState.Up}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide APs that are up - their switch and switch port are up (shift-click to show only these)" Margin="0,0,10,0">
+                <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock Text="{Binding SelectedView.Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding ViewRulesText}" Style="{StaticResource SubtleTextStyle}" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Edit view"
+                            Style="{StaticResource ChipButtonStyle}"
+                            Command="{Binding EditViewCommand}"
+                            ToolTip="Change this view's name and rules"
+                            Margin="0,0,8,0" />
+                    <Button Command="{Binding DeleteViewCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Delete this view"
+                            Foreground="{StaticResource CriticalBrush}"
+                            Margin="0,0,4,0">
+                        <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                    </Button>
+                    <Button Command="{Binding NewViewCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="New view">
+                        <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                    </Button>
+                </StackPanel>
+
+                <!-- State pills - shift-click shows only that one. -->
+                <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,12,0,0">
+                    <ToggleButton IsChecked="{Binding ShowUp}" Tag="{x:Static vm:NeighbourState.Up}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide those that are up (shift-click to show only these)" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
                             <TextBlock Text="up" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                         </StackPanel>
                     </ToggleButton>
-                    <ToggleButton IsChecked="{Binding ShowDown}" Tag="{x:Static vm:AccessPointState.Down}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide APs that are down - their switch port, or the switch itself, is down (shift-click to show only these)" Margin="0,0,10,0">
+                    <ToggleButton IsChecked="{Binding ShowDown}" Tag="{x:Static vm:NeighbourState.Down}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide those that are down - the device itself, its switch port, or the switch (shift-click to show only these)" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
                             <TextBlock Text="down" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                         </StackPanel>
                     </ToggleButton>
-                    <ToggleButton IsChecked="{Binding ShowOther}" Tag="{x:Static vm:AccessPointState.Unknown}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide APs on a shut-down port, or whose port LibreNMS doesn't know (shift-click to show only these)"
+                    <ToggleButton IsChecked="{Binding ShowOther}" Tag="{x:Static vm:NeighbourState.Other}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide shut-down ports, disabled or in-maintenance devices, and ones LibreNMS no longer sees (shift-click to show only these)"
                                   Visibility="{Binding HasOther, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
@@ -60,15 +90,14 @@
                     </ToggleButton>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,12,0,0">
                     <TextBox x:Name="SearchBox"
                              Width="240"
                              Style="{StaticResource SearchTextBoxStyle}"
-                             Tag="Search access points"
+                             Tag="Search"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                             ToolTip="Filter by name, model, switch, port or MAC"
+                             ToolTip="Filter by name, description, switch, port or MAC"
                              Margin="0,0,8,0" />
-
                     <Button Command="{Binding ClearFiltersCommand}"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Clear search and filters"
@@ -89,16 +118,17 @@
             <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" />
         </Border>
 
-        <!-- ======================== AP list ======================== -->
+        <!-- ======================== Neighbour list ======================== -->
         <Grid Grid.Row="2">
-            <DataGrid x:Name="AccessPointsGrid"
+            <Grid Visibility="{Binding HasSelectedView, Converter={StaticResource BoolToVisibility}}">
+            <DataGrid x:Name="NeighboursGrid"
                       ItemsSource="{Binding ItemsView}"
                       SelectedItem="{Binding SelectedItem}"
                       SelectionMode="Single"
                       IsReadOnly="True"
                       Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
                 <DataGrid.Columns>
-                    <DataGridTemplateColumn Header="State" Width="120" SortMemberPath="State">
+                    <DataGridTemplateColumn Header="State" Width="130" SortMemberPath="State">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" Margin="10,0">
@@ -113,17 +143,36 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Header="Access point" Width="*" MinWidth="180" SortMemberPath="Name">
+                    <DataGridTemplateColumn Header="Name" Width="*" MinWidth="170" SortMemberPath="Name">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding Name}" ToolTip="{Binding ToolTip}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="10,0" />
+                                <Grid Margin="10,0" VerticalAlignment="Center" ToolTip="{Binding ToolTip}">
+                                    <!-- A LibreNMS device of its own links to it. -->
+                                    <TextBlock Cursor="Hand"
+                                               TextTrimming="CharacterEllipsis"
+                                               Visibility="{Binding IsMonitored, Converter={StaticResource BoolToVisibility}}">
+                                        <Hyperlink Command="{Binding DataContext.OpenDeviceCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                   CommandParameter="{Binding}">
+                                            <Run Text="{Binding Name, Mode=OneWay}" />
+                                        </Hyperlink>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Name}"
+                                               TextTrimming="CharacterEllipsis"
+                                               Visibility="{Binding IsMonitored, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                </Grid>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTextColumn Header="Model" Width="90" Binding="{Binding ModelText}" />
+                    <DataGridTemplateColumn Header="Description" Width="*" MinWidth="160" SortMemberPath="DescriptionText">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DescriptionText}" ToolTip="{Binding DescriptionText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="10,0" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Header="Switch" Width="*" MinWidth="160" SortMemberPath="SwitchName">
+                    <DataGridTemplateColumn Header="Switch" Width="*" MinWidth="150" SortMemberPath="SwitchName">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Margin="10,0" VerticalAlignment="Center" Cursor="Hand" TextTrimming="CharacterEllipsis">
@@ -138,34 +187,51 @@
                     </DataGridTemplateColumn>
 
                     <DataGridTextColumn Header="Port" Width="110" Binding="{Binding PortText}" />
-                    <DataGridTextColumn Header="Speed" Width="90" Binding="{Binding SpeedText}" />
-                    <DataGridTextColumn Header="Traffic" Width="230" Binding="{Binding TrafficText}" SortMemberPath="InBps" />
-                    <DataGridTextColumn Header="MAC" Width="150" Binding="{Binding MacText}" />
+                    <DataGridTextColumn Header="Speed" Width="80" Binding="{Binding SpeedText}" />
+                    <DataGridTextColumn Header="Traffic" Width="210" Binding="{Binding TrafficText}" SortMemberPath="InBps" />
+                    <DataGridTextColumn Header="MAC" Width="140" Binding="{Binding MacText}" />
                 </DataGrid.Columns>
             </DataGrid>
 
-            <TextBlock Text="Loading access points..."
+            <TextBlock Text="Loading neighbours..."
                        Style="{StaticResource SubtleTextStyle}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
 
-            <TextBlock Text="No access points found - none of your switches see an AP over LLDP."
+            <TextBlock Text="Nothing your switches see matches this view's rules."
                        Style="{StaticResource SubtleTextStyle}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}" />
 
-            <TextBlock Text="No access points match your search."
+            <TextBlock Text="Nothing matches your search or filters."
                        Style="{StaticResource SubtleTextStyle}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}" />
+            </Grid>
+
+            <!-- No views yet. -->
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        MaxWidth="460"
+                        Visibility="{Binding HasViews, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                <TextBlock Text="No neighbour views yet" Style="{StaticResource HeadingTextStyle}" HorizontalAlignment="Center" />
+                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           Margin="0,8,0,16"
+                           Text="A view lists what your switches see over LLDP/CDP that matches rules you set - access points, antennas, cameras, anything. For example: system description contains &quot;Riedel Bolero DECT Antenna&quot;." />
+                <Button Content="New view"
+                        Command="{Binding NewViewCommand}"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        HorizontalAlignment="Center" />
+            </StackPanel>
         </Grid>
 
-        <!-- ======================== Selected AP's port graphs ======================== -->
-        <!-- Traffic, packets and errors for the selected AP's switch port,
-             two across. -->
+        <!-- ======================== Selected neighbour's port graphs ======================== -->
+        <!-- Traffic, packets and errors for its switch port, two across. -->
         <Border Grid.Row="3"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
