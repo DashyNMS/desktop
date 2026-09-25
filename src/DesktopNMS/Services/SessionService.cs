@@ -30,7 +30,15 @@ public interface ISessionService
         string apiToken,
         bool allowUntrustedCertificate,
         bool rememberToken,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? backupAddress = null);
+
+    /// <summary>
+    /// Sets or clears the server's backup address (see <see cref="ServerFailover"/>)
+    /// and applies it to the live connection straight away - back on the main
+    /// address. False if it isn't a usable address.
+    /// </summary>
+    bool SetBackupAddress(string? backupAddress);
 
     /// <summary>
     /// Attempts to sign in with the saved address and token. Returns false when
@@ -74,7 +82,8 @@ public sealed class SessionService : ISessionService
         string apiToken,
         bool allowUntrustedCertificate,
         bool rememberToken,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? backupAddress = null)
     {
         if (!LibreNmsConnection.TryParseWebRoot(serverUrl, out var webRoot, out var urlError))
         {
@@ -86,12 +95,18 @@ public sealed class SessionService : ISessionService
             return ConnectionTestResult.Failure("Enter the API token from LibreNMS (Settings, API, API Access).");
         }
 
+        if (!string.IsNullOrWhiteSpace(backupAddress) && !ServerFailover.IsValidAddress(backupAddress))
+        {
+            return ConnectionTestResult.Failure("The backup address should be an IP address or a hostname - no https://, path or port.");
+        }
+
         var settings = _settings.Current;
         var connection = new LibreNmsConnection(
             webRoot!,
             apiToken.Trim(),
             allowUntrustedCertificate,
-            settings.TimeoutSeconds);
+            settings.TimeoutSeconds,
+            backupAddress);
 
         var result = await _client.TestAsync(connection, cancellationToken).ConfigureAwait(false);
 
@@ -100,10 +115,11 @@ public sealed class SessionService : ISessionService
             return result;
         }
 
-        _client.Connect(connection);
+        _client.Connect(connection, result.UsedBackupAddress);
         ServerInfo = result.SystemInfo;
 
         settings.ServerUrl = webRoot!.ToString();
+        settings.BackupServerAddress = connection.BackupAddress;
         settings.AllowUntrustedCertificate = allowUntrustedCertificate;
         settings.RememberToken = rememberToken;
         _settings.Save();
@@ -121,6 +137,33 @@ public sealed class SessionService : ISessionService
         StateChanged?.Invoke(this, EventArgs.Empty);
 
         return result;
+    }
+
+    public bool SetBackupAddress(string? backupAddress)
+    {
+        var address = string.IsNullOrWhiteSpace(backupAddress) ? null : backupAddress.Trim();
+        if (address is not null && !ServerFailover.IsValidAddress(address))
+        {
+            return false;
+        }
+
+        var settings = _settings.Current;
+        if (string.Equals(settings.BackupServerAddress, address, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        settings.BackupServerAddress = address;
+        _settings.Save();
+
+        // The live connection picks it up now, on the main address.
+        if (_client.Connection is { } current)
+        {
+            _client.Connect(new LibreNmsConnection(current.WebRoot, current.ApiToken, current.AllowUntrustedCertificate, current.TimeoutSeconds, address));
+        }
+
+        _logger.LogInformation("Backup server address {Change}", address is null ? "cleared" : $"set to {address}");
+        return true;
     }
 
     public async Task<ConnectionTestResult?> TryRestoreAsync(CancellationToken cancellationToken = default)
@@ -147,15 +190,16 @@ public sealed class SessionService : ISessionService
             webRoot!,
             token!,
             settings.AllowUntrustedCertificate,
-            settings.TimeoutSeconds);
+            settings.TimeoutSeconds,
+            ServerFailover.IsValidAddress(settings.BackupServerAddress) ? settings.BackupServerAddress : null);
 
         var result = await _client.TestAsync(connection, cancellationToken).ConfigureAwait(false);
 
         if (result.Succeeded)
         {
-            _client.Connect(connection);
+            _client.Connect(connection, result.UsedBackupAddress);
             ServerInfo = result.SystemInfo;
-            _logger.LogInformation("Restored the saved session for {Host}", webRoot);
+            _logger.LogInformation("Restored the saved session for {Host}{Backup}", webRoot, result.UsedBackupAddress ? " through its backup address" : string.Empty);
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
         else

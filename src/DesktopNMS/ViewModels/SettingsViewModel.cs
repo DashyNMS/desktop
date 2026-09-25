@@ -482,6 +482,31 @@ public sealed class SettingsViewModel : ObservableObject
 
     public string ServerUrlText => _session.Connection?.WebRoot.ToString() ?? "-";
 
+    /// <summary>Another IP or name for the same server, used once the main address stops answering - see <see cref="Core.Api.ServerFailover"/>. Applied to the live connection on Save.</summary>
+    public string BackupServerAddress
+    {
+        get => _draft.BackupServerAddress ?? string.Empty;
+        set
+        {
+            var text = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (_draft.BackupServerAddress == text)
+            {
+                return;
+            }
+
+            _draft.BackupServerAddress = text;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(BackupServerAddressError));
+            OnPropertyChanged(nameof(HasBackupServerAddressError));
+        }
+    }
+
+    public string? BackupServerAddressError => _draft.BackupServerAddress is { } address && !Core.Api.ServerFailover.IsValidAddress(address)
+        ? "Enter an IP address or a hostname - no https://, path or port."
+        : null;
+
+    public bool HasBackupServerAddressError => BackupServerAddressError is not null;
+
     /// <summary>
     /// False only if the very first fetch (at sign-in) somehow never
     /// completed - Settings can still be opened while signed out, and this
@@ -2044,6 +2069,12 @@ public sealed class SettingsViewModel : ObservableObject
 
     private void Save()
     {
+        // The error shows by the field; nothing's saved until it's fixed.
+        if (HasBackupServerAddressError)
+        {
+            return;
+        }
+
         _startup.SetEnabled(_draft.StartWithWindows);
 
         // Keep the window placement, filter chips, dashboard layout,
@@ -2061,7 +2092,14 @@ public sealed class SettingsViewModel : ObservableObject
         ApplyUnimusConfiguration();
         ApplyGraylogConfiguration();
 
+        // The session applies the backup address to the live connection (and
+        // saves it) - only if it changed, since applying it moves the
+        // connection back onto the main address.
+        var backup = _draft.BackupServerAddress;
+        _draft.BackupServerAddress = _store.Current.BackupServerAddress;
+
         _store.Replace(_draft);
+        _session.SetBackupAddress(backup);
         RequestClose?.Invoke(this, true);
     }
 

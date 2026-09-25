@@ -55,7 +55,11 @@ public interface ILibreNmsClient
     bool IsConnected { get; }
 
     /// <summary>Points the client at an instance. Does not perform any network I/O.</summary>
-    void Connect(LibreNmsConnection connection);
+    /// <param name="startOnBackup">Dial the connection's backup address from the start - see <see cref="ConnectionTestResult.UsedBackupAddress"/>.</param>
+    void Connect(LibreNmsConnection connection, bool startOnBackup = false);
+
+    /// <summary>The backup address state for the live connection - see <see cref="ServerFailover"/>.</summary>
+    ServerFailover Failover { get; }
 
     /// <summary>Forgets the current connection.</summary>
     void Disconnect();
@@ -86,7 +90,10 @@ public sealed class ConnectionTestResult
 
     public bool IsAuthenticationFailure { get; }
 
-    public static ConnectionTestResult Success(SystemInfo info) => new(true, info, null, false);
+    /// <summary>The main address couldn't be reached, but the backup address answered - connect on the backup.</summary>
+    public bool UsedBackupAddress { get; private init; }
+
+    public static ConnectionTestResult Success(SystemInfo info, bool usedBackupAddress = false) => new(true, info, null, false) { UsedBackupAddress = usedBackupAddress };
 
     public static ConnectionTestResult Failure(string message, bool isAuthenticationFailure = false)
         => new(false, null, message, isAuthenticationFailure);

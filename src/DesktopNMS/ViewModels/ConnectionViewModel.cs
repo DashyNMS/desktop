@@ -31,6 +31,7 @@ public sealed class ConnectionViewModel : ObservableObject
 
         var current = settings.Current;
         _serverUrl = current.ServerUrl ?? string.Empty;
+        _backupAddress = current.BackupServerAddress ?? string.Empty;
         _allowUntrustedCertificate = current.AllowUntrustedCertificate;
         _rememberToken = current.RememberToken;
 
@@ -47,6 +48,15 @@ public sealed class ConnectionViewModel : ObservableObject
         get => _serverUrl;
         set => SetProperty(ref _serverUrl, value);
     }
+
+    /// <summary>Optional: another address for the same server - an IP, or another name - used if the main one stops answering (see ServerFailover).</summary>
+    public string BackupAddress
+    {
+        get => _backupAddress;
+        set => SetProperty(ref _backupAddress, value);
+    }
+
+    private string _backupAddress;
 
     /// <summary>
     /// Bound from the PasswordBox code-behind rather than by two-way binding,
@@ -118,16 +128,18 @@ public sealed class ConnectionViewModel : ObservableObject
 
         try
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(_settings.Current.TimeoutSeconds + 5));
+            // Long enough to try the backup address too, if the main one doesn't answer.
+            var seconds = _settings.Current.TimeoutSeconds + 5;
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(string.IsNullOrWhiteSpace(BackupAddress) ? seconds : seconds * 2));
 
             var result = await _session
-                .SignInAsync(ServerUrl, ApiToken, AllowUntrustedCertificate, RememberToken, timeout.Token)
+                .SignInAsync(ServerUrl, ApiToken, AllowUntrustedCertificate, RememberToken, timeout.Token, BackupAddress)
                 .ConfigureAwait(true);
 
             if (result.Succeeded)
             {
                 var version = result.SystemInfo?.LocalVersion;
-                SuccessMessage = version is null ? "Connected." : $"Connected to LibreNMS {version}.";
+                SuccessMessage = (version is null ? "Connected" : $"Connected to LibreNMS {version}") + (result.UsedBackupAddress ? " through the backup address." : ".");
                 RequestClose?.Invoke(this, true);
                 return;
             }

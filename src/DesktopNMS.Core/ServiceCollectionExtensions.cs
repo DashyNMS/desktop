@@ -16,6 +16,7 @@ public static class ServiceCollectionExtensions
     [SupportedOSPlatform("windows")]
     public static IServiceCollection AddDesktopNmsCore(this IServiceCollection services)
     {
+        services.AddSingleton<ServerFailover>();
         services.AddSingleton<LibreNmsTransport>();
         services.AddSingleton<ILibreNmsTransport>(sp => sp.GetRequiredService<LibreNmsTransport>());
         services.AddSingleton<LibreNmsClient>();

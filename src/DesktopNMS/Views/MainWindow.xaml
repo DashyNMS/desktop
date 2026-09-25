@@ -63,6 +63,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -408,8 +409,41 @@
             </Grid>
         </Border>
 
+        <!-- ======================== Backup address in use ======================== -->
+        <!-- The server stopped answering at its own address, so the app
+             is going through the backup address (see ServerFailover) - it
+             stays there until switched back here. -->
+        <Border Grid.Row="1"
+                Background="#33DB9A04"
+                BorderBrush="{StaticResource WarningBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,8"
+                Visibility="{Binding IsOnBackupAddress, Converter={StaticResource BoolToVisibility}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="&#xE7BA;"
+                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                           Foreground="{StaticResource WarningBrush}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0" />
+                <TextBlock Grid.Column="1" Text="{Binding BackupAddressBannerText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <Button Grid.Column="2"
+                        Content="Switch back"
+                        Style="{StaticResource ChipButtonStyle}"
+                        Command="{Binding SwitchBackToMainAddressCommand}"
+                        ToolTip="Go back to the server's own address - if it still doesn't answer, the app moves to the backup again"
+                        Margin="12,0,0,0"
+                        VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
         <!-- ======================== Content ======================== -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <!-- Visibility is bound on this Grid, against the inherited
                  MainViewModel DataContext; DevicesView's own DataContext is
                  overridden below it to DeviceList. A binding on the same

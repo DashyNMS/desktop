@@ -55,6 +55,13 @@ public sealed class AppSettings
     /// <summary>Root URL of the LibreNMS web UI, e.g. https://nms.example.com/.</summary>
     public string? ServerUrl { get; set; }
 
+    /// <summary>
+    /// Another address for the same LibreNMS server - an IP, or another name -
+    /// used once the main one stops answering, until switched back by hand.
+    /// See <see cref="Api.ServerFailover"/>.
+    /// </summary>
+    public string? BackupServerAddress { get; set; }
+
     /// <summary>Accept self-signed or internally-issued certificates.</summary>
     public bool AllowUntrustedCertificate { get; set; }
 
@@ -250,6 +257,7 @@ public sealed class AppSettings
     public AppSettings Clone() => new()
     {
         ServerUrl = ServerUrl,
+        BackupServerAddress = BackupServerAddress,
         AllowUntrustedCertificate = AllowUntrustedCertificate,
         TimeoutSeconds = TimeoutSeconds,
         PollIntervalSeconds = PollIntervalSeconds,

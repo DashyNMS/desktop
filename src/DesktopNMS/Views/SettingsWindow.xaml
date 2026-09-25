@@ -853,6 +853,26 @@
                                            Margin="0,8,0,0"
                                            Visibility="{Binding HasServerInfoStatus, Converter={StaticResource BoolToVisibility}}" />
 
+                                <!-- The backup address: another route to the
+                                     same server, taken after two requests in a
+                                     row get no answer at all, until switched
+                                     back from the banner the app shows. -->
+                                <TextBlock Text="Backup address" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding BackupServerAddress, UpdateSourceTrigger=PropertyChanged}"
+                                         MaxWidth="320"
+                                         HorizontalAlignment="Left"
+                                         MinWidth="240"
+                                         ToolTip="Another IP or name for the same server, e.g. 10.46.2.10" />
+                                <TextBlock Text="{Binding BackupServerAddressError}"
+                                           Foreground="{StaticResource CriticalBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Visibility="{Binding HasBackupServerAddressError, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="Optional. Another IP or name for the same LibreNMS server - used if the server address stops answering twice in a row, until you switch back. HTTPS still checks the certificate against the server's own name." />
+
                                 <Grid Margin="0,16,0,0" Visibility="{Binding HasServerInfo, Converter={StaticResource BoolToVisibility}}">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />

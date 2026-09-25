@@ -7,8 +7,9 @@ public sealed class LibreNmsConnection
 {
     public const string ApiPathSegment = "api/v0";
 
-    public LibreNmsConnection(Uri webRoot, string apiToken, bool allowUntrustedCertificate = false, int timeoutSeconds = 30)
+    public LibreNmsConnection(Uri webRoot, string apiToken, bool allowUntrustedCertificate = false, int timeoutSeconds = 30, string? backupAddress = null)
     {
+        BackupAddress = string.IsNullOrWhiteSpace(backupAddress) ? null : backupAddress.Trim();
         WebRoot = webRoot ?? throw new ArgumentNullException(nameof(webRoot));
         ApiToken = apiToken ?? throw new ArgumentNullException(nameof(apiToken));
         AllowUntrustedCertificate = allowUntrustedCertificate;
@@ -27,6 +28,14 @@ public sealed class LibreNmsConnection
     public bool AllowUntrustedCertificate { get; }
 
     public int TimeoutSeconds { get; }
+
+    /// <summary>
+    /// Another address for the same server (an IP, or another name) - dialled
+    /// instead of <see cref="WebRoot"/>'s host once it stops answering; see
+    /// <see cref="ServerFailover"/>. The URL, its hostname and the certificate
+    /// check stay the same, so HTTPS still works against an IP.
+    /// </summary>
+    public string? BackupAddress { get; }
 
     /// <summary>
     /// Turns whatever the user typed into a usable web root: adds a scheme if

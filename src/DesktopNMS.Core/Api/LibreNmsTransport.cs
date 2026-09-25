@@ -15,6 +15,7 @@ namespace DesktopNMS.Core.Api;
 public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
 {
     private readonly ILogger<LibreNmsTransport> _logger;
+    private readonly ServerFailover _failover;
     private readonly object _sync = new();
 
     private HttpClient? _http;
@@ -22,10 +23,15 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
     private LibreNmsConnection? _connection;
     private bool _disposed;
 
-    public LibreNmsTransport(ILogger<LibreNmsTransport> logger)
+    /// <param name="failover">The backup address state - shared with the app, which shows it and switches back; a throwaway transport (a connection test) gets its own.</param>
+    public LibreNmsTransport(ILogger<LibreNmsTransport> logger, ServerFailover? failover = null)
     {
         _logger = logger;
+        _failover = failover ?? new ServerFailover();
+        _failover.Changed += OnFailoverChanged;
     }
+
+    public ServerFailover Failover => _failover;
 
     public LibreNmsConnection? Connection
     {
@@ -42,10 +48,41 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
     /// Points the transport at a LibreNMS instance. Safe to call repeatedly;
     /// the previous client and handler are disposed.
     /// </summary>
-    public void Configure(LibreNmsConnection connection)
+    /// <param name="startOnBackup">Dial the backup address from the start - the main one was unreachable when signing in.</param>
+    public void Configure(LibreNmsConnection connection, bool startOnBackup = false)
     {
         ArgumentNullException.ThrowIfNull(connection);
 
+        Install(connection);
+        _failover.Configure(connection.BackupAddress, startOnBackup);
+        _logger.LogInformation(
+            "LibreNMS transport configured for {ApiBase}{Backup}",
+            connection.ApiBase,
+            connection.BackupAddress is { } backup ? $" (backup address {backup}{(startOnBackup ? ", in use" : string.Empty)})" : string.Empty);
+    }
+
+    /// <summary>Switched to the backup address or back: a fresh client, so no pooled connection to the old address carries on being used.</summary>
+    private void OnFailoverChanged(object? sender, EventArgs e)
+    {
+        var connection = Connection;
+        if (connection is null)
+        {
+            return;
+        }
+
+        Install(connection);
+        if (_failover.IsOnBackup)
+        {
+            _logger.LogWarning("{Host} stopped answering - now using the backup address {Backup}", connection.WebRoot.Host, _failover.BackupAddress);
+        }
+        else
+        {
+            _logger.LogInformation("Switched back to the main address for {Host}", connection.WebRoot.Host);
+        }
+    }
+
+    private void Install(LibreNmsConnection connection)
+    {
         // A plain HttpClientHandler leaves .NET's default pooled-connection
         // lifetime (effectively unbounded) in place. Many LibreNMS installs sit
         // behind a reverse proxy (openresty/nginx) that silently drops
@@ -62,6 +99,26 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
             UseCookies = false,
             PooledConnectionIdleTimeout = TimeSpan.FromSeconds(90),
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+        };
+
+        // On the backup address, dial it in place of the URL's host. The
+        // request itself still names the host, so TLS (SNI and the certificate
+        // check) and the Host header stay as they are - the backup is the same
+        // server by another route.
+        handler.ConnectCallback = async (context, cancellationToken) =>
+        {
+            var host = _failover.IsOnBackup && _failover.BackupAddress is { } backup ? backup : context.DnsEndPoint.Host;
+            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+            try
+            {
+                await socket.ConnectAsync(host, context.DnsEndPoint.Port, cancellationToken).ConfigureAwait(false);
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
         };
 
         if (connection.AllowUntrustedCertificate)
@@ -95,7 +152,6 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         oldHttp?.Dispose();
         oldHandler?.Dispose();
 
-        _logger.LogInformation("LibreNMS transport configured for {ApiBase}", connection.ApiBase);
     }
 
     /// <summary>Drops the current connection; subsequent calls fail as "not signed in".</summary>
@@ -117,11 +173,49 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         oldHandler?.Dispose();
     }
 
-    public async Task<JsonDocument> SendAsync(
+    public Task<JsonDocument> SendAsync(
         HttpMethod method,
         string relativeUrl,
         object? body = null,
         CancellationToken cancellationToken = default)
+        => TrackReachabilityAsync(() => SendWithRetriesAsync(method, relativeUrl, body, cancellationToken));
+
+    public Task<string> SendRawAsync(string relativeUrl, CancellationToken cancellationToken = default)
+        => TrackReachabilityAsync(() => SendRawWithRetriesAsync(relativeUrl, cancellationToken));
+
+    /// <summary>
+    /// Counts each request, once its own retries are spent, towards the
+    /// backup address failover (see <see cref="ServerFailover"/>): an answer of
+    /// any kind shows the server's reachable; not reaching it at all counts
+    /// against it. The request that tips it over to the backup is tried
+    /// again there straight away, so its caller never sees the switch.
+    /// </summary>
+    private async Task<T> TrackReachabilityAsync<T>(Func<Task<T>> send)
+    {
+        try
+        {
+            var result = await send().ConfigureAwait(false);
+            _failover.RecordSuccess();
+            return result;
+        }
+        catch (LibreNmsApiException ex) when (ex.StatusCode is not null)
+        {
+            _failover.RecordSuccess();
+            throw;
+        }
+        catch (LibreNmsApiException ex) when (ServerFailover.IsUnreachable(ex) && _failover.RecordUnreachable())
+        {
+            var result = await send().ConfigureAwait(false);
+            _failover.RecordSuccess();
+            return result;
+        }
+    }
+
+    private async Task<JsonDocument> SendWithRetriesAsync(
+        HttpMethod method,
+        string relativeUrl,
+        object? body,
+        CancellationToken cancellationToken)
     {
         // A request that lands on a pooled connection the server (or an
         // intervening proxy) closed moments earlier hangs until HttpClient's
@@ -233,7 +327,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         return false;
     }
 
-    public async Task<string> SendRawAsync(string relativeUrl, CancellationToken cancellationToken = default)
+    private async Task<string> SendRawWithRetriesAsync(string relativeUrl, CancellationToken cancellationToken)
     {
         // Same retry shape as SendAsync above - see its own comments for why.
         for (var attempt = 1; ; attempt++)
@@ -448,6 +542,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         }
 
         _disposed = true;
+        _failover.Changed -= OnFailoverChanged;
         Clear();
     }
 }

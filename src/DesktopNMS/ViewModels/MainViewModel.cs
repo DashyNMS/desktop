@@ -152,6 +152,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         _branding.Changed += OnBrandingChanged;
+        _client.Failover.Changed += OnFailoverChanged;
+        SwitchBackToMainAddressCommand = new RelayCommand(SwitchBackToMainAddress);
         _settings.Changed += OnLogoSettingChanged;
 
         Alerts = new ObservableCollection<AlertItemViewModel>();
@@ -312,6 +314,45 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>F5: refreshes whichever tab is currently showing.</summary>
     public RelayCommand RefreshCurrentTabCommand { get; }
+
+    // ------------------------------------------------------------------ backup address
+
+    /// <summary>The server stopped answering at its own address and the app is talking to it through the backup address - see ServerFailover.</summary>
+    public bool IsOnBackupAddress => _client.Failover.IsOnBackup;
+
+    /// <summary>"Connected through the backup address 10.46.2.10 since 10:42 - nms.example.com stopped answering."</summary>
+    public string BackupAddressBannerText
+    {
+        get
+        {
+            var failover = _client.Failover;
+            if (!failover.IsOnBackup)
+            {
+                return string.Empty;
+            }
+
+            var since = failover.SwitchedAt is { } at ? " since " + at.ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.CurrentCulture) : string.Empty;
+            var host = _client.Connection?.WebRoot.Host ?? "the server";
+            return $"Connected through the backup address {failover.BackupAddress}{since} - {host} stopped answering. It stays on the backup until you switch back.";
+        }
+    }
+
+    /// <summary>Back to the server's own address, by hand - if it still doesn't answer, two failures move it to the backup again.</summary>
+    public RelayCommand SwitchBackToMainAddressCommand { get; }
+
+    private void SwitchBackToMainAddress()
+    {
+        if (_client.Failover.FailBack())
+        {
+            RefreshCurrentTab();
+        }
+    }
+
+    private void OnFailoverChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() =>
+    {
+        OnPropertyChanged(nameof(IsOnBackupAddress));
+        OnPropertyChanged(nameof(BackupAddressBannerText));
+    });
 
     /// <summary>Ctrl+L: clears the filters on whichever tab is currently showing.</summary>
     public RelayCommand ClearCurrentTabFiltersCommand { get; }
@@ -1966,6 +2007,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _monitor.Polled -= OnPolled;
         _monitor.PollStarted -= OnPollStarted;
         _session.StateChanged -= OnSessionStateChanged;
+        _client.Failover.Changed -= OnFailoverChanged;
         _graylog.ConfigurationChanged -= OnGraylogConfigurationChanged;
         _branding.Changed -= OnBrandingChanged;
         _settings.Changed -= OnLogoSettingChanged;
