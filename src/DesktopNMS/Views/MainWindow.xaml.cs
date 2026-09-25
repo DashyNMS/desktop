@@ -154,6 +154,17 @@ public partial class MainWindow : Window
         NeighboursFlyout.IsOpen = false;
     }
 
+    /// <summary>The backup address icon opens its menu on a plain click - the status line and Switch back.</summary>
+    private void OnBackupAddressClick(object sender, RoutedEventArgs e)
+    {
+        if (BackupAddressButton.ContextMenu is { } menu)
+        {
+            menu.PlacementTarget = BackupAddressButton;
+            menu.DataContext = DataContext;
+            menu.IsOpen = true;
+        }
+    }
+
     private void NotifyVisibility() =>
         _viewModel.OnWindowVisibilityChanged(IsVisible && WindowState != WindowState.Minimized);
 

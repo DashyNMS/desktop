@@ -63,7 +63,6 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -388,6 +387,28 @@
                             Margin="0,0,8,0">
                         <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
                     </Button>
+
+                    <!-- Only while the app is going through the backup address
+                         (see ServerFailover): click for where it's connected
+                         and to switch back to the server address. -->
+                    <Rectangle Style="{StaticResource ToolBarSeparatorStyle}"
+                               Margin="4,4,12,4"
+                               Visibility="{Binding IsOnBackupAddress, Converter={StaticResource BoolToVisibility}}" />
+                    <Button x:Name="BackupAddressButton"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="{Binding BackupAddressStatusText}"
+                            Click="OnBackupAddressClick"
+                            Margin="0,0,8,0"
+                            Visibility="{Binding IsOnBackupAddress, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="&#xE8AB;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Foreground="{StaticResource WarningBrush}" />
+                        <Button.ContextMenu>
+                            <ContextMenu Placement="Bottom">
+                                <MenuItem Header="{Binding BackupAddressStatusText}" IsEnabled="False" />
+                                <Separator />
+                                <MenuItem Header="Switch back to the server address" Command="{Binding SwitchBackToMainAddressCommand}" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
                     <Button Command="{Binding ShowKeyboardShortcutsCommand}"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Keyboard shortcuts (F1)"
@@ -409,41 +430,8 @@
             </Grid>
         </Border>
 
-        <!-- ======================== Backup address in use ======================== -->
-        <!-- The server stopped answering at its own address, so the app
-             is going through the backup address (see ServerFailover) - it
-             stays there until switched back here. -->
-        <Border Grid.Row="1"
-                Background="#33DB9A04"
-                BorderBrush="{StaticResource WarningBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="18,8"
-                Visibility="{Binding IsOnBackupAddress, Converter={StaticResource BoolToVisibility}}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0"
-                           Text="&#xE7BA;"
-                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                           Foreground="{StaticResource WarningBrush}"
-                           VerticalAlignment="Center"
-                           Margin="0,0,10,0" />
-                <TextBlock Grid.Column="1" Text="{Binding BackupAddressBannerText}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                <Button Grid.Column="2"
-                        Content="Switch back"
-                        Style="{StaticResource ChipButtonStyle}"
-                        Command="{Binding SwitchBackToMainAddressCommand}"
-                        ToolTip="Go back to the server's own address - if it still doesn't answer, the app moves to the backup again"
-                        Margin="12,0,0,0"
-                        VerticalAlignment="Center" />
-            </Grid>
-        </Border>
-
         <!-- ======================== Content ======================== -->
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="1">
             <!-- Visibility is bound on this Grid, against the inherited
                  MainViewModel DataContext; DevicesView's own DataContext is
                  overridden below it to DeviceList. A binding on the same

@@ -320,8 +320,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>The server stopped answering at its own address and the app is talking to it through the backup address - see ServerFailover.</summary>
     public bool IsOnBackupAddress => _client.Failover.IsOnBackup;
 
-    /// <summary>"Connected through the backup address 10.46.2.10 since 10:42 - nms.example.com stopped answering."</summary>
-    public string BackupAddressBannerText
+    /// <summary>The main bar's backup address icon's tooltip and menu line: "Connected through the backup address 10.46.2.10 since 10:42 - nms.example.com stopped answering."</summary>
+    public string BackupAddressStatusText
     {
         get
         {
@@ -333,7 +333,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
             var since = failover.SwitchedAt is { } at ? " since " + at.ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.CurrentCulture) : string.Empty;
             var host = _client.Connection?.WebRoot.Host ?? "the server";
-            return $"Connected through the backup address {failover.BackupAddress}{since} - {host} stopped answering. It stays on the backup until you switch back.";
+            return $"Connected through the backup address {failover.BackupAddress}{since} - {host} stopped answering.";
         }
     }
 
@@ -351,7 +351,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void OnFailoverChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() =>
     {
         OnPropertyChanged(nameof(IsOnBackupAddress));
-        OnPropertyChanged(nameof(BackupAddressBannerText));
+        OnPropertyChanged(nameof(BackupAddressStatusText));
     });
 
     /// <summary>Ctrl+L: clears the filters on whichever tab is currently showing.</summary>
