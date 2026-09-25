@@ -6,14 +6,14 @@ namespace DesktopNMS.Core.Topology;
 /// <summary>
 /// Finds the monitored device behind an LLDP/CDP neighbour LibreNMS didn't
 /// match itself (a link with no <c>remote_device_id</c>). LibreNMS only
-/// matches a neighbour's announced name exactly, so a Bolero antenna named
-/// "00 Red Flag (ALP)" is never linked to the device "00 red flag alp";
+/// matches a neighbour's announced name exactly, so an antenna named
+/// "00 Stage Left (A)" is never linked to the device "00 stage left a";
 /// comparing names without case or punctuation catches those. Only a single,
 /// unambiguous match counts - two devices with the same name link neither.
 /// </summary>
 public static class NeighbourMatcher
 {
-    /// <summary>Lower case, letters and digits only: "00 Red Flag (ALP)" and "00 red flag alp" are both "00redflagalp".</summary>
+    /// <summary>Lower case, letters and digits only: "00 Stage Left (A)" and "00 stage left a" are both "00stagelefta".</summary>
     public static string NormaliseName(string? name) =>
         string.IsNullOrWhiteSpace(name)
             ? string.Empty
@@ -46,7 +46,7 @@ public static class NeighbourMatcher
     }
 
     /// <summary>
-    /// The MAC address in an announced port id - many devices (Bolero
+    /// The MAC address in an announced port id - many devices (wireless antennas
     /// antennas among them) announce their MAC as their port - as 12
     /// lower-case hex digits, or null when the port id isn't a MAC.
     /// </summary>

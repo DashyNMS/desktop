@@ -170,7 +170,7 @@ public sealed class SettingsViewModel : ObservableObject
         // The registry is the source of truth for auto-start, not the settings file.
         _draft.StartWithWindows = startup.IsEnabled;
 
-        SaveCommand = new RelayCommand(Save);
+        SaveCommand = new AsyncRelayCommand(SaveAsync, () => !IsTestingConnection);
         CancelCommand = new RelayCommand(() => RequestClose?.Invoke(this, false));
         PreviewCriticalCommand = new RelayCommand(() => _notifications.ShowPreview(AlertSeverity.Critical));
         PreviewWarningCommand = new RelayCommand(() => _notifications.ShowPreview(AlertSeverity.Warning));
@@ -213,7 +213,7 @@ public sealed class SettingsViewModel : ObservableObject
 
     public event EventHandler<bool>? RequestClose;
 
-    public RelayCommand SaveCommand { get; }
+    public AsyncRelayCommand SaveCommand { get; }
 
     public RelayCommand CancelCommand { get; }
 
@@ -481,6 +481,99 @@ public sealed class SettingsViewModel : ObservableObject
     public AsyncRelayCommand RefreshServerInfoCommand { get; }
 
     public string ServerUrlText => _session.Connection?.WebRoot.ToString() ?? "-";
+
+    /// <summary>Another IP or name for the same server, used once the main address stops answering - see <see cref="Core.Api.ServerFailover"/>. Applied to the live connection on Save.</summary>
+    public string BackupServerAddress
+    {
+        get => _draft.BackupServerAddress ?? string.Empty;
+        set
+        {
+            var text = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (_draft.BackupServerAddress == text)
+            {
+                return;
+            }
+
+            _draft.BackupServerAddress = text;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(BackupServerAddressError));
+            OnPropertyChanged(nameof(HasBackupServerAddressError));
+        }
+    }
+
+    public string? BackupServerAddressError => Services.SessionService.TryParseBackup(_draft.BackupServerAddress, out _, out var error) ? null : error;
+
+    public bool HasBackupServerAddressError => BackupServerAddressError is not null;
+
+    /// <summary>The LibreNMS server's address - changing it (or anything else about the connection) reconnects on Save.</summary>
+    public string ServerAddress
+    {
+        get => _draft.ServerUrl ?? string.Empty;
+        set
+        {
+            if (_draft.ServerUrl != value)
+            {
+                _draft.ServerUrl = value;
+                OnPropertyChanged();
+                ConnectionError = null;
+            }
+        }
+    }
+
+    public bool ServerAllowUntrustedCertificate
+    {
+        get => _draft.AllowUntrustedCertificate;
+        set
+        {
+            if (_draft.AllowUntrustedCertificate != value)
+            {
+                _draft.AllowUntrustedCertificate = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>A new API token, from the PasswordBox - blank keeps the one in use.</summary>
+    public string ServerTokenInput { get; set; } = string.Empty;
+
+    /// <summary>Why the connection couldn't be saved - neither the server address nor the backup answered, say.</summary>
+    public string? ConnectionError
+    {
+        get => _connectionError;
+        private set
+        {
+            if (SetProperty(ref _connectionError, value))
+            {
+                OnPropertyChanged(nameof(HasConnectionError));
+            }
+        }
+    }
+
+    private string? _connectionError;
+
+    public bool HasConnectionError => !string.IsNullOrEmpty(_connectionError);
+
+    /// <summary>Save is checking the new connection details - the server address first, then the backup.</summary>
+    public bool IsTestingConnection
+    {
+        get => _isTestingConnection;
+        private set
+        {
+            if (SetProperty(ref _isTestingConnection, value))
+            {
+                SaveCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    private bool _isTestingConnection;
+
+    private bool ConnectionChanged =>
+        !string.Equals(_draft.ServerUrl?.Trim(), _store.Current.ServerUrl?.Trim(), StringComparison.OrdinalIgnoreCase)
+        || _draft.AllowUntrustedCertificate != _store.Current.AllowUntrustedCertificate
+        || !string.Equals(_draft.BackupServerAddress, _store.Current.BackupServerAddress, StringComparison.OrdinalIgnoreCase)
+        || !string.IsNullOrWhiteSpace(ServerTokenInput)
+        || !_session.IsConnected;
 
     /// <summary>
     /// False only if the very first fetch (at sign-in) somehow never
@@ -2042,8 +2135,24 @@ public sealed class SettingsViewModel : ObservableObject
         return PersistenceOptions[0];
     }
 
-    private void Save()
+    private async Task SaveAsync()
     {
+        // The error shows by the field; nothing's saved until it's fixed.
+        if (HasBackupServerAddressError)
+        {
+            SelectedSection = SettingsSection.Server;
+            return;
+        }
+
+        // New connection details are tried before anything's saved: the
+        // server address, then the backup address if it doesn't answer. If
+        // neither does, the dialog stays open on Server with the reason.
+        if (ConnectionChanged && !await TryReconnectAsync().ConfigureAwait(true))
+        {
+            SelectedSection = SettingsSection.Server;
+            return;
+        }
+
         _startup.SetEnabled(_draft.StartWithWindows);
 
         // Keep the window placement, filter chips, dashboard layout,
@@ -2063,6 +2172,52 @@ public sealed class SettingsViewModel : ObservableObject
 
         _store.Replace(_draft);
         RequestClose?.Invoke(this, true);
+    }
+
+    /// <summary>
+    /// Connects with the Server section's details - the server address
+    /// first, then the backup address if that doesn't answer - and switches
+    /// the running app over. False (with <see cref="ConnectionError"/> saying
+    /// why) if neither answered or the details are wrong.
+    /// </summary>
+    private async Task<bool> TryReconnectAsync()
+    {
+        ConnectionError = null;
+        IsTestingConnection = true;
+
+        try
+        {
+            // One try at each address (see LibreNmsClient.TestAsync), each up
+            // to the request timeout.
+            var seconds = _store.Current.TimeoutSeconds + 5;
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(string.IsNullOrWhiteSpace(_draft.BackupServerAddress) ? seconds : seconds * 2));
+
+            var result = await _session
+                .ReconnectAsync(_draft.ServerUrl ?? string.Empty, ServerTokenInput, _draft.AllowUntrustedCertificate, _draft.BackupServerAddress, timeout.Token)
+                .ConfigureAwait(true);
+
+            if (!result.Succeeded)
+            {
+                ConnectionError = result.ErrorMessage;
+                return false;
+            }
+
+            // Signing in saved the tidied-up address - keep that, not the typed one.
+            _draft.ServerUrl = _store.Current.ServerUrl;
+            _draft.BackupServerAddress = _store.Current.BackupServerAddress;
+            _draft.RememberToken = _store.Current.RememberToken;
+            OnPropertyChanged(nameof(ServerUrlText));
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            ConnectionError = "Neither the server address nor the backup address answered in time.";
+            return false;
+        }
+        finally
+        {
+            IsTestingConnection = false;
+        }
     }
 
     /// <summary>

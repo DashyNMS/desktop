@@ -56,16 +56,16 @@ public class DeviceGroupRuleFormatterTests
                 "condition": "OR",
                 "rules": [
                     { "condition": "OR", "rules": [
-                        { "field": "devices.display", "operator": "begins_with", "value": "w-bol" },
-                        { "field": "devices.display", "operator": "begins_with", "value": "g-bol" }
+                        { "field": "devices.display", "operator": "begins_with", "value": "w-ant" },
+                        { "field": "devices.display", "operator": "begins_with", "value": "g-ant" }
                     ]},
-                    { "field": "devices.os", "operator": "contains", "value": "riedel-bolero" }
+                    { "field": "devices.os", "operator": "contains", "value": "acme-wireless" }
                 ]
             }
             """;
 
         Assert.Equal(
-            "(devices.display LIKE 'w-bol%' OR devices.display LIKE 'g-bol%') OR devices.os LIKE '%riedel-bolero%'",
+            "(devices.display LIKE 'w-ant%' OR devices.display LIKE 'g-ant%') OR devices.os LIKE '%acme-wireless%'",
             DeviceGroupRuleFormatter.Format(rules));
     }
 

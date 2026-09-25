@@ -112,7 +112,7 @@ public sealed class NeighbourViewEditorViewModel : ObservableObject
     public RelayCommand SaveCommand { get; }
 
 
-    /// <summary>"Matches 37 neighbours: FOM Broadcast Center 02, ..." - what the rules pick out right now.</summary>
+    /// <summary>"Matches 37 neighbours: Studio Antenna 02, ..." - what the rules pick out right now.</summary>
     public string PreviewText
     {
         get => _previewText;

@@ -30,7 +30,17 @@ public interface ISessionService
         string apiToken,
         bool allowUntrustedCertificate,
         bool rememberToken,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? backupAddress = null);
+
+    /// <summary>
+    /// Settings' Save with changed connection details: tests the server
+    /// address, then (if it doesn't answer) the backup address, and switches
+    /// to whichever answered - see <see cref="SignInAsync"/>. A blank token
+    /// keeps the one in use.
+    /// </summary>
+    Task<ConnectionTestResult> ReconnectAsync(string serverUrl, string? newApiToken, bool allowUntrustedCertificate, string? backupAddress, CancellationToken cancellationToken = default);
+
 
     /// <summary>
     /// Attempts to sign in with the saved address and token. Returns false when
@@ -74,11 +84,19 @@ public sealed class SessionService : ISessionService
         string apiToken,
         bool allowUntrustedCertificate,
         bool rememberToken,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? backupAddress = null)
     {
         if (!LibreNmsConnection.TryParseWebRoot(serverUrl, out var webRoot, out var urlError))
         {
             return ConnectionTestResult.Failure(urlError ?? "The server address is not valid.");
+        }
+
+        // Left blank: the token in use, or the saved one - no retyping it
+        // just to change the address or add a backup.
+        if (string.IsNullOrWhiteSpace(apiToken))
+        {
+            apiToken = _client.Connection?.ApiToken ?? _tokens.Load() ?? string.Empty;
         }
 
         if (string.IsNullOrWhiteSpace(apiToken))
@@ -86,24 +104,33 @@ public sealed class SessionService : ISessionService
             return ConnectionTestResult.Failure("Enter the API token from LibreNMS (Settings, API, API Access).");
         }
 
+        if (!TryParseBackup(backupAddress, out var backupWebRoot, out var backupError))
+        {
+            return ConnectionTestResult.Failure("The backup address isn't usable: " + backupError);
+        }
+
         var settings = _settings.Current;
         var connection = new LibreNmsConnection(
             webRoot!,
             apiToken.Trim(),
             allowUntrustedCertificate,
-            settings.TimeoutSeconds);
+            settings.TimeoutSeconds,
+            backupWebRoot);
 
-        var result = await _client.TestAsync(connection, cancellationToken).ConfigureAwait(false);
+        // Back on the caller's (UI) thread: saving settings and StateChanged
+        // below set every listener updating what's on screen.
+        var result = await _client.TestAsync(connection, cancellationToken).ConfigureAwait(true);
 
         if (!result.Succeeded)
         {
             return result;
         }
 
-        _client.Connect(connection);
+        _client.Connect(connection, result.UsedBackupAddress);
         ServerInfo = result.SystemInfo;
 
         settings.ServerUrl = webRoot!.ToString();
+        settings.BackupServerAddress = connection.BackupWebRoot?.ToString();
         settings.AllowUntrustedCertificate = allowUntrustedCertificate;
         settings.RememberToken = rememberToken;
         _settings.Save();
@@ -121,6 +148,22 @@ public sealed class SessionService : ISessionService
         StateChanged?.Invoke(this, EventArgs.Empty);
 
         return result;
+    }
+
+    /// <summary>
+    /// The backup address as a URL, like the server address - "192.0.2.20"
+    /// reads as https://192.0.2.20/. Blank is fine: no backup.
+    /// </summary>
+    public static bool TryParseBackup(string? text, out Uri? backup, out string? error)
+    {
+        backup = null;
+        error = null;
+        return string.IsNullOrWhiteSpace(text) || LibreNmsConnection.TryParseWebRoot(text, out backup, out error);
+    }
+
+    public Task<ConnectionTestResult> ReconnectAsync(string serverUrl, string? newApiToken, bool allowUntrustedCertificate, string? backupAddress, CancellationToken cancellationToken = default)
+    {
+        return SignInAsync(serverUrl, newApiToken ?? string.Empty, allowUntrustedCertificate, _settings.Current.RememberToken, cancellationToken, backupAddress);
     }
 
     public async Task<ConnectionTestResult?> TryRestoreAsync(CancellationToken cancellationToken = default)
@@ -147,15 +190,18 @@ public sealed class SessionService : ISessionService
             webRoot!,
             token!,
             settings.AllowUntrustedCertificate,
-            settings.TimeoutSeconds);
+            settings.TimeoutSeconds,
+            TryParseBackup(settings.BackupServerAddress, out var savedBackup, out _) ? savedBackup : null);
 
-        var result = await _client.TestAsync(connection, cancellationToken).ConfigureAwait(false);
+        // Back on the caller's (UI) thread: saving settings and StateChanged
+        // below set every listener updating what's on screen.
+        var result = await _client.TestAsync(connection, cancellationToken).ConfigureAwait(true);
 
         if (result.Succeeded)
         {
-            _client.Connect(connection);
+            _client.Connect(connection, result.UsedBackupAddress);
             ServerInfo = result.SystemInfo;
-            _logger.LogInformation("Restored the saved session for {Host}", webRoot);
+            _logger.LogInformation("Restored the saved session for {Host}{Backup}", webRoot, result.UsedBackupAddress ? " through its backup address" : string.Empty);
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
         else

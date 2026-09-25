@@ -152,6 +152,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         _branding.Changed += OnBrandingChanged;
+        _client.Failover.Changed += OnFailoverChanged;
+        SwitchBackToMainAddressCommand = new RelayCommand(SwitchBackToMainAddress);
         _settings.Changed += OnLogoSettingChanged;
 
         Alerts = new ObservableCollection<AlertItemViewModel>();
@@ -206,7 +208,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RefreshCurrentTabCommand = new RelayCommand(RefreshCurrentTab);
         ClearCurrentTabFiltersCommand = new RelayCommand(ClearCurrentTabFilters);
         SettingsCommand = new RelayCommand(OpenSettings);
-        ShowKeyboardShortcutsCommand = new RelayCommand(() => _windows.ShowKeyboardShortcuts());
         SignOutCommand = new RelayCommand(SignOut, () => _isConnected);
         ExitCommand = new RelayCommand(() => _windows.Exit());
 
@@ -313,13 +314,76 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>F5: refreshes whichever tab is currently showing.</summary>
     public RelayCommand RefreshCurrentTabCommand { get; }
 
+    // ------------------------------------------------------------------ backup address
+
+    /// <summary>The server stopped answering at its own address and the app is talking to it through the backup address - see ServerFailover.</summary>
+    public bool IsOnBackupAddress => _client.Failover.IsOnBackup;
+
+    /// <summary>The main bar's backup address icon's tooltip and menu line: "Connected through the backup address 192.0.2.20 since 10:42 - nms.example.com stopped answering."</summary>
+    public string BackupAddressStatusText
+    {
+        get
+        {
+            var failover = _client.Failover;
+            if (!failover.IsOnBackup)
+            {
+                return string.Empty;
+            }
+
+            var since = failover.SwitchedAt is { } at ? " since " + at.ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.CurrentCulture) : string.Empty;
+            var host = _client.Connection?.WebRoot.Host ?? "the server";
+            return $"Connected through the backup address {failover.BackupAddress}{since} - {host} stopped answering.";
+        }
+    }
+
+    /// <summary>Back to the server's own address, by hand - if it still doesn't answer, two failures move it to the backup again.</summary>
+    public RelayCommand SwitchBackToMainAddressCommand { get; }
+
+    // The refresh follows from the switch itself - see OnFailoverChanged.
+    private void SwitchBackToMainAddress() => _client.Failover.FailBack();
+
+    private void OnFailoverChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() =>
+    {
+        OnPropertyChanged(nameof(IsOnBackupAddress));
+        OnPropertyChanged(nameof(BackupAddressStatusText));
+
+        if (_isConnected)
+        {
+            RefreshAfterAddressChange();
+        }
+    });
+
+    /// <summary>
+    /// Switched to the backup address or back: whatever failed while the
+    /// server wasn't answering would otherwise wait for its next poll - and
+    /// the dashboard's graphs until it's refreshed by hand - so everything
+    /// the app shows is fetched again now, through the new address.
+    /// </summary>
+    private void RefreshAfterAddressChange()
+    {
+        RequestRefresh();
+
+        if (_dashboard.RefreshCommand.CanExecute(null))
+        {
+            _dashboard.RefreshCommand.Execute(null);
+        }
+
+        if (_deviceList.RefreshCommand.CanExecute(null))
+        {
+            _deviceList.RefreshCommand.Execute(null);
+        }
+
+        // Any other tab that's open, too.
+        if (SelectedTab is not (MainTab.Dashboard or MainTab.Devices or MainTab.Alerts))
+        {
+            RefreshCurrentTab();
+        }
+    }
+
     /// <summary>Ctrl+L: clears the filters on whichever tab is currently showing.</summary>
     public RelayCommand ClearCurrentTabFiltersCommand { get; }
 
     public RelayCommand SettingsCommand { get; }
-
-    /// <summary>F1 or the header's keyboard button - lists every shortcut (#65).</summary>
-    public RelayCommand ShowKeyboardShortcutsCommand { get; }
 
     public RelayCommand SignOutCommand { get; }
 
@@ -1966,6 +2030,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _monitor.Polled -= OnPolled;
         _monitor.PollStarted -= OnPollStarted;
         _session.StateChanged -= OnSessionStateChanged;
+        _client.Failover.Changed -= OnFailoverChanged;
         _graylog.ConfigurationChanged -= OnGraylogConfigurationChanged;
         _branding.Changed -= OnBrandingChanged;
         _settings.Changed -= OnLogoSettingChanged;

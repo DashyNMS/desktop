@@ -25,6 +25,9 @@ public partial class SettingsWindow : Window
     private void OnGraylogPasswordChanged(object sender, RoutedEventArgs e)
         => _viewModel.GraylogPasswordInput = ((PasswordBox)sender).Password;
 
+    private void OnServerTokenChanged(object sender, RoutedEventArgs e)
+        => _viewModel.ServerTokenInput = ((PasswordBox)sender).Password;
+
     private void OnRequestClose(object? sender, bool saved)
     {
         _viewModel.RequestClose -= OnRequestClose;

@@ -30,8 +30,19 @@
                    Style="{StaticResource SubtleTextStyle}"
                    Margin="0,4,0,0" />
 
+        <TextBlock Text="Backup address (optional)" Style="{StaticResource SectionHeaderStyle}" />
+        <TextBox Text="{Binding BackupAddress, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Another address for the same server, e.g. https://192.0.2.20/" />
+        <TextBlock Text="Another address for the same server, e.g. https://192.0.2.20/. Used if the server address stops answering twice in a row, until you switch back."
+                   Style="{StaticResource SubtleTextStyle}"
+                   TextWrapping="Wrap"
+                   Margin="0,4,0,0" />
+
         <TextBlock Text="API token" Style="{StaticResource SectionHeaderStyle}" />
         <PasswordBox x:Name="TokenBox" PasswordChanged="OnTokenChanged" />
+        <TextBlock Text="Leave blank to use the token already saved on this machine."
+                   Style="{StaticResource SubtleTextStyle}"
+                   Margin="0,4,0,0" />
 
         <CheckBox Content="Remember this token on this machine"
                   IsChecked="{Binding RememberToken}"
