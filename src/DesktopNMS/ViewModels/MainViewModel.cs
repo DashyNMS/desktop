@@ -46,6 +46,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly DashboardViewModel _dashboard;
     private readonly GroupsViewModel _groups;
     private readonly LocationsViewModel _locations;
+    private readonly AccessPointsViewModel _accessPoints;
     private readonly RulesViewModel _rulesTab;
     private readonly TemplatesViewModel _templates;
     private readonly NetworkMapViewModel _networkMap;
@@ -111,6 +112,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         DashboardViewModel dashboard,
         GroupsViewModel groups,
         LocationsViewModel locations,
+        AccessPointsViewModel accessPoints,
         RulesViewModel rulesTab,
         TemplatesViewModel templates,
         NetworkMapViewModel networkMap,
@@ -135,6 +137,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _dashboard = dashboard;
         _groups = groups;
         _locations = locations;
+        _accessPoints = accessPoints;
         _rulesTab = rulesTab;
         _templates = templates;
         _networkMap = networkMap;
@@ -182,6 +185,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectAlertsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Alerts);
         SelectGroupsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Groups);
         SelectLocationsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Locations);
+        SelectAccessPointsTabCommand = new RelayCommand(() => SelectedTab = MainTab.AccessPoints);
         SelectRulesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Rules);
         SelectTemplatesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Templates);
         SelectMapsTabCommand = new RelayCommand(SelectDefaultMap);
@@ -275,6 +279,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectLocationsTabCommand { get; }
 
+    public RelayCommand SelectAccessPointsTabCommand { get; }
+
     public RelayCommand SelectRulesTabCommand { get; }
 
     public RelayCommand SelectTemplatesTabCommand { get; }
@@ -319,6 +325,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The location list, for the Locations tab's content to bind to.</summary>
     public LocationsViewModel Locations => _locations;
+
+    /// <summary>The Access points page (#55).</summary>
+    public AccessPointsViewModel AccessPoints => _accessPoints;
 
     /// <summary>The alert rule list, for the Rules tab's content to bind to.</summary>
     public RulesViewModel Rules => _rulesTab;
@@ -382,6 +391,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsAlertsFamilyTabSelected));
                 OnPropertyChanged(nameof(IsGroupsTabSelected));
                 OnPropertyChanged(nameof(IsLocationsTabSelected));
+                OnPropertyChanged(nameof(IsAccessPointsTabSelected));
                 OnPropertyChanged(nameof(IsRulesTabSelected));
                 OnPropertyChanged(nameof(IsTemplatesTabSelected));
                 OnPropertyChanged(nameof(IsMapsFamilyTabSelected));
@@ -411,6 +421,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 else if (value == MainTab.Locations)
                 {
                     _locations.OnShown();
+                }
+                else if (value == MainTab.AccessPoints)
+                {
+                    _accessPoints.OnShown();
                 }
                 else if (value == MainTab.Rules)
                 {
@@ -483,7 +497,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public bool IsDevicesTabSelected => SelectedTab == MainTab.Devices;
 
     /// <summary>True for Devices itself or either of its hover-flyout sub-tabs (Groups, Locations) - keeps the Devices nav button highlighted while browsing either, since they are facets of device/inventory management rather than peers of it.</summary>
-    public bool IsDevicesFamilyTabSelected => SelectedTab is MainTab.Devices or MainTab.Groups or MainTab.Locations;
+    public bool IsDevicesFamilyTabSelected => SelectedTab is MainTab.Devices or MainTab.Groups or MainTab.Locations or MainTab.AccessPoints;
 
     public bool IsHealthTabSelected => SelectedTab == MainTab.Health;
 
@@ -495,6 +509,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public bool IsGroupsTabSelected => SelectedTab == MainTab.Groups;
 
     public bool IsLocationsTabSelected => SelectedTab == MainTab.Locations;
+
+    public bool IsAccessPointsTabSelected => SelectedTab == MainTab.AccessPoints;
 
     public bool IsRulesTabSelected => SelectedTab == MainTab.Rules;
 
@@ -859,6 +875,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         else if (SelectedTab == MainTab.Locations)
         {
             _locations.OnShown();
+        }
+        else if (SelectedTab == MainTab.AccessPoints)
+        {
+            _accessPoints.OnShown();
         }
         else if (SelectedTab == MainTab.Rules)
         {
@@ -1548,6 +1568,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
                 break;
 
+            case MainTab.AccessPoints:
+                if (_accessPoints.RefreshCommand.CanExecute(null))
+                {
+                    _accessPoints.RefreshCommand.Execute(null);
+                }
+
+                break;
+
             case MainTab.Rules:
                 if (_rulesTab.RefreshCommand.CanExecute(null))
                 {
@@ -1619,6 +1647,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
             case MainTab.Locations:
                 _locations.ClearFiltersCommand.Execute(null);
+                break;
+
+            case MainTab.AccessPoints:
+                _accessPoints.ClearFiltersCommand.Execute(null);
                 break;
 
             case MainTab.Rules:

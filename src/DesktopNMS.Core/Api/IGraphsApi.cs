@@ -48,4 +48,18 @@ public interface IGraphsApi
         int width,
         int height,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/devices/{id}/ports/{ifName}/{graphType} - one port's graph
+    /// ("port_bits" for traffic), as SVG. An ifName with a slash ("1/1/5",
+    /// "Gi0/5") goes as %2F, which LibreNMS decodes (checked live).
+    /// </summary>
+    Task<string> GetPortSvgAsync(
+        int deviceId,
+        string ifName,
+        string graphType,
+        GraphTimeRange range,
+        int width,
+        int height,
+        CancellationToken cancellationToken = default);
 }

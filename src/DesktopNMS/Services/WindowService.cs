@@ -79,6 +79,17 @@ public sealed class WindowService : IWindowService
         }
     }
 
+    public void ShowAccessPoint(string? name)
+    {
+        ShowMain();
+        var main = _services.GetRequiredService<MainViewModel>();
+        main.SelectAccessPointsTabCommand.Execute(null);
+        if (!string.IsNullOrEmpty(name))
+        {
+            main.AccessPoints.Select(name);
+        }
+    }
+
     public void ShowDeviceWireless(int deviceId)
     {
         ShowDeviceDetail(deviceId);
@@ -113,6 +124,7 @@ public sealed class WindowService : IWindowService
             _services.GetRequiredService<IUnimusApi>(),
             _services.GetRequiredService<IUnimusDeviceResolver>(),
             _services.GetRequiredService<IGraylogApi>(),
+            _services.GetRequiredService<IAccessPointDirectory>(),
             _services.GetRequiredService<ILogger<DeviceDetailViewModel>>());
 
         var window = new DeviceView(viewModel, settings);

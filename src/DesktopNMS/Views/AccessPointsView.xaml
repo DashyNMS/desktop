@@ -1,0 +1,199 @@
+<UserControl x:Class="DesktopNMS.Views.AccessPointsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:views="clr-namespace:DesktopNMS.Views"
+             xmlns:svgc="clr-namespace:SharpVectors.Converters;assembly=SharpVectors.Converters.Wpf"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:AccessPointsViewModel}"
+             d:DesignHeight="600" d:DesignWidth="1100">
+
+    <!-- The Access points page (#55) - see AccessPointsViewModel. Every AP
+         the switches see over LLDP, with its switch port's state; selecting
+         one shows that port's traffic graph underneath. -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ======================== Summary + search ======================== -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SummaryText}" FontWeight="SemiBold" />
+                    <TextBlock Text="From what the switches see over LLDP. LibreNMS doesn't share each AP's clients or channel through its API."
+                               Style="{StaticResource SubtleTextStyle}"
+                               FontSize="11"
+                               Margin="0,2,0,0" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox x:Name="SearchBox"
+                             Width="240"
+                             Style="{StaticResource SearchTextBoxStyle}"
+                             Tag="Search access points"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                             ToolTip="Filter by name, model, switch, port or MAC"
+                             Margin="0,0,8,0" />
+
+                    <Button Command="{Binding ClearFiltersCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Clear search"
+                            Visibility="{Binding HasAnyFilterApplied, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1"
+                Background="#33DA3633"
+                BorderBrush="{StaticResource CriticalBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,10"
+                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== AP list ======================== -->
+        <Grid Grid.Row="2">
+            <DataGrid x:Name="AccessPointsGrid"
+                      ItemsSource="{Binding ItemsView}"
+                      SelectedItem="{Binding SelectedItem}"
+                      SelectionMode="Single"
+                      IsReadOnly="True"
+                      Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="State" Width="120" SortMemberPath="State">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="10,0">
+                                    <Ellipse Width="9"
+                                             Height="9"
+                                             Margin="0,0,7,0"
+                                             VerticalAlignment="Center"
+                                             Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                    <TextBlock Text="{Binding StateText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Access point" Width="*" MinWidth="180" SortMemberPath="Name">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" ToolTip="{Binding ToolTip}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="10,0" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="Model" Width="90" Binding="{Binding ModelText}" />
+
+                    <DataGridTemplateColumn Header="Switch" Width="*" MinWidth="160" SortMemberPath="SwitchName">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Margin="10,0" VerticalAlignment="Center" Cursor="Hand" TextTrimming="CharacterEllipsis">
+                                    <Hyperlink Command="{Binding DataContext.OpenSwitchCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                               CommandParameter="{Binding}"
+                                               ToolTip="Open this switch's Device Details">
+                                        <Run Text="{Binding SwitchName, Mode=OneWay}" />
+                                    </Hyperlink>
+                                </TextBlock>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="Port" Width="110" Binding="{Binding PortText}" />
+                    <DataGridTextColumn Header="Speed" Width="90" Binding="{Binding SpeedText}" />
+                    <DataGridTextColumn Header="Traffic" Width="230" Binding="{Binding TrafficText}" SortMemberPath="InBps" />
+                    <DataGridTextColumn Header="MAC" Width="150" Binding="{Binding MacText}" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <TextBlock Text="Loading access points..."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
+
+            <TextBlock Text="No access points found - none of your switches see an AP over LLDP."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+
+            <TextBlock Text="No access points match your search."
+                       Style="{StaticResource SubtleTextStyle}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}" />
+        </Grid>
+
+        <!-- ======================== Selected AP's traffic ======================== -->
+        <Border Grid.Row="3"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="18,12"
+                Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="260" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                        <Run Text="{Binding SelectedItem.Name, Mode=OneWay}" FontWeight="SemiBold" />
+                        <Run Text=" - traffic on " Foreground="{StaticResource TextSecondaryBrush}" />
+                        <Run Text="{Binding SelectedItem.SwitchName, Mode=OneWay}" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <Run Text="{Binding SelectedItem.PortText, Mode=OneWay}" Foreground="{StaticResource TextSecondaryBrush}" />
+                    </TextBlock>
+                    <views:GraphTimeRangePicker Grid.Column="1" DataContext="{Binding TimeRange}" VerticalAlignment="Center" />
+                </Grid>
+
+                <Grid Grid.Row="1">
+                    <svgc:SvgViewbox SvgSource="{Binding GraphSvg}"
+                                     Stretch="Uniform"
+                                     HorizontalAlignment="Left"
+                                     VerticalAlignment="Top"
+                                     Visibility="{Binding GraphSvg, Converter={StaticResource NullToVisibility}}" />
+
+                    <TextBlock Text="Loading graph..."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Style="{StaticResource SubtleTextStyle}"
+                               Visibility="{Binding IsGraphLoading, Converter={StaticResource BoolToVisibility}}" />
+
+                    <TextBlock Text="{Binding GraphError}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               IsHitTestVisible="False"
+                               Style="{StaticResource SubtleTextStyle}"
+                               Visibility="{Binding HasGraphError, Converter={StaticResource BoolToVisibility}}" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

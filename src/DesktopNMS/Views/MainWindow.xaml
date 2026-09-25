@@ -166,6 +166,10 @@
                                                 Style="{StaticResource FlyoutMenuItemStyle}"
                                                 Command="{Binding SelectLocationsTabCommand}"
                                                 Click="DevicesFlyoutItem_Click" />
+                                        <Button Content="Access points"
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding SelectAccessPointsTabCommand}"
+                                                Click="DevicesFlyoutItem_Click" />
                                     </StackPanel>
                                 </Border>
                             </Popup>
@@ -380,6 +384,10 @@
 
             <Grid Visibility="{Binding IsLocationsTabSelected, Converter={StaticResource BoolToVisibility}}">
                 <views:LocationsView x:Name="LocationsViewControl" DataContext="{Binding Locations}" />
+            </Grid>
+
+            <Grid Visibility="{Binding IsAccessPointsTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:AccessPointsView x:Name="AccessPointsViewControl" DataContext="{Binding AccessPoints}" />
             </Grid>
 
             <Grid Visibility="{Binding IsNetworkMapTabSelected, Converter={StaticResource BoolToVisibility}}">

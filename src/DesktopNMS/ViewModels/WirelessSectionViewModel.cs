@@ -9,6 +9,7 @@ using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Devices;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
+using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.ViewModels;
@@ -24,6 +25,8 @@ public sealed class WirelessSectionViewModel : ObservableObject
 {
     private readonly int _deviceId;
     private readonly ILibreNmsClient _client;
+    private readonly IAccessPointDirectory _accessPointDirectory;
+    private readonly IDeviceCache _devices;
     private readonly ILogger _logger;
     private readonly CancellationToken _windowToken;
     private readonly Action<string> _showGraph;
@@ -31,17 +34,30 @@ public sealed class WirelessSectionViewModel : ObservableObject
     private bool _hasLoaded;
     private bool _isLoading;
     private string? _errorMessage;
+    private bool _isLoadingAccessPoints;
+    private string? _accessPointsError;
 
     /// <param name="showGraph">Opens the Graphs section on a graph, by name.</param>
-    public WirelessSectionViewModel(int deviceId, ILibreNmsClient client, ILogger logger, CancellationToken windowToken, Action<string> showGraph)
+    public WirelessSectionViewModel(
+        int deviceId,
+        ILibreNmsClient client,
+        IAccessPointDirectory accessPoints,
+        IDeviceCache devices,
+        IWindowService windows,
+        ILogger logger,
+        CancellationToken windowToken,
+        Action<string> showGraph)
     {
         _deviceId = deviceId;
         _client = client;
+        _accessPointDirectory = accessPoints;
+        _devices = devices;
         _logger = logger;
         _windowToken = windowToken;
         _showGraph = showGraph;
 
         Classes = new ObservableCollection<WirelessClassViewModel>();
+        AccessPoints = new ObservableCollection<AccessPointItemViewModel>();
         ShowGraphCommand = new RelayCommand(parameter =>
         {
             if (parameter is WirelessClassViewModel item)
@@ -49,11 +65,59 @@ public sealed class WirelessSectionViewModel : ObservableObject
                 _showGraph(item.GraphName);
             }
         });
+        OpenAccessPointCommand = new RelayCommand(parameter => windows.ShowAccessPoint((parameter as AccessPointItemViewModel)?.Name));
     }
 
     public ObservableCollection<WirelessClassViewModel> Classes { get; }
 
     public RelayCommand ShowGraphCommand { get; }
+
+    /// <summary>
+    /// For a controller (a device reporting an AP count): every AP the
+    /// switches see over LLDP. LibreNMS's API doesn't say which controller
+    /// an AP is joined to, so this is the fleet's list, not just this
+    /// controller's - the card says so.
+    /// </summary>
+    public ObservableCollection<AccessPointItemViewModel> AccessPoints { get; }
+
+    /// <summary>Opens the Access points page, on the given AP if there is one.</summary>
+    public RelayCommand OpenAccessPointCommand { get; }
+
+    public bool IsController => Classes.Any(c => c.SensorClass == WirelessSensorClasses.ApCount);
+
+    public bool ShowAccessPointsCard => IsController && (HasAccessPoints || IsLoadingAccessPoints || HasAccessPointsError);
+
+    public bool HasAccessPoints => AccessPoints.Count > 0;
+
+    public bool IsLoadingAccessPoints
+    {
+        get => _isLoadingAccessPoints;
+        private set
+        {
+            if (SetProperty(ref _isLoadingAccessPoints, value))
+            {
+                OnPropertyChanged(nameof(ShowAccessPointsCard));
+            }
+        }
+    }
+
+    public string? AccessPointsError
+    {
+        get => _accessPointsError;
+        private set
+        {
+            if (SetProperty(ref _accessPointsError, value))
+            {
+                OnPropertyChanged(nameof(HasAccessPointsError));
+                OnPropertyChanged(nameof(ShowAccessPointsCard));
+            }
+        }
+    }
+
+    public bool HasAccessPointsError => !string.IsNullOrEmpty(_accessPointsError);
+
+    /// <summary>"50 access points - 48 up - AP-345 x26, ...", as on the Access points page.</summary>
+    public string AccessPointsSummaryText => AccessPointItemViewModel.Summarise(AccessPoints);
 
     public bool HasAny => Classes.Count > 0;
 
@@ -149,6 +213,40 @@ public sealed class WirelessSectionViewModel : ObservableObject
         }
 
         RaiseStateChanged();
+
+        if (IsController)
+        {
+            await LoadAccessPointsAsync().ConfigureAwait(true);
+        }
+    }
+
+    private async Task LoadAccessPointsAsync()
+    {
+        IsLoadingAccessPoints = true;
+        AccessPointsError = null;
+
+        try
+        {
+            var snapshot = await _accessPointDirectory.GetAsync(cancellationToken: _windowToken).ConfigureAwait(true);
+
+            AccessPoints.Clear();
+            foreach (var ap in snapshot.AccessPoints)
+            {
+                AccessPoints.Add(new AccessPointItemViewModel(ap, snapshot.PortOf(ap), _devices.Get(ap.SwitchDeviceId)));
+            }
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load access points for device {DeviceId}", _deviceId);
+            AccessPointsError = ex.ToUserMessage();
+        }
+        finally
+        {
+            IsLoadingAccessPoints = false;
+            OnPropertyChanged(nameof(HasAccessPoints));
+            OnPropertyChanged(nameof(AccessPointsSummaryText));
+            OnPropertyChanged(nameof(ShowAccessPointsCard));
+        }
     }
 
     private void RaiseStateChanged()
@@ -157,6 +255,8 @@ public sealed class WirelessSectionViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowNav));
         OnPropertyChanged(nameof(ShowEmptyMessage));
         OnPropertyChanged(nameof(SummaryText));
+        OnPropertyChanged(nameof(IsController));
+        OnPropertyChanged(nameof(ShowAccessPointsCard));
     }
 }
 

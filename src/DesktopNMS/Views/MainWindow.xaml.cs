@@ -175,6 +175,10 @@ public partial class MainWindow : Window
         {
             LocationsViewControl.FocusSearch();
         }
+        else if (_viewModel.IsAccessPointsTabSelected)
+        {
+            AccessPointsViewControl.FocusSearch();
+        }
         else if (_viewModel.IsNetworkMapTabSelected)
         {
             NetworkMapViewControl.FocusSearch();
@@ -265,6 +269,7 @@ public partial class MainWindow : Window
         AlertsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Alerts"));
         GroupsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Groups"));
         LocationsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Locations"));
+        AccessPointsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("AccessPoints"));
         HealthViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Health.Sensors"));
     }
 
@@ -286,6 +291,7 @@ public partial class MainWindow : Window
             SetIfCaptured(layouts, "Alerts", AlertsViewControl.CaptureGridLayout());
             SetIfCaptured(layouts, "Groups", GroupsViewControl.CaptureGridLayout());
             SetIfCaptured(layouts, "Locations", LocationsViewControl.CaptureGridLayout());
+            SetIfCaptured(layouts, "AccessPoints", AccessPointsViewControl.CaptureGridLayout());
             SetIfCaptured(layouts, "Health.Sensors", HealthViewControl.CaptureGridLayout());
 
             _settings.Save();

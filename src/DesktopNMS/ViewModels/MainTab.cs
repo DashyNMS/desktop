@@ -9,6 +9,9 @@ public enum MainTab
     Alerts,
     Groups,
     Locations,
+
+    /// <summary>Every access point the switches see over LLDP (#55) - a sub-tab of Devices, like Groups and Locations.</summary>
+    AccessPoints,
     Rules,
     Templates,
 

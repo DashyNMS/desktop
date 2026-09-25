@@ -364,6 +364,12 @@ internal sealed class PortsApi : IPortsApi
     public Task<IReadOnlyList<Port>> ListAllNamesAsync(CancellationToken cancellationToken = default)
         => _transport.GetCollectionAsync<Port>("ports?columns=port_id,device_id,ifName,ifDescr", "ports", cancellationToken);
 
+    public Task<IReadOnlyList<Port>> ListAllStatusAsync(CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<Port>(
+            "ports?columns=port_id,device_id,ifName,ifDescr,ifAlias,ifOperStatus,ifAdminStatus,ifSpeed,ifInOctets_rate,ifOutOctets_rate",
+            "ports",
+            cancellationToken);
+
     public Task<IReadOnlyList<Port>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default)
     {
         // with=vlans adds each port's VLAN memberships, tagged and untagged
@@ -875,6 +881,30 @@ internal sealed class GraphsApi : IGraphsApi
         var url = string.Create(
             CultureInfo.InvariantCulture,
             $"devices/{deviceId}/{Uri.EscapeDataString(graphName)}?from={from}&width={width}&height={height}");
+
+        if (range.ToToParameter() is { } to)
+        {
+            url += "&to=" + Uri.EscapeDataString(to);
+        }
+
+        return _transport.SendRawAsync(url, cancellationToken);
+    }
+
+    public Task<string> GetPortSvgAsync(
+        int deviceId,
+        string ifName,
+        string graphType,
+        GraphTimeRange range,
+        int width,
+        int height,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(ifName);
+
+        var from = Uri.EscapeDataString(range.ToFromParameter());
+        var url = string.Create(
+            CultureInfo.InvariantCulture,
+            $"devices/{deviceId}/ports/{Uri.EscapeDataString(ifName)}/{Uri.EscapeDataString(graphType)}?from={from}&width={width}&height={height}");
 
         if (range.ToToParameter() is { } to)
         {

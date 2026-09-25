@@ -44,6 +44,9 @@ public interface IWindowService
     /// <summary>Shows a device's detail window on its Wireless section (#55) - the Dashboard Wireless widget's click-through.</summary>
     void ShowDeviceWireless(int deviceId);
 
+    /// <summary>Shows the main window on the Access points page (#55), with this AP selected if one is named and listed.</summary>
+    void ShowAccessPoint(string? name);
+
     /// <summary>Closes a device's detail window if it is currently open - a no-op otherwise.</summary>
     void CloseDeviceDetail(int deviceId);
 

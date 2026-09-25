@@ -224,6 +224,14 @@ public interface IPortsApi
     Task<IReadOnlyList<Port>> ListAllNamesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// GET /api/v0/ports with names plus status, speed and traffic rates -
+    /// every port in the fleet, for the Access points page (#55) to show the
+    /// state of each AP's switch port. Checked live: about 9,000 ports in
+    /// 1.4 seconds.
+    /// </summary>
+    Task<IReadOnlyList<Port>> ListAllStatusAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// GET /api/v0/devices/{id}/ip. Every IPv4/IPv6 address bound to any of
     /// the device's interfaces, keyed by <see cref="DeviceIpAddress.PortId"/>
     /// rather than returned per-port - a device can have several addresses
