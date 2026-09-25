@@ -117,7 +117,9 @@ public sealed class SessionService : ISessionService
             settings.TimeoutSeconds,
             backupAddress);
 
-        var result = await _client.TestAsync(connection, cancellationToken).ConfigureAwait(false);
+        // Back on the caller's (UI) thread: saving settings and StateChanged
+        // below set every listener updating what's on screen.
+        var result = await _client.TestAsync(connection, cancellationToken).ConfigureAwait(true);
 
         if (!result.Succeeded)
         {
@@ -180,7 +182,9 @@ public sealed class SessionService : ISessionService
             settings.TimeoutSeconds,
             ServerFailover.IsValidAddress(settings.BackupServerAddress) ? settings.BackupServerAddress : null);
 
-        var result = await _client.TestAsync(connection, cancellationToken).ConfigureAwait(false);
+        // Back on the caller's (UI) thread: saving settings and StateChanged
+        // below set every listener updating what's on screen.
+        var result = await _client.TestAsync(connection, cancellationToken).ConfigureAwait(true);
 
         if (result.Succeeded)
         {
