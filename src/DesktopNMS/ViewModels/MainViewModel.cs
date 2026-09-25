@@ -208,7 +208,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RefreshCurrentTabCommand = new RelayCommand(RefreshCurrentTab);
         ClearCurrentTabFiltersCommand = new RelayCommand(ClearCurrentTabFilters);
         SettingsCommand = new RelayCommand(OpenSettings);
-        ShowKeyboardShortcutsCommand = new RelayCommand(() => _windows.ShowKeyboardShortcuts());
         SignOutCommand = new RelayCommand(SignOut, () => _isConnected);
         ExitCommand = new RelayCommand(() => _windows.Exit());
 
@@ -358,9 +357,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand ClearCurrentTabFiltersCommand { get; }
 
     public RelayCommand SettingsCommand { get; }
-
-    /// <summary>F1 or the header's keyboard button - lists every shortcut (#65).</summary>
-    public RelayCommand ShowKeyboardShortcutsCommand { get; }
 
     public RelayCommand SignOutCommand { get; }
 

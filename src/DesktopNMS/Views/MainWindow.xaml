@@ -52,7 +52,6 @@
         <KeyBinding Key="F5" Command="{Binding RefreshCurrentTabCommand}" />
         <KeyBinding Key="A" Modifiers="Control" Command="{Binding AcknowledgeCommand}" />
         <KeyBinding Key="L" Modifiers="Control" Command="{Binding ClearCurrentTabFiltersCommand}" />
-        <KeyBinding Key="F1" Command="{Binding ShowKeyboardShortcutsCommand}" />
     </Window.InputBindings>
 
     <Window.CommandBindings>
@@ -388,12 +387,11 @@
                         <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
                     </Button>
 
+                    <Rectangle Style="{StaticResource ToolBarSeparatorStyle}" Margin="4,4,12,4" />
+
                     <!-- Only while the app is going through the backup address
                          (see ServerFailover): click for where it's connected
                          and to switch back to the server address. -->
-                    <Rectangle Style="{StaticResource ToolBarSeparatorStyle}"
-                               Margin="4,4,12,4"
-                               Visibility="{Binding IsOnBackupAddress, Converter={StaticResource BoolToVisibility}}" />
                     <Button x:Name="BackupAddressButton"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="{Binding BackupAddressStatusText}"
@@ -408,12 +406,6 @@
                                 <MenuItem Header="Switch back to the server address" Command="{Binding SwitchBackToMainAddressCommand}" />
                             </ContextMenu>
                         </Button.ContextMenu>
-                    </Button>
-                    <Button Command="{Binding ShowKeyboardShortcutsCommand}"
-                            Style="{StaticResource IconButtonStyle}"
-                            ToolTip="Keyboard shortcuts (F1)"
-                            Margin="0,0,8,0">
-                        <TextBlock Text="&#xE765;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
                     </Button>
                     <Button Command="{Binding SettingsCommand}"
                             Style="{StaticResource IconButtonStyle}"
