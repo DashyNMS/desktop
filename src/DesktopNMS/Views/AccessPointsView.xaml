@@ -36,18 +36,18 @@
                 <!-- State pills - the AP's switch port, which is what LibreNMS's
                      API has; shift-click shows only that one. -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <ToggleButton IsChecked="{Binding ShowUp}" Tag="{x:Static vm:AccessPointState.Up}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide APs whose switch port is up (shift-click to show only these)" Margin="0,0,10,0">
+                    <ToggleButton IsChecked="{Binding ShowUp}" Tag="{x:Static vm:AccessPointState.Up}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide APs that are up - their switch and switch port are up (shift-click to show only these)" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                            <TextBlock Text="port up" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                            <TextBlock Text="up" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                         </StackPanel>
                     </ToggleButton>
-                    <ToggleButton IsChecked="{Binding ShowDown}" Tag="{x:Static vm:AccessPointState.Down}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide APs whose switch port is down (shift-click to show only these)" Margin="0,0,10,0">
+                    <ToggleButton IsChecked="{Binding ShowDown}" Tag="{x:Static vm:AccessPointState.Down}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide APs that are down - their switch port, or the switch itself, is down (shift-click to show only these)" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                            <TextBlock Text="port down" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                            <TextBlock Text="down" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                         </StackPanel>
                     </ToggleButton>
                     <ToggleButton IsChecked="{Binding ShowOther}" Tag="{x:Static vm:AccessPointState.Unknown}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide APs on a shut-down port, or whose port LibreNMS doesn't know (shift-click to show only these)"

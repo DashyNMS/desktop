@@ -124,7 +124,6 @@ public sealed class WindowService : IWindowService
             _services.GetRequiredService<IUnimusApi>(),
             _services.GetRequiredService<IUnimusDeviceResolver>(),
             _services.GetRequiredService<IGraylogApi>(),
-            _services.GetRequiredService<IAccessPointDirectory>(),
             _services.GetRequiredService<ILogger<DeviceDetailViewModel>>());
 
         var window = new DeviceView(viewModel, settings);

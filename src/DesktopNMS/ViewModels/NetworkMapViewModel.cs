@@ -282,8 +282,8 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     public string SelectedNodeStateText => _selectedNode is { IsAccessPoint: true } ap
         ? ap.State switch
         {
-            DeviceState.Up => "Access point - port up",
-            DeviceState.Down => "Access point - port down",
+            DeviceState.Up => "Access point - up",
+            DeviceState.Down => "Access point - down",
             _ => "Access point",
         }
         : _selectedNode?.State switch
@@ -759,7 +759,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     private DeviceState AccessPointState(IReadOnlyList<AccessPoint> aps)
     {
         var states = aps
-            .Select(ap => new AccessPointItemViewModel(ap, _accessPoints?.PortOf(ap), null).State)
+            .Select(ap => new AccessPointItemViewModel(ap, _accessPoints?.PortOf(ap), _devices.FirstOrDefault(d => d.DeviceId == ap.SwitchDeviceId)).State)
             .ToList();
 
         return states.Contains(ViewModels.AccessPointState.Up) ? DeviceState.Up
@@ -782,6 +782,11 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             {
                 node.Name = nameStyle.Resolve(device, device.Hostname);
                 node.State = _maintenanceIds.Contains(node.DeviceId) ? DeviceState.Maintenance : device.State;
+            }
+            else if (node.IsAccessPoint && _accessPoints is { } snapshot)
+            {
+                // An AP follows its switch - down with it, see AccessPointItemViewModel.
+                node.State = AccessPointState(snapshot.AccessPoints.Where(ap => AccessPoints.NodeId(ap) == node.DeviceId).ToList());
             }
         }
 

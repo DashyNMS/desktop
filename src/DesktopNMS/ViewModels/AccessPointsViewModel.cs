@@ -423,13 +423,25 @@ public sealed class AccessPointItemViewModel
         Port = port;
         SwitchName = @switch?.BestName ?? $"device {accessPoint.SwitchDeviceId}";
 
-        State = !accessPoint.Active || port is null ? AccessPointState.Unknown
+        // A switch that's down (or disabled) isn't being polled, so its
+        // ports keep their last reading - often weeks-old "up". Its APs
+        // are counted as down with it, rather than trusting that.
+        IsSwitchDown = @switch is { Status: false, Disabled: false };
+        IsSwitchDisabled = @switch is { Disabled: true };
+
+        State = IsSwitchDown ? AccessPointState.Down
+            : IsSwitchDisabled || !accessPoint.Active || port is null ? AccessPointState.Unknown
             : string.Equals(port.IfAdminStatus, "down", StringComparison.OrdinalIgnoreCase) ? AccessPointState.AdminDown
             : port.IsUp ? AccessPointState.Up
             : AccessPointState.Down;
     }
 
     public AccessPoint AccessPoint { get; }
+
+    /// <summary>The AP's switch is down in LibreNMS - so the AP counts as down, and its port's figures are stale.</summary>
+    public bool IsSwitchDown { get; }
+
+    public bool IsSwitchDisabled { get; }
 
     public Port? Port { get; }
 
@@ -468,13 +480,13 @@ public sealed class AccessPointItemViewModel
     /// </summary>
     public string StateText => State switch
     {
-        AccessPointState.Up => "Port up",
-        AccessPointState.Down => "Port down",
+        AccessPointState.Up => "Up",
+        AccessPointState.Down => "Down",
         AccessPointState.AdminDown => "Port shut down",
-        _ => AccessPoint.Active ? "Unknown port" : "Not seen",
+        _ => IsSwitchDisabled ? "Switch disabled" : AccessPoint.Active ? "Unknown port" : "Not seen",
     };
 
-    public string SpeedText => Port?.IfSpeed is { } speed && speed > 0 ? LinkUtilisation.Rate(speed) : "-";
+    public string SpeedText => !IsSwitchDown && Port?.IfSpeed is { } speed && speed > 0 ? LinkUtilisation.Rate(speed) : "-";
 
     public double InBps => (Port?.IfInOctetsRate ?? 0) * 8;
 
@@ -487,7 +499,8 @@ public sealed class AccessPointItemViewModel
 
     public string ToolTip => AccessPoint.IsUnnamed
         ? $"This AP doesn't announce a name over LLDP - its MAC is {(MacText.Length > 0 ? MacText : "unknown")}. Plugged into {SwitchName} {PortText}."
-        : $"{Name} ({ModelText}) on {SwitchName} {PortText}" + (MacText.Length > 0 ? $" - MAC {MacText}" : string.Empty);
+        : $"{Name} ({ModelText}) on {SwitchName} {PortText}" + (MacText.Length > 0 ? $" - MAC {MacText}" : string.Empty)
+            + (IsSwitchDown ? $". {SwitchName} is down, so this AP is counted as down too." : string.Empty);
 
     public bool Matches(string? term)
     {

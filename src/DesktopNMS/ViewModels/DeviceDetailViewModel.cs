@@ -224,7 +224,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         IUnimusApi unimus,
         IUnimusDeviceResolver unimusResolver,
         IGraylogApi graylog,
-        IAccessPointDirectory accessPoints,
         ILogger<DeviceDetailViewModel> logger)
     {
         _deviceId = deviceId;
@@ -266,7 +265,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Inventory.PropertyChanged += OnInventoryPropertyChanged;
         Routing = new RoutingSectionViewModel(deviceId, client, logger, _loadCts.Token);
         Routing.PropertyChanged += OnRoutingPropertyChanged;
-        Wireless = new WirelessSectionViewModel(deviceId, client, accessPoints, deviceCache, windows, logger, _loadCts.Token, ShowGraph);
+        Wireless = new WirelessSectionViewModel(deviceId, client, logger, _loadCts.Token, ShowGraph);
         Wireless.PropertyChanged += OnWirelessPropertyChanged;
 
         HealthGroup = new DeviceNavGroup(DeviceNavGroup.Health, settings, () => SelectedSection is DeviceDetailSection.Sensors or DeviceDetailSection.Graphs);
