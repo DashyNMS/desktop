@@ -41,6 +41,9 @@ public interface IWindowService
     /// </summary>
     void ShowDeviceGraph(int deviceId, string graphName);
 
+    /// <summary>Shows a device's detail window on its Wireless section (#55) - the Dashboard Wireless widget's click-through.</summary>
+    void ShowDeviceWireless(int deviceId);
+
     /// <summary>Closes a device's detail window if it is currently open - a no-op otherwise.</summary>
     void CloseDeviceDetail(int deviceId);
 

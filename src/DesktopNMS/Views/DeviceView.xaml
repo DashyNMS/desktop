@@ -382,6 +382,12 @@
                                           IsChecked="{Binding IsRoutingSelected, Mode=OneWay}"
                                           Command="{Binding SelectRoutingCommand}"
                                           Visibility="{Binding Routing.ShowNav, Converter={StaticResource BoolToVisibility}}" />
+                            <ToggleButton Content="Wireless"
+                                          Tag="&#xE701;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsWirelessSelected, Mode=OneWay}"
+                                          Command="{Binding SelectWirelessCommand}"
+                                          Visibility="{Binding Wireless.ShowNav, Converter={StaticResource BoolToVisibility}}" />
                         </StackPanel>
 
                         <!-- ==================== Alerts & logs ==================== -->
@@ -2249,6 +2255,12 @@
             <Grid Margin="24"
                   Visibility="{Binding IsRoutingSelected, Converter={StaticResource BoolToVisibility}}">
                 <views:RoutingView DataContext="{Binding Routing}" />
+            </Grid>
+
+            <!-- ==================== Wireless (#55) ==================== -->
+            <Grid Margin="24"
+                  Visibility="{Binding IsWirelessSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:WirelessView DataContext="{Binding Wireless}" />
             </Grid>
 
             <!-- ==================== Inventory (#164) ==================== -->

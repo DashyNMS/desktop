@@ -113,6 +113,13 @@ public interface IDevicesApi
     Task<IReadOnlyList<InventoryEntry>> GetInventoryAsync(int deviceId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// GET /api/v0/devices/{id}/wireless-sensors - the device's wireless
+    /// readings (#55): AP and client counts on a controller, signal and
+    /// noise on a radio link. Empty for anything without a radio.
+    /// </summary>
+    Task<IReadOnlyList<WirelessSensor>> GetWirelessSensorsAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// GET /api/v0/devices/{id}/discover. Queues an on-demand rediscovery of
     /// the device - a GET despite the side effect, per LibreNMS's own API.
     /// There is no separate "poll now" endpoint; discovery is the closest the

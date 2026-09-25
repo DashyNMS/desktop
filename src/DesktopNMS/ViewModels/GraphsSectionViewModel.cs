@@ -158,10 +158,11 @@ public sealed class GraphsSectionViewModel : ObservableObject
             // simply be combined into one picker.
             var deviceWideTask = _client.Graphs.ListAsync(_deviceId);
             var healthTask = _client.Graphs.ListHealthAsync(_deviceId);
-            await Task.WhenAll(deviceWideTask, healthTask).ConfigureAwait(true);
+            var wirelessTask = ListWirelessGraphsAsync(_client, _deviceId, _logger);
+            await Task.WhenAll(deviceWideTask, healthTask, wirelessTask).ConfigureAwait(true);
 
             AvailableGraphs.Clear();
-            foreach (var type in deviceWideTask.Result.Concat(healthTask.Result).OrderBy(t => t.Description, StringComparer.OrdinalIgnoreCase))
+            foreach (var type in deviceWideTask.Result.Concat(healthTask.Result).Concat(wirelessTask.Result).OrderBy(t => t.Description, StringComparer.OrdinalIgnoreCase))
             {
                 AvailableGraphs.Add(type);
             }
@@ -186,6 +187,24 @@ public sealed class GraphsSectionViewModel : ObservableObject
             _logger.LogWarning(ex, "Could not load graph types for device {DeviceId}", _deviceId);
             ErrorMessage = ex.ToUserMessage();
             IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// The device's wireless graphs (#55) - a third listing besides the
+    /// device-wide and health ones. Best effort: most devices have none, and
+    /// a failure here shouldn't take the other graphs down with it.
+    /// </summary>
+    internal static async Task<IReadOnlyList<GraphType>> ListWirelessGraphsAsync(ILibreNmsClient client, int deviceId, ILogger logger)
+    {
+        try
+        {
+            return await client.Graphs.ListWirelessAsync(deviceId).ConfigureAwait(true);
+        }
+        catch (LibreNmsApiException ex)
+        {
+            logger.LogDebug(ex, "Could not list wireless graphs for device {DeviceId}", deviceId);
+            return Array.Empty<GraphType>();
         }
     }
 

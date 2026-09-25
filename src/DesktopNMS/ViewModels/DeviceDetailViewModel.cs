@@ -54,6 +54,9 @@ public enum DeviceDetailSection
 
     /// <summary>BGP sessions, OSPF neighbours and VRFs (#53).</summary>
     Routing,
+
+    /// <summary>Wireless readings (#55) - AP and client counts, signal, noise, ...</summary>
+    Wireless,
 }
 
 /// <summary>
@@ -262,10 +265,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Inventory.PropertyChanged += OnInventoryPropertyChanged;
         Routing = new RoutingSectionViewModel(deviceId, client, logger, _loadCts.Token);
         Routing.PropertyChanged += OnRoutingPropertyChanged;
+        Wireless = new WirelessSectionViewModel(deviceId, client, logger, _loadCts.Token, ShowGraph);
+        Wireless.PropertyChanged += OnWirelessPropertyChanged;
 
         HealthGroup = new DeviceNavGroup(DeviceNavGroup.Health, settings, () => SelectedSection is DeviceDetailSection.Sensors or DeviceDetailSection.Graphs);
         HardwareGroup = new DeviceNavGroup(DeviceNavGroup.Hardware, settings, () => SelectedSection is DeviceDetailSection.Resources or DeviceDetailSection.Inventory);
-        NetworkGroup = new DeviceNavGroup(DeviceNavGroup.Network, settings, () => SelectedSection is DeviceDetailSection.Ports or DeviceDetailSection.Vlans or DeviceDetailSection.Fdb or DeviceDetailSection.Arp or DeviceDetailSection.Routing);
+        NetworkGroup = new DeviceNavGroup(DeviceNavGroup.Network, settings, () => SelectedSection is DeviceDetailSection.Ports or DeviceDetailSection.Vlans or DeviceDetailSection.Fdb or DeviceDetailSection.Arp or DeviceDetailSection.Routing or DeviceDetailSection.Wireless);
         LogsGroup = new DeviceNavGroup(DeviceNavGroup.Logs, settings, () => SelectedSection is DeviceDetailSection.Alerts or DeviceDetailSection.EventLog);
         IntegrationsGroup = new DeviceNavGroup(DeviceNavGroup.Integrations, settings, () => SelectedSection is DeviceDetailSection.Graylog or DeviceDetailSection.Config);
         LogsGroup.PropertyChanged += (_, _) => OnPropertyChanged(nameof(ShowCollapsedAlertBadge));
@@ -332,6 +337,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectGraylogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Graylog);
         SelectInventoryCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Inventory);
         SelectRoutingCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Routing);
+        SelectWirelessCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Wireless);
         BackupNowCommand = new AsyncRelayCommand(BackupNowAsync, () => !IsBackingUpNow && HasUnimusMatch);
         RefreshConfigCommand = new AsyncRelayCommand(LoadConfigAsync, () => !IsLoadingConfig);
         NextChangeCommand = new RelayCommand(() => GoToChange(_currentChangeIndex + 1), CanGoToNextChange);
@@ -380,6 +386,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _ = LoadEventLogAsync();
         _ = Inventory.LoadAsync();
         _ = Routing.LoadAsync();
+        _ = Wireless.LoadAsync();
 
         // Eager, unlike everything else being conditional on Unimus being
         // configured at all - deliberately so, even though it costs one
@@ -566,6 +573,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// <summary>The Routing section (#53) - see <see cref="RoutingSectionViewModel"/>.</summary>
     public RoutingSectionViewModel Routing { get; }
 
+    /// <summary>The Wireless section (#55) - see <see cref="WirelessSectionViewModel"/>.</summary>
+    public WirelessSectionViewModel Wireless { get; }
+
     /// <summary>Overview's "at a glance" ping-response graph (issue #11) - see <see cref="SingleGraphViewModel"/>.</summary>
     public SingleGraphViewModel OverviewGraph { get; }
 
@@ -592,6 +602,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public RelayCommand SelectInventoryCommand { get; }
 
     public RelayCommand SelectRoutingCommand { get; }
+
+    public RelayCommand SelectWirelessCommand { get; }
 
     /// <summary>Navigates to the Edit section and refreshes its draft fields from the current device - see <see cref="SelectEdit"/>.</summary>
     public RelayCommand SelectEditCommand { get; }
@@ -747,6 +759,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsGraylogSelected));
                 OnPropertyChanged(nameof(IsInventorySelected));
                 OnPropertyChanged(nameof(IsRoutingSelected));
+                OnPropertyChanged(nameof(IsWirelessSelected));
                 RefreshNavGroups();
 
                 if (value == DeviceDetailSection.Graylog)
@@ -786,6 +799,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsInventorySelected => SelectedSection == DeviceDetailSection.Inventory;
 
     public bool IsRoutingSelected => SelectedSection == DeviceDetailSection.Routing;
+
+    public bool IsWirelessSelected => SelectedSection == DeviceDetailSection.Wireless;
 
     /// <summary>
     /// The Graylog nav item - whenever Graylog is set up, unlike Unimus's
@@ -2050,7 +2065,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool ShowVlansNoMatchesMessage => !IsLoadingVlans && HasVlans && !HasVisibleVlans;
 
     /// <summary>Whether the sidebar's "Network" group has anything to show at all - it should not appear as an empty header for a device with none of these, but also should not disappear and reappear as each loads independently.</summary>
-    public bool HasNetworkSection => ShowPortsNav || ShowVlansNav || ShowFdbNav || ShowArpNav || Routing.ShowNav;
+    public bool HasNetworkSection => ShowPortsNav || ShowVlansNav || ShowFdbNav || ShowArpNav || Routing.ShowNav || Wireless.ShowNav;
 
     public int PortsUpCount => Ports.Count(p => p.IsUp);
 
@@ -2098,6 +2113,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private void OnRoutingPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(RoutingSectionViewModel.ShowNav))
+        {
+            OnPropertyChanged(nameof(HasNetworkSection));
+        }
+    }
+
+    private void OnWirelessPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(WirelessSectionViewModel.ShowNav))
         {
             OnPropertyChanged(nameof(HasNetworkSection));
         }
@@ -3433,6 +3456,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             LoadAlertHistoryAsync(), LoadPortsAsync(), LoadResourcesAsync(), LoadAvailabilityAsync(),
             LoadDeviceGroupsAsync(), LoadVlansAsync(), LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync(), Inventory.LoadAsync(), Routing.LoadAsync(),
+            Wireless.LoadAsync(),
         };
 
         // Unlike every other section here, only actually calls out to
@@ -3949,6 +3973,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Graylog.PropertyChanged -= OnGraylogPropertyChanged;
         Inventory.PropertyChanged -= OnInventoryPropertyChanged;
         Routing.PropertyChanged -= OnRoutingPropertyChanged;
+        Wireless.PropertyChanged -= OnWirelessPropertyChanged;
         Graylog.Dispose();
         _loadCts.Cancel();
         _loadCts.Dispose();

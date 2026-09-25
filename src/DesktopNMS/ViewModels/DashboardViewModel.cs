@@ -26,7 +26,9 @@ namespace DesktopNMS.ViewModels;
 /// "PinnedDevices" (same relationship, but for the Devices tab's pinned/
 /// favourite devices), and "Graph" (issue #12 - a configurable per-device
 /// graph, reloaded only when this tab is shown or refreshed, since a graph
-/// fetch is its own real API call rather than shared poll data). None of the
+/// fetch is its own real API call rather than shared poll data), and
+/// "Wireless" (#55 - each wireless controller's AP and client counts, asked
+/// of just those controllers - see <see cref="WirelessWidgetViewModel"/>). None of the
 /// others trigger a fetch of their own - having any combination open never
 /// costs more than one poll of each kind of data.
 /// </summary>
@@ -107,6 +109,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         AddRecentlyViewedWidgetCommand = new RelayCommand(() => _layout.AddWidget("RecentlyViewed", "Recently viewed"));
         AddPinnedDevicesWidgetCommand = new RelayCommand(() => _layout.AddWidget("PinnedDevices", "Pinned devices"));
         AddGraphWidgetCommand = new RelayCommand(() => _layout.AddWidget("Graph", "Graph"));
+        AddWirelessWidgetCommand = new RelayCommand(() => _layout.AddWidget("Wireless", "Wireless"));
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
@@ -137,6 +140,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     public bool ShowPinnedDevicesWidgetOption => _settings.Current.EnablePinnedDevices;
 
     public RelayCommand AddGraphWidgetCommand { get; }
+
+    public RelayCommand AddWirelessWidgetCommand { get; }
 
     /// <summary>True while the user is arranging the dashboard: widgets show drag/resize/remove handles.</summary>
     public bool IsEditMode
@@ -221,6 +226,11 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     private void ReloadGraphWidgets()
     {
         foreach (var widget in Widgets.OfType<GraphWidgetViewModel>())
+        {
+            widget.Reload();
+        }
+
+        foreach (var widget in Widgets.OfType<WirelessWidgetViewModel>())
         {
             widget.Reload();
         }
@@ -362,6 +372,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         "RecentlyViewed" => new RecentlyViewedWidgetViewModel(_layout, model, _settings, deviceId => _windows.ShowDeviceDetail(deviceId)),
         "PinnedDevices" => new PinnedDevicesWidgetViewModel(_layout, model, _settings, deviceId => _windows.ShowDeviceDetail(deviceId)),
         "Graph" => new GraphWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger, (deviceId, graphName) => _windows.ShowDeviceGraph(deviceId, graphName)),
+        "Wireless" => new WirelessWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger, deviceId => _windows.ShowDeviceWireless(deviceId)),
         // "Sensors" (and any future/unknown type, so a layout from a newer
         // version does not blow up) fall back to the Sensors widget.
         _ => new SensorWidgetViewModel(_layout, model, OpenDeviceCommand),

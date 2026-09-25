@@ -26,6 +26,15 @@ public interface IGraphsApi
     Task<IReadOnlyList<GraphType>> ListHealthAsync(int deviceId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// GET /api/v0/devices/{id}/wireless - one graph per wireless sensor
+    /// class the device has ("device_wireless_clients", ...), a third listing
+    /// neither of the others includes (confirmed live). They render through
+    /// the same /devices/{id}/{graphName} route as the rest. Descriptions
+    /// are rewritten from LibreNMS's bare "Ap-count" to "Wireless: APs".
+    /// </summary>
+    Task<IReadOnlyList<GraphType>> ListWirelessAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// GET /api/v0/devices/{id}/{graphName} - the rendered graph, as the raw
     /// SVG LibreNMS returns (confirmed live: image/svg+xml, no cookie
     /// session needed, honours "from"/"width"/"height"). Callers apply their

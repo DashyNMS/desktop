@@ -181,6 +181,12 @@ internal sealed class DevicesApi : IDevicesApi
         return _transport.GetCollectionAsync<InventoryEntry>(url, "inventory", cancellationToken);
     }
 
+    public Task<IReadOnlyList<WirelessSensor>> GetWirelessSensorsAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/wireless-sensors";
+        return _transport.GetCollectionAsync<WirelessSensor>(url, "wireless_sensors", cancellationToken);
+    }
+
     public async Task<string> DiscoverAsync(int deviceId, CancellationToken cancellationToken = default)
     {
         var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/discover";
@@ -835,6 +841,22 @@ internal sealed class GraphsApi : IGraphsApi
     {
         var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/health";
         return _transport.GetCollectionAsync<GraphType>(url, "graphs", cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<GraphType>> ListWirelessAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/wireless";
+        var graphs = await _transport.GetCollectionAsync<GraphType>(url, "graphs", cancellationToken).ConfigureAwait(false);
+
+        foreach (var graph in graphs)
+        {
+            if (WirelessSensorClasses.ClassOfGraph(graph.Name) is { } sensorClass)
+            {
+                graph.Description = "Wireless: " + WirelessSensorClasses.NameOf(sensorClass);
+            }
+        }
+
+        return graphs;
     }
 
     public Task<string> GetSvgAsync(
