@@ -184,7 +184,11 @@ internal sealed class DevicesApi : IDevicesApi
     public Task<IReadOnlyList<WirelessSensor>> GetWirelessSensorsAsync(int deviceId, CancellationToken cancellationToken = default)
     {
         var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/wireless-sensors";
-        return _transport.GetCollectionAsync<WirelessSensor>(url, "wireless_sensors", cancellationToken);
+        // LibreNMS answers a device without any with a 404, not an empty list.
+        return NoneFound.AsEmpty(
+            _transport.GetCollectionAsync<WirelessSensor>(url, "wireless_sensors", cancellationToken),
+            System.Net.HttpStatusCode.NotFound,
+            "No wireless sensors found");
     }
 
     public async Task<string> DiscoverAsync(int deviceId, CancellationToken cancellationToken = default)
@@ -908,8 +912,18 @@ internal sealed class RoutingApi : IRoutingApi
 
     private static string Id(int deviceId) => deviceId.ToString(CultureInfo.InvariantCulture);
 
-    /// <summary>LibreNMS's way of saying "none" on some routes - that exact status and message - becomes an empty list; anything else still throws.</summary>
-    private static async Task<IReadOnlyList<T>> EmptyWhen<T>(Task<IReadOnlyList<T>> request, System.Net.HttpStatusCode status, string message)
+    private static Task<IReadOnlyList<T>> EmptyWhen<T>(Task<IReadOnlyList<T>> request, System.Net.HttpStatusCode status, string message)
+        => NoneFound.AsEmpty(request, status, message);
+}
+
+/// <summary>
+/// Some LibreNMS routes say "there are none" with an error - a 404 "VRFs do
+/// not exist", a 404 "No wireless sensors found" - rather than an empty list.
+/// </summary>
+internal static class NoneFound
+{
+    /// <summary>That exact status and message becomes an empty list; anything else still throws.</summary>
+    public static async Task<IReadOnlyList<T>> AsEmpty<T>(Task<IReadOnlyList<T>> request, System.Net.HttpStatusCode status, string message)
     {
         try
         {

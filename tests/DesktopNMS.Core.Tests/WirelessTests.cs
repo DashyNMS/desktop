@@ -1,4 +1,6 @@
+using System.Net;
 using System.Text.Json;
+using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Devices;
 using DesktopNMS.Core.Json;
 using DesktopNMS.Core.Models;
@@ -119,5 +121,44 @@ public class WirelessTests
         Assert.False(summary.HasAny);
         Assert.Null(summary.Clients);
         Assert.Equal(AlertSeverity.Unknown, summary.Severity);
+    }
+
+    [Fact]
+    public async Task No_wireless_sensors_is_an_empty_list_not_an_error()
+    {
+        var api = new DevicesApi(new FailingTransport(HttpStatusCode.NotFound, "No wireless sensors found"));
+
+        Assert.Empty(await api.GetWirelessSensorsAsync(97));
+    }
+
+    [Fact]
+    public async Task A_real_wireless_failure_still_throws()
+    {
+        var api = new DevicesApi(new FailingTransport(HttpStatusCode.InternalServerError, "Something broke"));
+
+        await Assert.ThrowsAsync<LibreNmsApiException>(() => api.GetWirelessSensorsAsync(97));
+    }
+
+    private sealed class FailingTransport : ILibreNmsTransport
+    {
+        private readonly HttpStatusCode _status;
+        private readonly string _message;
+
+        public FailingTransport(HttpStatusCode status, string message)
+        {
+            _status = status;
+            _message = message;
+        }
+
+        public LibreNmsConnection? Connection => null;
+
+        public Task<IReadOnlyList<T>> GetCollectionAsync<T>(string relativeUrl, string collectionProperty, CancellationToken cancellationToken = default)
+            => Task.FromException<IReadOnlyList<T>>(new LibreNmsApiException("failed", _status, _message));
+
+        public Task<JsonDocument> SendAsync(HttpMethod method, string relativeUrl, object? body = null, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<string> SendRawAsync(string relativeUrl, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 }
