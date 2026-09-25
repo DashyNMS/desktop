@@ -66,7 +66,8 @@ public sealed class DeviceNavGroup : ObservableObject
             collapsed.Add(Key);
         }
 
-        _settings.Save();
+        // A display preference nothing else reacts to - see SaveQuietly.
+        _settings.SaveQuietly();
         Refresh();
     }
 }

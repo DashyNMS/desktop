@@ -196,7 +196,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
             if (_settings.Current.NeighbourGraphsCollapsed != value)
             {
                 _settings.Current.NeighbourGraphsCollapsed = value;
-                _settings.Save();
+                _settings.SaveQuietly();
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(GraphsToggleGlyph));
 

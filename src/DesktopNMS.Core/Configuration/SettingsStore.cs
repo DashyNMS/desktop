@@ -18,6 +18,14 @@ public interface ISettingsStore
     /// <summary>Writes <see cref="Current"/> to disk.</summary>
     void Save();
 
+    /// <summary>
+    /// Writes <see cref="Current"/> to disk without raising <see cref="Changed"/> -
+    /// for a display preference only the thing that set it cares about (a
+    /// folded panel or sidebar group), so saving it doesn't set every
+    /// listener re-applying settings that haven't changed.
+    /// </summary>
+    void SaveQuietly();
+
     /// <summary>Swaps in a new settings object and persists it.</summary>
     void Replace(AppSettings settings);
 }
@@ -92,7 +100,11 @@ public sealed class SettingsStore : ISettingsStore
         }
     }
 
-    public void Save()
+    public void SaveQuietly() => Write();
+
+    public void Save() => Changed?.Invoke(this, Write());
+
+    private AppSettings Write()
     {
         AppSettings snapshot;
 
@@ -112,7 +124,7 @@ public sealed class SettingsStore : ISettingsStore
             }
         }
 
-        Changed?.Invoke(this, snapshot);
+        return snapshot;
     }
 
     public void Replace(AppSettings settings)
