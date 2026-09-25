@@ -165,6 +165,16 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnUpdateReadyClick(object sender, RoutedEventArgs e)
+    {
+        if (UpdateReadyButton.ContextMenu is { } menu)
+        {
+            menu.PlacementTarget = UpdateReadyButton;
+            menu.DataContext = DataContext;
+            menu.IsOpen = true;
+        }
+    }
+
     private void NotifyVisibility() =>
         _viewModel.OnWindowVisibilityChanged(IsVisible && WindowState != WindowState.Minimized);
 

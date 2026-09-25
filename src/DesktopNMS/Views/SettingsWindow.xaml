@@ -1268,12 +1268,20 @@
                                             Padding="10,6"
                                             Margin="12,0,0,0" />
                                 </Grid>
-                                <Button Content="View on GitHub"
-                                        Command="{Binding ViewLatestReleaseCommand}"
-                                        HorizontalAlignment="Left"
-                                        Padding="10,6"
-                                        Margin="0,10,0,0"
-                                        Visibility="{Binding IsNewerVersionAvailable, Converter={StaticResource BoolToVisibility}}" />
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,10,0,0"
+                                            Visibility="{Binding IsNewerVersionAvailable, Converter={StaticResource BoolToVisibility}}">
+                                    <Button Content="Restart to update"
+                                            Command="{Binding InstallUpdateCommand}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Padding="10,6"
+                                            Margin="0,0,8,0"
+                                            ToolTip="DashyNMS closes, installs the update and reopens on the new version. Unsaved changes here are discarded."
+                                            Visibility="{Binding IsUpdateReady, Converter={StaticResource BoolToVisibility}}" />
+                                    <Button Content="View on GitHub"
+                                            Command="{Binding ViewLatestReleaseCommand}"
+                                            Padding="10,6" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 

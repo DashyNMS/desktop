@@ -407,6 +407,24 @@
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
+                    <!-- Only once a newer version is downloaded and verified
+                         (see UpdateCheckService): click to restart onto it. -->
+                    <Button x:Name="UpdateReadyButton"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="{Binding UpdateReadyText}"
+                            Click="OnUpdateReadyClick"
+                            Margin="0,0,8,0"
+                            Visibility="{Binding IsUpdateReady, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="&#xE896;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Foreground="{DynamicResource AccentBrush}" />
+                        <Button.ContextMenu>
+                            <ContextMenu Placement="Bottom">
+                                <MenuItem Header="{Binding UpdateReadyText}" IsEnabled="False" />
+                                <Separator />
+                                <MenuItem Header="Restart to update" Command="{Binding InstallUpdateCommand}" />
+                                <MenuItem Header="What's new" Command="{Binding ViewUpdateNotesCommand}" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
                     <Button Command="{Binding SettingsCommand}"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Settings"

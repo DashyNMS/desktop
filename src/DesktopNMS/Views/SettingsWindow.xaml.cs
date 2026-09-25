@@ -16,6 +16,7 @@ public partial class SettingsWindow : Window
 
         DataContext = viewModel;
         _viewModel.RequestClose += OnRequestClose;
+        Closed += (_, _) => _viewModel.Detach();
     }
 
     /// <summary>PasswordBox does not expose a bindable password, by design - see ConnectionWindow's identical pattern for the LibreNMS token.</summary>

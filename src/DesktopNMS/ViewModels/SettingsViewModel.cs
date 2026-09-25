@@ -103,6 +103,7 @@ public sealed class SettingsViewModel : ObservableObject
     private readonly IStartupRegistration _startup;
     private readonly IAlertNotificationService _notifications;
     private readonly IUpdateCheckService _updates;
+    private readonly System.Windows.Threading.Dispatcher _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
     private readonly IWindowService _windows;
     private readonly ISessionService _session;
     private readonly ILibreNmsClient _client;
@@ -192,6 +193,8 @@ public sealed class SettingsViewModel : ObservableObject
         RefreshServerInfoCommand = new AsyncRelayCommand(RefreshServerInfoAsync, () => !IsRefreshingServerInfo);
 
         CheckForUpdatesCommand = new AsyncRelayCommand(() => CheckForUpdatesAsync(notifyIfNewer: false));
+        InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => IsUpdateReady && !_isInstallingUpdate);
+        _updates.ReadyUpdateChanged += OnReadyUpdateChanged;
         ViewLatestReleaseCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri(_latestRelease!.HtmlUrl!)),
             () => _latestRelease?.HtmlUrl is not null);
@@ -1314,18 +1317,75 @@ public sealed class SettingsViewModel : ObservableObject
 
         UpdateStatusText = !result.Succeeded
             ? "Could not check for updates. Check your internet connection."
-            : result.IsNewerVersionAvailable
-                ? result.LatestRelease!.Prerelease
-                    ? $"Preview {result.LatestRelease!.TagName} is available."
-                    : $"Version {result.LatestRelease!.TagName} is available."
-                : "You're up to date.";
+            : DescribeNewerVersion() ?? "You're up to date.";
 
         OnPropertyChanged(nameof(HasLatestRelease));
         OnPropertyChanged(nameof(LatestReleaseNotes));
         ViewLatestReleaseCommand.RaiseCanExecuteChanged();
+        RaiseUpdateReadyChanged();
 
         IsCheckingForUpdates = false;
     }
+
+    /// <summary>"Version v1.2.0 is downloading..." / "... is ready to install." - null when there's no newer version.</summary>
+    private string? DescribeNewerVersion()
+    {
+        if (!IsNewerVersionAvailable || _latestRelease is not { } release)
+        {
+            return null;
+        }
+
+        var what = release.Prerelease ? $"Preview {release.TagName}" : $"Version {release.TagName}";
+        return IsUpdateReady
+            ? $"{what} is downloaded and ready to install."
+            : $"{what} is available - downloading it in the background.";
+    }
+
+    private bool _isInstallingUpdate;
+
+    /// <summary>The newest version found is downloaded and verified - "Restart to update" shows.</summary>
+    public bool IsUpdateReady => _updates.ReadyUpdate is { } ready
+                                 && (_latestRelease is null || ready.Version == _latestRelease.TagName);
+
+    /// <summary>DashyNMS closes, installs the update and reopens on it - unsaved changes here are discarded.</summary>
+    public AsyncRelayCommand InstallUpdateCommand { get; }
+
+    private async Task InstallUpdateAsync()
+    {
+        _isInstallingUpdate = true;
+        InstallUpdateCommand.RaiseCanExecuteChanged();
+        try
+        {
+            // On success the app shuts down from under this (InstallStarted).
+            if (!await _updates.InstallAsync().ConfigureAwait(true))
+            {
+                _windows.ShowError("Update", "The update couldn't be started. Check again, or download it from the release page.");
+            }
+        }
+        finally
+        {
+            _isInstallingUpdate = false;
+            InstallUpdateCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    private void OnReadyUpdateChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() =>
+    {
+        RaiseUpdateReadyChanged();
+        if (!IsCheckingForUpdates && DescribeNewerVersion() is { } text)
+        {
+            UpdateStatusText = text;
+        }
+    });
+
+    private void RaiseUpdateReadyChanged()
+    {
+        OnPropertyChanged(nameof(IsUpdateReady));
+        InstallUpdateCommand.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>The dialog has closed - stop listening for the update download.</summary>
+    public void Detach() => _updates.ReadyUpdateChanged -= OnReadyUpdateChanged;
 
     /// <summary>0-23, for the quiet-hours pickers.</summary>
     public IReadOnlyList<int> Hours { get; } = Enumerable.Range(0, 24).ToArray();

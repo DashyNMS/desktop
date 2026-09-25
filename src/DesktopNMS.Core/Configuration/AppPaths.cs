@@ -24,6 +24,9 @@ public static class AppPaths
 
     public static string LogDirectory { get; } = CreateSubdirectory("logs");
 
+    /// <summary>Where a downloaded update's installer waits to be run - see Updates.UpdatePackage.</summary>
+    public static string UpdatesDirectory => Path.Combine(DataDirectory, "updates");
+
     private static string CreateDataDirectory()
     {
         var root = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);

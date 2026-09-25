@@ -83,6 +83,7 @@ public partial class App : Application
 
         SetUpTray();
         SetUpNotifications();
+        SetUpUpdates();
 
         _monitor = _services.GetRequiredService<AlertMonitor>();
         _mainViewModel = _services.GetRequiredService<MainViewModel>();
@@ -200,6 +201,27 @@ public partial class App : Application
 
         var connection = new UnimusConnection(webRoot, token, settings.AllowUntrustedCertificate);
         _services.GetRequiredService<IUnimusApi>().Configure(connection);
+    }
+
+    private void SetUpUpdates()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        var updates = _services.GetRequiredService<IUpdateCheckService>();
+
+        // The installer replaces DashyNMS.exe, so get out of its way; it
+        // reopens the app on the new version once it's done.
+        updates.InstallStarted += (_, _) => Dispatcher.InvokeAsync(ShutdownApplication);
+        updates.OnStartup();
+
+        // Beyond the check at start-up, for an app left running for days in
+        // the tray. Each release is only ever toasted about once.
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromHours(6) };
+        timer.Tick += (_, _) => _ = CheckForUpdatesAsync();
+        timer.Start();
     }
 
     private async Task CheckForUpdatesAsync()
@@ -416,6 +438,10 @@ public partial class App : Application
             {
                 case ToastAction.Acknowledge when request.AlertId is { } ackId:
                     await _mainViewModel.AcknowledgeAsync(ackId).ConfigureAwait(true);
+                    break;
+
+                case ToastAction.InstallUpdate:
+                    await _mainViewModel.InstallUpdateAsync().ConfigureAwait(true);
                     break;
 
                 default:
