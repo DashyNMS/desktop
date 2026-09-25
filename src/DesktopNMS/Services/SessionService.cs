@@ -104,9 +104,9 @@ public sealed class SessionService : ISessionService
             return ConnectionTestResult.Failure("Enter the API token from LibreNMS (Settings, API, API Access).");
         }
 
-        if (!string.IsNullOrWhiteSpace(backupAddress) && !ServerFailover.IsValidAddress(backupAddress))
+        if (!TryParseBackup(backupAddress, out var backupWebRoot, out var backupError))
         {
-            return ConnectionTestResult.Failure("The backup address should be an IP address or a hostname - no https://, path or port.");
+            return ConnectionTestResult.Failure("The backup address isn't usable: " + backupError);
         }
 
         var settings = _settings.Current;
@@ -115,7 +115,7 @@ public sealed class SessionService : ISessionService
             apiToken.Trim(),
             allowUntrustedCertificate,
             settings.TimeoutSeconds,
-            backupAddress);
+            backupWebRoot);
 
         // Back on the caller's (UI) thread: saving settings and StateChanged
         // below set every listener updating what's on screen.
@@ -130,7 +130,7 @@ public sealed class SessionService : ISessionService
         ServerInfo = result.SystemInfo;
 
         settings.ServerUrl = webRoot!.ToString();
-        settings.BackupServerAddress = connection.BackupAddress;
+        settings.BackupServerAddress = connection.BackupWebRoot?.ToString();
         settings.AllowUntrustedCertificate = allowUntrustedCertificate;
         settings.RememberToken = rememberToken;
         _settings.Save();
@@ -148,6 +148,17 @@ public sealed class SessionService : ISessionService
         StateChanged?.Invoke(this, EventArgs.Empty);
 
         return result;
+    }
+
+    /// <summary>
+    /// The backup address as a URL, like the server address - "10.46.2.10"
+    /// reads as https://10.46.2.10/. Blank is fine: no backup.
+    /// </summary>
+    public static bool TryParseBackup(string? text, out Uri? backup, out string? error)
+    {
+        backup = null;
+        error = null;
+        return string.IsNullOrWhiteSpace(text) || LibreNmsConnection.TryParseWebRoot(text, out backup, out error);
     }
 
     public Task<ConnectionTestResult> ReconnectAsync(string serverUrl, string? newApiToken, bool allowUntrustedCertificate, string? backupAddress, CancellationToken cancellationToken = default)
@@ -180,7 +191,7 @@ public sealed class SessionService : ISessionService
             token!,
             settings.AllowUntrustedCertificate,
             settings.TimeoutSeconds,
-            ServerFailover.IsValidAddress(settings.BackupServerAddress) ? settings.BackupServerAddress : null);
+            TryParseBackup(settings.BackupServerAddress, out var savedBackup, out _) ? savedBackup : null);
 
         // Back on the caller's (UI) thread: saving settings and StateChanged
         // below set every listener updating what's on screen.

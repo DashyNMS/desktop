@@ -32,8 +32,8 @@
 
         <TextBlock Text="Backup address (optional)" Style="{StaticResource SectionHeaderStyle}" />
         <TextBox Text="{Binding BackupAddress, UpdateSourceTrigger=PropertyChanged}"
-                 ToolTip="Another IP or name for the same server, e.g. 10.46.2.10" />
-        <TextBlock Text="Another IP or name for the same server. Used if the server address stops answering twice in a row, until you switch back."
+                 ToolTip="Another address for the same server, e.g. https://10.44.100.100/" />
+        <TextBlock Text="Another address for the same server, e.g. https://10.44.100.100/. Used if the server address stops answering twice in a row, until you switch back."
                    Style="{StaticResource SubtleTextStyle}"
                    TextWrapping="Wrap"
                    Margin="0,4,0,0" />

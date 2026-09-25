@@ -63,11 +63,11 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         ArgumentNullException.ThrowIfNull(connection);
 
         Install(connection);
-        _failover.Configure(connection.BackupAddress, startOnBackup);
+        _failover.Configure(connection.BackupWebRoot?.ToString(), startOnBackup);
         _logger.LogInformation(
             "LibreNMS transport configured for {ApiBase}{Backup}",
             connection.ApiBase,
-            connection.BackupAddress is { } backup ? $" (backup address {backup}{(startOnBackup ? ", in use" : string.Empty)})" : string.Empty);
+            connection.BackupWebRoot is { } backup ? $" (backup address {backup}{(startOnBackup ? ", in use" : string.Empty)})" : string.Empty);
     }
 
     /// <summary>Switched to the backup address or back: a fresh client, so no pooled connection to the old address carries on being used.</summary>
@@ -110,13 +110,16 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
         };
 
-        // On the backup address, dial it in place of the URL's host. The
-        // request itself still names the host, so TLS (SNI and the certificate
-        // check) and the Host header stay as they are - the backup is the same
-        // server by another route.
+        // On a backup that's just another route to the server (same scheme,
+        // port and path - see LibreNmsConnection.BackupIsAnotherRoute), dial
+        // its host in place of the URL's. The request itself still names the
+        // server, so TLS (SNI and the certificate check) and the Host header
+        // stay as they are. Any other backup is simply its own URL (below).
+        var onBackup = _failover.IsOnBackup && connection.BackupWebRoot is not null;
+        var dialBackupHost = onBackup && connection.BackupIsAnotherRoute;
         handler.ConnectCallback = async (context, cancellationToken) =>
         {
-            var host = _failover.IsOnBackup && _failover.BackupAddress is { } backup ? backup : context.DnsEndPoint.Host;
+            var host = dialBackupHost ? connection.BackupWebRoot!.DnsSafeHost : context.DnsEndPoint.Host;
             var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
             try
             {
@@ -138,7 +141,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
 
         var http = new HttpClient(handler, disposeHandler: false)
         {
-            BaseAddress = connection.ApiBase,
+            BaseAddress = onBackup && !dialBackupHost ? connection.BackupApiBase : connection.ApiBase,
             Timeout = TimeSpan.FromSeconds(connection.TimeoutSeconds),
         };
 

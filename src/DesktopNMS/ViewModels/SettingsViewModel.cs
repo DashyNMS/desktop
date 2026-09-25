@@ -501,9 +501,7 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
-    public string? BackupServerAddressError => _draft.BackupServerAddress is { } address && !Core.Api.ServerFailover.IsValidAddress(address)
-        ? "Enter an IP address or a hostname - no https://, path or port."
-        : null;
+    public string? BackupServerAddressError => Services.SessionService.TryParseBackup(_draft.BackupServerAddress, out _, out var error) ? null : error;
 
     public bool HasBackupServerAddressError => BackupServerAddressError is not null;
 

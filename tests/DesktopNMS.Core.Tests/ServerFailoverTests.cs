@@ -82,48 +82,28 @@ public class ServerFailoverTests
     }
 
     [Theory]
-    [InlineData("10.46.2.10", true)]
-    [InlineData("fe80::1", true)]
-    [InlineData("nms-backup.example.net", true)]
-    [InlineData("https://10.46.2.10", false)]
-    [InlineData("10.46.2.10/api", false)]
-    [InlineData("", false)]
-    public void Backup_addresses_are_an_IP_or_a_hostname(string address, bool valid)
+    [InlineData("https://nms.example.com/", "https://10.46.2.10/", true)]
+    [InlineData("https://nms.example.com/librenms/", "https://10.46.2.10/librenms/", true)]
+    [InlineData("https://nms.example.com/", "http://10.46.2.10/", false)]
+    [InlineData("https://nms.example.com/", "https://10.46.2.10:8443/", false)]
+    [InlineData("https://nms.example.com/", "https://10.46.2.10/librenms/", false)]
+    public void A_backup_that_only_changes_the_host_is_another_route_to_the_server(string server, string backup, bool anotherRoute)
     {
-        Assert.Equal(valid, ServerFailover.IsValidAddress(address));
+        var connection = new LibreNmsConnection(new Uri(server), "token", backupWebRoot: new Uri(backup));
+
+        Assert.Equal(anotherRoute, connection.BackupIsAnotherRoute);
+        Assert.Equal(new Uri(new Uri(backup), "api/v0/"), connection.BackupApiBase);
     }
 
     [Fact]
-    public async Task The_transport_dials_the_backup_address_once_the_main_one_stops_answering()
+    public async Task A_backup_on_another_route_is_dialled_under_the_server_name()
     {
-        // A tiny HTTP server on loopback plays LibreNMS; the main address is
-        // a name that never resolves, the backup is 127.0.0.1.
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        var served = new List<string>();
-        _ = Task.Run(async () =>
-        {
-            while (true)
-            {
-                using var client = await listener.AcceptTcpClientAsync();
-                var stream = client.GetStream();
-                var buffer = new byte[4096];
-                var read = await stream.ReadAsync(buffer);
-                lock (served)
-                {
-                    served.Add(Encoding.ASCII.GetString(buffer, 0, read));
-                }
-
-                const string body = """{"status":"ok","system":[]}""";
-                var response = $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n{body}";
-                await stream.WriteAsync(Encoding.ASCII.GetBytes(response));
-            }
-        });
-
+        using var server = new LoopbackLibreNms();
         var failover = new ServerFailover();
         using var transport = new LibreNmsTransport(NullLogger<LibreNmsTransport>.Instance, failover);
-        transport.Configure(new LibreNmsConnection(new Uri($"http://librenms.invalid:{port}/"), "token", timeoutSeconds: 5, backupAddress: "127.0.0.1"));
+        transport.Configure(new LibreNmsConnection(
+            new Uri($"http://librenms.invalid:{server.Port}/"), "token", timeoutSeconds: 5,
+            backupWebRoot: new Uri($"http://127.0.0.1:{server.Port}/")));
 
         // First request: the main address fails (retries and all) - counted once.
         await Assert.ThrowsAsync<LibreNmsApiException>(() => transport.SendAsync(HttpMethod.Get, "system"));
@@ -133,10 +113,79 @@ public class ServerFailoverTests
         using var document = await transport.SendAsync(HttpMethod.Get, "system");
 
         Assert.True(failover.IsOnBackup);
-        lock (served)
+
+        // The request still names the server, not the backup IP.
+        Assert.Contains($"Host: librenms.invalid:{server.Port}", server.SingleRequest());
+    }
+
+    [Fact]
+    public async Task A_backup_with_its_own_path_scheme_or_port_is_used_as_its_own_URL()
+    {
+        using var server = new LoopbackLibreNms();
+        var failover = new ServerFailover();
+        using var transport = new LibreNmsTransport(NullLogger<LibreNmsTransport>.Instance, failover);
+        transport.Configure(
+            new LibreNmsConnection(
+                new Uri($"http://librenms.invalid:{server.Port}/"), "token", timeoutSeconds: 5,
+                backupWebRoot: new Uri($"http://127.0.0.1:{server.Port}/librenms/")),
+            startOnBackup: true);
+
+        using var document = await transport.SendAsync(HttpMethod.Get, "system");
+
+        var request = server.SingleRequest();
+        Assert.StartsWith("GET /librenms/api/v0/system", request);
+        Assert.Contains($"Host: 127.0.0.1:{server.Port}", request);
+    }
+
+    /// <summary>A tiny HTTP server on loopback playing LibreNMS - every request gets an empty "ok".</summary>
+    private sealed class LoopbackLibreNms : IDisposable
+    {
+        private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+        private readonly List<string> _requests = new();
+
+        public LoopbackLibreNms()
         {
-            // The request still names the server, not the backup IP.
-            Assert.Contains($"Host: librenms.invalid:{port}", Assert.Single(served));
+            _listener.Start();
+            Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
+            _ = Task.Run(ServeAsync);
+        }
+
+        public int Port { get; }
+
+        public string SingleRequest()
+        {
+            lock (_requests)
+            {
+                return Assert.Single(_requests);
+            }
+        }
+
+        public void Dispose() => _listener.Stop();
+
+        private async Task ServeAsync()
+        {
+            try
+            {
+                while (true)
+                {
+                    using var client = await _listener.AcceptTcpClientAsync();
+                    var stream = client.GetStream();
+                    var buffer = new byte[4096];
+                    var read = await stream.ReadAsync(buffer);
+                    lock (_requests)
+                    {
+                        _requests.Add(Encoding.ASCII.GetString(buffer, 0, read));
+                    }
+
+                    const string body = """{"status":"ok","system":[]}""";
+                    var response = $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n{body}";
+                    await stream.WriteAsync(Encoding.ASCII.GetBytes(response));
+                }
+            }
+            catch (Exception ex) when (ex is SocketException or ObjectDisposedException)
+            {
+                // Stopped.
+            }
         }
     }
 }

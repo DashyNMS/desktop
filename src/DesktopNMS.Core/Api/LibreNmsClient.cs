@@ -97,11 +97,11 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
             _logger.LogInformation("Connection test succeeded against {Host} ({Version})", connection.WebRoot, info.LocalVersion);
             return ConnectionTestResult.Success(info);
         }
-        catch (LibreNmsApiException ex) when (connection.BackupAddress is not null && ServerFailover.IsUnreachable(ex))
+        catch (LibreNmsApiException ex) when (connection.BackupWebRoot is not null && ServerFailover.IsUnreachable(ex))
         {
             // The main address didn't answer at all - the backup address
             // might (see ServerFailover), and if it does, connect there.
-            _logger.LogWarning(ex, "{Host} didn't answer - trying the backup address {Backup}", connection.WebRoot.Host, connection.BackupAddress);
+            _logger.LogWarning(ex, "{Host} didn't answer - trying the backup address {Backup}", connection.WebRoot.Host, connection.BackupWebRoot);
             return await TestBackupAsync(connection, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -129,7 +129,7 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
         try
         {
             var info = await new SystemApi(probe).GetAsync(cancellationToken).ConfigureAwait(false);
-            _logger.LogInformation("Connection test succeeded against {Host} through its backup address {Backup}", connection.WebRoot, connection.BackupAddress);
+            _logger.LogInformation("Connection test succeeded against {Host} through its backup address {Backup}", connection.WebRoot, connection.BackupWebRoot);
             return ConnectionTestResult.Success(info, usedBackupAddress: true);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -138,9 +138,9 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
         }
         catch (LibreNmsApiException ex)
         {
-            _logger.LogWarning(ex, "Connection test failed against the backup address {Backup} too", connection.BackupAddress);
+            _logger.LogWarning(ex, "Connection test failed against the backup address {Backup} too", connection.BackupWebRoot);
             return ConnectionTestResult.Failure(
-                $"Neither the server's address nor the backup address ({connection.BackupAddress}) answered: {ex.ToUserMessage()}",
+                $"Neither the server's address nor the backup address ({connection.BackupWebRoot}) answered: {ex.ToUserMessage()}",
                 ex.IsAuthenticationFailure);
         }
     }

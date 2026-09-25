@@ -1,4 +1,3 @@
-using System.Net;
 using System.Net.Sockets;
 using System.Security.Authentication;
 
@@ -20,7 +19,7 @@ public sealed class ServerFailover
     private readonly object _gate = new();
     private int _consecutiveFailures;
 
-    /// <summary>The backup IP or hostname - null when none is set.</summary>
+    /// <summary>The backup address, as shown - null when none is set.</summary>
     public string? BackupAddress { get; private set; }
 
     public bool IsOnBackup { get; private set; }
@@ -145,17 +144,5 @@ public sealed class ServerFailover
         }
 
         return false;
-    }
-
-    /// <summary>"10.46.2.10" - also accepts a hostname; no scheme, path or port (the main URL's port is used).</summary>
-    public static bool IsValidAddress(string? address)
-    {
-        if (string.IsNullOrWhiteSpace(address))
-        {
-            return false;
-        }
-
-        var text = address.Trim();
-        return IPAddress.TryParse(text, out _) || Uri.CheckHostName(text) == UriHostNameType.Dns;
     }
 }

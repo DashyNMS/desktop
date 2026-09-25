@@ -7,9 +7,9 @@ public sealed class LibreNmsConnection
 {
     public const string ApiPathSegment = "api/v0";
 
-    public LibreNmsConnection(Uri webRoot, string apiToken, bool allowUntrustedCertificate = false, int timeoutSeconds = 30, string? backupAddress = null)
+    public LibreNmsConnection(Uri webRoot, string apiToken, bool allowUntrustedCertificate = false, int timeoutSeconds = 30, Uri? backupWebRoot = null)
     {
-        BackupAddress = string.IsNullOrWhiteSpace(backupAddress) ? null : backupAddress.Trim();
+        BackupWebRoot = backupWebRoot;
         WebRoot = webRoot ?? throw new ArgumentNullException(nameof(webRoot));
         ApiToken = apiToken ?? throw new ArgumentNullException(nameof(apiToken));
         AllowUntrustedCertificate = allowUntrustedCertificate;
@@ -30,12 +30,27 @@ public sealed class LibreNmsConnection
     public int TimeoutSeconds { get; }
 
     /// <summary>
-    /// Another address for the same server (an IP, or another name) - dialled
-    /// instead of <see cref="WebRoot"/>'s host once it stops answering; see
-    /// <see cref="ServerFailover"/>. The URL, its hostname and the certificate
-    /// check stay the same, so HTTPS still works against an IP.
+    /// Another address for the same server, as a URL like <see cref="WebRoot"/>
+    /// (https://10.46.2.10/, http://nms-backup:8080/librenms/) - used once the
+    /// server address stops answering; see <see cref="ServerFailover"/>.
     /// </summary>
-    public string? BackupAddress { get; }
+    public Uri? BackupWebRoot { get; }
+
+    /// <summary>The backup's API base - see <see cref="ApiBase"/>.</summary>
+    public Uri? BackupApiBase => BackupWebRoot is { } backup ? new Uri(backup, ApiPathSegment + "/") : null;
+
+    /// <summary>
+    /// The backup differs from the server address only in its host - same
+    /// scheme, port and path (https://10.46.2.10/ for https://nms.example.com/).
+    /// Then it's just another route to the same server: the app dials the
+    /// backup host but keeps asking for the server by its own name, so TLS
+    /// still checks the certificate against that name. Otherwise the backup
+    /// URL is used as it is.
+    /// </summary>
+    public bool BackupIsAnotherRoute => BackupWebRoot is { } backup
+        && string.Equals(backup.Scheme, WebRoot.Scheme, StringComparison.OrdinalIgnoreCase)
+        && backup.Port == WebRoot.Port
+        && string.Equals(backup.AbsolutePath, WebRoot.AbsolutePath, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Turns whatever the user typed into a usable web root: adds a scheme if
