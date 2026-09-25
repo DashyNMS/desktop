@@ -194,6 +194,58 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
+                    <!-- Back/forward and the way here (#58): only once this
+                         window has followed a link to another device. Each
+                         earlier device is a link back to it; Alt+Left/Right
+                         and the mouse's back/forward buttons work too. -->
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0,0,0,10"
+                                Visibility="{Binding History.HasHistory, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}">
+                        <Button Command="{Binding History.BackCommand}"
+                                Style="{StaticResource IconButtonStyle}"
+                                Width="26"
+                                Height="26"
+                                ToolTip="Back (Alt+Left)"
+                                Margin="0,0,2,0">
+                            <TextBlock Text="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                        </Button>
+                        <Button Command="{Binding History.ForwardCommand}"
+                                Style="{StaticResource IconButtonStyle}"
+                                Width="26"
+                                Height="26"
+                                ToolTip="Forward (Alt+Right)"
+                                Margin="0,0,10,0">
+                            <TextBlock Text="&#xE72A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                        </Button>
+                        <ItemsControl ItemsSource="{Binding History.Crumbs}" VerticalAlignment="Center">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Cursor="Hand" VerticalAlignment="Center" FontSize="12">
+                                            <Hyperlink Command="{Binding DataContext.History.GoToCrumbCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                       CommandParameter="{Binding}"
+                                                       ToolTip="Back to this device">
+                                                <Run Text="{Binding Name, Mode=OneWay}" />
+                                            </Hyperlink>
+                                        </TextBlock>
+                                        <TextBlock Text="&#xE76C;"
+                                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                   FontSize="9"
+                                                   Margin="7,0"
+                                                   VerticalAlignment="Center"
+                                                   Style="{StaticResource SubtleTextStyle}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
+
                     <TextBlock Text="Loading device..."
                                Style="{StaticResource SubtleTextStyle}"
                                Visibility="{Binding IsLoadingDevice, Converter={StaticResource BoolToVisibility}}" />

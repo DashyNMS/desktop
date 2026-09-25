@@ -1787,6 +1787,36 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public bool HasEditSuccess => !string.IsNullOrEmpty(_editSuccessMessage);
 
+    // ------------------------------------------------------------------ navigation (#58)
+
+    /// <summary>The window's back/forward history - shared by every device the window shows, set by the window's host.</summary>
+    public DeviceBrowseHistory? History
+    {
+        get => _history;
+        set => SetProperty(ref _history, value);
+    }
+
+    private DeviceBrowseHistory? _history;
+
+    /// <summary>A link here asked to open another device in this same window - the host does it (see <see cref="Services.WindowService"/>).</summary>
+    public event EventHandler<int>? OpenDeviceRequested;
+
+    /// <summary>
+    /// Follows a link to another device (a neighbour on the Ports tab): in
+    /// this window, with the way back, as a browser would - or, Ctrl held,
+    /// in a window of its own.
+    /// </summary>
+    public void OpenRelatedDevice(int deviceId)
+    {
+        if (OpenDeviceRequested is null || (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0)
+        {
+            _windows.ShowDeviceDetail(deviceId);
+            return;
+        }
+
+        OpenDeviceRequested.Invoke(this, deviceId);
+    }
+
     // ------------------------------------------------------------------ device
 
     public int DeviceId => _deviceId;
@@ -2789,7 +2819,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 linksByPort.TryGetValue(port.PortId, out var link);
                 addressesByPort.TryGetValue(port.PortId, out var addresses);
                 neighbourMatches.TryGetValue(port.PortId, out var match);
-                portItems.Add(new PortItemViewModel(port, link, addresses ?? Array.Empty<DeviceIpAddress>(), _windows, match));
+                portItems.Add(new PortItemViewModel(port, link, addresses ?? Array.Empty<DeviceIpAddress>(), OpenRelatedDevice, match));
                 _portNamesByPortId[port.PortId] = port.DisplayName;
             }
 
@@ -4137,20 +4167,21 @@ public sealed class PortItemViewModel
     private readonly Port _port;
     private readonly NetworkLink? _link;
     private readonly IReadOnlyList<DeviceIpAddress> _addresses;
-    private readonly IWindowService _windows;
+    private readonly Action<int> _openDevice;
 
     private readonly NeighbourMatch? _match;
 
-    public PortItemViewModel(Port port, NetworkLink? link, IReadOnlyList<DeviceIpAddress> addresses, IWindowService windows, NeighbourMatch? match = null)
+    /// <param name="openDevice">Opens a neighbour's Device Details - in this window, with the way back (#58); see DeviceDetailViewModel.OpenRelatedDevice.</param>
+    public PortItemViewModel(Port port, NetworkLink? link, IReadOnlyList<DeviceIpAddress> addresses, Action<int> openDevice, NeighbourMatch? match = null)
     {
         _port = port;
         _link = link;
         _addresses = addresses;
-        _windows = windows;
+        _openDevice = openDevice;
         _match = match;
 
         OpenNeighborCommand = new RelayCommand(
-            () => _windows.ShowDeviceDetail(NeighborDeviceId!.Value),
+            () => _openDevice(NeighborDeviceId!.Value),
             () => NeighborDeviceId is > 0);
     }
 
