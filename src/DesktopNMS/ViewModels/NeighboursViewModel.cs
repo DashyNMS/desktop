@@ -19,7 +19,7 @@ namespace DesktopNMS.ViewModels;
 
 /// <summary>
 /// The Neighbours tab (#55): the user's own views of what their switches
-/// see over LLDP/CDP - access points, antennas, cameras, anything - each
+/// see over LLDP/CDP, filtered by rules on their LLDP details - each
 /// defined by rules on what the neighbour announces (see
 /// <see cref="NeighbourViewDefinition"/>), so no vendor is built in. A
 /// view lists its neighbours with their switch port's state and traffic,
@@ -154,7 +154,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
 
     public bool HasSelectedView => _selectedView is not null;
 
-    /// <summary>"System description contains Riedel Bolero" - what the selected view looks for.</summary>
+    /// <summary>"System description contains X and switch starts with Y" - what the selected view looks for.</summary>
     public string ViewRulesText => _selectedView is { } view ? DescribeRules(view) : string.Empty;
 
     public ObservableCollection<NeighbourItemViewModel> Items { get; }

@@ -3,10 +3,10 @@ namespace DesktopNMS.Core.Configuration;
 /// <summary>Which part of a switch's LLDP/CDP neighbour a <see cref="NeighbourRule"/> tests - the parts LibreNMS keeps.</summary>
 public enum NeighbourRuleField
 {
-    /// <summary>The name the neighbour announces (LLDP SysName), e.g. "FOM Broadcast Center 02".</summary>
+    /// <summary>The name the neighbour announces (LLDP SysName) - usually its hostname.</summary>
     SystemName,
 
-    /// <summary>What it announces about itself (LLDP System Descr), e.g. "Riedel Bolero DECT Antenna G2 3.5.0-12".</summary>
+    /// <summary>What it announces about itself (LLDP System Descr) - typically the make, model and software version.</summary>
     SystemDescription,
 
     /// <summary>Its port as announced (LLDP PortId) - often its MAC address.</summary>
@@ -48,9 +48,8 @@ public sealed class NeighbourRule
 /// <summary>
 /// A user-made Neighbours tab view: a name, and the rules a switch's
 /// LLDP/CDP neighbour has to meet to be listed in it - "System description
-/// contains Riedel Bolero DECT Antenna", say. Lets anyone list any kind of
-/// kit their switches see (APs, antennas, cameras, ...) without the app
-/// knowing about each vendor.
+/// contains ...", say. Lets anyone filter their switches' LLDP results
+/// into views of their own without the app knowing about each vendor.
 /// </summary>
 public sealed class NeighbourViewDefinition
 {

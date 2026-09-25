@@ -22,7 +22,7 @@
         <TextBlock Style="{StaticResource SubtleTextStyle}"
                    TextWrapping="Wrap"
                    Margin="0,4,0,0"
-                   Text="Lists what your switches see over LLDP/CDP that matches the rules below - e.g. system description contains &quot;Riedel Bolero DECT Antenna&quot;." />
+                   Text="Filters your switches' LLDP and CDP results: a neighbour is listed when its LLDP details match the rules below." />
 
         <TextBlock Text="Name" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
         <TextBox x:Name="NameBox" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />

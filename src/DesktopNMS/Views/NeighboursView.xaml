@@ -222,7 +222,7 @@
                            TextWrapping="Wrap"
                            TextAlignment="Center"
                            Margin="0,8,0,16"
-                           Text="A view lists what your switches see over LLDP/CDP that matches rules you set - access points, antennas, cameras, anything. For example: system description contains &quot;Riedel Bolero DECT Antenna&quot;." />
+                           Text="Filter what your switches discover over LLDP and CDP into views of your own. A view lists every neighbour whose LLDP details - system name, system description, port ID, or the switch and port it's connected to - match the rules you set." />
                 <Button Content="New view"
                         Command="{Binding NewViewCommand}"
                         Style="{StaticResource PrimaryButtonStyle}"
