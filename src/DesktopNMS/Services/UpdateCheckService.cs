@@ -318,11 +318,18 @@ public sealed class UpdateCheckService : IUpdateCheckService
 
         try
         {
-            // Silent, closing this app if it's still running, and reopening
-            // it afterwards (the installer's RELAUNCH switch).
-            Process.Start(new ProcessStartInfo(ready.InstallerPath, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /RELAUNCH=1")
+            // The installer runs silently, closing this app if it's still
+            // running; once it's finished - whether or not it succeeded - the
+            // app is started again from where it's installed. Done here
+            // rather than by the installer so it works for any version's
+            // installer, including ones from before this existed.
+            var app = Path.Combine(InstallDirectory(), "DashyNMS.exe");
+            var command = $"start \"\" /wait \"{ready.InstallerPath}\" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS & start \"\" \"{app}\"";
+
+            Process.Start(new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe"), $"/d /s /c \"{command}\"")
             {
-                UseShellExecute = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
                 WorkingDirectory = Path.GetDirectoryName(ready.InstallerPath),
             });
 
@@ -335,6 +342,32 @@ public sealed class UpdateCheckService : IUpdateCheckService
             _logger.LogWarning(ex, "Could not start the installer for {Version}", ready.Version);
             return false;
         }
+    }
+
+    // installer/DashyNMS.iss's AppId - Inno Setup records where it installed under it.
+    private const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\{9B3D2C7A-4E1F-4A6B-8C5D-2F7A9E1B3C64}_is1";
+
+    /// <summary>
+    /// Where the installer puts DashyNMS: wherever it was installed before
+    /// (the installer reuses that), else its default. Not simply this
+    /// process's folder - a development build isn't where it installs.
+    /// </summary>
+    private static string InstallDirectory()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(UninstallKey);
+            if (key?.GetValue("InstallLocation") is string location && !string.IsNullOrWhiteSpace(location))
+            {
+                return location;
+            }
+        }
+        catch (Exception)
+        {
+            // Falls back to the default below.
+        }
+
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "DashyNMS");
     }
 
     public void OnStartup()

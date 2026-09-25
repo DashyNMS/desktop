@@ -77,13 +77,3 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: deskto
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
-; The app's own "Restart to update" runs this installer silently with
-; /RELAUNCH=1, so it reopens on the new version once installed. An
-; interactive install offers the same through the checkbox above instead.
-Filename: "{app}\{#AppExeName}"; Flags: nowait; Check: ShouldRelaunch
-
-[Code]
-function ShouldRelaunch: Boolean;
-begin
-  Result := WizardSilent and (ExpandConstant('{param:RELAUNCH|0}') = '1');
-end;
