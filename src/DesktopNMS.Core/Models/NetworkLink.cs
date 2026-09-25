@@ -41,6 +41,14 @@ public sealed class NetworkLink
     [JsonPropertyName("protocol")]
     public string? Protocol { get; set; }
 
+    /// <summary>What the neighbour announces about its software, e.g. "ArubaOS (MODEL: 535), Version Aruba AP" - what a Neighbours view rule tests (see <see cref="Topology.Neighbours"/>).</summary>
+    [JsonPropertyName("remote_version")]
+    public string? RemoteVersion { get; set; }
+
+    /// <summary>False once LibreNMS stops seeing the neighbour but keeps the row.</summary>
+    [JsonPropertyName("active")]
+    public bool Active { get; set; } = true;
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? AdditionalData { get; set; }
 

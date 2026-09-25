@@ -79,6 +79,42 @@ public sealed class WindowService : IWindowService
         }
     }
 
+    public void ShowNeighbour(string viewId, string? name, string? mac = null)
+    {
+        ShowMain();
+        var main = _services.GetRequiredService<MainViewModel>();
+        main.SelectNeighboursTabCommand.Execute(null);
+        main.Neighbours.Show(viewId, name, mac);
+    }
+
+    public NeighbourViewDefinition? ShowNeighbourViewEditor(NeighbourViewDefinition? existing)
+    {
+        var viewModel = _services.GetRequiredService<NeighbourViewEditorViewModel>();
+        if (existing is not null)
+        {
+            viewModel.Initialize(existing);
+        }
+
+        var window = new NeighbourViewEditorWindow(viewModel);
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        return window.ShowDialog() == true ? viewModel.Result : null;
+    }
+
+    public void ShowDeviceWireless(int deviceId)
+    {
+        ShowDeviceDetail(deviceId);
+
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window)
+            && window.DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.SelectWirelessCommand.Execute(null);
+        }
+    }
+
     public void ShowDeviceDetail(int deviceId)
     {
         if (_openDeviceWindows.TryGetValue(deviceId, out var existing))
@@ -88,6 +124,40 @@ public sealed class WindowService : IWindowService
         }
 
         var settings = _services.GetRequiredService<ISettingsStore>();
+        var history = new DeviceBrowseHistory(deviceId);
+        var viewModel = CreateDeviceDetailViewModel(deviceId, history);
+
+        var window = new DeviceView(viewModel, settings);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            window.Owner = _mainWindow;
+        }
+
+        // Back, forward and the breadcrumbs (#58) move this same window.
+        history.NavigateRequested += (_, index) => NavigateDeviceWindow(window, history, history.Entries[index].DeviceId, index);
+
+        window.Closed += (_, _) =>
+        {
+            // Whichever device the window ended up on.
+            foreach (var key in _openDeviceWindows.Where(kv => ReferenceEquals(kv.Value, window)).Select(kv => kv.Key).ToList())
+            {
+                _openDeviceWindows.Remove(key);
+            }
+
+            if (window.DataContext is DeviceDetailViewModel current)
+            {
+                current.OpenDeviceRequested -= OnOpenDeviceRequested;
+                current.Dispose();
+            }
+        };
+
+        _openDeviceWindows[deviceId] = window;
+        window.Show();
+    }
+
+    private DeviceDetailViewModel CreateDeviceDetailViewModel(int deviceId, DeviceBrowseHistory history)
+    {
         var viewModel = new DeviceDetailViewModel(
             deviceId,
             _services.GetRequiredService<DeviceMonitor>(),
@@ -97,28 +167,76 @@ public sealed class WindowService : IWindowService
             _services.GetRequiredService<ILibreNmsClient>(),
             _services.GetRequiredService<IAlertRuleCache>(),
             _services.GetRequiredService<ISessionService>(),
-            settings,
+            _services.GetRequiredService<ISettingsStore>(),
             this,
             _services.GetRequiredService<IUnimusApi>(),
             _services.GetRequiredService<IUnimusDeviceResolver>(),
             _services.GetRequiredService<IGraylogApi>(),
-            _services.GetRequiredService<ILogger<DeviceDetailViewModel>>());
-
-        var window = new DeviceView(viewModel, settings);
-
-        if (_mainWindow is { IsVisible: true })
+            _services.GetRequiredService<ILogger<DeviceDetailViewModel>>())
         {
-            window.Owner = _mainWindow;
-        }
-
-        window.Closed += (_, _) =>
-        {
-            _openDeviceWindows.Remove(deviceId);
-            viewModel.Dispose();
+            History = history,
         };
 
+        viewModel.OpenDeviceRequested += OnOpenDeviceRequested;
+        return viewModel;
+    }
+
+    /// <summary>A link in a device window (a neighbour) - open that device in the same window, with the way back.</summary>
+    private void OnOpenDeviceRequested(object? sender, int deviceId)
+    {
+        if (sender is DeviceDetailViewModel { History: { } history } source
+            && _openDeviceWindows.TryGetValue(source.DeviceId, out var window))
+        {
+            NavigateDeviceWindow(window, history, deviceId, historyIndex: null);
+        }
+        else
+        {
+            ShowDeviceDetail(deviceId);
+        }
+    }
+
+    /// <summary>
+    /// Switches a device window to another device (#58): a new stop in its
+    /// history, or (<paramref name="historyIndex"/>) back or forward to one it
+    /// has already been to - reopening on the section it was left on. One
+    /// window per device still: a device already open in another window is
+    /// brought to the front there instead.
+    /// </summary>
+    private void NavigateDeviceWindow(DeviceView window, DeviceBrowseHistory history, int deviceId, int? historyIndex)
+    {
+        if (_openDeviceWindows.TryGetValue(deviceId, out var other) && !ReferenceEquals(other, window))
+        {
+            other.Activate();
+            return;
+        }
+
+        if (window.DataContext is not DeviceDetailViewModel previous || previous.DeviceId == deviceId)
+        {
+            return;
+        }
+
+        history.UpdateCurrent(previous.Name, previous.SelectedSection);
+        if (historyIndex is { } index)
+        {
+            history.GoTo(index);
+        }
+        else
+        {
+            history.Visit(deviceId);
+        }
+
+        var next = CreateDeviceDetailViewModel(deviceId, history);
+        if (history.Current.Section != DeviceDetailSection.Overview)
+        {
+            next.SelectedSection = history.Current.Section;
+        }
+
+        _openDeviceWindows.Remove(previous.DeviceId);
         _openDeviceWindows[deviceId] = window;
-        window.Show();
+        window.ShowViewModel(next);
+
+        previous.OpenDeviceRequested -= OnOpenDeviceRequested;
+        previous.Dispose();
     }
 
     public void CloseDeviceDetail(int deviceId)

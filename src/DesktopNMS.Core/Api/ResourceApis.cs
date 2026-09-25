@@ -174,6 +174,23 @@ internal sealed class DevicesApi : IDevicesApi
         return _transport.GetCollectionAsync<DeviceOutage>(url, "outages", cancellationToken);
     }
 
+    public Task<IReadOnlyList<InventoryEntry>> GetInventoryAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        // The {hostname} route segment takes an all-digits value as a device id.
+        var url = "inventory/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/all";
+        return _transport.GetCollectionAsync<InventoryEntry>(url, "inventory", cancellationToken);
+    }
+
+    public Task<IReadOnlyList<WirelessSensor>> GetWirelessSensorsAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/wireless-sensors";
+        // LibreNMS answers a device without any with a 404, not an empty list.
+        return NoneFound.AsEmpty(
+            _transport.GetCollectionAsync<WirelessSensor>(url, "wireless_sensors", cancellationToken),
+            System.Net.HttpStatusCode.NotFound,
+            "No wireless sensors found");
+    }
+
     public async Task<string> DiscoverAsync(int deviceId, CancellationToken cancellationToken = default)
     {
         var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/discover";
@@ -338,7 +355,7 @@ internal sealed class PortsApi : IPortsApi
     private const string Columns =
         "port_id,device_id,ifIndex,ifName,ifDescr,ifAlias,ifType,ifSpeed,ifDuplex,ifMtu," +
         "ifPhysAddress,ifOperStatus,ifAdminStatus,ifInOctets_rate,ifOutOctets_rate," +
-        "ifInErrors_delta,ifOutErrors_delta,ifVlan,ignore,disabled,deleted";
+        "ifInErrors_delta,ifOutErrors_delta,ifVlan,ifVrf,ignore,disabled,deleted";
 
     private readonly ILibreNmsTransport _transport;
 
@@ -347,9 +364,18 @@ internal sealed class PortsApi : IPortsApi
     public Task<IReadOnlyList<Port>> ListAllNamesAsync(CancellationToken cancellationToken = default)
         => _transport.GetCollectionAsync<Port>("ports?columns=port_id,device_id,ifName,ifDescr", "ports", cancellationToken);
 
+    public Task<IReadOnlyList<Port>> ListAllStatusAsync(CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<Port>(
+            "ports?columns=port_id,device_id,ifName,ifDescr,ifAlias,ifOperStatus,ifAdminStatus,ifSpeed,ifDuplex,ifMtu,ifVlan,ifLastChange,"
+            + "ifInOctets_rate,ifOutOctets_rate,ifInErrors_rate,ifOutErrors_rate,ifInUcastPkts_rate,ifOutUcastPkts_rate",
+            "ports",
+            cancellationToken);
+
     public Task<IReadOnlyList<Port>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default)
     {
-        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/ports?columns=" + Columns;
+        // with=vlans adds each port's VLAN memberships, tagged and untagged
+        // (#99) - an older LibreNMS that doesn't know it just ignores it.
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/ports?columns=" + Columns + "&with=vlans";
         return _transport.GetCollectionAsync<Port>(url, "ports", cancellationToken);
     }
 
@@ -385,6 +411,25 @@ internal sealed class ArpApi : IArpApi
     {
         var url = "resources/ip/arp/all?device=" + deviceId.ToString(CultureInfo.InvariantCulture);
         return _transport.GetCollectionAsync<ArpEntry>(url, "arp", cancellationToken);
+    }
+
+    public Task<IReadOnlyList<ArpEntry>> ListAllAsync(CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<ArpEntry>("resources/ip/arp/all", "arp", cancellationToken);
+
+    public Task<IReadOnlyList<ArpEntry>> FindByMacAsync(string mac, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mac);
+
+        // LibreNMS only recognises a MAC in the route (PHP's
+        // FILTER_VALIDATE_MAC) with separators - colons here.
+        var hex = new string(mac.Where(Uri.IsHexDigit).ToArray()).ToLowerInvariant();
+        if (hex.Length != 12)
+        {
+            throw new ArgumentException("Not a MAC address.", nameof(mac));
+        }
+
+        var colons = string.Join(":", Enumerable.Range(0, 6).Select(i => hex.Substring(i * 2, 2)));
+        return _transport.GetCollectionAsync<ArpEntry>("resources/ip/arp/" + colons, "arp", cancellationToken);
     }
 }
 
@@ -812,6 +857,22 @@ internal sealed class GraphsApi : IGraphsApi
         return _transport.GetCollectionAsync<GraphType>(url, "graphs", cancellationToken);
     }
 
+    public async Task<IReadOnlyList<GraphType>> ListWirelessAsync(int deviceId, CancellationToken cancellationToken = default)
+    {
+        var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/wireless";
+        var graphs = await _transport.GetCollectionAsync<GraphType>(url, "graphs", cancellationToken).ConfigureAwait(false);
+
+        foreach (var graph in graphs)
+        {
+            if (WirelessSensorClasses.ClassOfGraph(graph.Name) is { } sensorClass)
+            {
+                graph.Description = "Wireless: " + WirelessSensorClasses.NameOf(sensorClass);
+            }
+        }
+
+        return graphs;
+    }
+
     public Task<string> GetSvgAsync(
         int deviceId,
         string graphName,
@@ -831,5 +892,81 @@ internal sealed class GraphsApi : IGraphsApi
         }
 
         return _transport.SendRawAsync(url, cancellationToken);
+    }
+
+    public Task<string> GetPortSvgAsync(
+        int deviceId,
+        string ifName,
+        string graphType,
+        GraphTimeRange range,
+        int width,
+        int height,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(ifName);
+
+        var from = Uri.EscapeDataString(range.ToFromParameter());
+        var url = string.Create(
+            CultureInfo.InvariantCulture,
+            $"devices/{deviceId}/ports/{Uri.EscapeDataString(ifName)}/{Uri.EscapeDataString(graphType)}?from={from}&width={width}&height={height}");
+
+        if (range.ToToParameter() is { } to)
+        {
+            url += "&to=" + Uri.EscapeDataString(to);
+        }
+
+        return _transport.SendRawAsync(url, cancellationToken);
+    }
+}
+
+/// <summary>Implementation of <see cref="IRoutingApi"/>.</summary>
+internal sealed class RoutingApi : IRoutingApi
+{
+    private readonly ILibreNmsTransport _transport;
+
+    public RoutingApi(ILibreNmsTransport transport) => _transport = transport;
+
+    public Task<IReadOnlyList<BgpSession>> ListBgpSessionsAsync(int deviceId, CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<BgpSession>("bgp?hostname=" + Id(deviceId), "bgp_sessions", cancellationToken);
+
+    public Task<IReadOnlyList<OspfNeighbour>> ListOspfNeighboursAsync(int deviceId, CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<OspfNeighbour>("ospf?hostname=" + Id(deviceId), "ospf_neighbours", cancellationToken);
+
+    public Task<IReadOnlyList<Ospfv3Neighbour>> ListOspfv3NeighboursAsync(int deviceId, CancellationToken cancellationToken = default)
+        => EmptyWhen(
+            _transport.GetCollectionAsync<Ospfv3Neighbour>("ospfv3?hostname=" + Id(deviceId), "ospfv3_neighbours", cancellationToken),
+            System.Net.HttpStatusCode.InternalServerError,
+            "Error retrieving ospfv3_nbrs");
+
+    public Task<IReadOnlyList<Vrf>> ListVrfsAsync(int deviceId, CancellationToken cancellationToken = default)
+        => EmptyWhen(
+            _transport.GetCollectionAsync<Vrf>("routing/vrf?hostname=" + Id(deviceId), "vrfs", cancellationToken),
+            System.Net.HttpStatusCode.NotFound,
+            "VRFs do not exist");
+
+    private static string Id(int deviceId) => deviceId.ToString(CultureInfo.InvariantCulture);
+
+    private static Task<IReadOnlyList<T>> EmptyWhen<T>(Task<IReadOnlyList<T>> request, System.Net.HttpStatusCode status, string message)
+        => NoneFound.AsEmpty(request, status, message);
+}
+
+/// <summary>
+/// Some LibreNMS routes say "there are none" with an error - a 404 "VRFs do
+/// not exist", a 404 "No wireless sensors found" - rather than an empty list.
+/// </summary>
+internal static class NoneFound
+{
+    /// <summary>That exact status and message becomes an empty list; anything else still throws.</summary>
+    public static async Task<IReadOnlyList<T>> AsEmpty<T>(Task<IReadOnlyList<T>> request, System.Net.HttpStatusCode status, string message)
+    {
+        try
+        {
+            return await request.ConfigureAwait(false);
+        }
+        catch (LibreNmsApiException ex) when (ex.StatusCode == status
+                                              && string.Equals(ex.ServerMessage?.Trim(), message, StringComparison.OrdinalIgnoreCase))
+        {
+            return Array.Empty<T>();
+        }
     }
 }

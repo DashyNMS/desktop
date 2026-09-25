@@ -170,10 +170,62 @@
                                 </Border>
                             </Popup>
                         </Grid>
-                        <ToggleButton Content="Health"
-                                      Style="{StaticResource NavTabButtonStyle}"
-                                      IsChecked="{Binding IsHealthTabSelected, Mode=OneWay}"
-                                      Command="{Binding SelectHealthTabCommand}" />
+                        <!-- Neighbours (#55): the tab's own click opens the
+                             table of every view; hovering lists each view,
+                             the same flyout pattern as Maps. -->
+                        <Grid>
+                            <ToggleButton x:Name="NeighboursTabButton"
+                                          Style="{StaticResource NavTabButtonStyle}"
+                                          IsChecked="{Binding IsNeighboursTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectNeighboursTabCommand}"
+                                          MouseEnter="NeighboursTabButton_MouseEnter"
+                                          MouseLeave="NeighboursTabButton_MouseLeave">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Neighbours" />
+                                    <TextBlock Text="&#xE70D;"
+                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                               FontSize="9"
+                                               Margin="5,0,0,0"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ToggleButton>
+
+                            <Popup x:Name="NeighboursFlyout"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   StaysOpen="True">
+                                <Border x:Name="NeighboursFlyoutContent"
+                                        Background="{StaticResource SurfaceBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="4"
+                                        Margin="0,4,0,0"
+                                        MouseEnter="NeighboursFlyoutContent_MouseEnter"
+                                        MouseLeave="NeighboursFlyoutContent_MouseLeave">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
+                                    </Border.Effect>
+                                    <StackPanel MinWidth="160">
+                                        <ItemsControl ItemsSource="{Binding Neighbours.Views}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="{Binding Name}"
+                                                            Style="{StaticResource FlyoutMenuItemStyle}"
+                                                            Command="{Binding DataContext.SelectNeighbourViewCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}"
+                                                            Click="NeighboursFlyoutItem_Click" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Text="No views yet"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   Margin="10,6"
+                                                   Visibility="{Binding Neighbours.HasViews, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
                         <!-- Maps' own click opens the Default map (Settings);
                              hovering offers all three, same flyout pattern
                              as Devices and Alerts. -->
@@ -236,6 +288,10 @@
                                       IsChecked="{Binding IsLogsFamilyTabSelected, Mode=OneWay}"
                                       Command="{Binding SelectLogsTabCommand}"
                                       Visibility="{Binding ShowLogsTab, Converter={StaticResource BoolToVisibility}}" />
+                        <ToggleButton Content="Health"
+                                      Style="{StaticResource NavTabButtonStyle}"
+                                      IsChecked="{Binding IsHealthTabSelected, Mode=OneWay}"
+                                      Command="{Binding SelectHealthTabCommand}" />
                         <!-- Alerts' own click still goes straight to the
                              Alerts tab; hovering reveals Rules/Templates as a
                              flyout below it, since both are facets of
@@ -380,6 +436,10 @@
 
             <Grid Visibility="{Binding IsLocationsTabSelected, Converter={StaticResource BoolToVisibility}}">
                 <views:LocationsView x:Name="LocationsViewControl" DataContext="{Binding Locations}" />
+            </Grid>
+
+            <Grid Visibility="{Binding IsNeighboursTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:NeighboursView x:Name="NeighboursViewControl" DataContext="{Binding Neighbours}" />
             </Grid>
 
             <Grid Visibility="{Binding IsNetworkMapTabSelected, Converter={StaticResource BoolToVisibility}}">

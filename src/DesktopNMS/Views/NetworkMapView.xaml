@@ -50,6 +50,12 @@
                               VerticalAlignment="Center"
                               Margin="16,0,0,0" />
 
+                    <CheckBox Content="Neighbours"
+                              IsChecked="{Binding ShowNeighbours}"
+                              ToolTip="Also show what your Neighbours views find, for views set to show on the map (edit a view on the Neighbours tab) - drawn as small squares joined to their switches. Double-click one to open it on its view."
+                              VerticalAlignment="Center"
+                              Margin="16,0,0,0" />
+
                     <TextBlock Text="{Binding SummaryText}"
                                Style="{StaticResource SubtleTextStyle}"
                                VerticalAlignment="Center"

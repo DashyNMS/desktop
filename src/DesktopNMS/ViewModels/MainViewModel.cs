@@ -46,6 +46,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly DashboardViewModel _dashboard;
     private readonly GroupsViewModel _groups;
     private readonly LocationsViewModel _locations;
+    private readonly NeighboursViewModel _neighbours;
     private readonly RulesViewModel _rulesTab;
     private readonly TemplatesViewModel _templates;
     private readonly NetworkMapViewModel _networkMap;
@@ -111,6 +112,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         DashboardViewModel dashboard,
         GroupsViewModel groups,
         LocationsViewModel locations,
+        NeighboursViewModel neighbours,
         RulesViewModel rulesTab,
         TemplatesViewModel templates,
         NetworkMapViewModel networkMap,
@@ -135,6 +137,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _dashboard = dashboard;
         _groups = groups;
         _locations = locations;
+        _neighbours = neighbours;
         _rulesTab = rulesTab;
         _templates = templates;
         _networkMap = networkMap;
@@ -182,6 +185,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectAlertsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Alerts);
         SelectGroupsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Groups);
         SelectLocationsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Locations);
+        // The tab itself opens on the table of every view.
+        SelectNeighboursTabCommand = new RelayCommand(() =>
+        {
+            SelectedTab = MainTab.Neighbours;
+            _neighbours.ShowViewList();
+        });
+        SelectNeighbourViewCommand = new RelayCommand(parameter =>
+        {
+            SelectedTab = MainTab.Neighbours;
+            _neighbours.SelectViewCommand.Execute(parameter);
+        });
         SelectRulesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Rules);
         SelectTemplatesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Templates);
         SelectMapsTabCommand = new RelayCommand(SelectDefaultMap);
@@ -275,6 +289,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectLocationsTabCommand { get; }
 
+    public RelayCommand SelectNeighboursTabCommand { get; }
+
+    /// <summary>The Neighbours hover menu's items - opens the tab on the view it's given.</summary>
+    public RelayCommand SelectNeighbourViewCommand { get; }
+
+
     public RelayCommand SelectRulesTabCommand { get; }
 
     public RelayCommand SelectTemplatesTabCommand { get; }
@@ -319,6 +339,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The location list, for the Locations tab's content to bind to.</summary>
     public LocationsViewModel Locations => _locations;
+
+    /// <summary>The Neighbours tab (#55).</summary>
+    public NeighboursViewModel Neighbours => _neighbours;
 
     /// <summary>The alert rule list, for the Rules tab's content to bind to.</summary>
     public RulesViewModel Rules => _rulesTab;
@@ -382,6 +405,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsAlertsFamilyTabSelected));
                 OnPropertyChanged(nameof(IsGroupsTabSelected));
                 OnPropertyChanged(nameof(IsLocationsTabSelected));
+                OnPropertyChanged(nameof(IsNeighboursTabSelected));
                 OnPropertyChanged(nameof(IsRulesTabSelected));
                 OnPropertyChanged(nameof(IsTemplatesTabSelected));
                 OnPropertyChanged(nameof(IsMapsFamilyTabSelected));
@@ -411,6 +435,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 else if (value == MainTab.Locations)
                 {
                     _locations.OnShown();
+                }
+                else if (value == MainTab.Neighbours)
+                {
+                    _neighbours.OnShown();
                 }
                 else if (value == MainTab.Rules)
                 {
@@ -495,6 +523,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public bool IsGroupsTabSelected => SelectedTab == MainTab.Groups;
 
     public bool IsLocationsTabSelected => SelectedTab == MainTab.Locations;
+
+    public bool IsNeighboursTabSelected => SelectedTab == MainTab.Neighbours;
 
     public bool IsRulesTabSelected => SelectedTab == MainTab.Rules;
 
@@ -860,6 +890,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             _locations.OnShown();
         }
+        else if (SelectedTab == MainTab.Neighbours)
+        {
+            _neighbours.OnShown();
+        }
         else if (SelectedTab == MainTab.Rules)
         {
             _rulesTab.OnShown();
@@ -1161,13 +1195,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         // Align the collection with the server's ordering, updating in place so
         // the selection and scroll position survive a refresh.
+        var visibilityChanged = false;
+
         for (var target = 0; target < alerts.Count; target++)
         {
             var alert = alerts[target];
 
             if (_index.TryGetValue(alert.Id, out var existing))
             {
+                // The view only filters an item when it's added, so an alert
+                // updated in place - e.g. now acknowledged, with acknowledged
+                // alerts hidden - would otherwise stay showing until a filter
+                // is next changed.
+                var wasShown = FilterAlert(existing);
                 existing.Update(alert, context);
+                visibilityChanged |= FilterAlert(existing) != wasShown;
 
                 var currentIndex = Alerts.IndexOf(existing);
                 if (currentIndex >= 0 && currentIndex != target && target < Alerts.Count)
@@ -1181,6 +1223,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 _index[alert.Id] = item;
                 Alerts.Insert(Math.Min(target, Alerts.Count), item);
             }
+        }
+
+        // Only when something's shown/hidden state actually changed - a
+        // refresh on every poll would disturb the grid for nothing.
+        if (visibilityChanged)
+        {
+            AlertsView.Refresh();
         }
 
         RaiseCountsChanged();
@@ -1533,6 +1582,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
                 break;
 
+            case MainTab.Neighbours:
+                if (_neighbours.RefreshCommand.CanExecute(null))
+                {
+                    _neighbours.RefreshCommand.Execute(null);
+                }
+
+                break;
+
             case MainTab.Rules:
                 if (_rulesTab.RefreshCommand.CanExecute(null))
                 {
@@ -1604,6 +1661,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
             case MainTab.Locations:
                 _locations.ClearFiltersCommand.Execute(null);
+                break;
+
+            case MainTab.Neighbours:
+                _neighbours.ClearFiltersCommand.Execute(null);
                 break;
 
             case MainTab.Rules:

@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
         xmlns:views="clr-namespace:DesktopNMS.Views"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         xmlns:svgc="clr-namespace:SharpVectors.Converters;assembly=SharpVectors.Converters.Wpf"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:DeviceDetailViewModel}"
@@ -18,6 +19,128 @@
         WindowStartupLocation="CenterOwner">
 
     <Window.Resources>
+        <!-- ======================== Sidebar ======================== -->
+        <!-- A compact sidebar item with an icon: the Segoe glyph goes in Tag,
+             the label in Content. Tighter than Settings' own nav items, since
+             this sidebar holds a lot more. -->
+        <Style x:Key="DeviceNavItemStyle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Margin" Value="0,0,0,1" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{TemplateBinding Tag}"
+                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                           FontSize="13"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           VerticalAlignment="Center" />
+                                <!-- Plain-text labels are drawn by this
+                                     string-only template, not the presenter's
+                                     own TextBlock, which the app-wide implicit
+                                     TextBlock style would reset (colour, size)
+                                     so it wouldn't follow the button's state.
+                                     Keyed by type, it leaves panel content
+                                     (the Alerts item's badge) alone - a
+                                     ContentTemplate would blank that. -->
+                                <ContentPresenter Grid.Column="1" VerticalAlignment="Center">
+                                    <ContentPresenter.Resources>
+                                        <DataTemplate DataType="{x:Type sys:String}">
+                                            <TextBlock Text="{Binding}"
+                                                       FontSize="13"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                                        </DataTemplate>
+                                    </ContentPresenter.Resources>
+                                </ContentPresenter>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                    <Condition Property="IsChecked" Value="False" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A sidebar group heading that folds its group away - chevron,
+             small caps text, and whatever else the Content carries (the
+             alert badge on Alerts & logs). -->
+        <Style x:Key="DeviceNavGroupHeaderStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Margin" Value="0,10,0,1" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{TemplateBinding Tag}"
+                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                           FontSize="9"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           VerticalAlignment="Center" />
+                                <!-- As DeviceNavItemStyle: text headings drawn
+                                     to match Alerts & logs' explicit text. -->
+                                <ContentPresenter Grid.Column="1" VerticalAlignment="Center">
+                                    <ContentPresenter.Resources>
+                                        <DataTemplate DataType="{x:Type sys:String}">
+                                            <TextBlock Text="{Binding}"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                        </DataTemplate>
+                                    </ContentPresenter.Resources>
+                                </ContentPresenter>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- A card that behaves like a button - jumps to the named section
              tab when clicked - without looking like one. -->
         <Style x:Key="OverviewCardButtonStyle" TargetType="Button">
@@ -71,6 +194,58 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
+                    <!-- Back/forward and the way here (#58): only once this
+                         window has followed a link to another device. Each
+                         earlier device is a link back to it; Alt+Left/Right
+                         and the mouse's back/forward buttons work too. -->
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0,0,0,10"
+                                Visibility="{Binding History.HasHistory, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}">
+                        <Button Command="{Binding History.BackCommand}"
+                                Style="{StaticResource IconButtonStyle}"
+                                Width="26"
+                                Height="26"
+                                ToolTip="Back (Alt+Left)"
+                                Margin="0,0,2,0">
+                            <TextBlock Text="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                        </Button>
+                        <Button Command="{Binding History.ForwardCommand}"
+                                Style="{StaticResource IconButtonStyle}"
+                                Width="26"
+                                Height="26"
+                                ToolTip="Forward (Alt+Right)"
+                                Margin="0,0,10,0">
+                            <TextBlock Text="&#xE72A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                        </Button>
+                        <ItemsControl ItemsSource="{Binding History.Crumbs}" VerticalAlignment="Center">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Cursor="Hand" VerticalAlignment="Center" FontSize="12">
+                                            <Hyperlink Command="{Binding DataContext.History.GoToCrumbCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                       CommandParameter="{Binding}"
+                                                       ToolTip="Back to this device">
+                                                <Run Text="{Binding Name, Mode=OneWay}" />
+                                            </Hyperlink>
+                                        </TextBlock>
+                                        <TextBlock Text="&#xE76C;"
+                                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                   FontSize="9"
+                                                   Margin="7,0"
+                                                   VerticalAlignment="Center"
+                                                   Style="{StaticResource SubtleTextStyle}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
+
                     <TextBlock Text="Loading device..."
                                Style="{StaticResource SubtleTextStyle}"
                                Visibility="{Binding IsLoadingDevice, Converter={StaticResource BoolToVisibility}}" />
@@ -168,108 +343,197 @@
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,0,1,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="10,16">
+                    <!-- Compact items with icons in foldable groups: each group
+                         heading folds its items away (remembered in settings,
+                         shared by every device window) - except the group
+                         holding the open section, which always stays open. An
+                         item hides once its section has loaded and found
+                         nothing (ShowXNav stays true while loading, so items
+                         don't pop in and shift the list), and a heading hides
+                         with the last of its items. -->
+                    <StackPanel Margin="8,12">
                         <ToggleButton Content="Overview"
-                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      Tag="&#xE80F;"
+                                      Style="{StaticResource DeviceNavItemStyle}"
                                       IsChecked="{Binding IsOverviewSelected, Mode=OneWay}"
                                       Command="{Binding SelectOverviewCommand}" />
 
-                        <TextBlock Text="HEALTH" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
-                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsSensorsSelected, Mode=OneWay}"
-                                      Command="{Binding SelectSensorsCommand}" Content="Sensors" />
-                        <ToggleButton Content="Resources"
-                                      Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsResourcesSelected, Mode=OneWay}"
-                                      Command="{Binding SelectResourcesCommand}"
-                                      Visibility="{Binding ShowResourcesNav, Converter={StaticResource BoolToVisibility}}" />
-                        <ToggleButton Content="Graphs"
-                                      Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsGraphsSelected, Mode=OneWay}"
-                                      Command="{Binding SelectGraphsCommand}" />
+                        <!-- ==================== Health ==================== -->
+                        <Button Style="{StaticResource DeviceNavGroupHeaderStyle}"
+                                Tag="{Binding HealthGroup.ExpanderGlyph}"
+                                Command="{Binding HealthGroup.ToggleCommand}"
+                                Content="HEALTH" />
+                        <StackPanel Visibility="{Binding HealthGroup.IsExpanded, Converter={StaticResource BoolToVisibility}}">
+                            <ToggleButton Content="Sensors"
+                                          Tag="&#xE9D9;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsSensorsSelected, Mode=OneWay}"
+                                          Command="{Binding SelectSensorsCommand}" />
+                            <ToggleButton Content="Graphs"
+                                          Tag="&#xE9D2;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsGraphsSelected, Mode=OneWay}"
+                                          Command="{Binding SelectGraphsCommand}" />
+                        </StackPanel>
 
-                        <!-- ShowXNav (not HasX) stays visible while its section
-                             is still loading, only disappearing once loading
-                             has finished and genuinely found nothing - so it
-                             does not pop into existence after the window
-                             opens and shift every item below it (see
-                             DeviceDetailViewModel's remarks on IsLoadingPorts
-                             and friends). -->
-                        <TextBlock Text="NETWORK"
-                                   Style="{StaticResource SectionHeaderStyle}"
-                                   Margin="14,16,0,6"
-                                   Visibility="{Binding HasNetworkSection, Converter={StaticResource BoolToVisibility}}" />
-                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsPortsSelected, Mode=OneWay}"
-                                      Command="{Binding SelectPortsCommand}"
-                                      Visibility="{Binding ShowPortsNav, Converter={StaticResource BoolToVisibility}}" Content="Ports" />
-                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsVlansSelected, Mode=OneWay}"
-                                      Command="{Binding SelectVlansCommand}"
-                                      Visibility="{Binding ShowVlansNav, Converter={StaticResource BoolToVisibility}}" Content="VLANs" />
-                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsFdbSelected, Mode=OneWay}"
-                                      Command="{Binding SelectFdbCommand}"
-                                      Visibility="{Binding ShowFdbNav, Converter={StaticResource BoolToVisibility}}" Content="FDB" />
-                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsArpSelected, Mode=OneWay}"
-                                      Command="{Binding SelectArpCommand}"
-                                      Visibility="{Binding ShowArpNav, Converter={StaticResource BoolToVisibility}}" Content="ARP" />
+                        <!-- ==================== Hardware ==================== -->
+                        <Button Style="{StaticResource DeviceNavGroupHeaderStyle}"
+                                Tag="{Binding HardwareGroup.ExpanderGlyph}"
+                                Command="{Binding HardwareGroup.ToggleCommand}"
+                                Content="HARDWARE"
+                                Visibility="{Binding ShowHardwareGroup, Converter={StaticResource BoolToVisibility}}" />
+                        <StackPanel Visibility="{Binding HardwareGroup.IsExpanded, Converter={StaticResource BoolToVisibility}}">
+                            <ToggleButton Content="Resources"
+                                          Tag="&#xEC4A;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsResourcesSelected, Mode=OneWay}"
+                                          Command="{Binding SelectResourcesCommand}"
+                                          Visibility="{Binding ShowResourcesNav, Converter={StaticResource BoolToVisibility}}" />
+                            <ToggleButton Content="Inventory"
+                                          Tag="&#xE7B8;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsInventorySelected, Mode=OneWay}"
+                                          Command="{Binding SelectInventoryCommand}"
+                                          Visibility="{Binding Inventory.ShowNav, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
 
-                        <TextBlock Text="ALERTS &amp; LOGS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
-                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsAlertsSelected, Mode=OneWay}"
-                                      Command="{Binding SelectAlertsCommand}">
-                            <!-- A red count badge only while there are active
-                                 alerts (#100) - it reads as "needs attention",
-                                 unlike a plain count in brackets. -->
+                        <!-- ==================== Network ==================== -->
+                        <Button Style="{StaticResource DeviceNavGroupHeaderStyle}"
+                                Tag="{Binding NetworkGroup.ExpanderGlyph}"
+                                Command="{Binding NetworkGroup.ToggleCommand}"
+                                Content="NETWORK"
+                                Visibility="{Binding HasNetworkSection, Converter={StaticResource BoolToVisibility}}" />
+                        <StackPanel Visibility="{Binding NetworkGroup.IsExpanded, Converter={StaticResource BoolToVisibility}}">
+                            <ToggleButton Content="Ports"
+                                          Tag="&#xE839;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsPortsSelected, Mode=OneWay}"
+                                          Command="{Binding SelectPortsCommand}"
+                                          Visibility="{Binding ShowPortsNav, Converter={StaticResource BoolToVisibility}}" />
+                            <ToggleButton Content="VLANs"
+                                          Tag="&#xE8EC;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsVlansSelected, Mode=OneWay}"
+                                          Command="{Binding SelectVlansCommand}"
+                                          Visibility="{Binding ShowVlansNav, Converter={StaticResource BoolToVisibility}}" />
+                            <ToggleButton Content="FDB"
+                                          Tag="&#xE8FD;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsFdbSelected, Mode=OneWay}"
+                                          Command="{Binding SelectFdbCommand}"
+                                          Visibility="{Binding ShowFdbNav, Converter={StaticResource BoolToVisibility}}" />
+                            <ToggleButton Content="ARP"
+                                          Tag="&#xE968;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsArpSelected, Mode=OneWay}"
+                                          Command="{Binding SelectArpCommand}"
+                                          Visibility="{Binding ShowArpNav, Converter={StaticResource BoolToVisibility}}" />
+                            <ToggleButton Content="Routing"
+                                          Tag="&#xE8AB;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsRoutingSelected, Mode=OneWay}"
+                                          Command="{Binding SelectRoutingCommand}"
+                                          Visibility="{Binding Routing.ShowNav, Converter={StaticResource BoolToVisibility}}" />
+                            <ToggleButton Content="Wireless"
+                                          Tag="&#xE701;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsWirelessSelected, Mode=OneWay}"
+                                          Command="{Binding SelectWirelessCommand}"
+                                          Visibility="{Binding Wireless.ShowNav, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+
+                        <!-- ==================== Alerts & logs ==================== -->
+                        <!-- Folded, the heading carries the active-alert badge
+                             instead, so alerts are never out of sight. -->
+                        <Button Style="{StaticResource DeviceNavGroupHeaderStyle}"
+                                Tag="{Binding LogsGroup.ExpanderGlyph}"
+                                Command="{Binding LogsGroup.ToggleCommand}">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Alerts" VerticalAlignment="Center" />
+                                <TextBlock Text="ALERTS &amp; LOGS"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                                 <Border Background="{StaticResource CriticalBrush}"
-                                        CornerRadius="8"
-                                        MinWidth="18"
-                                        Height="18"
-                                        Padding="5,0"
+                                        CornerRadius="7"
+                                        MinWidth="16"
+                                        Height="16"
+                                        Padding="4,0"
                                         Margin="8,0,0,0"
                                         VerticalAlignment="Center"
                                         ToolTip="Active alerts on this device"
-                                        Visibility="{Binding HasActiveAlerts, Converter={StaticResource BoolToVisibility}}">
+                                        Visibility="{Binding ShowCollapsedAlertBadge, Converter={StaticResource BoolToVisibility}}">
                                     <TextBlock Text="{Binding ActiveAlerts.Count, Mode=OneWay}"
                                                Foreground="White"
-                                               FontSize="11"
+                                               FontSize="10"
                                                FontWeight="SemiBold"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center" />
                                 </Border>
                             </StackPanel>
-                        </ToggleButton>
-                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsEventLogSelected, Mode=OneWay}"
-                                      Command="{Binding SelectEventLogCommand}" Content="Event log" />
+                        </Button>
+                        <StackPanel Visibility="{Binding LogsGroup.IsExpanded, Converter={StaticResource BoolToVisibility}}">
+                            <ToggleButton Tag="&#xE7BA;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsAlertsSelected, Mode=OneWay}"
+                                          Command="{Binding SelectAlertsCommand}">
+                                <!-- A red count badge only while there are active
+                                     alerts (#100) - it reads as "needs attention",
+                                     unlike a plain count in brackets. -->
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Alerts"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                                    <Border Background="{StaticResource CriticalBrush}"
+                                            CornerRadius="8"
+                                            MinWidth="18"
+                                            Height="18"
+                                            Padding="5,0"
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Center"
+                                            ToolTip="Active alerts on this device"
+                                            Visibility="{Binding HasActiveAlerts, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="{Binding ActiveAlerts.Count, Mode=OneWay}"
+                                                   Foreground="White"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
+                            </ToggleButton>
+                            <ToggleButton Content="Event log"
+                                          Tag="&#xE81C;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsEventLogSelected, Mode=OneWay}"
+                                          Command="{Binding SelectEventLogCommand}" />
+                        </StackPanel>
 
-                        <!-- Its own group, like Settings' Integrations - only
-                             shows once this device actually has something to
-                             show (a confirmed Unimus match, or a real error
-                             checking) - not just because Unimus is
-                             configured at all, so a device Unimus doesn't
-                             know about never gets a tab that only ever says
-                             "nothing here". Graylog shows whenever it's set
-                             up (see ShowGraylogSection for why). The header
-                             shows when any integration's tab does. -->
-                        <TextBlock Text="INTEGRATIONS"
-                                   Style="{StaticResource SectionHeaderStyle}"
-                                   Margin="14,16,0,6"
-                                   Visibility="{Binding ShowIntegrationsGroup, Converter={StaticResource BoolToVisibility}}" />
-                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsGraylogSelected, Mode=OneWay}"
-                                      Command="{Binding SelectGraylogCommand}"
-                                      Visibility="{Binding ShowGraylogSection, Converter={StaticResource BoolToVisibility}}"
-                                      Content="Graylog" />
-                        <ToggleButton Style="{StaticResource SettingsNavItemStyle}"
-                                      IsChecked="{Binding IsConfigSelected, Mode=OneWay}"
-                                      Command="{Binding SelectConfigCommand}"
-                                      Visibility="{Binding ShowUnimusSection, Converter={StaticResource BoolToVisibility}}"
-                                      Content="Unimus" />
+                        <!-- ==================== Integrations ==================== -->
+                        <!-- Unimus only shows once this device actually has
+                             something to show (a confirmed match, or a real
+                             error checking); Graylog whenever it's set up (see
+                             ShowGraylogSection for why). -->
+                        <Button Style="{StaticResource DeviceNavGroupHeaderStyle}"
+                                Tag="{Binding IntegrationsGroup.ExpanderGlyph}"
+                                Command="{Binding IntegrationsGroup.ToggleCommand}"
+                                Content="INTEGRATIONS"
+                                Visibility="{Binding ShowIntegrationsGroup, Converter={StaticResource BoolToVisibility}}" />
+                        <StackPanel Visibility="{Binding IntegrationsGroup.IsExpanded, Converter={StaticResource BoolToVisibility}}">
+                            <ToggleButton Content="Graylog"
+                                          Tag="&#xE8A5;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsGraylogSelected, Mode=OneWay}"
+                                          Command="{Binding SelectGraylogCommand}"
+                                          Visibility="{Binding ShowGraylogSection, Converter={StaticResource BoolToVisibility}}" />
+                            <ToggleButton Content="Unimus"
+                                          Tag="&#xE90F;"
+                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          IsChecked="{Binding IsConfigSelected, Mode=OneWay}"
+                                          Command="{Binding SelectConfigCommand}"
+                                          Visibility="{Binding ShowUnimusSection, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
 
                         <!-- No sidebar entry for Edit - the header's own Edit
                              button (next to Refresh) is the one way in, so
@@ -765,6 +1029,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <TextBox Grid.Row="0"
@@ -779,6 +1044,8 @@
                 <Grid Grid.Row="1">
                 <DataGrid x:Name="PortsGrid"
                           ItemsSource="{Binding PortsView}"
+                          SelectedItem="{Binding SelectedPort}"
+                          SelectionMode="Single"
                           Visibility="{Binding HasVisiblePorts, Converter={StaticResource BoolToVisibility}}"
                           IsReadOnly="True"
                           HeadersVisibility="Column">
@@ -892,6 +1159,7 @@
                                         <TextBlock VerticalAlignment="Center"
                                                    TextTrimming="CharacterEllipsis"
                                                    Cursor="Hand"
+                                                   ToolTip="{Binding NeighborToolTip}"
                                                    Visibility="{Binding CanOpenNeighbor, Converter={StaticResource BoolToVisibility}}">
                                             <Hyperlink Command="{Binding OpenNeighborCommand}">
                                                 <Run Text="{Binding NeighborText, Mode=OneWay}" />
@@ -932,6 +1200,10 @@
                            Visibility="{Binding ShowPortsNoMatchesMessage, Converter={StaticResource BoolToVisibility}}"
                            Style="{StaticResource SubtleTextStyle}" />
                 </Grid>
+
+                <!-- The picked port's graphs (#8) - traffic, packets and
+                     errors; the chevron folds them away. -->
+                <views:PortGraphsPanel Grid.Row="2" Margin="-24,12,-24,-24" DataContext="{Binding PortGraphs}" />
             </Grid>
 
             <!-- ==================== VLANs ==================== -->
@@ -962,22 +1234,20 @@
                             <DataGridTextColumn Header="VLAN" Width="90" Binding="{Binding NumberText}" />
                             <DataGridTextColumn Header="Name" Width="200" Binding="{Binding NameText}" />
 
-                            <!-- Labelled "Access ports", not just "Ports": this only
-                                 reflects each port's own untagged/native VLAN
-                                 (SNMP dot1qPvid). A trunk port carrying this VLAN
-                                 tagged alongside others is not included - LibreNMS's
-                                 own per-VLAN trunk-membership endpoint 500s on this
-                                 server (see VlanItemViewModel.AccessPorts), so this
-                                 is the reliable subset the API actually gives back. -->
-                            <DataGridTemplateColumn Width="*" SortMemberPath="AccessPortsSummaryText">
+                            <!-- Every port carrying the VLAN, untagged ones
+                                 marked (U), as LibreNMS's VLAN page lists them
+                                 - from each port's VLAN memberships (#99, see
+                                 VlanMembership). A device that reports none
+                                 falls back to each port's own VLAN, all (U). -->
+                            <DataGridTemplateColumn Width="*" SortMemberPath="PortsSummaryText">
                                 <DataGridTemplateColumn.Header>
-                                    <TextBlock Text="Access ports"
-                                               ToolTip="Ports where this is the untagged/native VLAN. Trunk ports carrying it as a tagged VLAN aren't included - LibreNMS has no working way to report that on this server." />
+                                    <TextBlock Text="Ports"
+                                               ToolTip="Ports carrying this VLAN. (U) is untagged - an access port, or a trunk's native VLAN; the rest carry it tagged." />
                                 </DataGridTemplateColumn.Header>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding AccessPortsSummaryText}"
-                                                   ToolTip="{Binding AccessPortsSummaryText}"
+                                        <TextBlock Text="{Binding PortsSummaryText}"
+                                                   ToolTip="{Binding PortsSummaryText}"
                                                    TextTrimming="CharacterEllipsis"
                                                    VerticalAlignment="Center"
                                                    Margin="8,0" />
@@ -1350,6 +1620,57 @@
 
                                             <TextBlock Grid.Column="2" Text="{Binding UsageText}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
                                             <TextBlock Grid.Column="3" Text="{Binding DetailText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- PoE budget (#54): LibreNMS has no per-port PoE data
+                         for most switches, only each PSE's used/total power. -->
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="16"
+                            Margin="0,0,0,12"
+                            Visibility="{Binding HasPoe, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="PoE" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding PoeDevicesConnectedText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding PoeBudgets}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,8" ToolTip="{Binding RemainingText}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="200" />
+                                                <ColumnDefinition Width="55" />
+                                                <ColumnDefinition Width="150" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,10,0" />
+
+                                            <Grid Grid.Column="1" Height="8" VerticalAlignment="Center">
+                                                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="{Binding UsagePercent, Converter={StaticResource PercentToStarWidth}}" />
+                                                        <ColumnDefinition Width="{Binding UsagePercent, Converter={StaticResource PercentToStarWidth}, ConverterParameter=invert}" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" CornerRadius="4" Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                </Grid>
+                                            </Grid>
+
+                                            <TextBlock Grid.Column="2" Text="{Binding PercentText}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                            <TextBlock Grid.Column="3" Text="{Binding UsageText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -1987,6 +2308,24 @@
                            TextAlignment="Center"
                            Foreground="{StaticResource CriticalBrush}"
                            Visibility="{Binding HasConfigError, Converter={StaticResource BoolToVisibility}}" />
+            </Grid>
+
+            <!-- ==================== Routing (#53) ==================== -->
+            <Grid Margin="24"
+                  Visibility="{Binding IsRoutingSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:RoutingView DataContext="{Binding Routing}" />
+            </Grid>
+
+            <!-- ==================== Wireless (#55) ==================== -->
+            <Grid Margin="24"
+                  Visibility="{Binding IsWirelessSelected, Converter={StaticResource BoolToVisibility}}">
+                <views:WirelessView DataContext="{Binding Wireless}" />
+            </Grid>
+
+            <!-- ==================== Inventory (#164) ==================== -->
+            <Grid Margin="24"
+                  Visibility="{Binding IsInventorySelected, Converter={StaticResource BoolToVisibility}}">
+                <views:InventoryView DataContext="{Binding Inventory}" />
             </Grid>
 
             <!-- ==================== Graylog (issue #114) ==================== -->

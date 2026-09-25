@@ -28,6 +28,9 @@ public partial class MainWindow : Window
     /// <summary>Same again, for Network/Geographical/Custom Maps under the Maps button.</summary>
     private readonly DispatcherTimer _mapsFlyoutCloseTimer;
 
+    /// <summary>Same again, for the user's views under the Neighbours button.</summary>
+    private readonly DispatcherTimer _neighboursFlyoutCloseTimer;
+
     private bool _allowClose;
 
     public MainWindow(MainViewModel viewModel, ISettingsStore settings)
@@ -62,6 +65,14 @@ public partial class MainWindow : Window
             MapsFlyout.IsOpen = false;
         };
         MapsFlyout.PlacementTarget = MapsTabButton;
+
+        _neighboursFlyoutCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        _neighboursFlyoutCloseTimer.Tick += (_, _) =>
+        {
+            _neighboursFlyoutCloseTimer.Stop();
+            NeighboursFlyout.IsOpen = false;
+        };
+        NeighboursFlyout.PlacementTarget = NeighboursTabButton;
 
         // Hidden to the tray or minimised: nothing on screen to keep live.
         IsVisibleChanged += (_, _) => NotifyVisibility();
@@ -125,6 +136,24 @@ public partial class MainWindow : Window
         MapsFlyout.IsOpen = false;
     }
 
+    private void NeighboursTabButton_MouseEnter(object sender, MouseEventArgs e)
+    {
+        _neighboursFlyoutCloseTimer.Stop();
+        NeighboursFlyout.IsOpen = true;
+    }
+
+    private void NeighboursTabButton_MouseLeave(object sender, MouseEventArgs e) => _neighboursFlyoutCloseTimer.Start();
+
+    private void NeighboursFlyoutContent_MouseEnter(object sender, MouseEventArgs e) => _neighboursFlyoutCloseTimer.Stop();
+
+    private void NeighboursFlyoutContent_MouseLeave(object sender, MouseEventArgs e) => _neighboursFlyoutCloseTimer.Start();
+
+    private void NeighboursFlyoutItem_Click(object sender, RoutedEventArgs e)
+    {
+        _neighboursFlyoutCloseTimer.Stop();
+        NeighboursFlyout.IsOpen = false;
+    }
+
     private void NotifyVisibility() =>
         _viewModel.OnWindowVisibilityChanged(IsVisible && WindowState != WindowState.Minimized);
 
@@ -174,6 +203,10 @@ public partial class MainWindow : Window
         else if (_viewModel.IsLocationsTabSelected)
         {
             LocationsViewControl.FocusSearch();
+        }
+        else if (_viewModel.IsNeighboursTabSelected)
+        {
+            NeighboursViewControl.FocusSearch();
         }
         else if (_viewModel.IsNetworkMapTabSelected)
         {
@@ -265,6 +298,7 @@ public partial class MainWindow : Window
         AlertsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Alerts"));
         GroupsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Groups"));
         LocationsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Locations"));
+        NeighboursViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Neighbours.View"));
         HealthViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Health.Sensors"));
     }
 
@@ -286,6 +320,7 @@ public partial class MainWindow : Window
             SetIfCaptured(layouts, "Alerts", AlertsViewControl.CaptureGridLayout());
             SetIfCaptured(layouts, "Groups", GroupsViewControl.CaptureGridLayout());
             SetIfCaptured(layouts, "Locations", LocationsViewControl.CaptureGridLayout());
+            SetIfCaptured(layouts, "Neighbours.View", NeighboursViewControl.CaptureGridLayout());
             SetIfCaptured(layouts, "Health.Sensors", HealthViewControl.CaptureGridLayout());
 
             _settings.Save();

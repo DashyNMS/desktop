@@ -52,6 +52,20 @@ public sealed class Port
     [JsonPropertyName("ifVlan")]
     public int? IfVlan { get; set; }
 
+    /// <summary>The VRF this interface is in - a <see cref="Vrf.Id"/>, or null/0 for none.</summary>
+    [JsonPropertyName("ifVrf")]
+    public int? IfVrf { get; set; }
+
+    /// <summary>
+    /// Every VLAN this interface carries and whether untagged (LibreNMS's
+    /// <c>ports_vlans</c>, from the ports route's <c>with=vlans</c>) - trunk
+    /// membership that <see cref="IfVlan"/> alone can't show. Empty when the
+    /// device reports none, or on a LibreNMS too old to send it. See
+    /// <see cref="Topology.VlanMembership"/>.
+    /// </summary>
+    [JsonPropertyName("vlans")]
+    public List<PortVlanMembership> Vlans { get; set; } = new();
+
     /// <summary>"up", "down", "testing", "unknown", ... (RFC 1213 ifOperStatus).</summary>
     [JsonPropertyName("ifOperStatus")]
     public string? IfOperStatus { get; set; }
@@ -73,6 +87,24 @@ public sealed class Port
 
     [JsonPropertyName("ifOutErrors_delta")]
     public long? IfOutErrorsDelta { get; set; }
+
+    /// <summary>Inbound errors per second, as last polled.</summary>
+    [JsonPropertyName("ifInErrors_rate")]
+    public double? IfInErrorsRate { get; set; }
+
+    [JsonPropertyName("ifOutErrors_rate")]
+    public double? IfOutErrorsRate { get; set; }
+
+    /// <summary>Unicast packets per second, as last polled.</summary>
+    [JsonPropertyName("ifInUcastPkts_rate")]
+    public double? IfInUcastPktsRate { get; set; }
+
+    [JsonPropertyName("ifOutUcastPkts_rate")]
+    public double? IfOutUcastPktsRate { get; set; }
+
+    /// <summary>The switch's uptime (sysUpTime, hundredths of a second) when the port last changed state - with the switch's own uptime, how long it's been up or down.</summary>
+    [JsonPropertyName("ifLastChange")]
+    public long? IfLastChange { get; set; }
 
     /// <summary>Excluded from monitoring/alerting by an operator, independent of link state.</summary>
     [JsonPropertyName("ignore")]
@@ -103,4 +135,16 @@ public sealed class Port
     public bool IsUp => string.Equals(IfOperStatus, "up", StringComparison.OrdinalIgnoreCase);
 
     public override string ToString() => DisplayName;
+}
+
+/// <summary>One VLAN a port carries (a <c>ports_vlans</c> row) - see <see cref="Port.Vlans"/>.</summary>
+public sealed class PortVlanMembership
+{
+    /// <summary>The 802.1Q VLAN number itself (not LibreNMS's internal VLAN row id).</summary>
+    [JsonPropertyName("vlan")]
+    public int Vlan { get; set; }
+
+    /// <summary>True for the port's untagged (access/native) VLAN, false for one it carries tagged.</summary>
+    [JsonPropertyName("untagged")]
+    public bool Untagged { get; set; }
 }

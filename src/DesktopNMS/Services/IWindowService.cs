@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 
 namespace DesktopNMS.Services;
@@ -40,6 +41,15 @@ public interface IWindowService
     /// widget's click-through, so the graph opens full size in context.
     /// </summary>
     void ShowDeviceGraph(int deviceId, string graphName);
+
+    /// <summary>Shows a device's detail window on its Wireless section (#55) - the Dashboard Wireless widget's click-through.</summary>
+    void ShowDeviceWireless(int deviceId);
+
+    /// <summary>Shows the main window on a Neighbours view (#55), with this neighbour selected if one is named and listed - the MAC picks out which of several unnamed ones.</summary>
+    void ShowNeighbour(string viewId, string? name, string? mac = null);
+
+    /// <summary>The Neighbours tab's New view (<paramref name="existing"/> null) or Edit view dialog - the saved view, or null if cancelled.</summary>
+    NeighbourViewDefinition? ShowNeighbourViewEditor(NeighbourViewDefinition? existing);
 
     /// <summary>Closes a device's detail window if it is currently open - a no-op otherwise.</summary>
     void CloseDeviceDetail(int deviceId);

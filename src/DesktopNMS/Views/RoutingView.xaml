@@ -1,0 +1,189 @@
+<UserControl x:Class="DesktopNMS.Views.RoutingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:views="clr-namespace:DesktopNMS.Views">
+
+    <!-- Device Details' Routing section (#53) - see RoutingSectionViewModel.
+         One card each for BGP, OSPF and VRFs, each only when the device has
+         any. -->
+    <UserControl.Resources>
+        <!-- A health dot, coloured from the row's RoutingHealth. -->
+        <Style x:Key="HealthDotStyle" TargetType="Ellipse">
+            <Setter Property="Width" Value="9" />
+            <Setter Property="Height" Value="9" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Fill" Value="{StaticResource OkBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Health}" Value="{x:Static vm:RoutingHealth.Warning}">
+                    <Setter Property="Fill" Value="{StaticResource WarningBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Health}" Value="{x:Static vm:RoutingHealth.Critical}">
+                    <Setter Property="Fill" Value="{StaticResource CriticalBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Health}" Value="{x:Static vm:RoutingHealth.Disabled}">
+                    <Setter Property="Fill" Value="{StaticResource TextSecondaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="RoutingCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="Margin" Value="0,0,0,14" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Routing" Style="{StaticResource HeadingTextStyle}" />
+                <TextBlock Text="{Binding SummaryText}" Style="{StaticResource SubtleTextStyle}" Margin="0,4,0,14" />
+
+                <Border Background="#33DB9A04"
+                        BorderBrush="{StaticResource WarningBrush}"
+                        BorderThickness="1"
+                        CornerRadius="5"
+                        Padding="12,10"
+                        Margin="0,0,0,14"
+                        Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Text="Some routing data couldn't be loaded" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ==================== BGP ==================== -->
+                <Border Style="{StaticResource RoutingCardStyle}"
+                        Visibility="{Binding HasBgp, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,8">
+                            <Run Text="BGP SESSIONS (" /><Run Text="{Binding BgpSessions.Count, Mode=OneWay}" /><Run Text=")" />
+                        </TextBlock>
+                        <DataGrid ItemsSource="{Binding BgpSessions}"
+                                  IsReadOnly="True"
+                                  HeadersVisibility="Column"
+                                  CanUserSortColumns="True">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="State" Width="140" SortMemberPath="StateText">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="8,0">
+                                                <Ellipse Style="{StaticResource HealthDotStyle}" Margin="0,0,7,0" />
+                                                <TextBlock Text="{Binding StateText}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Peer" Width="190" SortMemberPath="Peer">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="8,3">
+                                                <TextBlock Text="{Binding Peer}" FontFamily="Consolas" />
+                                                <TextBlock Text="{Binding Description}"
+                                                           Style="{StaticResource SubtleTextStyle}"
+                                                           FontSize="11"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Visibility="{Binding Description, Converter={StaticResource StringToVisibility}}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Remote AS" Width="180" Binding="{Binding RemoteAsText}" />
+                                <DataGridTextColumn Header="Up for" Width="80" Binding="{Binding UptimeText}" />
+                                <DataGridTextColumn Header="Local address" Width="150" Binding="{Binding LocalAddress}" />
+                                <DataGridTextColumn Header="VRF" Width="100" Binding="{Binding VrfName}" />
+                                <DataGridTextColumn Header="Updates" Width="*" MinWidth="120" Binding="{Binding UpdatesText}" />
+                            </DataGrid.Columns>
+                            <DataGrid.RowDetailsTemplate>
+                                <!-- The last error, only for a session that has one. -->
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding LastError, StringFormat=Last error: {0}}"
+                                               Style="{StaticResource SubtleTextStyle}"
+                                               TextWrapping="Wrap"
+                                               Margin="40,0,8,6"
+                                               Visibility="{Binding LastError, Converter={StaticResource NullToVisibility}}" />
+                                </DataTemplate>
+                            </DataGrid.RowDetailsTemplate>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ==================== OSPF ==================== -->
+                <Border Style="{StaticResource RoutingCardStyle}"
+                        Visibility="{Binding HasOspf, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,8">
+                            <Run Text="OSPF NEIGHBOURS (" /><Run Text="{Binding OspfNeighbours.Count, Mode=OneWay}" /><Run Text=")" />
+                        </TextBlock>
+                        <DataGrid ItemsSource="{Binding OspfNeighbours}"
+                                  IsReadOnly="True"
+                                  HeadersVisibility="Column"
+                                  CanUserSortColumns="True">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="State" Width="140" SortMemberPath="StateText">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="8,0">
+                                                <Ellipse Style="{StaticResource HealthDotStyle}" Margin="0,0,7,0" />
+                                                <TextBlock Text="{Binding StateText}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Neighbour" Width="190" Binding="{Binding Neighbour}" />
+                                <DataGridTextColumn Header="Router ID" Width="130" Binding="{Binding RouterId}" />
+                                <DataGridTextColumn Header="Interface" Width="140" Binding="{Binding InterfaceName}" />
+                                <DataGridTextColumn Header="Version" Width="80" Binding="{Binding Version}" />
+                                <DataGridTextColumn Header="Priority" Width="70" Binding="{Binding Priority}" />
+                                <DataGridTextColumn Header="Context" Width="*" MinWidth="80" Binding="{Binding Context}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ==================== VRFs ==================== -->
+                <Border Style="{StaticResource RoutingCardStyle}"
+                        Visibility="{Binding HasVrfs, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,8">
+                            <Run Text="VRFS (" /><Run Text="{Binding Vrfs.Count, Mode=OneWay}" /><Run Text=")" />
+                        </TextBlock>
+                        <DataGrid ItemsSource="{Binding Vrfs}"
+                                  IsReadOnly="True"
+                                  HeadersVisibility="Column"
+                                  CanUserSortColumns="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Width="170" Binding="{Binding Name}" />
+                                <DataGridTextColumn Header="Route distinguisher" Width="150" Binding="{Binding RouteDistinguisher}" />
+                                <DataGridTextColumn Header="Local AS" Width="90" Binding="{Binding LocalAsText}" />
+                                <DataGridTemplateColumn Header="Interfaces" Width="*" MinWidth="160">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding InterfacesText}"
+                                                       ToolTip="{Binding InterfacesToolTip}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"
+                                                       Margin="8,0" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Description" Width="*" MinWidth="120" Binding="{Binding Description}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="LibreNMS has no BGP, OSPF or VRF data for this device."
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding ShowEmptyMessage, Converter={StaticResource BoolToVisibility}}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <views:LoadingOverlay Text="Loading routing data..."
+                              Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
+    </Grid>
+</UserControl>

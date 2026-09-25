@@ -9,6 +9,9 @@ public enum MainTab
     Alerts,
     Groups,
     Locations,
+
+    /// <summary>The user's views of what the switches see over LLDP/CDP (#55) - its own tab, with a hover menu of views.</summary>
+    Neighbours,
     Rules,
     Templates,
 

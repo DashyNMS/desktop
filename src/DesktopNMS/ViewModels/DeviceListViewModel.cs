@@ -486,16 +486,23 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             }
         }
 
+        var visibilityChanged = false;
+
         for (var target = 0; target < ordered.Count; target++)
         {
             var device = ordered[target];
 
             if (_index.TryGetValue(device.DeviceId, out var existing))
             {
+                // The view only filters an item when it's added, so a device
+                // updated in place - e.g. gone down while only up devices are
+                // showing - would otherwise stay until a filter next changes.
+                var wasShown = FilterDevice(existing);
                 existing.Update(device, nameStyle);
                 existing.IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId);
                 existing.IsPinned = _pinnedIds.Contains(device.DeviceId);
                 existing.ServerTimestampsAreUtc = _settings.Current.ServerTimestampsAreUtc;
+                visibilityChanged |= FilterDevice(existing) != wasShown;
 
                 var currentIndex = Devices.IndexOf(existing);
                 if (currentIndex >= 0 && currentIndex != target && target < Devices.Count)
@@ -514,6 +521,12 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
                 _index[device.DeviceId] = item;
                 Devices.Insert(Math.Min(target, Devices.Count), item);
             }
+        }
+
+        // Only when something's shown/hidden state actually changed.
+        if (visibilityChanged)
+        {
+            DevicesView.Refresh();
         }
 
         _lastOrderedDevices = ordered;

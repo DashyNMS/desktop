@@ -1,0 +1,155 @@
+<UserControl x:Class="DesktopNMS.Views.InventoryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:DesktopNMS.Views">
+
+    <!-- Device Details' Inventory section (#164) - see
+         InventorySectionViewModel. The tree is drawn in a grid (indented
+         names with expand arrows) so model, serial and firmware line up in
+         columns, and the themed DataGrid is used rather than an unstyled
+         TreeView. -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="120" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Inventory" Style="{StaticResource HeadingTextStyle}" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="Expand all" Command="{Binding ExpandAllCommand}" Padding="10,6" Margin="0,0,8,0" />
+                <Button Content="Collapse all" Command="{Binding CollapseAllCommand}" Padding="10,6" />
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Margin="0,0,0,10">
+            <TextBlock Text="{Binding SummaryText}" Style="{StaticResource SubtleTextStyle}" Margin="0,0,0,10" />
+            <StackPanel Orientation="Horizontal">
+                <TextBox Style="{StaticResource SearchTextBoxStyle}"
+                         Tag="Search the inventory"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                         ToolTip="Search by name, description, model, serial, type or firmware"
+                         Width="300" />
+                <CheckBox Content="{Binding ShowPortsText}"
+                          IsChecked="{Binding ShowPorts}"
+                          VerticalAlignment="Center"
+                          Margin="14,0,0,0"
+                          ToolTip="Ports are listed in the Ports section too, so they're hidden here unless you ask"
+                          Visibility="{Binding HasPorts, Converter={StaticResource BoolToVisibility}}" />
+            </StackPanel>
+        </StackPanel>
+
+        <Grid Grid.Row="2">
+            <DataGrid ItemsSource="{Binding Rows}"
+                      SelectedItem="{Binding SelectedRow}"
+                      IsReadOnly="True"
+                      CanUserSortColumns="False"
+                      SelectionMode="Single"
+                      HeadersVisibility="Column">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Name" Width="2*" MinWidth="220">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="{Binding Indent}" VerticalAlignment="Center">
+                                    <!-- The expand arrow - a fixed-width slot either way, so names line up. -->
+                                    <Grid Width="22">
+                                        <Button Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource IconButtonStyle}"
+                                                Width="20"
+                                                Height="20"
+                                                Padding="0"
+                                                Visibility="{Binding HasVisibleChildren, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="{Binding ExpanderGlyph}"
+                                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                       FontSize="10" />
+                                        </Button>
+                                    </Grid>
+                                    <StackPanel VerticalAlignment="Center" Margin="4,3,8,3">
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Description}"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Visibility="{Binding Description, Converter={StaticResource NullToVisibility}}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Type" Width="110" Binding="{Binding TypeText}" />
+                    <DataGridTextColumn Header="Model" Width="130" Binding="{Binding Model}" />
+                    <DataGridTemplateColumn Header="Serial number" Width="170">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                                    <TextBlock Text="{Binding SerialText}" FontFamily="Consolas" VerticalAlignment="Center" />
+                                    <Button Command="{Binding DataContext.CopySerialCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                            CommandParameter="{Binding}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            ToolTip="Copy serial number"
+                                            Width="22"
+                                            Height="22"
+                                            Padding="0"
+                                            Margin="6,0,0,0"
+                                            Visibility="{Binding HasSerial, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="&#xE8C8;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" />
+                                    </Button>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Firmware" Width="*" MinWidth="110" Binding="{Binding FirmwareText}" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <views:LoadingOverlay Text="Loading the inventory..."
+                                  Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
+
+            <TextBlock Text="{Binding EmptyMessageText}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False"
+                       Visibility="{Binding ShowEmptyMessage, Converter={StaticResource BoolToVisibility}}"
+                       Style="{StaticResource SubtleTextStyle}" />
+
+            <Border HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    MaxWidth="480"
+                    Padding="16,12"
+                    CornerRadius="6"
+                    Background="{StaticResource SurfaceAltBrush}"
+                    Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="Couldn't load the inventory" FontWeight="SemiBold" Foreground="{StaticResource CriticalBrush}" />
+                    <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Everything LibreNMS has for the selected entry. -->
+        <Border Grid.Row="3"
+                Margin="0,12,0,0"
+                Padding="14,12"
+                CornerRadius="6"
+                Background="{StaticResource SurfaceAltBrush}"
+                Visibility="{Binding HasSelectedRow, Converter={StaticResource BoolToVisibility}}">
+            <DataGrid ItemsSource="{Binding SelectedRow.Fields}"
+                      IsReadOnly="True"
+                      HeadersVisibility="None"
+                      MaxHeight="200"
+                      ToolTip="Select rows and press Ctrl+C to copy">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Width="160" Binding="{Binding Label}" />
+                    <DataGridTextColumn Width="*" Binding="{Binding Value}" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>

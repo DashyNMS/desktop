@@ -240,10 +240,11 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         {
             var deviceWideTask = _client.Graphs.ListAsync(deviceId);
             var healthTask = _client.Graphs.ListHealthAsync(deviceId);
-            await Task.WhenAll(deviceWideTask, healthTask).ConfigureAwait(true);
+            var wirelessTask = GraphsSectionViewModel.ListWirelessGraphsAsync(_client, deviceId, _logger);
+            await Task.WhenAll(deviceWideTask, healthTask, wirelessTask).ConfigureAwait(true);
 
             AvailableGraphs.Clear();
-            foreach (var type in deviceWideTask.Result.Concat(healthTask.Result).OrderBy(t => t.Description, StringComparer.OrdinalIgnoreCase))
+            foreach (var type in deviceWideTask.Result.Concat(healthTask.Result).Concat(wirelessTask.Result).OrderBy(t => t.Description, StringComparer.OrdinalIgnoreCase))
             {
                 AvailableGraphs.Add(type);
             }

@@ -33,6 +33,9 @@ public interface IDeviceCache
     /// </summary>
     Device? FindByAddress(string? address);
 
+    /// <summary>Every cached device - empty until the list has loaded.</summary>
+    IReadOnlyCollection<Device> All { get; }
+
     /// <summary>
     /// Refreshes if the map is stale or is missing any of the given device ids.
     /// Never throws: a failed device fetch must not fail the alert poll.
@@ -81,6 +84,8 @@ public sealed class DeviceCache : IDeviceCache
         var snapshot = _devices;
         return snapshot.TryGetValue(deviceId, out var device) ? device : null;
     }
+
+    public IReadOnlyCollection<Device> All => _devices.Values;
 
     public Device? FindByAddress(string? address)
     {
