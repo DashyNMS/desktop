@@ -583,35 +583,30 @@ public sealed class NeighbourItemViewModel
         IsSwitchDown = @switch is { Status: false, Disabled: false };
         var switchDisabled = @switch is { Disabled: true };
 
-        if (device is not null)
-        {
-            // LibreNMS monitors it itself - its own state says it best.
-            State = device.State switch
-            {
-                DeviceState.Up => NeighbourState.Up,
-                DeviceState.Down => NeighbourState.Down,
-                _ => NeighbourState.Other,
-            };
-            StateText = device.State switch
-            {
-                DeviceState.Up => "Up",
-                DeviceState.Down => "Down",
-                DeviceState.Maintenance => "Maintenance",
-                DeviceState.Disabled => "Disabled",
-                DeviceState.Ignored => "Ignored",
-                _ => "Unknown",
-            };
-            return;
-        }
-
+        // A row is one neighbour on one switch port, so the link comes
+        // first: a switch that's down, or a port that's down, means this
+        // link is down - even when the neighbour is up somewhere else (seen
+        // on a second switch, or an old link LibreNMS hasn't dropped).
         (State, StateText) =
             IsSwitchDown ? (NeighbourState.Down, "Down")
             : switchDisabled ? (NeighbourState.Other, "Switch disabled")
             : !neighbour.Active ? (NeighbourState.Other, "Not seen")
+            : port is not null && string.Equals(port.IfAdminStatus, "down", StringComparison.OrdinalIgnoreCase) ? (NeighbourState.Other, "Port shut down")
+            : port is not null && !port.IsUp ? (NeighbourState.Down, "Down")
+
+            // The link's up (or its port unknown): a neighbour LibreNMS
+            // monitors itself then has the last word on its own state.
+            : device is not null ? device.State switch
+            {
+                DeviceState.Up => (NeighbourState.Up, "Up"),
+                DeviceState.Down => (NeighbourState.Down, "Down"),
+                DeviceState.Maintenance => (NeighbourState.Other, "Maintenance"),
+                DeviceState.Disabled => (NeighbourState.Other, "Disabled"),
+                DeviceState.Ignored => (NeighbourState.Other, "Ignored"),
+                _ => (NeighbourState.Other, "Unknown"),
+            }
             : port is null ? (NeighbourState.Other, "Unknown port")
-            : string.Equals(port.IfAdminStatus, "down", StringComparison.OrdinalIgnoreCase) ? (NeighbourState.Other, "Port shut down")
-            : port.IsUp ? (NeighbourState.Up, "Up")
-            : (NeighbourState.Down, "Down");
+            : (NeighbourState.Up, "Up");
     }
 
     public Neighbour Neighbour { get; }
@@ -674,13 +669,14 @@ public sealed class NeighbourItemViewModel
                 ? $"This doesn't announce a name - its port/MAC is {Neighbour.RemotePort ?? "unknown"}."
                 : Name;
             text += $" Plugged into {SwitchName} {PortText}.";
+            if (IsSwitchDown)
+            {
+                text += $" {SwitchName} is down, so this link counts as down too.";
+            }
+
             if (IsMonitored)
             {
                 text += " LibreNMS monitors it - click to open it.";
-            }
-            else if (IsSwitchDown)
-            {
-                text += $" {SwitchName} is down, so this counts as down too.";
             }
 
             return text;
