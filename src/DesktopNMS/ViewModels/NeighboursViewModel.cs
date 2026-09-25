@@ -47,6 +47,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     private NeighbourItemViewModel? _selected;
     private (string Name, string? Mac)? _pendingSelection;
     private int _graphVersion;
+    private string _viewSearchText = string.Empty;
 
     public NeighboursViewModel(
         INeighbourDirectory directory,
@@ -90,15 +91,24 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
             ShowUp = ShowDown = ShowOther = true;
         });
         NewViewCommand = new RelayCommand(NewView);
-        EditViewCommand = new RelayCommand(EditView, () => _selectedView is not null);
-        DeleteViewCommand = new RelayCommand(DeleteView, () => _selectedView is not null);
+
+        // From a row in the views list, or (no parameter) the open view.
+        EditViewCommand = new RelayCommand(parameter => EditView(ViewFrom(parameter)));
+        DeleteViewCommand = new RelayCommand(parameter => DeleteView(ViewFrom(parameter)));
         SelectViewCommand = new RelayCommand(parameter =>
         {
-            if (parameter is NeighbourViewDefinition view)
+            if (ViewFrom(parameter) is { } view)
             {
                 SelectedView = Views.FirstOrDefault(v => v.Id == view.Id);
             }
         });
+        ShowViewListCommand = new RelayCommand(ShowViewList);
+        ClearViewSearchCommand = new RelayCommand(() => ViewSearchText = string.Empty);
+        ToggleGraphsCommand = new RelayCommand(() => IsGraphsCollapsed = !IsGraphsCollapsed);
+
+        ViewRows = new ObservableCollection<NeighbourViewRowViewModel>();
+        ViewRowsView = CollectionViewSource.GetDefaultView(ViewRows);
+        ViewRowsView.Filter = row => row is NeighbourViewRowViewModel r && r.Matches(ViewSearchText);
         OpenSwitchCommand = new RelayCommand(parameter =>
         {
             if (parameter is NeighbourItemViewModel item)
@@ -131,15 +141,8 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _selectedView, value))
             {
                 OnPropertyChanged(nameof(HasSelectedView));
+                OnPropertyChanged(nameof(IsViewListMode));
                 OnPropertyChanged(nameof(ViewRulesText));
-                EditViewCommand.RaiseCanExecuteChanged();
-                DeleteViewCommand.RaiseCanExecuteChanged();
-
-                if (value is not null && _settings.Current.LastNeighbourViewId != value.Id)
-                {
-                    _settings.Current.LastNeighbourViewId = value.Id;
-                    _settings.Save();
-                }
 
                 SelectedItem = null;
                 RebuildItems();
@@ -153,6 +156,65 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     }
 
     public bool HasSelectedView => _selectedView is not null;
+
+    /// <summary>No view open - the tab shows the table of every view, which is where clicking the tab itself lands.</summary>
+    public bool IsViewListMode => _selectedView is null;
+
+    /// <summary>The table of views: each one's name, rules, how much it matches now, and whether it's on the map.</summary>
+    public ObservableCollection<NeighbourViewRowViewModel> ViewRows { get; }
+
+    public ICollectionView ViewRowsView { get; }
+
+    public string ViewSearchText
+    {
+        get => _viewSearchText;
+        set
+        {
+            if (SetProperty(ref _viewSearchText, value))
+            {
+                ViewRowsView.Refresh();
+                OnPropertyChanged(nameof(HasViewSearch));
+                OnPropertyChanged(nameof(ShowNoViewMatches));
+            }
+        }
+    }
+
+    public bool HasViewSearch => !string.IsNullOrEmpty(_viewSearchText);
+
+    public bool ShowNoViewMatches => HasViews && !ViewRowsView.Cast<object>().Any();
+
+    public RelayCommand ShowViewListCommand { get; }
+
+    public RelayCommand ClearViewSearchCommand { get; }
+
+    /// <summary>Folds the port graphs panel down to its header, so the table gets the full height - remembered.</summary>
+    public bool IsGraphsCollapsed
+    {
+        get => _settings.Current.NeighbourGraphsCollapsed;
+        set
+        {
+            if (_settings.Current.NeighbourGraphsCollapsed != value)
+            {
+                _settings.Current.NeighbourGraphsCollapsed = value;
+                _settings.Save();
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(GraphsToggleGlyph));
+
+                if (!value)
+                {
+                    _ = LoadGraphsAsync();
+                }
+            }
+        }
+    }
+
+    /// <summary>Chevron down while open (fold it away), up while folded (bring it back).</summary>
+    public string GraphsToggleGlyph => IsGraphsCollapsed ? "" : "";
+
+    public RelayCommand ToggleGraphsCommand { get; }
+
+    /// <summary>Back to the table of every view.</summary>
+    public void ShowViewList() => SelectedView = null;
 
     /// <summary>"System description contains X and switch starts with Y" - what the selected view looks for.</summary>
     public string ViewRulesText => _selectedView is { } view ? DescribeRules(view) : string.Empty;
@@ -312,7 +374,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
 
     private void LoadViewsFromSettings()
     {
-        var selectedId = _selectedView?.Id ?? _settings.Current.LastNeighbourViewId;
+        var selectedId = _selectedView?.Id;
 
         Views.Clear();
         foreach (var view in _settings.Current.NeighbourViews)
@@ -321,8 +383,11 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         }
 
         OnPropertyChanged(nameof(HasViews));
+        RebuildViewRows();
 
-        var select = Views.FirstOrDefault(v => v.Id == selectedId) ?? Views.FirstOrDefault();
+        // The open view stays open (with its new rules, if edited); if it
+        // was deleted, back to the table of views.
+        var select = selectedId is null ? null : Views.FirstOrDefault(v => v.Id == selectedId);
         if (!ReferenceEquals(select, _selectedView))
         {
             SelectedView = select;
@@ -355,6 +420,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         {
             _snapshot = await _directory.GetAsync(refresh).ConfigureAwait(true);
             RebuildItems();
+            RebuildViewRows();
         }
         catch (LibreNmsApiException ex)
         {
@@ -380,7 +446,8 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
                     n,
                     snapshot.PortOf(n),
                     _devices.Get(n.SwitchDeviceId),
-                    n.RemoteDeviceId is { } id ? _devices.Get(id) : null));
+                    n.RemoteDeviceId is { } id ? _devices.Get(id) : null,
+                    snapshot.IpOf(n)));
 
             // One neighbour seen on several ports shows only its live
             // link(s) - not the one on a switch that's gone offline.
@@ -435,9 +502,16 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void EditView()
+    private NeighbourViewDefinition? ViewFrom(object? parameter) => parameter switch
     {
-        if (_selectedView is not { } view || _windows.ShowNeighbourViewEditor(view) is not { } edited)
+        NeighbourViewRowViewModel row => row.Definition,
+        NeighbourViewDefinition definition => definition,
+        _ => _selectedView,
+    };
+
+    private void EditView(NeighbourViewDefinition? view)
+    {
+        if (view is null || _windows.ShowNeighbourViewEditor(view) is not { } edited)
         {
             return;
         }
@@ -448,13 +522,12 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         {
             views[index] = edited;
             _settings.Save();
-            SelectedView = Views.FirstOrDefault(v => v.Id == edited.Id);
         }
     }
 
-    private void DeleteView()
+    private void DeleteView(NeighbourViewDefinition? view)
     {
-        if (_selectedView is not { } view
+        if (view is null
             || !_windows.Confirm("Delete view", $"Delete the \"{view.Name}\" view? This only removes the view - nothing changes in LibreNMS."))
         {
             return;
@@ -462,6 +535,21 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
 
         _settings.Current.NeighbourViews.RemoveAll(v => v.Id == view.Id);
         _settings.Save();
+    }
+
+    /// <summary>The views table - with how many neighbours each matches, once the neighbours are in.</summary>
+    private void RebuildViewRows()
+    {
+        ViewRows.Clear();
+        foreach (var view in Views)
+        {
+            int? count = _snapshot is { } snapshot
+                ? snapshot.For(view, id => _devices.Get(id)?.BestName).Select(Neighbours.IdentityKey).Distinct(StringComparer.Ordinal).Count()
+                : null;
+            ViewRows.Add(new NeighbourViewRowViewModel(view, DescribeRules(view), count));
+        }
+
+        OnPropertyChanged(nameof(ShowNoViewMatches));
     }
 
     /// <summary>Shift-click on a pill: show only that one.</summary>
@@ -498,6 +586,12 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     private async Task LoadGraphsAsync()
     {
         var version = ++_graphVersion;
+
+        // Folded away: nothing to draw them in - they load when it's opened.
+        if (IsGraphsCollapsed)
+        {
+            return;
+        }
 
         if (_selected is not { PortIfName: { } ifName } item)
         {
@@ -576,12 +670,21 @@ public static class NeighbourViewText
 /// <summary>One neighbour row.</summary>
 public sealed class NeighbourItemViewModel
 {
-    public NeighbourItemViewModel(Neighbour neighbour, Port? port, Device? @switch, Device? device)
+    /// <param name="arpIp">The IP the fleet's ARP tables have for its MAC, for one LibreNMS doesn't monitor.</param>
+    public NeighbourItemViewModel(Neighbour neighbour, Port? port, Device? @switch, Device? device, string? arpIp = null)
     {
         Neighbour = neighbour;
         Port = port;
         Device = device;
         SwitchName = @switch?.BestName ?? $"device {neighbour.SwitchDeviceId}";
+        IpText = device?.Ip ?? arpIp ?? string.Empty;
+
+        // ifLastChange is the switch's sysUpTime (hundredths of a second) at
+        // the change; the switch's uptime now, less that, is how long ago.
+        if (port?.IfLastChange is { } changedAt && @switch is { Status: true, Uptime: > 0 } polled && polled.Uptime >= changedAt / 100)
+        {
+            SecondsSinceChange = polled.Uptime - (changedAt / 100);
+        }
 
         // A switch that's down (or disabled) isn't being polled, so its
         // ports keep their last reading - often weeks-old "up".
@@ -660,14 +763,69 @@ public sealed class NeighbourItemViewModel
 
     public string SpeedText => !IsSwitchDown && Port?.IfSpeed is { } speed && speed > 0 ? LinkUtilisation.Rate(speed) : "-";
 
-    public double InBps => (Port?.IfInOctetsRate ?? 0) * 8;
+    /// <summary>The port's live figures mean something - its switch is polled and it's up. Otherwise they're stale or zero, and show as "-".</summary>
+    private bool HasLiveFigures => Port is { } port && !IsSwitchDown && port.IsUp;
 
-    public double OutBps => (Port?.IfOutOctetsRate ?? 0) * 8;
+    /// <summary>The neighbour's IP: its LibreNMS device's, or from the fleet's ARP tables by its MAC.</summary>
+    public string IpText { get; }
 
-    /// <summary>Traffic towards the neighbour (the switch port's out) and from it (the port's in) - only while its switch is polled and the port is up.</summary>
-    public string TrafficText => Port is null || IsSwitchDown || !Port.IsUp
-        ? "-"
-        : $"{Rate(OutBps)} to / {Rate(InBps)} from";
+    /// <summary>Into the switch port - traffic from the neighbour. Sorts by <see cref="InBps"/>.</summary>
+    public double InBps => HasLiveFigures ? (Port!.IfInOctetsRate ?? 0) * 8 : -1;
+
+    public string InText => HasLiveFigures ? Rate(InBps) : "-";
+
+    /// <summary>Out of the switch port - traffic to the neighbour.</summary>
+    public double OutBps => HasLiveFigures ? (Port!.IfOutOctetsRate ?? 0) * 8 : -1;
+
+    public string OutText => HasLiveFigures ? Rate(OutBps) : "-";
+
+    /// <summary>In and out errors per second on the switch port, together.</summary>
+    public double ErrorsPerSecond => HasLiveFigures ? (Port!.IfInErrorsRate ?? 0) + (Port.IfOutErrorsRate ?? 0) : -1;
+
+    public string ErrorsText => HasLiveFigures ? PerSecond(ErrorsPerSecond) : "-";
+
+    public string ErrorsToolTip => HasLiveFigures
+        ? $"In {PerSecond(Port!.IfInErrorsRate ?? 0)}, out {PerSecond(Port.IfOutErrorsRate ?? 0)}"
+        : "No live figures - the port or its switch is down.";
+
+    public double PacketsInPerSecond => HasLiveFigures ? Port!.IfInUcastPktsRate ?? 0 : -1;
+
+    public string PacketsInText => HasLiveFigures ? PerSecond(PacketsInPerSecond) : "-";
+
+    public double PacketsOutPerSecond => HasLiveFigures ? Port!.IfOutUcastPktsRate ?? 0 : -1;
+
+    public string PacketsOutText => HasLiveFigures ? PerSecond(PacketsOutPerSecond) : "-";
+
+    /// <summary>The busier direction as a share of the port's speed.</summary>
+    public double UtilisationPercent => HasLiveFigures && Port!.IfSpeed is { } speed && speed > 0
+        ? Math.Min(100, Math.Max(InBps, OutBps) / speed * 100)
+        : -1;
+
+    public string UtilisationText => UtilisationPercent >= 0 ? UtilisationPercent.ToString(UtilisationPercent < 10 ? "0.#" : "0", CultureInfo.CurrentCulture) + "%" : "-";
+
+    /// <summary>The switch port's own description (ifAlias).</summary>
+    public string PortDescriptionText => Port?.IfAlias?.Trim() ?? string.Empty;
+
+    public string DuplexText => Port?.IfDuplex?.Trim().ToLowerInvariant() switch
+    {
+        "fullduplex" or "full" => "Full",
+        "halfduplex" or "half" => "Half",
+        _ => "-",
+    };
+
+    public string VlanText => Port?.IfVlan is { } vlan && vlan > 0 ? vlan.ToString(CultureInfo.CurrentCulture) : "-";
+
+    public string MtuText => Port?.IfMtu is { } mtu && mtu > 0 ? mtu.ToString(CultureInfo.CurrentCulture) : "-";
+
+    /// <summary>How long since the port last went up or down, from the switch's uptime - null if it can't be told.</summary>
+    public long? SecondsSinceChange { get; }
+
+    public string LastChangeText => SecondsSinceChange is { } seconds ? RoutingSectionViewModel.FormatDuration(seconds) + " ago" : "-";
+
+    public string ProtocolText => Neighbour.Protocol?.ToUpperInvariant() ?? string.Empty;
+
+    /// <summary>The port the neighbour announces - often its MAC.</summary>
+    public string AnnouncedPortText => Neighbour.RemotePort ?? string.Empty;
 
     public string ToolTip
     {
@@ -704,10 +862,45 @@ public sealed class NeighbourItemViewModel
             || SwitchName.Contains(t, StringComparison.OrdinalIgnoreCase)
             || PortText.Contains(t, StringComparison.OrdinalIgnoreCase)
             || MacText.Contains(t, StringComparison.OrdinalIgnoreCase)
+            || IpText.Contains(t, StringComparison.OrdinalIgnoreCase)
+            || PortDescriptionText.Contains(t, StringComparison.OrdinalIgnoreCase)
             || StateText.Contains(t, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Rate(double bps) => bps <= 0 ? "0 bps" : LinkUtilisation.Rate(bps);
+
+    /// <summary>"0", "0.2/s", "8,633/s".</summary>
+    private static string PerSecond(double value) =>
+        value <= 0 ? "0" : value.ToString(value < 10 ? "0.#" : "N0", CultureInfo.CurrentCulture) + "/s";
+}
+
+/// <summary>One row in the Neighbours tab's table of views.</summary>
+public sealed class NeighbourViewRowViewModel
+{
+    public NeighbourViewRowViewModel(NeighbourViewDefinition definition, string rulesText, int? matchCount)
+    {
+        Definition = definition;
+        RulesText = rulesText;
+        MatchCount = matchCount;
+    }
+
+    public NeighbourViewDefinition Definition { get; }
+
+    public string Name => Definition.Name;
+
+    public string RulesText { get; }
+
+    /// <summary>How many neighbours it lists right now - null until they've loaded.</summary>
+    public int? MatchCount { get; }
+
+    public string MatchCountText => MatchCount?.ToString("N0", CultureInfo.CurrentCulture) ?? "...";
+
+    public string OnMapText => Definition.ShowOnMap ? "Yes" : "No";
+
+    public bool Matches(string? term) =>
+        string.IsNullOrWhiteSpace(term)
+        || Name.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase)
+        || RulesText.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>One of the selected neighbour's port graphs.</summary>

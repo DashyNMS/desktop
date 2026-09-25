@@ -366,7 +366,8 @@ internal sealed class PortsApi : IPortsApi
 
     public Task<IReadOnlyList<Port>> ListAllStatusAsync(CancellationToken cancellationToken = default)
         => _transport.GetCollectionAsync<Port>(
-            "ports?columns=port_id,device_id,ifName,ifDescr,ifAlias,ifOperStatus,ifAdminStatus,ifSpeed,ifInOctets_rate,ifOutOctets_rate",
+            "ports?columns=port_id,device_id,ifName,ifDescr,ifAlias,ifOperStatus,ifAdminStatus,ifSpeed,ifDuplex,ifMtu,ifVlan,ifLastChange,"
+            + "ifInOctets_rate,ifOutOctets_rate,ifInErrors_rate,ifOutErrors_rate,ifInUcastPkts_rate,ifOutUcastPkts_rate",
             "ports",
             cancellationToken);
 
@@ -411,6 +412,9 @@ internal sealed class ArpApi : IArpApi
         var url = "resources/ip/arp/all?device=" + deviceId.ToString(CultureInfo.InvariantCulture);
         return _transport.GetCollectionAsync<ArpEntry>(url, "arp", cancellationToken);
     }
+
+    public Task<IReadOnlyList<ArpEntry>> ListAllAsync(CancellationToken cancellationToken = default)
+        => _transport.GetCollectionAsync<ArpEntry>("resources/ip/arp/all", "arp", cancellationToken);
 
     public Task<IReadOnlyList<ArpEntry>> FindByMacAsync(string mac, CancellationToken cancellationToken = default)
     {

@@ -224,7 +224,7 @@ public interface IPortsApi
     Task<IReadOnlyList<Port>> ListAllNamesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// GET /api/v0/ports with names plus status, speed and traffic rates -
+    /// GET /api/v0/ports with names plus status, speed, duplex, VLAN, MTU, last change, and traffic, error and packet rates -
     /// every port in the fleet, for the Access points page (#55) to show the
     /// state of each AP's switch port. Checked live: about 9,000 ports in
     /// 1.4 seconds.
@@ -265,6 +265,13 @@ public interface IArpApi
     /// announces its MAC is traced to a monitored device's IP.
     /// </summary>
     Task<IReadOnlyList<ArpEntry>> FindByMacAsync(string mac, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/resources/ip/arp/all - every IPv4-to-MAC mapping in the
+    /// fleet (checked live: about 9,500 entries in 1.4 seconds). How the
+    /// Neighbours tab gives an IP to a neighbour LibreNMS doesn't monitor.
+    /// </summary>
+    Task<IReadOnlyList<ArpEntry>> ListAllAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>VLAN endpoints.</summary>

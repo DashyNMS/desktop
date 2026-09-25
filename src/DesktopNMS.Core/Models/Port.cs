@@ -88,6 +88,24 @@ public sealed class Port
     [JsonPropertyName("ifOutErrors_delta")]
     public long? IfOutErrorsDelta { get; set; }
 
+    /// <summary>Inbound errors per second, as last polled.</summary>
+    [JsonPropertyName("ifInErrors_rate")]
+    public double? IfInErrorsRate { get; set; }
+
+    [JsonPropertyName("ifOutErrors_rate")]
+    public double? IfOutErrorsRate { get; set; }
+
+    /// <summary>Unicast packets per second, as last polled.</summary>
+    [JsonPropertyName("ifInUcastPkts_rate")]
+    public double? IfInUcastPktsRate { get; set; }
+
+    [JsonPropertyName("ifOutUcastPkts_rate")]
+    public double? IfOutUcastPktsRate { get; set; }
+
+    /// <summary>The switch's uptime (sysUpTime, hundredths of a second) when the port last changed state - with the switch's own uptime, how long it's been up or down.</summary>
+    [JsonPropertyName("ifLastChange")]
+    public long? IfLastChange { get; set; }
+
     /// <summary>Excluded from monitoring/alerting by an operator, independent of link state.</summary>
     [JsonPropertyName("ignore")]
     public bool Ignore { get; set; }

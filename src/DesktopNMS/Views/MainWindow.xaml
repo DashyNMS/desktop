@@ -170,63 +170,6 @@
                                 </Border>
                             </Popup>
                         </Grid>
-                        <ToggleButton Content="Health"
-                                      Style="{StaticResource NavTabButtonStyle}"
-                                      IsChecked="{Binding IsHealthTabSelected, Mode=OneWay}"
-                                      Command="{Binding SelectHealthTabCommand}" />
-                        <!-- Maps' own click opens the Default map (Settings);
-                             hovering offers all three, same flyout pattern
-                             as Devices and Alerts. -->
-                        <Grid>
-                            <ToggleButton x:Name="MapsTabButton"
-                                          Style="{StaticResource NavTabButtonStyle}"
-                                          IsChecked="{Binding IsMapsFamilyTabSelected, Mode=OneWay}"
-                                          Command="{Binding SelectMapsTabCommand}"
-                                          MouseEnter="MapsTabButton_MouseEnter"
-                                          MouseLeave="MapsTabButton_MouseLeave">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Maps" />
-                                    <TextBlock Text="&#xE70D;"
-                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                               FontSize="9"
-                                               Margin="5,0,0,0"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                            </ToggleButton>
-
-                            <Popup x:Name="MapsFlyout"
-                                   Placement="Bottom"
-                                   AllowsTransparency="True"
-                                   StaysOpen="True">
-                                <Border x:Name="MapsFlyoutContent"
-                                        Background="{StaticResource SurfaceBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="4"
-                                        Margin="0,4,0,0"
-                                        MouseEnter="MapsFlyoutContent_MouseEnter"
-                                        MouseLeave="MapsFlyoutContent_MouseLeave">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
-                                    </Border.Effect>
-                                    <StackPanel MinWidth="140">
-                                        <Button Content="Network"
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectNetworkMapTabCommand}"
-                                                Click="MapsFlyoutItem_Click" />
-                                        <Button Content="Geographical"
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectGeoMapTabCommand}"
-                                                Click="MapsFlyoutItem_Click" />
-                                        <Button Content="Custom Maps"
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectCustomMapsTabCommand}"
-                                                Click="MapsFlyoutItem_Click" />
-                                    </StackPanel>
-                                </Border>
-                            </Popup>
-                        </Grid>
                         <!-- Neighbours (#55): the tab's own click opens the
                              last view looked at; hovering lists every view
                              plus New view, the same flyout pattern as Maps. -->
@@ -287,6 +230,59 @@
                                 </Border>
                             </Popup>
                         </Grid>
+                        <!-- Maps' own click opens the Default map (Settings);
+                             hovering offers all three, same flyout pattern
+                             as Devices and Alerts. -->
+                        <Grid>
+                            <ToggleButton x:Name="MapsTabButton"
+                                          Style="{StaticResource NavTabButtonStyle}"
+                                          IsChecked="{Binding IsMapsFamilyTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectMapsTabCommand}"
+                                          MouseEnter="MapsTabButton_MouseEnter"
+                                          MouseLeave="MapsTabButton_MouseLeave">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Maps" />
+                                    <TextBlock Text="&#xE70D;"
+                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                               FontSize="9"
+                                               Margin="5,0,0,0"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ToggleButton>
+
+                            <Popup x:Name="MapsFlyout"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   StaysOpen="True">
+                                <Border x:Name="MapsFlyoutContent"
+                                        Background="{StaticResource SurfaceBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="4"
+                                        Margin="0,4,0,0"
+                                        MouseEnter="MapsFlyoutContent_MouseEnter"
+                                        MouseLeave="MapsFlyoutContent_MouseLeave">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
+                                    </Border.Effect>
+                                    <StackPanel MinWidth="140">
+                                        <Button Content="Network"
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding SelectNetworkMapTabCommand}"
+                                                Click="MapsFlyoutItem_Click" />
+                                        <Button Content="Geographical"
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding SelectGeoMapTabCommand}"
+                                                Click="MapsFlyoutItem_Click" />
+                                        <Button Content="Custom Maps"
+                                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                                Command="{Binding SelectCustomMapsTabCommand}"
+                                                Click="MapsFlyoutItem_Click" />
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
                         <!-- Logs: Graylog is its only source so far, so no
                              hover menu yet (add one, like Maps, when a second
                              source arrives) - and the tab only shows while
@@ -296,6 +292,10 @@
                                       IsChecked="{Binding IsLogsFamilyTabSelected, Mode=OneWay}"
                                       Command="{Binding SelectLogsTabCommand}"
                                       Visibility="{Binding ShowLogsTab, Converter={StaticResource BoolToVisibility}}" />
+                        <ToggleButton Content="Health"
+                                      Style="{StaticResource NavTabButtonStyle}"
+                                      IsChecked="{Binding IsHealthTabSelected, Mode=OneWay}"
+                                      Command="{Binding SelectHealthTabCommand}" />
                         <!-- Alerts' own click still goes straight to the
                              Alerts tab; hovering reveals Rules/Templates as a
                              flyout below it, since both are facets of

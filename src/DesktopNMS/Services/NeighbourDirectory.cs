@@ -14,9 +14,16 @@ namespace DesktopNMS.Services;
 public sealed record NeighbourSnapshot(
     IReadOnlyList<Neighbour> Neighbours,
     IReadOnlyDictionary<int, Port> Ports,
+    IReadOnlyDictionary<string, string> IpByMac,
     DateTimeOffset LoadedAt)
 {
     public Port? PortOf(Neighbour neighbour) => Ports.GetValueOrDefault(neighbour.SwitchPortId);
+
+    /// <summary>The IP the fleet's ARP tables have for the neighbour's MAC, if any.</summary>
+    public string? IpOf(Neighbour neighbour) =>
+        neighbour.Mac is { } mac && IpByMac.TryGetValue(HexOf(mac), out var ip) ? ip : null;
+
+    internal static string HexOf(string mac) => new string(mac.Where(Uri.IsHexDigit).ToArray()).ToLowerInvariant();
 
     /// <summary>The neighbours a view lists - its rules, tested with each one's switch and switch port as well.</summary>
     public IReadOnlyList<Neighbour> For(NeighbourViewDefinition view, Func<int, string?> switchName) =>
@@ -72,12 +79,40 @@ public sealed class NeighbourDirectory : INeighbourDirectory
         }
     }
 
+    /// <summary>
+    /// MAC to IP from every ARP table LibreNMS has - for a neighbour it
+    /// doesn't monitor, the only way to an IP (LLDP's management address
+    /// isn't kept). Best effort: without it the IP column is just blank.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, string>> LoadIpByMacAsync()
+    {
+        try
+        {
+            var arp = await _client.Arp.ListAllAsync().ConfigureAwait(false);
+            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var entry in arp)
+            {
+                if (entry.MacAddress is { } mac && !string.IsNullOrWhiteSpace(entry.Ipv4Address))
+                {
+                    map.TryAdd(NeighbourSnapshot.HexOf(mac), entry.Ipv4Address);
+                }
+            }
+
+            return map;
+        }
+        catch (LibreNmsApiException)
+        {
+            return new Dictionary<string, string>();
+        }
+    }
+
     private async Task<NeighbourSnapshot> LoadAsync()
     {
         // Not cancelled with any one caller - another may be sharing it.
         var linksTask = _client.Links.ListAllAsync();
         var portsTask = _client.Ports.ListAllStatusAsync();
-        await Task.WhenAll(linksTask, portsTask).ConfigureAwait(false);
+        var arpTask = LoadIpByMacAsync();
+        await Task.WhenAll(linksTask, portsTask, arpTask).ConfigureAwait(false);
 
         var neighbours = Neighbours.FromLinks(linksTask.Result);
         var ports = portsTask.Result
@@ -92,7 +127,7 @@ public sealed class NeighbourDirectory : INeighbourDirectory
             .Distinct();
         await _devices.EnsureCurrentAsync(deviceIds).ConfigureAwait(false);
 
-        var snapshot = new NeighbourSnapshot(neighbours, ports, DateTimeOffset.Now);
+        var snapshot = new NeighbourSnapshot(neighbours, ports, arpTask.Result, DateTimeOffset.Now);
         lock (_gate)
         {
             _latest = snapshot;

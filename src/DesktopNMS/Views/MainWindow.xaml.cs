@@ -298,7 +298,7 @@ public partial class MainWindow : Window
         AlertsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Alerts"));
         GroupsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Groups"));
         LocationsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Locations"));
-        NeighboursViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Neighbours"));
+        NeighboursViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Neighbours.View"));
         HealthViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Health.Sensors"));
     }
 
@@ -320,7 +320,7 @@ public partial class MainWindow : Window
             SetIfCaptured(layouts, "Alerts", AlertsViewControl.CaptureGridLayout());
             SetIfCaptured(layouts, "Groups", GroupsViewControl.CaptureGridLayout());
             SetIfCaptured(layouts, "Locations", LocationsViewControl.CaptureGridLayout());
-            SetIfCaptured(layouts, "Neighbours", NeighboursViewControl.CaptureGridLayout());
+            SetIfCaptured(layouts, "Neighbours.View", NeighboursViewControl.CaptureGridLayout());
             SetIfCaptured(layouts, "Health.Sensors", HealthViewControl.CaptureGridLayout());
 
             _settings.Save();

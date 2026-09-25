@@ -185,7 +185,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectAlertsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Alerts);
         SelectGroupsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Groups);
         SelectLocationsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Locations);
-        SelectNeighboursTabCommand = new RelayCommand(() => SelectedTab = MainTab.Neighbours);
+        // The tab itself opens on the table of every view.
+        SelectNeighboursTabCommand = new RelayCommand(() =>
+        {
+            SelectedTab = MainTab.Neighbours;
+            _neighbours.ShowViewList();
+        });
         SelectNeighbourViewCommand = new RelayCommand(parameter =>
         {
             SelectedTab = MainTab.Neighbours;
