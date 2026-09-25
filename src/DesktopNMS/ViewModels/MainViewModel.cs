@@ -1161,13 +1161,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         // Align the collection with the server's ordering, updating in place so
         // the selection and scroll position survive a refresh.
+        var visibilityChanged = false;
+
         for (var target = 0; target < alerts.Count; target++)
         {
             var alert = alerts[target];
 
             if (_index.TryGetValue(alert.Id, out var existing))
             {
+                // The view only filters an item when it's added, so an alert
+                // updated in place - e.g. now acknowledged, with acknowledged
+                // alerts hidden - would otherwise stay showing until a filter
+                // is next changed.
+                var wasShown = FilterAlert(existing);
                 existing.Update(alert, context);
+                visibilityChanged |= FilterAlert(existing) != wasShown;
 
                 var currentIndex = Alerts.IndexOf(existing);
                 if (currentIndex >= 0 && currentIndex != target && target < Alerts.Count)
@@ -1181,6 +1189,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 _index[alert.Id] = item;
                 Alerts.Insert(Math.Min(target, Alerts.Count), item);
             }
+        }
+
+        // Only when something's shown/hidden state actually changed - a
+        // refresh on every poll would disturb the grid for nothing.
+        if (visibilityChanged)
+        {
+            AlertsView.Refresh();
         }
 
         RaiseCountsChanged();
