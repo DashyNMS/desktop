@@ -108,10 +108,12 @@ public sealed class ServerFailover
     }
 
     /// <summary>
-    /// The request never reached the server: it timed out, or the name
-    /// wouldn't resolve, or the connection was refused or had no route. Not
-    /// an HTTP error from a server that answered (401, 500, ...), and not a
-    /// certificate problem - another route to the same server fixes neither.
+    /// The request never got an answer from LibreNMS: it timed out, the name
+    /// wouldn't resolve, the connection was refused or had no route, or the
+    /// secure connection couldn't be set up - something else answering at
+    /// that address, say, that doesn't serve this name (TLS alert 112), as a
+    /// public address can while the public side is down. Not an HTTP error
+    /// from a server that did answer (401, 500, ...).
     /// </summary>
     public static bool IsUnreachable(LibreNmsApiException ex)
     {
@@ -124,26 +126,20 @@ public sealed class ServerFailover
 
         for (var current = ex.InnerException; current is not null; current = current.InnerException)
         {
-            if (current is AuthenticationException)
-            {
-                return false;
-            }
-        }
-
-        for (var current = ex.InnerException; current is not null; current = current.InnerException)
-        {
             switch (current)
             {
                 case TimeoutException:
                 case OperationCanceledException:
+                case AuthenticationException:
                     return true;
                 case SocketException socket when socket.SocketErrorCode is
                     SocketError.HostNotFound or SocketError.TryAgain or SocketError.NoData
                     or SocketError.ConnectionRefused or SocketError.NetworkUnreachable
-                    or SocketError.HostUnreachable or SocketError.TimedOut or SocketError.NetworkDown:
+                    or SocketError.HostUnreachable or SocketError.TimedOut or SocketError.NetworkDown
+                    or SocketError.ConnectionReset or SocketError.ConnectionAborted:
                     return true;
                 case HttpRequestException http when http.HttpRequestError is
-                    HttpRequestError.NameResolutionError or HttpRequestError.ConnectionError:
+                    HttpRequestError.NameResolutionError or HttpRequestError.ConnectionError or HttpRequestError.SecureConnectionError:
                     return true;
             }
         }

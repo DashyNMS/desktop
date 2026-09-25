@@ -69,7 +69,7 @@ public class ServerFailoverTests
     }
 
     [Fact]
-    public void Only_not_reaching_the_server_counts()
+    public void Only_getting_no_answer_from_LibreNMS_counts()
     {
         Assert.True(ServerFailover.IsUnreachable(Unreachable()));
         Assert.True(ServerFailover.IsUnreachable(new LibreNmsApiException("timed out", innerException: new TaskCanceledException())));
@@ -77,7 +77,8 @@ public class ServerFailoverTests
 
         Assert.False(ServerFailover.IsUnreachable(new LibreNmsApiException("server error", HttpStatusCode.InternalServerError)));
         Assert.False(ServerFailover.IsUnreachable(new LibreNmsApiException("Not connected to a LibreNMS server.")));
-        Assert.False(ServerFailover.IsUnreachable(new LibreNmsApiException("tls", innerException: new HttpRequestException("x", new System.Security.Authentication.AuthenticationException("bad cert")))));
+        // Something else answering at the address that won't do TLS for this name (alert 112) - the backup may well be the real server.
+        Assert.True(ServerFailover.IsUnreachable(new LibreNmsApiException("tls", innerException: new HttpRequestException(HttpRequestError.SecureConnectionError, "x", new System.Security.Authentication.AuthenticationException("Authentication failed because the remote party sent a TLS alert: '112'.")))));
     }
 
     [Theory]

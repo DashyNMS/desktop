@@ -526,23 +526,59 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         _ => $"LibreNMS returned HTTP {(int)statusCode} for '{relativeUrl}'.",
     };
 
-    private static string DescribeTransportFailure(HttpRequestException ex)
+    private string DescribeTransportFailure(HttpRequestException ex)
     {
-        var inner = ex.InnerException;
+        var allowUntrusted = Connection?.AllowUntrustedCertificate == true;
 
-        if (inner is System.Security.Authentication.AuthenticationException
-            || inner?.GetType().Name.Contains("Certificate", StringComparison.OrdinalIgnoreCase) == true)
+        // Our side rejecting the server's certificate - the one case ticking
+        // "Allow untrusted" helps, so only then (and only if it isn't ticked).
+        if (IsCertificateRejection(ex) && !allowUntrusted)
         {
             return "The server's TLS certificate was not trusted. Tick 'Allow untrusted certificate' if this is an internal CA or self-signed host.";
+        }
+
+        // The far end refusing the handshake (a TLS alert) is something else:
+        // whatever answered at that address won't talk TLS for this name -
+        // alert 112 is "unrecognised name". A certificate setting won't fix it.
+        if (ex.HttpRequestError == HttpRequestError.SecureConnectionError || FindInner<System.Security.Authentication.AuthenticationException>(ex) is not null)
+        {
+            var alert = System.Text.RegularExpressions.Regex.Match(ex.ToString(), @"TLS alert: '(\d+)'");
+            var detail = alert.Success
+                ? alert.Groups[1].Value switch
+                {
+                    "112" => " (TLS alert 112: it doesn't recognise this server name)",
+                    "40" => " (TLS alert 40: handshake failure)",
+                    "70" => " (TLS alert 70: protocol version)",
+                    var code => $" (TLS alert {code})",
+                }
+                : string.Empty;
+            return $"The secure connection couldn't be set up{detail}. Something answered at this address, but not as this LibreNMS server - check the address, or that the server is reachable from here.";
         }
 
         return ex.HttpRequestError switch
         {
             HttpRequestError.NameResolutionError => "The server name could not be resolved. Check the address.",
             HttpRequestError.ConnectionError => "Could not connect to the server. Check the address, port and that it is reachable from this machine.",
-            HttpRequestError.SecureConnectionError => "The TLS handshake failed. If the certificate is self-signed, tick 'Allow untrusted certificate'.",
             _ => $"Could not reach LibreNMS: {ex.Message}",
         };
+    }
+
+    /// <summary>This machine rejected the server's certificate (untrusted issuer, wrong name, expired) - as opposed to the server refusing the handshake.</summary>
+    private static bool IsCertificateRejection(Exception ex) =>
+        FindInner<System.Security.Authentication.AuthenticationException>(ex) is { } auth
+        && auth.Message.Contains("certificate", StringComparison.OrdinalIgnoreCase);
+
+    private static T? FindInner<T>(Exception ex) where T : Exception
+    {
+        for (var current = ex.InnerException; current is not null; current = current.InnerException)
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+        }
+
+        return null;
     }
 
     public void Dispose()
