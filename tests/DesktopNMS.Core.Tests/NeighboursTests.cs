@@ -116,6 +116,39 @@ public class NeighboursTests
     }
 
     [Fact]
+    public void A_neighbour_on_a_live_and_a_dead_switch_keeps_only_the_live_link()
+    {
+        // "00 Red Flag (ALP)": on r-sw-mobi-03 (down) and r-sw-pit-01 (up), same MAC.
+        var links = Neighbours.FromLinks(new[] { L("00 Red Flag (ALP)", Bolero, device: 3, port: 30), L("00 Red Flag (ALP)", Bolero, device: 4, port: 40), L("Other", Bolero, device: 3, remotePort: "aa bb cc dd ee ff (aabbccddeeff)") });
+        var switchUp = new Dictionary<int, bool> { [3] = false, [4] = true };
+
+        var kept = Neighbours.PreferLiveLinks(links, n => n, n => switchUp[n.SwitchDeviceId], n => switchUp[n.SwitchDeviceId]);
+
+        Assert.Equal(new[] { (Name: "00 Red Flag (ALP)", Switch: 4), (Name: "Other", Switch: 3) }, kept.Select(n => (n.Name, n.SwitchDeviceId)));
+    }
+
+    [Fact]
+    public void With_no_live_link_one_on_a_live_switch_wins_and_otherwise_all_stay()
+    {
+        var links = Neighbours.FromLinks(new[] { L("ap", ArubaAp, device: 1), L("ap", ArubaAp, device: 2), L("ap2", ArubaAp, device: 5, remotePort: "11 22 33 44 55 66 (112233445566)"), L("ap2", ArubaAp, device: 6, remotePort: "11 22 33 44 55 66 (112233445566)") });
+
+        // Switch 2 is up but the port's down; 1, 5 and 6 are down switches.
+        var kept = Neighbours.PreferLiveLinks(links, n => n, _ => false, n => n.SwitchDeviceId == 2);
+
+        Assert.Equal(new[] { 2, 5, 6 }, kept.Select(n => n.SwitchDeviceId));
+    }
+
+    [Fact]
+    public void Identity_is_the_MAC_then_the_name()
+    {
+        var withMac = Neighbours.FromLinks(new[] { L("A", "x") })[0];
+        var noMac = Neighbours.FromLinks(new[] { L("B", "x", remotePort: "Gi0/1") })[0];
+
+        Assert.Equal("00:19:7c:02:59:fc", Neighbours.IdentityKey(withMac));
+        Assert.Equal("b", Neighbours.IdentityKey(noMac));
+    }
+
+    [Fact]
     public void A_link_parses_its_version_and_whether_it_is_active()
     {
         const string json = """{"id":1,"local_port_id":6730,"local_device_id":178,"remote_port_id":0,"active":0,"protocol":"lldp","remote_hostname":"r-ap-fer-pdc-02","remote_device_id":0,"remote_port":"00 4E 35 C5 7B 58 (004e35c57b58)","remote_platform":"","remote_version":"ArubaOS (MODEL: 345), Version Aruba AP"}""";

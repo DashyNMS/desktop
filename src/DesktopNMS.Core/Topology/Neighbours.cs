@@ -80,6 +80,45 @@ public static class Neighbours
             .ToList();
     }
 
+    /// <summary>What makes two links the same neighbour: its MAC when it announces one, otherwise its name (or, unnamed, its port).</summary>
+    public static string IdentityKey(Neighbour neighbour)
+    {
+        ArgumentNullException.ThrowIfNull(neighbour);
+
+        return (neighbour.Mac ?? (neighbour.IsUnnamed ? neighbour.RemotePort ?? neighbour.Name : neighbour.Name)).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// One neighbour seen on several switch ports - moved, or an old link
+    /// LibreNMS hasn't dropped yet - keeps only its best links: the live
+    /// ones if it has any, otherwise those on switches that are up, and
+    /// only when none of those either, all of them.
+    /// </summary>
+    /// <param name="isLive">The link is up - its switch and port are.</param>
+    /// <param name="isSwitchUp">The link's switch is up (polled), whatever its port says.</param>
+    public static IReadOnlyList<T> PreferLiveLinks<T>(IEnumerable<T> links, Func<T, Neighbour> neighbourOf, Func<T, bool> isLive, Func<T, bool> isSwitchUp)
+    {
+        ArgumentNullException.ThrowIfNull(links);
+        ArgumentNullException.ThrowIfNull(neighbourOf);
+        ArgumentNullException.ThrowIfNull(isLive);
+        ArgumentNullException.ThrowIfNull(isSwitchUp);
+
+        var list = links.ToList();
+        var keep = new HashSet<T>();
+
+        foreach (var group in list.GroupBy(l => IdentityKey(neighbourOf(l)), StringComparer.Ordinal))
+        {
+            var live = group.Where(isLive).ToList();
+            var chosen = live.Count > 0 ? live
+                : group.Where(isSwitchUp).ToList() is { Count: > 0 } onLiveSwitch ? onLiveSwitch
+                : group.ToList();
+
+            keep.UnionWith(chosen);
+        }
+
+        return list.Where(keep.Contains).ToList();
+    }
+
     /// <summary>
     /// Whether <paramref name="neighbour"/> belongs in <paramref name="view"/>.
     /// A view with no rules (or none with a value) matches nothing - listing

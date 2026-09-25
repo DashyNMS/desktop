@@ -375,13 +375,18 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         Items.Clear();
         if (_snapshot is { } snapshot && _selectedView is { } view)
         {
-            foreach (var n in snapshot.For(view, id => _devices.Get(id)?.BestName))
-            {
-                Items.Add(new NeighbourItemViewModel(
+            var rows = snapshot.For(view, id => _devices.Get(id)?.BestName)
+                .Select(n => new NeighbourItemViewModel(
                     n,
                     snapshot.PortOf(n),
                     _devices.Get(n.SwitchDeviceId),
                     n.RemoteDeviceId is { } id ? _devices.Get(id) : null));
+
+            // One neighbour seen on several ports shows only its live
+            // link(s) - not the one on a switch that's gone offline.
+            foreach (var row in Neighbours.PreferLiveLinks(rows, r => r.Neighbour, r => r.IsLinkUp, r => !r.IsSwitchDown))
+            {
+                Items.Add(row);
             }
         }
 
@@ -632,6 +637,9 @@ public sealed class NeighbourItemViewModel
     public string SwitchName { get; }
 
     public bool IsSwitchDown { get; }
+
+    /// <summary>This link is up - its switch is polled and its port is up - whatever the neighbour itself is doing.</summary>
+    public bool IsLinkUp => !IsSwitchDown && Neighbour.Active && Port is { } port && port.IsUp;
 
     public string PortText => Port?.DisplayName ?? "-";
 

@@ -824,7 +824,18 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             }
         }
 
-        return found;
+        // One neighbour seen on several ports is only drawn to its live
+        // switch(es) - not also to one that's gone offline. Judged across
+        // the whole fleet, so a live link outside this scope still counts.
+        var byId = _devices.ToDictionary(d => d.DeviceId);
+        NeighbourItemViewModel Row(Neighbour n) =>
+            new(n, snapshot.PortOf(n), byId.GetValueOrDefault(n.SwitchDeviceId), null);
+
+        var keys = found.Select(f => Neighbours.IdentityKey(f.Item1)).ToHashSet(StringComparer.Ordinal);
+        var allLinks = snapshot.Neighbours.Where(n => keys.Contains(Neighbours.IdentityKey(n)));
+        var kept = Neighbours.PreferLiveLinks(allLinks, n => n, n => Row(n).IsLinkUp, n => !Row(n).IsSwitchDown).ToHashSet();
+
+        return found.Where(f => kept.Contains(f.Item1)).ToList();
     }
 
     /// <summary>A neighbour node's colour: up if any of its switch ports is up, down if one is down, otherwise unknown (grey) - as the Neighbours tab reads it.</summary>
