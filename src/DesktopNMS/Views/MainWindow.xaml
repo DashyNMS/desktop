@@ -171,8 +171,8 @@
                             </Popup>
                         </Grid>
                         <!-- Neighbours (#55): the tab's own click opens the
-                             last view looked at; hovering lists every view
-                             plus New view, the same flyout pattern as Maps. -->
+                             table of every view; hovering lists each view,
+                             the same flyout pattern as Maps. -->
                         <Grid>
                             <ToggleButton x:Name="NeighboursTabButton"
                                           Style="{StaticResource NavTabButtonStyle}"
@@ -218,14 +218,10 @@
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
-                                        <Rectangle Height="1"
-                                                   Fill="{StaticResource BorderBrush}"
-                                                   Margin="6,4"
-                                                   Visibility="{Binding Neighbours.HasViews, Converter={StaticResource BoolToVisibility}}" />
-                                        <Button Content="New view..."
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding NewNeighbourViewCommand}"
-                                                Click="NeighboursFlyoutItem_Click" />
+                                        <TextBlock Text="No views yet"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   Margin="10,6"
+                                                   Visibility="{Binding Neighbours.HasViews, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
                                     </StackPanel>
                                 </Border>
                             </Popup>

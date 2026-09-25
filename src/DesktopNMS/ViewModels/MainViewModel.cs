@@ -196,11 +196,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             SelectedTab = MainTab.Neighbours;
             _neighbours.SelectViewCommand.Execute(parameter);
         });
-        NewNeighbourViewCommand = new RelayCommand(() =>
-        {
-            SelectedTab = MainTab.Neighbours;
-            _neighbours.NewViewCommand.Execute(null);
-        });
         SelectRulesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Rules);
         SelectTemplatesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Templates);
         SelectMapsTabCommand = new RelayCommand(SelectDefaultMap);
@@ -299,7 +294,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>The Neighbours hover menu's items - opens the tab on the view it's given.</summary>
     public RelayCommand SelectNeighbourViewCommand { get; }
 
-    public RelayCommand NewNeighbourViewCommand { get; }
 
     public RelayCommand SelectRulesTabCommand { get; }
 
