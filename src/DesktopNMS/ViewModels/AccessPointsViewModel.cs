@@ -37,6 +37,9 @@ public sealed class AccessPointsViewModel : ObservableObject
     private bool _isBusy;
     private string? _errorMessage;
     private string _searchText = string.Empty;
+    private bool _showUp = true;
+    private bool _showDown = true;
+    private bool _showOther = true;
     private AccessPointItemViewModel? _selected;
     private string? _pendingSelection;
     private int _graphVersion;
@@ -58,7 +61,7 @@ public sealed class AccessPointsViewModel : ObservableObject
 
         Items = new ObservableCollection<AccessPointItemViewModel>();
         ItemsView = CollectionViewSource.GetDefaultView(Items);
-        ItemsView.Filter = item => item is AccessPointItemViewModel ap && ap.Matches(SearchText);
+        ItemsView.Filter = item => item is AccessPointItemViewModel ap && IsStateShown(ap.State) && ap.Matches(SearchText);
 
         // The port graphs LibreNMS draws for any port (checked live - the
         // rest, like PAgP or FDB count, only exist on some).
@@ -74,7 +77,11 @@ public sealed class AccessPointsViewModel : ObservableObject
         TimeRange.Changed += (_, _) => _ = LoadGraphsAsync();
 
         RefreshCommand = new AsyncRelayCommand(() => LoadAsync(refresh: true), () => _session.IsConnected && !IsBusy);
-        ClearFiltersCommand = new RelayCommand(() => SearchText = string.Empty);
+        ClearFiltersCommand = new RelayCommand(() =>
+        {
+            SearchText = string.Empty;
+            ShowUp = ShowDown = ShowOther = true;
+        });
         OpenSwitchCommand = new RelayCommand(parameter =>
         {
             if (parameter is AccessPointItemViewModel item)
@@ -113,7 +120,60 @@ public sealed class AccessPointsViewModel : ObservableObject
         }
     }
 
-    public bool HasAnyFilterApplied => !string.IsNullOrEmpty(SearchText);
+    public bool HasAnyFilterApplied => !string.IsNullOrEmpty(SearchText) || !ShowUp || !ShowDown || !ShowOther;
+
+    /// <summary>The "port up" pill - APs whose switch port is up. That says the cable's live, not that the AP has joined its controller: LibreNMS's API doesn't say that.</summary>
+    public bool ShowUp
+    {
+        get => _showUp;
+        set => SetFilter(ref _showUp, value);
+    }
+
+    public bool ShowDown
+    {
+        get => _showDown;
+        set => SetFilter(ref _showDown, value);
+    }
+
+    /// <summary>Shut-down ports, and APs LibreNMS no longer sees or whose port it doesn't know.</summary>
+    public bool ShowOther
+    {
+        get => _showOther;
+        set => SetFilter(ref _showOther, value);
+    }
+
+    public int UpCount => Items.Count(i => i.State == AccessPointState.Up);
+
+    public int DownCount => Items.Count(i => i.State == AccessPointState.Down);
+
+    public int OtherCount => Items.Count(i => i.State is AccessPointState.AdminDown or AccessPointState.Unknown);
+
+    public bool HasOther => OtherCount > 0;
+
+    /// <summary>Shift-click on a pill: show only that one.</summary>
+    public void IsolateState(AccessPointState state)
+    {
+        ShowUp = state == AccessPointState.Up;
+        ShowDown = state == AccessPointState.Down;
+        ShowOther = state is AccessPointState.AdminDown or AccessPointState.Unknown;
+    }
+
+    private bool IsStateShown(AccessPointState state) => state switch
+    {
+        AccessPointState.Up => _showUp,
+        AccessPointState.Down => _showDown,
+        _ => _showOther,
+    };
+
+    private void SetFilter(ref bool field, bool value, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+    {
+        if (SetProperty(ref field, value, name))
+        {
+            ItemsView.Refresh();
+            OnPropertyChanged(nameof(HasAnyFilterApplied));
+            LoadState.UpdateVisibleCount(ItemsView.Cast<object>().Count());
+        }
+    }
 
     public bool IsBusy
     {
@@ -212,6 +272,10 @@ public sealed class AccessPointsViewModel : ObservableObject
         {
             IsBusy = false;
             LoadState.CompleteLoad(Items.Count, ItemsView.Cast<object>().Count());
+            OnPropertyChanged(nameof(UpCount));
+            OnPropertyChanged(nameof(DownCount));
+            OnPropertyChanged(nameof(OtherCount));
+            OnPropertyChanged(nameof(HasOther));
         }
     }
 
@@ -391,11 +455,16 @@ public sealed class AccessPointItemViewModel
         _ => AlertSeverity.Unknown,
     };
 
+    /// <summary>
+    /// The switch port's state - "Port up", not "Up": a live port with the
+    /// AP still listed over LLDP doesn't mean the AP has joined its
+    /// controller, and only the controller knows that.
+    /// </summary>
     public string StateText => State switch
     {
-        AccessPointState.Up => "Up",
-        AccessPointState.Down => "Down",
-        AccessPointState.AdminDown => "Shut down",
+        AccessPointState.Up => "Port up",
+        AccessPointState.Down => "Port down",
+        AccessPointState.AdminDown => "Port shut down",
         _ => AccessPoint.Active ? "Unknown port" : "Not seen",
     };
 

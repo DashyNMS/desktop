@@ -33,11 +33,32 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Column="0"
-                           Text="From what the switches see over LLDP. LibreNMS doesn't share each AP's clients or channel through its API."
-                           Style="{StaticResource SubtleTextStyle}"
-                           VerticalAlignment="Center"
-                           TextWrapping="Wrap" />
+                <!-- State pills - the AP's switch port, which is what LibreNMS's
+                     API has; shift-click shows only that one. -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ToggleButton IsChecked="{Binding ShowUp}" Tag="{x:Static vm:AccessPointState.Up}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide APs whose switch port is up (shift-click to show only these)" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="port up" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton IsChecked="{Binding ShowDown}" Tag="{x:Static vm:AccessPointState.Down}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide APs whose switch port is down (shift-click to show only these)" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="port down" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton IsChecked="{Binding ShowOther}" Tag="{x:Static vm:AccessPointState.Unknown}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide APs on a shut-down port, or whose port LibreNMS doesn't know (shift-click to show only these)"
+                                  Visibility="{Binding HasOther, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding OtherCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="other" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBox x:Name="SearchBox"
@@ -50,7 +71,7 @@
 
                     <Button Command="{Binding ClearFiltersCommand}"
                             Style="{StaticResource IconButtonStyle}"
-                            ToolTip="Clear search"
+                            ToolTip="Clear search and filters"
                             Visibility="{Binding HasAnyFilterApplied, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
                     </Button>

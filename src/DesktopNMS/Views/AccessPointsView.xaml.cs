@@ -1,4 +1,7 @@
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using DesktopNMS.ViewModels;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Infrastructure;
 
@@ -10,6 +13,19 @@ public partial class AccessPointsView : UserControl
     public AccessPointsView()
     {
         InitializeComponent();
+    }
+
+    private void StateBadge_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Shift
+            || sender is not ToggleButton { Tag: AccessPointState state }
+            || DataContext is not AccessPointsViewModel vm)
+        {
+            return;
+        }
+
+        vm.IsolateState(state);
+        e.Handled = true;
     }
 
     public void FocusSearch()
