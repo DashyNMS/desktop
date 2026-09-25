@@ -22,6 +22,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
     private HttpMessageHandler? _handler;
     private LibreNmsConnection? _connection;
     private bool _disposed;
+    private bool _configuring;
 
     /// <param name="failover">The backup address state - shared with the app, which shows it and switches back; a throwaway transport (a connection test) gets its own.</param>
     public LibreNmsTransport(ILogger<LibreNmsTransport> logger, ServerFailover? failover = null)
@@ -62,8 +63,19 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
     {
         ArgumentNullException.ThrowIfNull(connection);
 
+        // The failover state first, so the client below is built for the right
+        // address from the start - no request slips out to the other one.
+        _configuring = true;
+        try
+        {
+            _failover.Configure(connection.BackupWebRoot?.ToString(), startOnBackup);
+        }
+        finally
+        {
+            _configuring = false;
+        }
+
         Install(connection);
-        _failover.Configure(connection.BackupWebRoot?.ToString(), startOnBackup);
         _logger.LogInformation(
             "LibreNMS transport configured for {ApiBase}{Backup}",
             connection.ApiBase,
@@ -74,7 +86,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
     private void OnFailoverChanged(object? sender, EventArgs e)
     {
         var connection = Connection;
-        if (connection is null)
+        if (connection is null || _configuring)
         {
             return;
         }
