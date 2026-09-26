@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Globalization;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Windows.Forms;
@@ -23,16 +24,17 @@ public interface ITrayNotifier
 /// <remarks>
 /// Uses WinForms NotifyIcon, which is the only supported way to put an icon in
 /// the notification area from a WPF app without a third-party dependency. The
-/// icon itself is drawn at runtime so its colour can track the worst
+/// icon itself is drawn at runtime so its badge can track the worst
 /// outstanding severity without shipping a set of .ico files.
 /// </remarks>
 [SupportedOSPlatform("windows")]
 public sealed partial class TrayIconService : ITrayNotifier, IDisposable
 {
-    private static readonly Color OkColour = Color.FromArgb(46, 160, 67);
+    private static readonly Color RingColour = Color.FromArgb(59, 130, 246);
+    private static readonly Color FaceColour = Color.FromArgb(16, 19, 26);
+    private static readonly Color PulseColour = Color.FromArgb(232, 238, 246);
     private static readonly Color WarningColour = Color.FromArgb(219, 154, 4);
     private static readonly Color CriticalColour = Color.FromArgb(218, 54, 51);
-    private static readonly Color IdleColour = Color.FromArgb(125, 133, 144);
     private static readonly Color DisconnectedColour = Color.FromArgb(87, 96, 106);
 
     private readonly ILogger<TrayIconService> _logger;
@@ -50,7 +52,7 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
     private IntPtr _currentIconHandle;
 
     /// <summary>What the on-screen icon depicts, so it is only redrawn when it changes.</summary>
-    private (Color Colour, int Badge)? _renderedIcon;
+    private (bool Connected, Color Badge, int Count)? _renderedIcon;
 
     public TrayIconService(ILogger<TrayIconService> logger)
     {
@@ -114,8 +116,8 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
         menu.Font = new Font(menu.Font, System.Drawing.FontStyle.Regular);
         openItem.Font = new Font(menu.Font, System.Drawing.FontStyle.Bold);
 
-        (_currentIcon, _currentIconHandle) = CreateIcon(DisconnectedColour, null);
-        _renderedIcon = (DisconnectedColour, 0);
+        (_currentIcon, _currentIconHandle) = CreateIcon(connected: false, CriticalColour, null);
+        _renderedIcon = (false, CriticalColour, 0);
 
         _notifyIcon = new NotifyIcon
         {
@@ -139,13 +141,12 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
 
         var badgeCount = criticalCount + warningCount;
 
-        var colour = !connected
-            ? DisconnectedColour
-            : criticalCount > 0
-                ? CriticalColour
-                : warningCount > 0
-                    ? WarningColour
-                    : OkColour;
+        // The badge: red while anything is critical, amber for warnings only.
+        var colour = criticalCount > 0 ? CriticalColour : WarningColour;
+        if (!connected)
+        {
+            badgeCount = 0;
+        }
 
         var tooltip = !connected
             ? "DashyNMS - not connected"
@@ -163,11 +164,11 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
         {
             // Repainting only when the picture actually changes keeps this off
             // the GDI-handle treadmill: it used to run on every poll.
-            var wanted = (colour, badgeCount);
+            var wanted = (connected, colour, badgeCount);
 
             if (_renderedIcon != wanted)
             {
-                var (newIcon, newHandle) = CreateIcon(colour, badgeCount > 0 ? badgeCount : null);
+                var (newIcon, newHandle) = CreateIcon(connected, colour, badgeCount > 0 ? badgeCount : null);
 
                 var oldIcon = _currentIcon;
                 var oldHandle = _currentIconHandle;
@@ -232,8 +233,9 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
     }
 
     /// <summary>
-    /// Draws a filled circle, optionally with a count on it, and converts it to
-    /// an <see cref="Icon"/>.
+    /// DashyNMS's mark - a pulse line on a dark disc inside a blue ring, grey
+    /// while not connected - with a count badge at its top right while there
+    /// are active alerts, then converts it to an <see cref="Icon"/>.
     /// </summary>
     /// <returns>
     /// The icon and the HICON backing it. The caller owns the handle and must
@@ -241,7 +243,7 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
     /// <see cref="Icon.FromHandle"/> borrows the handle rather than copying it,
     /// so freeing it early leaves the shell drawing from destroyed memory.
     /// </returns>
-    private static (Icon Icon, IntPtr Handle) CreateIcon(Color colour, int? badgeCount)
+    private static (Icon Icon, IntPtr Handle) CreateIcon(bool connected, Color badgeColour, int? badgeCount)
     {
         var size = SystemInformation.SmallIconSize.Width;
         if (size < 16)
@@ -260,33 +262,61 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
             graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
             graphics.Clear(Color.Transparent);
 
-            var inset = canvas * 0.06f;
-            var diameter = canvas - (inset * 2);
+            var hasBadge = badgeCount is > 0;
 
-            using var brush = new SolidBrush(colour);
-            graphics.FillEllipse(brush, inset, inset, diameter, diameter);
+            // The disc fills the icon, or shrinks to the bottom left to make
+            // room for the badge.
+            var disc = hasBadge ? canvas * 0.84f : canvas * 0.96f;
+            var left = hasBadge ? 0.5f : canvas * 0.02f;
+            var top = hasBadge ? canvas - disc - 0.5f : canvas * 0.02f;
+            var ring = Math.Max(1.5f, canvas * 0.07f);
 
-            if (badgeCount is > 0)
+            using (var face = new SolidBrush(FaceColour))
             {
-                var text = badgeCount.Value > 99
-                    ? "99+"
+                graphics.FillEllipse(face, left, top, disc, disc);
+            }
+
+            using (var pen = new Pen(connected ? RingColour : DisconnectedColour, ring))
+            {
+                graphics.DrawEllipse(pen, left + (ring / 2), top + (ring / 2), disc - ring, disc - ring);
+            }
+
+            // The pulse, from the mockup's 22-unit drawing of it.
+            var unit = disc / 22f;
+            var pulse = new[] { (4f, 12f), (8f, 12f), (10.5f, 7f), (13.5f, 16f), (16f, 10f), (18f, 10f) }
+                .Select(p => new PointF(left + (p.Item1 * unit), top + (p.Item2 * unit)))
+                .ToArray();
+
+            using (var pen = new Pen(connected ? PulseColour : DisconnectedColour, Math.Max(1.5f, 1.9f * unit)))
+            {
+                pen.LineJoin = LineJoin.Round;
+                pen.StartCap = LineCap.Round;
+                pen.EndCap = LineCap.Round;
+                graphics.DrawLines(pen, pulse);
+            }
+
+            if (hasBadge)
+            {
+                var badge = canvas * 0.56f;
+                var badgeLeft = canvas - badge;
+
+                using (var brush = new SolidBrush(badgeColour))
+                {
+                    graphics.FillEllipse(brush, badgeLeft, 0, badge, badge);
+                }
+
+                var text = badgeCount!.Value > 9
+                    ? "9+"
                     : badgeCount.Value.ToString(CultureInfo.InvariantCulture);
 
-                var fontSize = text.Length switch
-                {
-                    1 => canvas * 0.62f,
-                    2 => canvas * 0.50f,
-                    _ => canvas * 0.36f,
-                };
-
-                using var font = new Font("Segoe UI", fontSize, System.Drawing.FontStyle.Bold, GraphicsUnit.Pixel);
+                using var font = new Font("Segoe UI", badge * (text.Length == 1 ? 0.78f : 0.6f), System.Drawing.FontStyle.Bold, GraphicsUnit.Pixel);
                 using var format = new StringFormat
                 {
                     Alignment = StringAlignment.Center,
                     LineAlignment = StringAlignment.Center,
                 };
 
-                graphics.DrawString(text, font, Brushes.White, new RectangleF(0, 0, canvas, canvas), format);
+                graphics.DrawString(text, font, Brushes.White, new RectangleF(badgeLeft, 0.5f, badge, badge), format);
             }
         }
 

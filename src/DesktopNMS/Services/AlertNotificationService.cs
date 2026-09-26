@@ -298,31 +298,17 @@ public sealed class AlertNotificationService : IAlertNotificationService
     {
         var problems = changes.Where(c => c.IsProblem).ToList();
         var critical = problems.Count(c => c.Alert.Severity == AlertSeverity.Critical);
-        var warning = problems.Count(c => c.Alert.Severity == AlertSeverity.Warning);
 
-        var title = problems.Count > 0
-            ? $"{problems.Count} new alerts"
-            : $"{changes.Count} alert updates";
-
-        var parts = new List<string>();
-        if (critical > 0)
-        {
-            parts.Add($"{critical} critical");
-        }
-
-        if (warning > 0)
-        {
-            parts.Add($"{warning} warning");
-        }
-
-        var hosts = problems
-            .Select(c => DeviceNameFor(c.Alert))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(4)
-            .ToList();
-
-        var body = parts.Count > 0 ? string.Join(", ", parts) : "See DashyNMS for details.";
-        var detail = hosts.Count > 0 ? string.Join(", ", hosts) : null;
+        // "3 new critical alerts" / "core-sw-02 — High temperature" / "+2 more in Rack 3".
+        var (title, body, detail) = problems.Count > 0
+            ? AlertSummaryText.Build(problems
+                .Select(c => new AlertSummaryItem(
+                    c.Alert.Severity,
+                    DeviceNameFor(c.Alert),
+                    c.Alert.DisplayRuleName,
+                    _devices.Get(c.Alert.DeviceId)?.Location))
+                .ToList())
+            : ($"{changes.Count} alert updates", "See DashyNMS for details.", null);
 
         var makeSticky = critical > 0
             && _settings.Current.Notifications.Critical.Persistence != ToastPersistence.Transient;
