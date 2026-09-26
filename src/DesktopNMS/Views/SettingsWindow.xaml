@@ -690,25 +690,11 @@
                     <StackPanel Visibility="{Binding IsAppearanceSectionSelected, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="Appearance" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
-                        <!-- Three separate cards, each self-contained with its
-                             own heading and explanatory text, rather than
-                             text living outside the card it describes. Server
-                             logo first since it's the simplest control on the
-                             page and was the one most easily missed when it
-                             trailed after the taller colour picker; Theme
-                             next; Accent colour last since its sliders/hex/
-                             preview make it the tallest of the three. -->
-                        <Border Background="{StaticResource SurfaceAltBrush}"
-                                CornerRadius="6"
-                                Padding="14,12"
-                                Margin="0,0,0,16">
-                            <StackPanel>
-                                <TextBlock Text="Server logo" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
-                                <CheckBox Content="Show the connected server's own logo in the header"
-                                          IsChecked="{Binding ShowServerLogo}" />
-                            </StackPanel>
-                        </Border>
-
+                        <!-- Separate cards, each self-contained with its own
+                             heading and explanatory text, rather than text
+                             living outside the card it describes. Theme
+                             first; Accent colour last since its sliders/hex/
+                             preview make it the taller of the two. -->
                         <Border Background="{StaticResource SurfaceAltBrush}"
                                 CornerRadius="6"
                                 Padding="14,12"

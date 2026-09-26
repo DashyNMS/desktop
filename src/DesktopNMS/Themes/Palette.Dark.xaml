@@ -50,11 +50,6 @@
          is declared here as the fallback before Apply first runs. -->
     <SolidColorBrush x:Key="AccentForegroundBrush" Color="White" />
 
-    <!-- The connected server's own logo (see MainWindow.xaml) sits on this
-         backdrop. In Dark mode it just matches the page background, so the
-         logo appears to float on the shell header with no visible box. -->
-    <SolidColorBrush x:Key="LogoBackdropBrush" Color="{StaticResource BackgroundColor}" />
-
     <SolidColorBrush x:Key="CriticalBrush" Color="{StaticResource CriticalColor}" />
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
     <SolidColorBrush x:Key="OkBrush" Color="{StaticResource OkColor}" />

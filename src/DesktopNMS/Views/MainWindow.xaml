@@ -140,18 +140,13 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- The connected server's own logo, if it has one and
-                     Settings > Appearance has it turned on, else DashyNMS's
-                     own icon (HeaderLogo - see MainViewModel). Lined up
-                     over the sidebar's icons. -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
-                    <Image Source="{Binding HeaderLogo}"
+                <!-- DashyNMS's own icon, lined up over the sidebar's icons. -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="19,0,0,0">
+                    <Image Source="{Binding AppLogo}"
+                           Width="18"
                            Height="18"
-                           MaxWidth="90"
-                           Stretch="Uniform"
                            Margin="0,0,10,0"
-                           RenderOptions.BitmapScalingMode="HighQuality"
-                           Visibility="{Binding HasHeaderLogo, Converter={StaticResource BoolToVisibility}}" />
+                           RenderOptions.BitmapScalingMode="HighQuality" />
                     <TextBlock Text="DashyNMS"
                                FontSize="13"
                                FontWeight="SemiBold"

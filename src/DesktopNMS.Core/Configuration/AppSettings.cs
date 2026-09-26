@@ -227,14 +227,6 @@ public sealed class AppSettings
     public AppTheme Theme { get; set; } = AppTheme.Dark;
 
     /// <summary>
-    /// Show the connected server's own logo/favicon in the shell header when
-    /// it has one. Off shows DashyNMS's own icon instead - some servers'
-    /// branding does not suit every taste, or a shared/demo instance's mark
-    /// is not what someone wants to see every time they open the app.
-    /// </summary>
-    public bool ShowServerLogo { get; set; } = true;
-
-    /// <summary>
     /// Which map the Maps tab opens on: "Network", "Geographical", or (once
     /// custom maps exist) "custom:{id}". A string rather than an enum so a
     /// specific custom map can be named - see <see cref="DefaultMapNetwork"/>.
@@ -303,7 +295,6 @@ public sealed class AppSettings
         PortGraphsCollapsed = PortGraphsCollapsed,
         AccentColor = AccentColor,
         Theme = Theme,
-        ShowServerLogo = ShowServerLogo,
         DefaultMap = DefaultMap,
         MapTileUrl = MapTileUrl,
         Window = Window?.Clone(),
