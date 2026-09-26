@@ -195,6 +195,204 @@
         </Setter>
     </Style>
 
+    <!-- ======================= Main window sidebar ====================== -->
+
+    <!-- One of the main window's sidebar sections: its icon (Tag, a Segoe
+         Fluent glyph) in a fixed 40px column, so the icons stay put when the
+         sidebar widens, and its label (Content) beside it - clipped away
+         while the sidebar is narrow. Selected is a soft accent tint with an
+         accent bar and icon, like the mockup, rather than a filled pill. -->
+    <Style x:Key="RailItemStyle" TargetType="ToggleButton">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Margin" Value="0,1" />
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid Background="Transparent">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="8" Margin="8,0" />
+                        <Border x:Name="Bar"
+                                Width="3"
+                                Height="18"
+                                CornerRadius="1.5"
+                                HorizontalAlignment="Left"
+                                Margin="8,0,0,0"
+                                Background="{DynamicResource AccentBrush}"
+                                Visibility="Collapsed" />
+                        <StackPanel Orientation="Horizontal" Margin="8,0,8,0">
+                            <TextBlock x:Name="Glyph"
+                                       Text="{TemplateBinding Tag}"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="17"
+                                       Width="40"
+                                       TextAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="{TemplateBinding Foreground}" />
+                            <ContentPresenter VerticalAlignment="Center" Margin="4,0,0,0">
+                                <!-- Clears the app-wide TextBlock style, whose fixed
+                                     colour would beat this button's own. -->
+                                <ContentPresenter.Resources>
+                                    <Style TargetType="TextBlock" />
+                                </ContentPresenter.Resources>
+                            </ContentPresenter>
+                        </StackPanel>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+                            <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The same look for the sidebar's plain actions (the hamburger, Settings, Sign out). -->
+    <Style x:Key="RailButtonStyle" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Margin" Value="0,1" />
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid Background="Transparent">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="8" Margin="8,0" />
+                        <StackPanel Orientation="Horizontal" Margin="8,0,8,0">
+                            <TextBlock Text="{TemplateBinding Tag}"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="17"
+                                       Width="40"
+                                       TextAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="{TemplateBinding Foreground}" />
+                            <ContentPresenter VerticalAlignment="Center" Margin="4,0,0,0">
+                                <!-- Clears the app-wide TextBlock style, whose fixed
+                                     colour would beat this button's own. -->
+                                <ContentPresenter.Resources>
+                                    <Style TargetType="TextBlock" />
+                                </ContentPresenter.Resources>
+                            </ContentPresenter>
+                        </StackPanel>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A section's sub-page (Groups under Devices, ...), listed under it
+         while the sidebar is wide: text only, indented to line up with the
+         section's own label. -->
+    <Style x:Key="RailSubItemStyle" TargetType="ToggleButton">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid Background="Transparent">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="6" Margin="48,0,8,0" />
+                        <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left" Margin="60,0,8,0">
+                            <ContentPresenter.Resources>
+                                <Style TargetType="TextBlock" />
+                            </ContentPresenter.Resources>
+                        </ContentPresenter>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ========================= Custom title bar ======================= -->
+
+    <!-- Minimise / maximise buttons in the main window's own title bar:
+         full title-bar height, the width Windows' own use. -->
+    <Style x:Key="CaptionButtonStyle" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Width" Value="46" />
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root" Background="{TemplateBinding Background}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Close: Windows' red on hover. -->
+    <Style x:Key="CaptionCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonStyle}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root" Background="{TemplateBinding Background}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="White" />
+                            <Setter TargetName="Root" Property="Background" Value="#FFC42B1C" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ==================== Settings sidebar (ToggleButton) ============= -->
 
     <!-- A full-width vertical nav item, e.g. a settings dialog's section list:

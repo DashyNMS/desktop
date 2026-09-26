@@ -117,6 +117,9 @@ public sealed class AppSettings
     /// <summary>The version that last ran - a different one at start-up means DashyNMS was just updated, worth saying so.</summary>
     public string? LastRunVersion { get; set; }
 
+    /// <summary>The main window's sidebar shows its labels (the hamburger button) rather than icons only.</summary>
+    public bool NavExpanded { get; set; }
+
     /// <summary>
     /// Also consider GitHub pre-release ("preview") builds - rollups of
     /// in-progress work published between stable releases - when checking
@@ -275,6 +278,7 @@ public sealed class AppSettings
         StartupTab = StartupTab,
         LastNotifiedUpdateVersion = LastNotifiedUpdateVersion,
         LastRunVersion = LastRunVersion,
+        NavExpanded = NavExpanded,
         IncludePreviewBuilds = IncludePreviewBuilds,
         SuppressBulkAlertActionConfirmation = SuppressBulkAlertActionConfirmation,
         ShowAlertTabBadge = ShowAlertTabBadge,

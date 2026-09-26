@@ -454,6 +454,27 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand SignOutCommand { get; }
 
+    /// <summary>The sidebar shows labels beside its icons - the hamburger button toggles it, remembered between runs.</summary>
+    public bool IsNavExpanded
+    {
+        get => _settings.Current.NavExpanded;
+        set
+        {
+            if (_settings.Current.NavExpanded == value)
+            {
+                return;
+            }
+
+            _settings.Current.NavExpanded = value;
+            _settings.SaveQuietly();
+            OnPropertyChanged();
+        }
+    }
+
+    public RelayCommand ToggleNavCommand => _toggleNavCommand ??= new RelayCommand(() => IsNavExpanded = !IsNavExpanded);
+
+    private RelayCommand? _toggleNavCommand;
+
     public RelayCommand ExitCommand { get; }
 
     /// <summary>The device list, for the Devices tab's content to bind to.</summary>

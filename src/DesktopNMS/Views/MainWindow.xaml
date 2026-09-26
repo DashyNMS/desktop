@@ -16,10 +16,22 @@
         Background="{StaticResource BackgroundBrush}"
         WindowStartupLocation="CenterScreen">
 
+    <!-- The app draws its own title bar (see TitleBar below): Windows keeps
+         the resize edges, snapping, the shadow and double-click to maximise;
+         anything clickable in the title bar opts in with
+         WindowChrome.IsHitTestVisibleInChrome. -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40"
+                      ResizeBorderThickness="6"
+                      CornerRadius="0"
+                      GlassFrameThickness="0,0,0,1"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
     <Window.Resources>
-        <!-- A plain, full-width menu-item look for the Devices hover flyout
-             (see #118) - scoped here rather than promoted to Dark.xaml since
-             nothing else uses it yet. -->
+        <!-- A plain, full-width menu-item look for the sidebar's hover
+             flyouts (see #118) - scoped here rather than promoted to
+             Dark.xaml since nothing else uses it yet. -->
         <Style x:Key="FlyoutMenuItemStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
@@ -46,6 +58,53 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- The flyout's heading: the section's name, above its sub-pages. -->
+        <Style x:Key="FlyoutHeaderStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="14,6,14,4" />
+        </Style>
+
+        <Style x:Key="FlyoutBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="Margin" Value="4,0,12,12" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Sidebar items only need their tooltip while the sidebar is
+             narrow - once it's wide the label says the same thing. -->
+        <Style x:Key="MainRailItemStyle" TargetType="ToggleButton" BasedOn="{StaticResource RailItemStyle}">
+            <Setter Property="ToolTipService.Placement" Value="Right" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsNavExpanded}" Value="True">
+                    <Setter Property="ToolTipService.IsEnabled" Value="False" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="MainRailButtonStyle" TargetType="Button" BasedOn="{StaticResource RailButtonStyle}">
+            <Setter Property="ToolTipService.Placement" Value="Right" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsNavExpanded}" Value="True">
+                    <Setter Property="ToolTipService.IsEnabled" Value="False" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- A section's sub-pages under it, only while the sidebar is wide. -->
+        <Style x:Key="RailSubListStyle" TargetType="StackPanel">
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
     </Window.Resources>
 
     <Window.InputBindings>
@@ -59,346 +118,72 @@
         <CommandBinding Command="Find" Executed="OnFindExecuted" />
     </Window.CommandBindings>
 
-    <Grid>
+    <!-- RootGrid's margin is set while maximised (see OnStateChanged):
+         Windows puts a maximised window's edges just off-screen. -->
+    <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="40" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- ======================== Shell header: tabs + actions ======================== -->
-        <Border Grid.Row="0"
+        <!-- ======================== Title bar ======================== -->
+        <Border x:Name="TitleBar"
+                Grid.Row="0"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="18,0">
+                BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- The connected server's own logo/favicon, if it has one and
-                     Settings > Appearance has it turned on - a small
-                     per-server touch distinct from the app's own icon/title.
-                     Falls back to DashyNMS's own icon (HeaderLogo - see
-                     MainViewModel) when that setting is off, or while a
-                     server logo has not loaded yet. LogoBackdropBrush is
-                     theme-aware (see the palette files): it matches the page
-                     background in Dark mode so the logo appears to float
-                     with no visible box, and uses the tab bar's own grey in
-                     Light mode so light-on-transparent artwork stays
-                     visible. Hidden entirely rather than showing a
-                     broken-image glyph when there is nothing to show at all. -->
-                <Border Grid.Column="0"
-                        Background="{StaticResource LogoBackdropBrush}"
-                        CornerRadius="6"
-                        Padding="12,8"
-                        Margin="0,0,10,0"
-                        VerticalAlignment="Center"
-                        Visibility="{Binding HasHeaderLogo, Converter={StaticResource BoolToVisibility}}">
+                <!-- The connected server's own logo, if it has one and
+                     Settings > Appearance has it turned on, else DashyNMS's
+                     own icon (HeaderLogo - see MainViewModel). Lined up
+                     over the sidebar's icons. -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
                     <Image Source="{Binding HeaderLogo}"
-                           Height="28"
-                           MaxWidth="140"
-                           Stretch="Uniform" />
-                </Border>
+                           Height="18"
+                           MaxWidth="90"
+                           Stretch="Uniform"
+                           Margin="0,0,10,0"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           Visibility="{Binding HasHeaderLogo, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="DashyNMS"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding ServerDescription}"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="12,0,0,0"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="360" />
+                </StackPanel>
 
-                <Border Grid.Column="1"
-                        Style="{StaticResource NavTabTrackStyle}"
-                        VerticalAlignment="Center"
-                        Margin="0,12,0,12">
-                    <StackPanel Orientation="Horizontal">
-                        <ToggleButton Content="Dashboard"
-                                      Style="{StaticResource NavTabButtonStyle}"
-                                      IsChecked="{Binding IsDashboardTabSelected, Mode=OneWay}"
-                                      Command="{Binding SelectDashboardTabCommand}" />
-                        <!-- Devices' own click still goes straight to the
-                             Devices tab; hovering reveals Groups/Locations as
-                             a flyout below it, since both are facets of
-                             device/inventory management rather than peers of
-                             Devices/Health/Alerts (see #118). The flyout's
-                             open/close is debounced in code-behind
-                             (DevicesTabButton_MouseEnter/Leave,
-                             DevicesFlyoutContent_MouseEnter/Leave) so
-                             crossing the small gap between the button and
-                             the popup below it does not flicker it shut. -->
-                        <Grid>
-                            <ToggleButton x:Name="DevicesTabButton"
-                                          Style="{StaticResource NavTabButtonStyle}"
-                                          IsChecked="{Binding IsDevicesFamilyTabSelected, Mode=OneWay}"
-                                          Command="{Binding SelectDevicesTabCommand}"
-                                          MouseEnter="DevicesTabButton_MouseEnter"
-                                          MouseLeave="DevicesTabButton_MouseLeave">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Devices" />
-                                    <TextBlock Text="&#xE70D;"
-                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                               FontSize="9"
-                                               Margin="5,0,0,0"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                            </ToggleButton>
-
-                            <Popup x:Name="DevicesFlyout"
-                                   Placement="Bottom"
-                                   AllowsTransparency="True"
-                                   StaysOpen="True">
-                                <Border x:Name="DevicesFlyoutContent"
-                                        Background="{StaticResource SurfaceBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="4"
-                                        Margin="0,4,0,0"
-                                        MouseEnter="DevicesFlyoutContent_MouseEnter"
-                                        MouseLeave="DevicesFlyoutContent_MouseLeave">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
-                                    </Border.Effect>
-                                    <StackPanel MinWidth="120">
-                                        <Button Content="Groups"
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectGroupsTabCommand}"
-                                                Click="DevicesFlyoutItem_Click" />
-                                        <Button Content="Locations"
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectLocationsTabCommand}"
-                                                Click="DevicesFlyoutItem_Click" />
-                                    </StackPanel>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                        <!-- Neighbours (#55): the tab's own click opens the
-                             table of every view; hovering lists each view,
-                             the same flyout pattern as Maps. -->
-                        <Grid>
-                            <ToggleButton x:Name="NeighboursTabButton"
-                                          Style="{StaticResource NavTabButtonStyle}"
-                                          IsChecked="{Binding IsNeighboursTabSelected, Mode=OneWay}"
-                                          Command="{Binding SelectNeighboursTabCommand}"
-                                          MouseEnter="NeighboursTabButton_MouseEnter"
-                                          MouseLeave="NeighboursTabButton_MouseLeave">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Neighbours" />
-                                    <TextBlock Text="&#xE70D;"
-                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                               FontSize="9"
-                                               Margin="5,0,0,0"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                            </ToggleButton>
-
-                            <Popup x:Name="NeighboursFlyout"
-                                   Placement="Bottom"
-                                   AllowsTransparency="True"
-                                   StaysOpen="True">
-                                <Border x:Name="NeighboursFlyoutContent"
-                                        Background="{StaticResource SurfaceBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="4"
-                                        Margin="0,4,0,0"
-                                        MouseEnter="NeighboursFlyoutContent_MouseEnter"
-                                        MouseLeave="NeighboursFlyoutContent_MouseLeave">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
-                                    </Border.Effect>
-                                    <StackPanel MinWidth="160">
-                                        <ItemsControl ItemsSource="{Binding Neighbours.Views}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Button Content="{Binding Name}"
-                                                            Style="{StaticResource FlyoutMenuItemStyle}"
-                                                            Command="{Binding DataContext.SelectNeighbourViewCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                            CommandParameter="{Binding}"
-                                                            Click="NeighboursFlyoutItem_Click" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        <TextBlock Text="No views yet"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   Margin="10,6"
-                                                   Visibility="{Binding Neighbours.HasViews, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
-                                    </StackPanel>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                        <!-- Maps' own click opens the Default map (Settings);
-                             hovering offers all three, same flyout pattern
-                             as Devices and Alerts. -->
-                        <Grid>
-                            <ToggleButton x:Name="MapsTabButton"
-                                          Style="{StaticResource NavTabButtonStyle}"
-                                          IsChecked="{Binding IsMapsFamilyTabSelected, Mode=OneWay}"
-                                          Command="{Binding SelectMapsTabCommand}"
-                                          MouseEnter="MapsTabButton_MouseEnter"
-                                          MouseLeave="MapsTabButton_MouseLeave">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Maps" />
-                                    <TextBlock Text="&#xE70D;"
-                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                               FontSize="9"
-                                               Margin="5,0,0,0"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                            </ToggleButton>
-
-                            <Popup x:Name="MapsFlyout"
-                                   Placement="Bottom"
-                                   AllowsTransparency="True"
-                                   StaysOpen="True">
-                                <Border x:Name="MapsFlyoutContent"
-                                        Background="{StaticResource SurfaceBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="4"
-                                        Margin="0,4,0,0"
-                                        MouseEnter="MapsFlyoutContent_MouseEnter"
-                                        MouseLeave="MapsFlyoutContent_MouseLeave">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
-                                    </Border.Effect>
-                                    <StackPanel MinWidth="140">
-                                        <Button Content="Network"
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectNetworkMapTabCommand}"
-                                                Click="MapsFlyoutItem_Click" />
-                                        <Button Content="Geographical"
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectGeoMapTabCommand}"
-                                                Click="MapsFlyoutItem_Click" />
-                                        <Button Content="Custom Maps"
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectCustomMapsTabCommand}"
-                                                Click="MapsFlyoutItem_Click" />
-                                    </StackPanel>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                        <!-- Logs: Graylog is its only source so far, so no
-                             hover menu yet (add one, like Maps, when a second
-                             source arrives) - and the tab only shows while
-                             Graylog is set up. -->
-                        <ToggleButton Content="Logs"
-                                      Style="{StaticResource NavTabButtonStyle}"
-                                      IsChecked="{Binding IsLogsFamilyTabSelected, Mode=OneWay}"
-                                      Command="{Binding SelectLogsTabCommand}"
-                                      Visibility="{Binding ShowLogsTab, Converter={StaticResource BoolToVisibility}}" />
-                        <ToggleButton Content="Health"
-                                      Style="{StaticResource NavTabButtonStyle}"
-                                      IsChecked="{Binding IsHealthTabSelected, Mode=OneWay}"
-                                      Command="{Binding SelectHealthTabCommand}" />
-                        <!-- Alerts' own click still goes straight to the
-                             Alerts tab; hovering reveals Rules/Templates as a
-                             flyout below it, since both are facets of
-                             alerting configuration rather than peers of
-                             Devices/Health/Alerts - same "family" pattern as
-                             the Devices/Groups/Locations flyout above. -->
-                        <Grid>
-                            <ToggleButton x:Name="AlertsTabButton"
-                                          Style="{StaticResource NavTabButtonStyle}"
-                                          IsChecked="{Binding IsAlertsFamilyTabSelected, Mode=OneWay}"
-                                          Command="{Binding SelectAlertsTabCommand}"
-                                          MouseEnter="AlertsTabButton_MouseEnter"
-                                          MouseLeave="AlertsTabButton_MouseLeave">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Alerts" VerticalAlignment="Center" />
-                                    <!-- The count badge (Settings, Alert display):
-                                         red while any counted alert is
-                                         critical, orange otherwise. -->
-                                    <Border CornerRadius="8"
-                                            MinWidth="18"
-                                            Height="18"
-                                            Padding="5,0"
-                                            Margin="7,0,0,0"
-                                            VerticalAlignment="Center"
-                                            ToolTip="{Binding AlertBadgeToolTip}"
-                                            Visibility="{Binding ShowAlertBadge, Converter={StaticResource BoolToVisibility}}">
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="Background" Value="{StaticResource WarningBrush}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding AlertBadgeIsCritical}" Value="True">
-                                                        <Setter Property="Background" Value="{StaticResource CriticalBrush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <TextBlock Text="{Binding AlertBadgeText}"
-                                                   Foreground="White"
-                                                   FontSize="11"
-                                                   FontWeight="SemiBold"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center" />
-                                    </Border>
-                                    <TextBlock Text="&#xE70D;"
-                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                               FontSize="9"
-                                               Margin="5,0,0,0"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                            </ToggleButton>
-
-                            <Popup x:Name="AlertsFlyout"
-                                   Placement="Bottom"
-                                   AllowsTransparency="True"
-                                   StaysOpen="True">
-                                <Border x:Name="AlertsFlyoutContent"
-                                        Background="{StaticResource SurfaceBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="4"
-                                        Margin="0,4,0,0"
-                                        MouseEnter="AlertsFlyoutContent_MouseEnter"
-                                        MouseLeave="AlertsFlyoutContent_MouseLeave">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.3" />
-                                    </Border.Effect>
-                                    <StackPanel MinWidth="120">
-                                        <Button Content="Rules"
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectRulesTabCommand}"
-                                                Click="AlertsFlyoutItem_Click" />
-                                        <Button Content="Templates"
-                                                Style="{StaticResource FlyoutMenuItemStyle}"
-                                                Command="{Binding SelectTemplatesTabCommand}"
-                                                Click="AlertsFlyoutItem_Click" />
-                                    </StackPanel>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
-                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,12,0,12">
-                    <!-- The glyph sits in an explicit TextBlock with its
-                         FontFamily set as a local value: the app's global
-                         implicit TextBlock style (Segoe UI) would otherwise
-                         win over the icon font inherited from the button,
-                         since a style setter beats an inherited value. -->
-                    <Button Command="{Binding RefreshCurrentTabCommand}"
-                            Style="{StaticResource IconButtonStyle}"
-                            ToolTip="Refresh now (F5)"
+                <!-- Status and actions, before the window buttons. -->
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
                             Margin="0,0,8,0">
-                        <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
-                    </Button>
-
-                    <Rectangle Style="{StaticResource ToolBarSeparatorStyle}" Margin="4,4,12,4" />
-
-                    <!-- Only while the app is going through the backup address
-                         (see ServerFailover): click for where it's connected
-                         and to switch back to the server address. -->
+                    <!-- Only while the app is going through the backup
+                         address (see ServerFailover): click for where it's
+                         connected and to switch back. -->
                     <Button x:Name="BackupAddressButton"
                             Style="{StaticResource IconButtonStyle}"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
                             ToolTip="{Binding BackupAddressStatusText}"
                             Click="OnBackupAddressClick"
-                            Margin="0,0,8,0"
+                            Width="32"
+                            Height="30"
+                            Margin="0,0,4,0"
                             Visibility="{Binding IsOnBackupAddress, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="&#xE8AB;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Foreground="{StaticResource WarningBrush}" />
+                        <TextBlock Text="&#xE8AB;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" Foreground="{StaticResource WarningBrush}" />
                         <Button.ContextMenu>
                             <ContextMenu Placement="Bottom">
                                 <MenuItem Header="{Binding BackupAddressStatusText}" IsEnabled="False" />
@@ -411,11 +196,14 @@
                          (see UpdateCheckService): click to restart onto it. -->
                     <Button x:Name="UpdateReadyButton"
                             Style="{StaticResource IconButtonStyle}"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
                             ToolTip="{Binding UpdateReadyText}"
                             Click="OnUpdateReadyClick"
-                            Margin="0,0,8,0"
+                            Width="32"
+                            Height="30"
+                            Margin="0,0,4,0"
                             Visibility="{Binding IsUpdateReady, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="&#xE896;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="&#xE896;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource AccentBrush}" />
                         <Button.ContextMenu>
                             <ContextMenu Placement="Bottom">
                                 <MenuItem Header="{Binding UpdateReadyText}" IsEnabled="False" />
@@ -425,77 +213,390 @@
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
-                    <Button Command="{Binding SettingsCommand}"
+                    <!-- The glyph sits in an explicit TextBlock with its
+                         FontFamily set locally: the app's implicit TextBlock
+                         style (Segoe UI) would otherwise beat the icon font
+                         inherited from the button. -->
+                    <Button Command="{Binding RefreshCurrentTabCommand}"
                             Style="{StaticResource IconButtonStyle}"
-                            ToolTip="Settings"
-                            Margin="0,0,8,0">
-                        <TextBlock Text="&#xE713;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            ToolTip="Refresh now (F5)"
+                            Width="32"
+                            Height="30">
+                        <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" />
                     </Button>
-                    <Button Command="{Binding SignOutCommand}"
-                            Style="{StaticResource IconButtonStyle}"
-                            ToolTip="Sign out">
-                        <TextBlock Text="&#xE7E8;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal">
+                    <Button Style="{StaticResource CaptionButtonStyle}"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            ToolTip="Minimise"
+                            Click="OnMinimiseClick">
+                        <TextBlock Text="&#xE921;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" />
+                    </Button>
+                    <Button x:Name="MaximiseButton"
+                            Style="{StaticResource CaptionButtonStyle}"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            ToolTip="Maximise"
+                            Click="OnMaximiseClick">
+                        <TextBlock x:Name="MaximiseGlyph" Text="&#xE922;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" />
+                    </Button>
+                    <Button Style="{StaticResource CaptionCloseButtonStyle}"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            ToolTip="Close"
+                            Click="OnCloseClick">
+                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" />
                     </Button>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ======================== Content ======================== -->
         <Grid Grid.Row="1">
-            <!-- Visibility is bound on this Grid, against the inherited
-                 MainViewModel DataContext; DevicesView's own DataContext is
-                 overridden below it to DeviceList. A binding on the same
-                 element that redefines DataContext resolves against the new
-                 one, so the two must live on different elements. -->
-            <Grid Visibility="{Binding IsDashboardTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:DashboardView x:Name="DashboardViewControl" DataContext="{Binding Dashboard}" />
-            </Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <Grid Visibility="{Binding IsDevicesTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:DevicesView x:Name="DevicesViewControl" DataContext="{Binding DeviceList}" />
-            </Grid>
+            <!-- ======================== Sidebar ======================== -->
+            <!-- Icons only, or icons and labels once the hamburger widens it
+                 (IsNavExpanded, remembered). Narrow, a section's sub-pages
+                 open as a flyout to its right on hover; wide, they're listed
+                 under the selected section instead. -->
+            <Border Grid.Column="0"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,1,0"
+                    ClipToBounds="True">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Width" Value="57" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsNavExpanded}" Value="True">
+                                <Setter Property="Width" Value="208" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
 
-            <Grid Visibility="{Binding IsHealthTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:HealthView x:Name="HealthViewControl" DataContext="{Binding Health}" />
-            </Grid>
+                <DockPanel Margin="0,8,0,8" LastChildFill="True">
+                    <Button DockPanel.Dock="Top"
+                            Style="{StaticResource MainRailButtonStyle}"
+                            Tag="&#xE700;"
+                            ToolTip="Show labels"
+                            Command="{Binding ToggleNavCommand}"
+                            Margin="0,0,0,8" />
 
-            <views:AlertsView x:Name="AlertsViewControl"
-                               Visibility="{Binding IsAlertsTabSelected, Converter={StaticResource BoolToVisibility}}" />
+                    <StackPanel DockPanel.Dock="Bottom">
+                        <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="12,4,12,6" />
+                        <Button Content="Settings"
+                                Tag="&#xE713;"
+                                ToolTip="Settings"
+                                Style="{StaticResource MainRailButtonStyle}"
+                                Command="{Binding SettingsCommand}" />
+                        <Button Content="Sign out"
+                                Tag="&#xE7E8;"
+                                ToolTip="Sign out"
+                                Style="{StaticResource MainRailButtonStyle}"
+                                Command="{Binding SignOutCommand}" />
+                    </StackPanel>
 
-            <Grid Visibility="{Binding IsGroupsTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:GroupsView x:Name="GroupsViewControl" DataContext="{Binding Groups}" />
-            </Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <ToggleButton Content="Dashboard"
+                                          Tag="&#xE8A9;"
+                                          ToolTip="Dashboard"
+                                          Style="{StaticResource MainRailItemStyle}"
+                                          IsChecked="{Binding IsDashboardTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectDashboardTabCommand}" />
 
-            <Grid Visibility="{Binding IsLocationsTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:LocationsView x:Name="LocationsViewControl" DataContext="{Binding Locations}" />
-            </Grid>
+                            <!-- Devices' own click goes to the Devices tab;
+                                 Groups and Locations are facets of it (see #118). -->
+                            <ToggleButton x:Name="DevicesTabButton"
+                                          Content="Devices"
+                                          Tag="&#xE968;"
+                                          Style="{StaticResource RailItemStyle}"
+                                          IsChecked="{Binding IsDevicesFamilyTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectDevicesTabCommand}"
+                                          MouseEnter="DevicesTabButton_MouseEnter"
+                                          MouseLeave="DevicesTabButton_MouseLeave" />
+                            <Grid Visibility="{Binding IsNavExpanded, Converter={StaticResource BoolToVisibility}}">
+                                <StackPanel Style="{StaticResource RailSubListStyle}"
+                                            Visibility="{Binding IsDevicesFamilyTabSelected, Converter={StaticResource BoolToVisibility}}">
+                                    <ToggleButton Content="All devices"
+                                                  Style="{StaticResource RailSubItemStyle}"
+                                                  IsChecked="{Binding IsDevicesTabSelected, Mode=OneWay}"
+                                                  Command="{Binding SelectDevicesTabCommand}" />
+                                    <ToggleButton Content="Groups"
+                                                  Style="{StaticResource RailSubItemStyle}"
+                                                  IsChecked="{Binding IsGroupsTabSelected, Mode=OneWay}"
+                                                  Command="{Binding SelectGroupsTabCommand}" />
+                                    <ToggleButton Content="Locations"
+                                                  Style="{StaticResource RailSubItemStyle}"
+                                                  IsChecked="{Binding IsLocationsTabSelected, Mode=OneWay}"
+                                                  Command="{Binding SelectLocationsTabCommand}" />
+                                </StackPanel>
+                            </Grid>
 
-            <Grid Visibility="{Binding IsNeighboursTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:NeighboursView x:Name="NeighboursViewControl" DataContext="{Binding Neighbours}" />
-            </Grid>
+                            <!-- Neighbours (#55): its own click opens the
+                                 table of every view; its sub-pages are the views. -->
+                            <ToggleButton x:Name="NeighboursTabButton"
+                                          Content="Neighbours"
+                                          Tag="&#xE71B;"
+                                          Style="{StaticResource RailItemStyle}"
+                                          IsChecked="{Binding IsNeighboursTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectNeighboursTabCommand}"
+                                          MouseEnter="NeighboursTabButton_MouseEnter"
+                                          MouseLeave="NeighboursTabButton_MouseLeave" />
+                            <Grid Visibility="{Binding IsNavExpanded, Converter={StaticResource BoolToVisibility}}">
+                                <StackPanel Style="{StaticResource RailSubListStyle}"
+                                            Visibility="{Binding IsNeighboursTabSelected, Converter={StaticResource BoolToVisibility}}">
+                                    <ItemsControl ItemsSource="{Binding Neighbours.Views}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <ToggleButton Content="{Binding Name}"
+                                                              Style="{StaticResource RailSubItemStyle}"
+                                                              IsChecked="False"
+                                                              Command="{Binding DataContext.SelectNeighbourViewCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              CommandParameter="{Binding}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Grid>
 
-            <Grid Visibility="{Binding IsNetworkMapTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:NetworkMapView x:Name="NetworkMapViewControl" DataContext="{Binding NetworkMap}" />
-            </Grid>
+                            <!-- Maps' own click opens the Default map (Settings). -->
+                            <ToggleButton x:Name="MapsTabButton"
+                                          Content="Maps"
+                                          Tag="&#xE707;"
+                                          Style="{StaticResource RailItemStyle}"
+                                          IsChecked="{Binding IsMapsFamilyTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectMapsTabCommand}"
+                                          MouseEnter="MapsTabButton_MouseEnter"
+                                          MouseLeave="MapsTabButton_MouseLeave" />
+                            <Grid Visibility="{Binding IsNavExpanded, Converter={StaticResource BoolToVisibility}}">
+                                <StackPanel Style="{StaticResource RailSubListStyle}"
+                                            Visibility="{Binding IsMapsFamilyTabSelected, Converter={StaticResource BoolToVisibility}}">
+                                    <ToggleButton Content="Network"
+                                                  Style="{StaticResource RailSubItemStyle}"
+                                                  IsChecked="{Binding IsNetworkMapTabSelected, Mode=OneWay}"
+                                                  Command="{Binding SelectNetworkMapTabCommand}" />
+                                    <ToggleButton Content="Geographical"
+                                                  Style="{StaticResource RailSubItemStyle}"
+                                                  IsChecked="{Binding IsGeoMapTabSelected, Mode=OneWay}"
+                                                  Command="{Binding SelectGeoMapTabCommand}" />
+                                    <ToggleButton Content="Custom Maps"
+                                                  Style="{StaticResource RailSubItemStyle}"
+                                                  IsChecked="{Binding IsCustomMapsTabSelected, Mode=OneWay}"
+                                                  Command="{Binding SelectCustomMapsTabCommand}" />
+                                </StackPanel>
+                            </Grid>
 
-            <Grid Visibility="{Binding IsGeoMapTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:GeoMapView x:Name="GeoMapViewControl" DataContext="{Binding GeoMap}" />
-            </Grid>
+                            <!-- Logs: Graylog is its only source so far, and
+                                 it only shows while Graylog is set up. -->
+                            <ToggleButton Content="Logs"
+                                          Tag="&#xE8FD;"
+                                          ToolTip="Logs"
+                                          Style="{StaticResource MainRailItemStyle}"
+                                          IsChecked="{Binding IsLogsFamilyTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectLogsTabCommand}"
+                                          Visibility="{Binding ShowLogsTab, Converter={StaticResource BoolToVisibility}}" />
 
-            <Grid Visibility="{Binding IsCustomMapsTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:CustomMapsView x:Name="CustomMapsViewControl" DataContext="{Binding CustomMaps}" />
-            </Grid>
+                            <ToggleButton Content="Health"
+                                          Tag="&#xE95E;"
+                                          ToolTip="Health"
+                                          Style="{StaticResource MainRailItemStyle}"
+                                          IsChecked="{Binding IsHealthTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectHealthTabCommand}" />
 
-            <Grid Visibility="{Binding IsGraylogLogsTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:LogsView x:Name="LogsViewControl" DataContext="{Binding Logs}" />
-            </Grid>
+                            <!-- Alerts' own click goes to the Alerts tab;
+                                 Rules and Templates are facets of it. The
+                                 count badge (Settings, Alert display) sits on
+                                 the bell - red while any counted alert is
+                                 critical, orange otherwise. -->
+                            <Grid>
+                                <ToggleButton x:Name="AlertsTabButton"
+                                              Content="Alerts"
+                                              Tag="&#xEA8F;"
+                                              Style="{StaticResource RailItemStyle}"
+                                              IsChecked="{Binding IsAlertsFamilyTabSelected, Mode=OneWay}"
+                                              Command="{Binding SelectAlertsTabCommand}"
+                                              MouseEnter="AlertsTabButton_MouseEnter"
+                                              MouseLeave="AlertsTabButton_MouseLeave" />
+                                <Border CornerRadius="8"
+                                        MinWidth="16"
+                                        Height="16"
+                                        Padding="4,0"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Top"
+                                        Margin="32,3,0,0"
+                                        IsHitTestVisible="False"
+                                        ToolTip="{Binding AlertBadgeToolTip}"
+                                        Visibility="{Binding ShowAlertBadge, Converter={StaticResource BoolToVisibility}}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{StaticResource WarningBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding AlertBadgeIsCritical}" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource CriticalBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="{Binding AlertBadgeText}"
+                                               Foreground="White"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                            </Grid>
+                            <Grid Visibility="{Binding IsNavExpanded, Converter={StaticResource BoolToVisibility}}">
+                                <StackPanel Style="{StaticResource RailSubListStyle}"
+                                            Visibility="{Binding IsAlertsFamilyTabSelected, Converter={StaticResource BoolToVisibility}}">
+                                    <ToggleButton Content="Active alerts"
+                                                  Style="{StaticResource RailSubItemStyle}"
+                                                  IsChecked="{Binding IsAlertsTabSelected, Mode=OneWay}"
+                                                  Command="{Binding SelectAlertsTabCommand}" />
+                                    <ToggleButton Content="Rules"
+                                                  Style="{StaticResource RailSubItemStyle}"
+                                                  IsChecked="{Binding IsRulesTabSelected, Mode=OneWay}"
+                                                  Command="{Binding SelectRulesTabCommand}" />
+                                    <ToggleButton Content="Templates"
+                                                  Style="{StaticResource RailSubItemStyle}"
+                                                  IsChecked="{Binding IsTemplatesTabSelected, Mode=OneWay}"
+                                                  Command="{Binding SelectTemplatesTabCommand}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
 
-            <Grid Visibility="{Binding IsRulesTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:RulesView x:Name="RulesViewControl" DataContext="{Binding Rules}" />
-            </Grid>
+            <!-- The narrow sidebar's hover flyouts, opening to the right of
+                 their section. Open/close is debounced in code-behind so
+                 crossing the gap from the icon doesn't flicker them shut. -->
+            <Popup x:Name="DevicesFlyout" Placement="Right" AllowsTransparency="True" StaysOpen="True">
+                <Border x:Name="DevicesFlyoutContent"
+                        Style="{StaticResource FlyoutBorderStyle}"
+                        MouseEnter="DevicesFlyoutContent_MouseEnter"
+                        MouseLeave="DevicesFlyoutContent_MouseLeave">
+                    <StackPanel MinWidth="150">
+                        <TextBlock Text="DEVICES" Style="{StaticResource FlyoutHeaderStyle}" />
+                        <Button Content="All devices" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectDevicesTabCommand}" Click="DevicesFlyoutItem_Click" />
+                        <Button Content="Groups" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectGroupsTabCommand}" Click="DevicesFlyoutItem_Click" />
+                        <Button Content="Locations" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectLocationsTabCommand}" Click="DevicesFlyoutItem_Click" />
+                    </StackPanel>
+                </Border>
+            </Popup>
 
-            <Grid Visibility="{Binding IsTemplatesTabSelected, Converter={StaticResource BoolToVisibility}}">
-                <views:TemplatesView x:Name="TemplatesViewControl" DataContext="{Binding Templates}" />
+            <Popup x:Name="NeighboursFlyout" Placement="Right" AllowsTransparency="True" StaysOpen="True">
+                <Border x:Name="NeighboursFlyoutContent"
+                        Style="{StaticResource FlyoutBorderStyle}"
+                        MouseEnter="NeighboursFlyoutContent_MouseEnter"
+                        MouseLeave="NeighboursFlyoutContent_MouseLeave">
+                    <StackPanel MinWidth="170">
+                        <TextBlock Text="NEIGHBOURS" Style="{StaticResource FlyoutHeaderStyle}" />
+                        <Button Content="All views" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectNeighboursTabCommand}" Click="NeighboursFlyoutItem_Click" />
+                        <ItemsControl ItemsSource="{Binding Neighbours.Views}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding Name}"
+                                            Style="{StaticResource FlyoutMenuItemStyle}"
+                                            Command="{Binding DataContext.SelectNeighbourViewCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}"
+                                            Click="NeighboursFlyoutItem_Click" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Popup>
+
+            <Popup x:Name="MapsFlyout" Placement="Right" AllowsTransparency="True" StaysOpen="True">
+                <Border x:Name="MapsFlyoutContent"
+                        Style="{StaticResource FlyoutBorderStyle}"
+                        MouseEnter="MapsFlyoutContent_MouseEnter"
+                        MouseLeave="MapsFlyoutContent_MouseLeave">
+                    <StackPanel MinWidth="150">
+                        <TextBlock Text="MAPS" Style="{StaticResource FlyoutHeaderStyle}" />
+                        <Button Content="Network" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectNetworkMapTabCommand}" Click="MapsFlyoutItem_Click" />
+                        <Button Content="Geographical" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectGeoMapTabCommand}" Click="MapsFlyoutItem_Click" />
+                        <Button Content="Custom Maps" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectCustomMapsTabCommand}" Click="MapsFlyoutItem_Click" />
+                    </StackPanel>
+                </Border>
+            </Popup>
+
+            <Popup x:Name="AlertsFlyout" Placement="Right" AllowsTransparency="True" StaysOpen="True">
+                <Border x:Name="AlertsFlyoutContent"
+                        Style="{StaticResource FlyoutBorderStyle}"
+                        MouseEnter="AlertsFlyoutContent_MouseEnter"
+                        MouseLeave="AlertsFlyoutContent_MouseLeave">
+                    <StackPanel MinWidth="150">
+                        <TextBlock Text="ALERTS" Style="{StaticResource FlyoutHeaderStyle}" />
+                        <Button Content="Active alerts" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectAlertsTabCommand}" Click="AlertsFlyoutItem_Click" />
+                        <Button Content="Rules" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectRulesTabCommand}" Click="AlertsFlyoutItem_Click" />
+                        <Button Content="Templates" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectTemplatesTabCommand}" Click="AlertsFlyoutItem_Click" />
+                    </StackPanel>
+                </Border>
+            </Popup>
+
+            <!-- ======================== Content ======================== -->
+            <Grid Grid.Column="1">
+                <!-- Visibility is bound on this Grid, against the inherited
+                     MainViewModel DataContext; DevicesView's own DataContext is
+                     overridden below it to DeviceList. A binding on the same
+                     element that redefines DataContext resolves against the new
+                     one, so the two must live on different elements. -->
+                <Grid Visibility="{Binding IsDashboardTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <views:DashboardView x:Name="DashboardViewControl" DataContext="{Binding Dashboard}" />
+                </Grid>
+    
+                <Grid Visibility="{Binding IsDevicesTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <views:DevicesView x:Name="DevicesViewControl" DataContext="{Binding DeviceList}" />
+                </Grid>
+    
+                <Grid Visibility="{Binding IsHealthTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <views:HealthView x:Name="HealthViewControl" DataContext="{Binding Health}" />
+                </Grid>
+    
+                <views:AlertsView x:Name="AlertsViewControl"
+                                   Visibility="{Binding IsAlertsTabSelected, Converter={StaticResource BoolToVisibility}}" />
+    
+                <Grid Visibility="{Binding IsGroupsTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <views:GroupsView x:Name="GroupsViewControl" DataContext="{Binding Groups}" />
+                </Grid>
+    
+                <Grid Visibility="{Binding IsLocationsTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <views:LocationsView x:Name="LocationsViewControl" DataContext="{Binding Locations}" />
+                </Grid>
+    
+                <Grid Visibility="{Binding IsNeighboursTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <views:NeighboursView x:Name="NeighboursViewControl" DataContext="{Binding Neighbours}" />
+                </Grid>
+    
+                <Grid Visibility="{Binding IsNetworkMapTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <views:NetworkMapView x:Name="NetworkMapViewControl" DataContext="{Binding NetworkMap}" />
+                </Grid>
+    
+                <Grid Visibility="{Binding IsGeoMapTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <views:GeoMapView x:Name="GeoMapViewControl" DataContext="{Binding GeoMap}" />
+                </Grid>
+    
+                <Grid Visibility="{Binding IsCustomMapsTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <views:CustomMapsView x:Name="CustomMapsViewControl" DataContext="{Binding CustomMaps}" />
+                </Grid>
+    
+                <Grid Visibility="{Binding IsGraylogLogsTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <views:LogsView x:Name="LogsViewControl" DataContext="{Binding Logs}" />
+                </Grid>
+    
+                <Grid Visibility="{Binding IsRulesTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <views:RulesView x:Name="RulesViewControl" DataContext="{Binding Rules}" />
+                </Grid>
+    
+                <Grid Visibility="{Binding IsTemplatesTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <views:TemplatesView x:Name="TemplatesViewControl" DataContext="{Binding Templates}" />
+                </Grid>
             </Grid>
         </Grid>
     </Grid>

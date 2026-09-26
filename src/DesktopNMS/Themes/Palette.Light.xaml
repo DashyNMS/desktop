@@ -33,6 +33,8 @@
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+    <!-- The accent at low strength, behind the selected sidebar section - replaced along with AccentBrush by AccentTheme. -->
+    <SolidColorBrush x:Key="AccentSubtleBrush" Color="{StaticResource AccentColor}" Opacity="0.16" />
 
     <!-- See Palette.Dark.xaml's remarks - overwritten alongside AccentBrush by AccentTheme.Apply. -->
     <SolidColorBrush x:Key="AccentForegroundBrush" Color="White" />

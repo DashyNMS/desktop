@@ -34,6 +34,7 @@ public static class AccentTheme
         }
 
         Application.Current.Resources["AccentBrush"] = new SolidColorBrush(color);
+        Application.Current.Resources["AccentSubtleBrush"] = new SolidColorBrush(color) { Opacity = 0.16 };
 
         // A handful of styles (the primary button, a checked nav tab, ...)
         // paint white text directly on top of this colour, which read fine
