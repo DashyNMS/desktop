@@ -6,6 +6,7 @@ using System.Windows;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.ViewModels;
 using DesktopNMS.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,6 +31,35 @@ public sealed class WindowService : IWindowService
 
     /// <summary>Called by the app once the main window exists.</summary>
     public void AttachMainWindow(MainWindow window) => _mainWindow = window;
+
+    /// <summary>
+    /// Makes the main window a window's owner, and brings the main window back
+    /// when it closes if the main window was minimised and nothing else is
+    /// left on screen (#181) - Windows activates an owner but never restores it.
+    /// </summary>
+    /// <summary>Reopens a resizable window how it was last left (#59) - see <see cref="WindowPlacementMemory"/>.</summary>
+    private void RememberPlacement(Window window) =>
+        WindowPlacementMemory.Attach(window, _services.GetRequiredService<ISettingsStore>());
+
+    private void OwnByMain(Window window)
+    {
+        window.Owner = _mainWindow;
+        window.Closed += (_, _) =>
+        {
+            if (_mainWindow is not { IsVisible: true, WindowState: WindowState.Minimized } main)
+            {
+                return;
+            }
+
+            var othersOnScreen = Application.Current.Windows
+                .OfType<Window>()
+                .Any(w => !ReferenceEquals(w, main) && !ReferenceEquals(w, window) && w.IsVisible && w.WindowState != WindowState.Minimized);
+            if (!othersOnScreen)
+            {
+                main.RestoreFromMinimised();
+            }
+        };
+    }
 
     public void ShowMain()
     {
@@ -96,9 +126,10 @@ public sealed class WindowService : IWindowService
         }
 
         var window = new NeighbourViewEditorWindow(viewModel);
+        RememberPlacement(window);
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         return window.ShowDialog() == true ? viewModel.Result : null;
@@ -128,10 +159,11 @@ public sealed class WindowService : IWindowService
         var viewModel = CreateDeviceDetailViewModel(deviceId, history);
 
         var window = new DeviceView(viewModel, settings);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         // Back, forward and the breadcrumbs (#58) move this same window.
@@ -172,6 +204,7 @@ public sealed class WindowService : IWindowService
             _services.GetRequiredService<IUnimusApi>(),
             _services.GetRequiredService<IUnimusDeviceResolver>(),
             _services.GetRequiredService<IGraylogApi>(),
+            _services.GetRequiredService<IFleetLinks>(),
             _services.GetRequiredService<ILogger<DeviceDetailViewModel>>())
         {
             History = history,
@@ -269,10 +302,11 @@ public sealed class WindowService : IWindowService
     {
         var viewModel = _services.GetRequiredService<SettingsViewModel>();
         var window = new SettingsWindow(viewModel);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         return window.ShowDialog() == true;
@@ -287,10 +321,11 @@ public sealed class WindowService : IWindowService
         // the device grid behind this dialog.
         var viewModel = _services.GetRequiredService<DeviceListViewModel>();
         var window = new DeviceFiltersWindow(viewModel);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         window.ShowDialog();
@@ -301,10 +336,11 @@ public sealed class WindowService : IWindowService
         // Same live-object reasoning as ShowDeviceFiltersDialog: MainViewModel
         // is a singleton, so its GroupFilter here is the one filtering the grid.
         var window = new AlertFiltersWindow(_services.GetRequiredService<MainViewModel>());
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         window.ShowDialog();
@@ -314,10 +350,11 @@ public sealed class WindowService : IWindowService
     {
         var viewModel = _services.GetRequiredService<ConnectionViewModel>();
         var window = new ConnectionWindow(viewModel);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         return window.ShowDialog() == true;
@@ -396,10 +433,11 @@ public sealed class WindowService : IWindowService
     {
         var viewModel = new ConfirmDialogViewModel(title, message, showDontAskAgain, dontAskAgainLabel);
         var window = new ConfirmDialog(viewModel);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         var confirmed = window.ShowDialog() == true;
@@ -410,10 +448,11 @@ public sealed class WindowService : IWindowService
     {
         var viewModel = _services.GetRequiredService<AddDeviceViewModel>();
         var window = new AddDeviceWindow(viewModel);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         var added = window.ShowDialog() == true;
@@ -426,10 +465,11 @@ public sealed class WindowService : IWindowService
     {
         var viewModel = _services.GetRequiredService<BulkAddDevicesViewModel>();
         var window = new BulkAddDevicesWindow(viewModel);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         window.ShowDialog();
@@ -452,10 +492,11 @@ public sealed class WindowService : IWindowService
     private bool ShowDeviceGroupEditorDialog(DeviceGroupEditorViewModel viewModel)
     {
         var window = new DeviceGroupEditorWindow(viewModel);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         return window.ShowDialog() == true;
@@ -467,10 +508,11 @@ public sealed class WindowService : IWindowService
         viewModel.Initialize(deviceIds);
 
         var window = new AddDevicesToGroupWindow(viewModel);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         return window.ShowDialog() == true;
@@ -492,10 +534,11 @@ public sealed class WindowService : IWindowService
     private bool ShowLocationEditorDialog(LocationEditorViewModel viewModel)
     {
         var window = new LocationEditorWindow(viewModel);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         return window.ShowDialog() == true;
@@ -517,10 +560,11 @@ public sealed class WindowService : IWindowService
     private bool ShowRuleEditorDialog(RuleEditorViewModel viewModel)
     {
         var window = new RuleEditorWindow(viewModel);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         return window.ShowDialog() == true;
@@ -532,10 +576,11 @@ public sealed class WindowService : IWindowService
         viewModel.Initialize(deviceId, deviceName);
 
         var window = new MaintenanceScheduleWindow(viewModel);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         return window.ShowDialog() == true ? viewModel.ConfirmationMessage : null;
@@ -557,10 +602,11 @@ public sealed class WindowService : IWindowService
     private bool ShowAlertTemplateEditorDialog(AlertTemplateEditorViewModel viewModel)
     {
         var window = new AlertTemplateEditorWindow(viewModel);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         return window.ShowDialog() == true;
@@ -580,10 +626,11 @@ public sealed class WindowService : IWindowService
             showDontAskAgain: false, dontAskAgainLabel: string.Empty,
             showCancel: false, confirmLabel: "OK", isError: isError);
         var window = new ConfirmDialog(viewModel);
+        RememberPlacement(window);
 
         if (_mainWindow is { IsVisible: true })
         {
-            window.Owner = _mainWindow;
+            OwnByMain(window);
         }
 
         window.ShowDialog();

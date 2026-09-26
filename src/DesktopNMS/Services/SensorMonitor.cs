@@ -47,6 +47,8 @@ public sealed class SensorMonitor : IDisposable
     private readonly IDeviceCache _devices;
     private readonly AlertMonitor _alertMonitor;
     private readonly ILogger<SensorMonitor> _logger;
+    private readonly IAppActivity _activity;
+    private DateTimeOffset _lastPolled = DateTimeOffset.MinValue;
 
     private readonly SemaphoreSlim _wake = new(0, 1);
     private readonly SemaphoreSlim _pollGate = new(1, 1);
@@ -61,6 +63,7 @@ public sealed class SensorMonitor : IDisposable
         ISettingsStore settings,
         IDeviceCache devices,
         AlertMonitor alertMonitor,
+        IAppActivity activity,
         ILogger<SensorMonitor> logger)
     {
         _client = client;
@@ -69,6 +72,26 @@ public sealed class SensorMonitor : IDisposable
         _devices = devices;
         _alertMonitor = alertMonitor;
         _logger = logger;
+        _activity = activity;
+        _activity.Changed += OnActivityChanged;
+    }
+
+    /// <summary>
+    /// The seconds between polls: the setting, or <see cref="AppActivityPolling.BackgroundSlowdown"/>
+    /// times it while no window is on screen (#52) - nothing is showing this
+    /// data then, and the alert poller still keeps notifications current.
+    /// </summary>
+    private int CurrentIntervalSeconds => _settings.Current.PollIntervalSeconds * (_activity.IsInBackground ? AppActivityPolling.BackgroundSlowdown : 1);
+
+    // Back on screen: catch up straight away if the last poll is older than
+    // the normal interval, rather than waiting out a slowed one.
+    private void OnActivityChanged(object? sender, EventArgs e)
+    {
+        _logger.LogDebug("SensorMonitor {Mode}", _activity.IsInBackground ? "slowed - nothing on screen" : "back to full rate");
+        if (!_activity.IsInBackground && DateTimeOffset.UtcNow - _lastPolled > TimeSpan.FromSeconds(_settings.Current.PollIntervalSeconds))
+        {
+            RequestRefresh();
+        }
     }
 
     /// <summary>Raised on a background thread when a poll starts, so the UI can show a busy indicator.</summary>
@@ -127,12 +150,13 @@ public sealed class SensorMonitor : IDisposable
         while (!cancellationToken.IsCancellationRequested)
         {
             await PollOnceAsync(cancellationToken).ConfigureAwait(false);
+            _lastPolled = DateTimeOffset.UtcNow;
 
             // Aligned to AlertMonitor's schedule rather than a plain fixed
             // interval, so this tab's countdown reaches zero at the same
             // moment as every other tab's, regardless of when this monitor
             // itself was started.
-            var wait = PollAlignment.GetAlignedWait(_alertMonitor.StartedAt, _settings.Current.PollIntervalSeconds);
+            var wait = PollAlignment.GetAlignedWait(_alertMonitor.StartedAt, CurrentIntervalSeconds);
 
             try
             {

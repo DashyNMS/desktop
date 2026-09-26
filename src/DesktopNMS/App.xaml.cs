@@ -86,6 +86,9 @@ public partial class App : Application
         SetUpNotifications();
         SetUpUpdates();
 
+        // Slows the device and sensor pollers while nothing is on screen (#52).
+        _services.GetRequiredService<AppActivity>().Start(Dispatcher);
+
         _monitor = _services.GetRequiredService<AlertMonitor>();
         _mainViewModel = _services.GetRequiredService<MainViewModel>();
 
@@ -304,6 +307,8 @@ public partial class App : Application
         services.AddSingleton<IMapTileService, MapTileService>();
         services.AddSingleton<ICustomMapStore, CustomMapStore>();
         services.AddSingleton<IUnimusDeviceResolver, UnimusDeviceResolver>();
+        services.AddSingleton<AppActivity>();
+        services.AddSingleton<IAppActivity>(sp => sp.GetRequiredService<AppActivity>());
         services.AddSingleton<AlertMonitor>();
         services.AddSingleton<SensorMonitor>();
         services.AddSingleton<DeviceMonitor>();
@@ -324,6 +329,7 @@ public partial class App : Application
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<GroupsViewModel>();
         services.AddSingleton<LocationsViewModel>();
+        services.AddSingleton<IFleetLinks, FleetLinks>();
         services.AddSingleton<INeighbourDirectory, NeighbourDirectory>();
         services.AddSingleton<NeighboursViewModel>();
         services.AddTransient<NeighbourViewEditorViewModel>();

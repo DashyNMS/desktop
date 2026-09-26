@@ -152,6 +152,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
 
     private readonly DeviceMonitor _deviceMonitor;
     private readonly ILibreNmsClient _client;
+    private readonly IFleetLinks _fleetLinks;
     private readonly IDeviceGroupMembershipService _groupMembership;
     private readonly IMapLayoutStore _layouts;
     private readonly ISessionService _session;
@@ -193,6 +194,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         ISettingsStore settings,
         IWindowService windows,
         INeighbourDirectory neighbourDirectory,
+        IFleetLinks fleetLinks,
         ILogger<NetworkMapViewModel> logger)
     {
         _deviceMonitor = deviceMonitor;
@@ -203,6 +205,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         _settings = settings;
         _windows = windows;
         _neighbourDirectory = neighbourDirectory;
+        _fleetLinks = fleetLinks;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -505,7 +508,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             _ = LoadNeighboursAsync(refresh: true);
         }
 
-        await LoadLinksAsync().ConfigureAwait(true);
+        await LoadLinksAsync(refresh: true).ConfigureAwait(true);
     }
 
     /// <summary>The switch neighbours and their ports' state - shared with the Neighbours tab. Not worth failing the map over.</summary>
@@ -551,7 +554,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         }
     });
 
-    private async Task LoadLinksAsync()
+    private async Task LoadLinksAsync(bool refresh = false)
     {
         if (!_session.IsConnected)
         {
@@ -566,7 +569,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             // Port names are fetched alongside, so each end of a link can be
             // named from its own port - see NetworkTopology.Build.
             var portsTask = LoadPortNamesAsync();
-            _links = await _client.Links.ListAllAsync().ConfigureAwait(true);
+            _links = await _fleetLinks.GetAsync(refresh).ConfigureAwait(true);
             _portNames = await portsTask.ConfigureAwait(true);
             _linksFetchedAt = DateTimeOffset.Now;
             await RebuildAsync(fit: _nodes.Count == 0).ConfigureAwait(true);
