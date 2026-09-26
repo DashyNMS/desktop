@@ -85,6 +85,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private readonly IUnimusApi _unimus;
     private readonly IUnimusDeviceResolver _unimusResolver;
     private readonly IDeviceCache _deviceCache;
+    private readonly IFleetLinks _fleetLinks;
     private readonly ILogger<DeviceDetailViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, SensorItemViewModel> _sensorIndex = new();
@@ -227,6 +228,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         IUnimusApi unimus,
         IUnimusDeviceResolver unimusResolver,
         IGraylogApi graylog,
+        IFleetLinks fleetLinks,
         ILogger<DeviceDetailViewModel> logger)
     {
         _deviceId = deviceId;
@@ -241,6 +243,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _unimus = unimus;
         _unimusResolver = unimusResolver;
         _deviceCache = deviceCache;
+        _fleetLinks = fleetLinks;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -3123,7 +3126,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            return await _client.Links.ListAllAsync(_loadCts.Token).ConfigureAwait(true);
+            return await _fleetLinks.GetAsync(cancellationToken: _loadCts.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {

@@ -49,15 +49,17 @@ public sealed class NeighbourDirectory : INeighbourDirectory
 
     private readonly ILibreNmsClient _client;
     private readonly IDeviceCache _devices;
+    private readonly IFleetLinks _links;
     private readonly object _gate = new();
 
     private NeighbourSnapshot? _latest;
     private Task<NeighbourSnapshot>? _inFlight;
 
-    public NeighbourDirectory(ILibreNmsClient client, IDeviceCache devices)
+    public NeighbourDirectory(ILibreNmsClient client, IDeviceCache devices, IFleetLinks links)
     {
         _client = client;
         _devices = devices;
+        _links = links;
     }
 
     public Task<NeighbourSnapshot> GetAsync(bool refresh = false, CancellationToken cancellationToken = default)
@@ -74,7 +76,7 @@ public sealed class NeighbourDirectory : INeighbourDirectory
                 return running;
             }
 
-            _inFlight = LoadAsync();
+            _inFlight = LoadAsync(refresh);
             return _inFlight;
         }
     }
@@ -106,10 +108,10 @@ public sealed class NeighbourDirectory : INeighbourDirectory
         }
     }
 
-    private async Task<NeighbourSnapshot> LoadAsync()
+    private async Task<NeighbourSnapshot> LoadAsync(bool refresh)
     {
         // Not cancelled with any one caller - another may be sharing it.
-        var linksTask = _client.Links.ListAllAsync();
+        var linksTask = _links.GetAsync(refresh);
         var portsTask = _client.Ports.ListAllStatusAsync();
         var arpTask = LoadIpByMacAsync();
         await Task.WhenAll(linksTask, portsTask, arpTask).ConfigureAwait(false);

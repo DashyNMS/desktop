@@ -210,10 +210,29 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnStateChanged()
     {
+        if (WindowState != WindowState.Minimized)
+        {
+            _stateBeforeMinimise = WindowState;
+        }
+
         var maximised = WindowState == WindowState.Maximized;
         RootGrid.Margin = maximised ? SystemParameters.WindowResizeBorderThickness : new Thickness(0);
         MaximiseGlyph.Text = maximised ? RestoreGlyph : MaximiseGlyphText;
         MaximiseButton.ToolTip = maximised ? "Restore" : "Maximise";
+    }
+
+    // Normal or maximised - what to go back to after being minimised.
+    private WindowState _stateBeforeMinimise = WindowState.Normal;
+
+    /// <summary>Back to how it was before being minimised, and to the front (#181).</summary>
+    public void RestoreFromMinimised()
+    {
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = _stateBeforeMinimise;
+        }
+
+        Activate();
     }
 
     private void NotifyVisibility() =>

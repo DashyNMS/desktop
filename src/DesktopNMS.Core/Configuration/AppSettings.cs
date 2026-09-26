@@ -252,6 +252,9 @@ public sealed class AppSettings
 
     public WindowPlacement? Window { get; set; }
 
+    /// <summary>Other resizable windows' size, position and state, by window type (#59) - Device Details, Settings, the editors.</summary>
+    public Dictionary<string, WindowPlacement> WindowPlacements { get; set; } = new();
+
     /// <summary>Remembered column widths/order and sort per DataGrid, keyed by a stable per-grid name (e.g. "Devices", "DeviceDetail.Ports") - see DataGridLayoutHelper.</summary>
     public Dictionary<string, GridLayout> GridLayouts { get; set; } = new();
 
@@ -302,6 +305,7 @@ public sealed class AppSettings
         DefaultMap = DefaultMap,
         MapTileUrl = MapTileUrl,
         Window = Window?.Clone(),
+        WindowPlacements = WindowPlacements.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
         GridLayouts = GridLayouts.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
     };
 
