@@ -1942,6 +1942,112 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public string UptimeText => _device is { State: DeviceState.Up } d ? FormatUptime(d.Uptime) : "-";
 
+    // ------------------------------------------------------- overview cards
+
+    /// <summary>The header tile's icon, by device type (Segoe Fluent glyph).</summary>
+    public string TypeGlyph => (_device?.Type ?? string.Empty).ToLowerInvariant() switch
+    {
+        "server" => "",
+        "wireless" => "",
+        "firewall" => "",
+        "power" => "",
+        "storage" => "",
+        "printer" => "",
+        "appliance" or "workstation" => "",
+        _ => "",
+    };
+
+    /// <summary>Under the device's name: "C9300-48P · iosxe · 192.0.2.10", leaving out whatever isn't known.</summary>
+    public string HeroSubtitle => string.Join(" · ", new[] { _device?.Hardware, _device?.Os, _device?.Ip }
+        .Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    /// <summary>The Ports up tile: "46 / 52".</summary>
+    public string PortsUpText => $"{PortsUpCount} / {Ports.Count}";
+
+    /// <summary>The Availability donut's filled share, 0-1.</summary>
+    public double Availability30DayFraction => Math.Clamp((_availability30Day ?? 0) / 100.0, 0, 1);
+
+    /// <summary>The availability tile and donut's colour: green from 99.9%, amber from 99%, red below.</summary>
+    public AlertSeverity AvailabilityTileSeverity => _availability30Day switch
+    {
+        null => AlertSeverity.Unknown,
+        >= 99.9 => AlertSeverity.Ok,
+        >= 99 => AlertSeverity.Warning,
+        _ => AlertSeverity.Critical,
+    };
+
+    /// <summary>The Ports up tile: green with every port up, amber with any down.</summary>
+    public AlertSeverity PortsTileSeverity => PortsDownCount > 0 ? AlertSeverity.Warning : AlertSeverity.Ok;
+
+    /// <summary>The Active alerts tile: red with any critical, amber with warnings, green with none.</summary>
+    public AlertSeverity AlertsTileSeverity => ActiveCriticalCount > 0
+        ? AlertSeverity.Critical
+        : ActiveAlerts.Count > 0 ? AlertSeverity.Warning : AlertSeverity.Ok;
+
+    public bool HasOverviewResources => OverviewResources.Count > 0;
+
+    public bool HasOverviewPorts => Ports.Any(p => p.TotalRate > 0);
+
+    public bool HasOverviewNeighbours => Ports.Any(p => p.HasNeighbor);
+
+    /// <summary>The Sensors card's note: "14 · 1 warning".</summary>
+    public string SensorsCardNote => string.IsNullOrWhiteSpace(SensorAlertSummaryText)
+        ? Sensors.Count.ToString(CultureInfo.CurrentCulture)
+        : $"{Sensors.Count} · {SensorAlertSummaryText}";
+
+    /// <summary>The five ports moving the most traffic, in and out together.</summary>
+    public IReadOnlyList<PortItemViewModel> OverviewPorts => Ports
+        .Where(p => p.TotalRate > 0)
+        .OrderByDescending(p => p.TotalRate)
+        .Take(5)
+        .ToList();
+
+    /// <summary>What this device sees over LLDP/CDP - a neighbour per port, live links first.</summary>
+    public IReadOnlyList<PortItemViewModel> OverviewNeighbours => Ports
+        .Where(p => p.HasNeighbor)
+        .OrderByDescending(p => p.IsUp)
+        .Take(5)
+        .ToList();
+
+    /// <summary>The device's sensors worth a look first: the worst state, then the order they're listed in.</summary>
+    public IReadOnlyList<SensorItemViewModel> OverviewSensors => Sensors
+        .Select((sensor, index) => (sensor, index))
+        .OrderByDescending(x => x.sensor.Severity)
+        .ThenBy(x => x.index)
+        .Select(x => x.sensor)
+        .Take(4)
+        .ToList();
+
+    /// <summary>CPU, memory, the fullest disk and the PoE budget, as bars.</summary>
+    public IReadOnlyList<OverviewResourceRow> OverviewResources
+    {
+        get
+        {
+            var rows = new List<OverviewResourceRow>();
+            if (CpuUsagePercent is { } cpu)
+            {
+                rows.Add(OverviewResourceRow.Percent("CPU", cpu));
+            }
+
+            if (MemoryUsagePercent is { } memory)
+            {
+                rows.Add(OverviewResourceRow.Percent("Memory", memory));
+            }
+
+            if (DiskUsagePercent is { } disk)
+            {
+                rows.Add(OverviewResourceRow.Percent("Storage", disk));
+            }
+
+            foreach (var poe in PoeBudgets.Take(2))
+            {
+                rows.Add(new OverviewResourceRow(PoeBudgets.Count > 1 ? $"PoE · {poe.Label}" : "PoE budget", poe.UsageText, poe.UsagePercent / 100.0, poe.Severity));
+            }
+
+            return rows;
+        }
+    }
+
     // ------------------------------------------------------- additional details
 
     /// <summary>
@@ -2450,6 +2556,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ActiveCriticalCount));
         OnPropertyChanged(nameof(ActiveWarningCount));
         OnPropertyChanged(nameof(ActiveAlertSummaryText));
+        OnPropertyChanged(nameof(AlertsTileSeverity));
     }
 
     private void ApplySensors(IReadOnlyList<Sensor> fleet)
@@ -2515,6 +2622,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SensorCriticalCount));
         OnPropertyChanged(nameof(SensorAlertSummaryText));
         ApplyPoe(mine);
+        OnPropertyChanged(nameof(OverviewSensors));
+        OnPropertyChanged(nameof(SensorsCardNote));
+        OnPropertyChanged(nameof(OverviewResources));
+        OnPropertyChanged(nameof(HasOverviewResources));
     }
 
     // ------------------------------------------------------------------ PoE (#54)
@@ -2892,6 +3003,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(ShowPortsEmptyMessage));
             OnPropertyChanged(nameof(ShowPortsNoMatchesMessage));
             OnPropertyChanged(nameof(PortsUpCount));
+            OnPropertyChanged(nameof(PortsUpText));
+            OnPropertyChanged(nameof(OverviewPorts));
+            OnPropertyChanged(nameof(OverviewNeighbours));
+            OnPropertyChanged(nameof(HasOverviewPorts));
+            OnPropertyChanged(nameof(HasOverviewNeighbours));
+            OnPropertyChanged(nameof(PortsTileSeverity));
             OnPropertyChanged(nameof(PortsDownCount));
         }
         catch (OperationCanceledException)
@@ -3159,6 +3276,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(MemoryUsagePercent));
             OnPropertyChanged(nameof(DiskUsagePercent));
             OnPropertyChanged(nameof(ResourceSummaryText));
+            OnPropertyChanged(nameof(OverviewResources));
+            OnPropertyChanged(nameof(HasOverviewResources));
         }
         catch (OperationCanceledException)
         {
@@ -3224,6 +3343,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(Availability1DayText));
             OnPropertyChanged(nameof(Availability7DayText));
             OnPropertyChanged(nameof(Availability30DayText));
+            OnPropertyChanged(nameof(Availability30DayFraction));
+            OnPropertyChanged(nameof(AvailabilityTileSeverity));
             OnPropertyChanged(nameof(Availability1YearText));
             OnPropertyChanged(nameof(HasOutages));
         }
@@ -3980,6 +4101,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Hardware));
         OnPropertyChanged(nameof(Location));
         OnPropertyChanged(nameof(Type));
+        OnPropertyChanged(nameof(TypeGlyph));
+        OnPropertyChanged(nameof(HeroSubtitle));
         OnPropertyChanged(nameof(UptimeText));
         OnPropertyChanged(nameof(HasLoaded));
         OnPropertyChanged(nameof(IsLoadingDevice));
@@ -4264,6 +4387,9 @@ public sealed class PortItemViewModel
     public string StatusText => HasKnownStatus ? Capitalise(_port.IfOperStatus!) : "Unknown";
 
     public string SpeedText => FormatBitsPerSecond(_port.IfSpeed);
+
+    /// <summary>In and out together, in octets a second - ranks the Overview's busiest ports.</summary>
+    public double TotalRate => (_port.IfInOctetsRate ?? 0) + (_port.IfOutOctetsRate ?? 0);
 
     public string InRateText => _port.IfInOctetsRate is { } rate ? FormatBitsPerSecond((long)(rate * 8)) : "-";
 
@@ -4632,6 +4758,16 @@ public sealed class AlertLogItemViewModel
     }
 
     public bool HasDetail => DetailText.Length > 0;
+}
+
+/// <summary>One bar on the Overview's Resources card.</summary>
+public sealed record OverviewResourceRow(string Label, string ValueText, double Fraction, AlertSeverity Severity)
+{
+    /// <summary>The bar, as a percentage for PercentToStarWidth.</summary>
+    public double PercentValue => Fraction * 100;
+
+    public static OverviewResourceRow Percent(string label, double percent) =>
+        new(label, $"{percent:0}%", Math.Clamp(percent / 100.0, 0, 1), ResourceSeverity.Evaluate(percent, null));
 }
 
 /// <summary>One row in a device's Resources tab - one CPU/core.</summary>

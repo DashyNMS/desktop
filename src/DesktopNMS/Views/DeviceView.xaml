@@ -18,6 +18,15 @@
         Background="{StaticResource BackgroundBrush}"
         WindowStartupLocation="CenterOwner">
 
+    <!-- Its own title bar, like the main window's (see TitleBar below). -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40"
+                      ResizeBorderThickness="6"
+                      CornerRadius="0"
+                      GlassFrameThickness="0,0,0,1"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
     <Window.Resources>
         <!-- ======================== Sidebar ======================== -->
         <!-- A compact sidebar item with an icon: the Segoe glyph goes in Tag,
@@ -26,8 +35,9 @@
         <Style x:Key="DeviceNavItemStyle" TargetType="ToggleButton">
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Padding" Value="10,6" />
-            <Setter Property="Margin" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Margin" Value="0,1" />
             <Setter Property="FontFamily" Value="Segoe UI" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Cursor" Value="Hand" />
@@ -35,16 +45,20 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                        <!-- The main window's sidebar look: a soft accent tint
+                             and an accent bar when selected. -->
+                        <Grid Background="Transparent">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="28" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
+                                <TextBlock x:Name="Glyph"
+                                           Grid.Column="0"
                                            Text="{TemplateBinding Tag}"
                                            FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                           FontSize="13"
+                                           FontSize="14"
                                            Foreground="{TemplateBinding Foreground}"
                                            VerticalAlignment="Center" />
                                 <!-- Plain-text labels are drawn by this
@@ -66,22 +80,26 @@
                                 </ContentPresenter>
                             </Grid>
                         </Border>
+                        <Border x:Name="Bar"
+                                Width="3"
+                                Height="16"
+                                CornerRadius="1.5"
+                                HorizontalAlignment="Left"
+                                Background="{DynamicResource AccentBrush}"
+                                Visibility="Collapsed" />
+                        </Grid>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
-                                <Setter Property="FontWeight" Value="SemiBold" />
-                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentBrush}" />
-                            </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-                            </Trigger>
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="IsMouseOver" Value="True" />
-                                    <Condition Property="IsChecked" Value="False" />
-                                </MultiTrigger.Conditions>
                                 <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
-                            </MultiTrigger>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+                                <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -153,8 +171,8 @@
                                 Background="{StaticResource SurfaceBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="20">
+                                CornerRadius="12"
+                                Padding="16,14">
                             <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -167,149 +185,225 @@
             </Setter>
         </Style>
 
+        <!-- ======================== Overview cards ======================== -->
+
+        <!-- A plain (not clickable) Overview card. -->
+        <Style x:Key="OverviewCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="16,14" />
+        </Style>
+
+        <!-- A card's heading: small caps, muted - "ACTIVE ALERTS". -->
+        <Style x:Key="CardTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+
+        <!-- The note at a card heading's right: "2 open". -->
+        <Style x:Key="CardNoteStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Opacity" Value="0.75" />
+        </Style>
+
+        <!-- The Device card's labels. -->
+        <Style x:Key="KeyTextStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+            <Setter Property="Width" Value="112" />
+            <Setter Property="Opacity" Value="0.8" />
+        </Style>
+
+        <Style x:Key="KeyRowStyle" TargetType="DockPanel">
+            <Setter Property="Margin" Value="0,0,0,9" />
+        </Style>
+
+        <!-- A stat tile: a number and its label, with a coloured bar down the
+             left edge (Tag, a brush) - the outer border's colour shows through
+             its left padding. -->
+        <Style x:Key="StatTileStyle" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Tag}" CornerRadius="12" Padding="3,0,0,0">
+                            <Border x:Name="Root"
+                                    Background="{StaticResource SurfaceBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="0,1,1,1"
+                                    CornerRadius="9,12,12,9"
+                                    Padding="14,12">
+                                <ContentPresenter />
+                            </Border>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A thin usage bar: set its two columns' widths from a percentage. -->
+        <Style x:Key="UsageTrackStyle" TargetType="Border">
+            <Setter Property="Height" Value="5" />
+            <Setter Property="CornerRadius" Value="2.5" />
+            <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+            <Setter Property="Margin" Value="0,5,0,0" />
+        </Style>
+
+        <!-- A borderless row inside a card that opens something (a neighbour). -->
+        <Style x:Key="CardRowButtonStyle" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="Transparent" CornerRadius="6" Padding="4,7">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Window buttons, as the main window's. -->
+        <Style x:Key="DeviceCaptionButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonStyle}">
+            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        </Style>
+
         <!-- Unimus diff row tints - the status colours, faded right down so
              the line text stays readable on top of them. -->
         <SolidColorBrush x:Key="DiffRemovedRowBrush" Color="{StaticResource CriticalColor}" Opacity="0.18" />
         <SolidColorBrush x:Key="DiffAddedRowBrush" Color="{StaticResource OkColor}" Opacity="0.18" />
     </Window.Resources>
 
-    <Grid>
+    <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="40" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- ======================== Header ======================== -->
+        <!-- ======================== Title bar ======================== -->
+        <!-- Drawn by the app, like the main window's: the way here as a
+             breadcrumb (#58 - each earlier device links back to it), back,
+             forward and refresh, then the window buttons. Alt+Left/Right and
+             the mouse's back/forward buttons work too. -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="24,18">
+                BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0">
-                    <!-- Back/forward and the way here (#58): only once this
-                         window has followed a link to another device. Each
-                         earlier device is a link back to it; Alt+Left/Right
-                         and the mouse's back/forward buttons work too. -->
-                    <StackPanel Orientation="Horizontal"
-                                Margin="0,0,0,10"
-                                Visibility="{Binding History.HasHistory, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}">
-                        <Button Command="{Binding History.BackCommand}"
-                                Style="{StaticResource IconButtonStyle}"
-                                Width="26"
-                                Height="26"
-                                ToolTip="Back (Alt+Left)"
-                                Margin="0,0,2,0">
-                            <TextBlock Text="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
-                        </Button>
-                        <Button Command="{Binding History.ForwardCommand}"
-                                Style="{StaticResource IconButtonStyle}"
-                                Width="26"
-                                Height="26"
-                                ToolTip="Forward (Alt+Right)"
-                                Margin="0,0,10,0">
-                            <TextBlock Text="&#xE72A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
-                        </Button>
-                        <ItemsControl ItemsSource="{Binding History.Crumbs}" VerticalAlignment="Center">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Cursor="Hand" VerticalAlignment="Center" FontSize="12">
-                                            <Hyperlink Command="{Binding DataContext.History.GoToCrumbCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                       CommandParameter="{Binding}"
-                                                       ToolTip="Back to this device">
-                                                <Run Text="{Binding Name, Mode=OneWay}" />
-                                            </Hyperlink>
-                                        </TextBlock>
-                                        <TextBlock Text="&#xE76C;"
-                                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                                   FontSize="9"
-                                                   Margin="7,0"
-                                                   VerticalAlignment="Center"
-                                                   Style="{StaticResource SubtleTextStyle}" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    </StackPanel>
-
-                    <TextBlock Text="Loading device..."
-                               Style="{StaticResource SubtleTextStyle}"
-                               Visibility="{Binding IsLoadingDevice, Converter={StaticResource BoolToVisibility}}" />
-
-                    <StackPanel Visibility="{Binding IsLoadingDevice, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <Ellipse Width="9"
-                                     Height="9"
-                                     Margin="0,0,8,0"
-                                     VerticalAlignment="Center"
-                                     Fill="{Binding State, Converter={StaticResource DeviceStateToBrush}}" />
-                            <TextBlock Text="{Binding StateText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                        </StackPanel>
-
-                        <TextBlock Text="{Binding Name}" Style="{StaticResource HeadingTextStyle}" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding AlternateName}"
-                                   Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Visibility="{Binding HasAlternateName, Converter={StaticResource BoolToVisibility}}" />
-                        <TextBlock Text="{Binding SysDescr}"
-                                   Style="{StaticResource SubtleTextStyle}"
-                                   TextWrapping="Wrap"
-                                   Visibility="{Binding HasSysDescr, Converter={StaticResource BoolToVisibility}}" />
-                    </StackPanel>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                    <Image Source="pack://application:,,,/Assets/app.ico"
+                           Width="18"
+                           Height="18"
+                           Margin="0,0,10,0"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <TextBlock Text="Device" Style="{StaticResource SubtleTextStyle}" FontSize="13" VerticalAlignment="Center" />
+                    <TextBlock Text="&#xE76C;"
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="9"
+                               Margin="8,0"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource SubtleTextStyle}" />
+                    <ItemsControl ItemsSource="{Binding History.Crumbs}"
+                                  VerticalAlignment="Center"
+                                  WindowChrome.IsHitTestVisibleInChrome="True">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Cursor="Hand" VerticalAlignment="Center" FontSize="13">
+                                        <Hyperlink Command="{Binding DataContext.History.GoToCrumbCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                   CommandParameter="{Binding}"
+                                                   ToolTip="Back to this device">
+                                            <Run Text="{Binding Name, Mode=OneWay}" />
+                                        </Hyperlink>
+                                    </TextBlock>
+                                    <TextBlock Text="&#xE76C;"
+                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                               FontSize="9"
+                                               Margin="8,0"
+                                               VerticalAlignment="Center"
+                                               Style="{StaticResource SubtleTextStyle}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding Name}"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Web/Telnet/SSH launch this device's own address via
-                         whatever the OS has registered for that URI scheme -
-                         see DeviceDetailViewModel.OpenExternal. Hidden by
-                         IsEnabled rather than Visibility when the device has
-                         neither an IP nor a hostname, so the button stays put
-                         and the tooltip still explains why. -->
-                    <Button Content="Open in"
-                            Style="{StaticResource ChipButtonStyle}"
-                            Margin="0,0,8,0"
-                            IsEnabled="{Binding CanOpenExternally}"
-                            Click="OnOpenInClick"
-                            ToolTip="Launch this device's address in an external tool">
-                        <Button.ContextMenu>
-                            <ContextMenu Placement="Bottom">
-                                <MenuItem Header="Web (HTTP)" Command="{Binding OpenWebHttpCommand}" />
-                                <MenuItem Header="Web (HTTPS)" Command="{Binding OpenWebHttpsCommand}" />
-                                <MenuItem Header="Telnet" Command="{Binding OpenTelnetCommand}" />
-                                <MenuItem Header="SSH" Command="{Binding OpenSshCommand}" />
-                            </ContextMenu>
-                        </Button.ContextMenu>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <Button Command="{Binding History.BackCommand}"
+                            IsEnabled="{Binding History.CanGoBack, FallbackValue=False}"
+                            Style="{StaticResource IconButtonStyle}"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            Width="30"
+                            Height="30"
+                            ToolTip="Back (Alt+Left)">
+                        <TextBlock Text="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
                     </Button>
-
-                    <!-- Rediscover now lives inside the Edit section, alongside
-                         the editable fields and (eventually) Delete - a
-                         single home for "change this device" rather than
-                         scattering device-management actions across the
-                         header. -->
-                    <Button Content="Edit"
-                            Style="{StaticResource ChipButtonStyle}"
-                            Margin="0,0,8,0"
-                            Command="{Binding SelectEditCommand}"
-                            ToolTip="Edit this device" />
-
+                    <Button Command="{Binding History.ForwardCommand}"
+                            IsEnabled="{Binding History.CanGoForward, FallbackValue=False}"
+                            Style="{StaticResource IconButtonStyle}"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            Width="30"
+                            Height="30"
+                            ToolTip="Forward (Alt+Right)">
+                        <TextBlock Text="&#xE72A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                    </Button>
                     <Button Command="{Binding RefreshCommand}"
                             Style="{StaticResource IconButtonStyle}"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            Width="30"
+                            Height="30"
                             ToolTip="Refresh now">
-                        <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                        <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                    </Button>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Style="{StaticResource DeviceCaptionButtonStyle}" ToolTip="Minimise" Click="OnMinimiseClick">
+                        <TextBlock Text="&#xE921;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" />
+                    </Button>
+                    <Button x:Name="MaximiseButton" Style="{StaticResource DeviceCaptionButtonStyle}" ToolTip="Maximise" Click="OnMaximiseClick">
+                        <TextBlock x:Name="MaximiseGlyph" Text="&#xE922;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" />
+                    </Button>
+                    <Button Style="{StaticResource CaptionCloseButtonStyle}"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            ToolTip="Close"
+                            Click="OnCloseClick">
+                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" />
                     </Button>
                 </StackPanel>
             </Grid>
@@ -328,7 +422,7 @@
         <!-- ======================== Sidebar + section content ======================== -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="200" />
+                <ColumnDefinition Width="208" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -545,332 +639,585 @@
 
             <!-- ==================== Section content ==================== -->
             <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+            <!-- ==================== Device header ==================== -->
+            <!-- Above every section: what the device is and its state, with
+                 Open in, Edit and Show alerts. Rediscover lives in Edit. -->
+            <Grid Grid.Row="0" Margin="24,18,24,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Width="48"
+                        Height="48"
+                        CornerRadius="12"
+                        Margin="0,0,16,0"
+                        VerticalAlignment="Center"
+                        Background="{DynamicResource AccentSubtleBrush}">
+                    <TextBlock Text="{Binding TypeGlyph}"
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="22"
+                               Foreground="{DynamicResource AccentBrush}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Border>
+
+                <TextBlock Grid.Column="1"
+                           Text="Loading device..."
+                           Style="{StaticResource SubtleTextStyle}"
+                           VerticalAlignment="Center"
+                           Visibility="{Binding IsLoadingDevice, Converter={StaticResource BoolToVisibility}}" />
+
+                <StackPanel Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding IsLoadingDevice, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Name}" FontSize="20" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+
+                        <!-- State pill: the state's colour, faded behind its own text. -->
+                        <Grid Margin="12,2,0,0" VerticalAlignment="Center">
+                            <Border CornerRadius="10" Opacity="0.16" Background="{Binding State, Converter={StaticResource DeviceStateToBrush}}" />
+                            <StackPanel Orientation="Horizontal" Margin="9,3">
+                                <Ellipse Width="6"
+                                         Height="6"
+                                         Margin="0,0,6,0"
+                                         VerticalAlignment="Center"
+                                         Fill="{Binding State, Converter={StaticResource DeviceStateToBrush}}" />
+                                <TextBlock Text="{Binding StateText}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{Binding State, Converter={StaticResource DeviceStateToBrush}}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border CornerRadius="10"
+                                Margin="6,2,0,0"
+                                Padding="9,3"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource SurfaceHoverBrush}">
+                            <TextBlock Text="{Binding Type}" FontSize="11" Style="{StaticResource SubtleTextStyle}" />
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="{Binding HeroSubtitle}"
+                               Style="{StaticResource SubtleTextStyle}"
+                               Margin="0,3,0,0"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                    <!-- Web/Telnet/SSH launch this device's own address via
+                         whatever the OS has registered for that URI scheme -
+                         see DeviceDetailViewModel.OpenExternal. Disabled rather
+                         than hidden when the device has neither an IP nor a
+                         hostname, so the tooltip still explains why. -->
+                    <Button Content="Open in"
+                            Style="{StaticResource ChipButtonStyle}"
+                            Margin="0,0,8,0"
+                            IsEnabled="{Binding CanOpenExternally}"
+                            Click="OnOpenInClick"
+                            ToolTip="Launch this device's address in an external tool">
+                        <Button.ContextMenu>
+                            <ContextMenu Placement="Bottom">
+                                <MenuItem Header="Web (HTTP)" Command="{Binding OpenWebHttpCommand}" />
+                                <MenuItem Header="Web (HTTPS)" Command="{Binding OpenWebHttpsCommand}" />
+                                <MenuItem Header="Telnet" Command="{Binding OpenTelnetCommand}" />
+                                <MenuItem Header="SSH" Command="{Binding OpenSshCommand}" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                    <Button Content="Edit"
+                            Style="{StaticResource ChipButtonStyle}"
+                            Margin="0,0,8,0"
+                            Command="{Binding SelectEditCommand}"
+                            ToolTip="Edit this device" />
+                    <Button Content="Show alerts"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Padding="14,6"
+                            Command="{Binding SelectAlertsCommand}"
+                            ToolTip="This device's active alerts and history" />
+                </StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="1">
 
             <!-- ==================== Overview ==================== -->
+            <!-- Stat tiles, then cards: the device's details down the left,
+                 ping and availability, alerts, resources, sensors and
+                 neighbours beside it, and its busiest ports underneath. Cards
+                 that open a section do so when clicked. -->
             <ScrollViewer VerticalScrollBarVisibility="Auto"
                           Visibility="{Binding IsOverviewSelected, Converter={StaticResource BoolToVisibility}}">
-                <StackPanel Margin="24">
+                <StackPanel Margin="24,14,24,24">
 
-                    <!-- Four themed cards rather than one wide grid: each
-                         stays a sensible, tight size regardless of how wide
-                         the window is (a UniformGrid row, same pattern as
-                         the shortcut-card row lower on this page), instead
-                         of a single card whose columns stretch to fill an
-                         arbitrary window width and leave huge gaps around
-                         short values. Identity/Location/Status always show
-                         something (Ip/Location/UptimeText all fall back to
-                         "-"); only "Technical" can disappear entirely, for a
-                         device with none of Object ID/Serial/Depends-on. -->
+                    <!-- ==================== Stat tiles ==================== -->
+                    <!-- UniformGrid lays out its visible children only, so the
+                         Ports tile - hidden on a device with no interfaces -
+                         leaves no gap. -->
                     <UniformGrid Rows="1">
-                        <Border Background="{StaticResource SurfaceBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="20"
-                                Margin="0,0,6,0">
+                        <Button Style="{StaticResource StatTileStyle}"
+                                Tag="{Binding AvailabilityTileSeverity, Converter={StaticResource SeverityToBrush}}"
+                                Command="{Binding ShowPingGraphCommand}"
+                                ToolTip="Availability over the last 30 days"
+                                Margin="0,0,7,0">
                             <StackPanel>
-                                <!-- Only when hostname, sysName and display
-                                     name don't all agree (#126), one row per
-                                     distinct value - names that match share a
-                                     row. When all three match, the window title
-                                     already covers it. -->
+                                <TextBlock Text="{Binding Availability30DayText}"
+                                           FontSize="22"
+                                           FontWeight="Bold"
+                                           Foreground="{Binding AvailabilityTileSeverity, Converter={StaticResource SeverityToBrush}}" />
+                                <TextBlock Text="Availability · 30 days" Style="{StaticResource SubtleTextStyle}" FontSize="11.5" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource StatTileStyle}"
+                                Tag="{DynamicResource AccentBrush}"
+                                Command="{Binding SelectGraphsCommand}"
+                                Margin="7,0">
+                            <StackPanel>
+                                <TextBlock Text="{Binding UptimeText}" FontSize="22" FontWeight="Bold" />
+                                <TextBlock Text="Uptime" Style="{StaticResource SubtleTextStyle}" FontSize="11.5" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource StatTileStyle}"
+                                Tag="{Binding PortsTileSeverity, Converter={StaticResource SeverityToBrush}}"
+                                Command="{Binding SelectPortsCommand}"
+                                Margin="7,0"
+                                Visibility="{Binding ShowPortsNav, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding PortsUpText}"
+                                           FontSize="22"
+                                           FontWeight="Bold"
+                                           Foreground="{Binding PortsTileSeverity, Converter={StaticResource SeverityToBrush}}" />
+                                <TextBlock Text="Ports up" Style="{StaticResource SubtleTextStyle}" FontSize="11.5" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource StatTileStyle}"
+                                Tag="{Binding AlertsTileSeverity, Converter={StaticResource SeverityToBrush}}"
+                                Command="{Binding SelectAlertsCommand}"
+                                Margin="7,0,0,0">
+                            <StackPanel>
+                                <TextBlock Text="{Binding ActiveAlerts.Count}"
+                                           FontSize="22"
+                                           FontWeight="Bold"
+                                           Foreground="{Binding AlertsTileSeverity, Converter={StaticResource SeverityToBrush}}" />
+                                <TextBlock Text="Active alerts" Style="{StaticResource SubtleTextStyle}" FontSize="11.5" />
+                            </StackPanel>
+                        </Button>
+                    </UniformGrid>
+
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="4*" MinWidth="260" />
+                            <ColumnDefinition Width="8*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- ==================== Device ==================== -->
+                        <Border Grid.Column="0" Style="{StaticResource OverviewCardStyle}" Margin="0,0,7,0">
+                            <StackPanel>
+                                <TextBlock Text="DEVICE" Style="{StaticResource CardTitleStyle}" />
+
+                                <!-- Only when hostname, sysName and display name
+                                     don't all agree (#126), one row per distinct
+                                     value - names that match share a row. -->
                                 <ItemsControl ItemsSource="{Binding NameDetails}"
                                               Visibility="{Binding ShowNameDetails, Converter={StaticResource BoolToVisibility}}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding Label}" Style="{StaticResource SectionHeaderStyle}" />
-                                                <TextBlock Text="{Binding Value}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                                            <DockPanel Style="{StaticResource KeyRowStyle}">
+                                                <TextBlock Text="{Binding Label}" Style="{StaticResource KeyTextStyle}" />
+                                                <TextBlock Text="{Binding Value}" TextWrapping="Wrap" />
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <DockPanel Style="{StaticResource KeyRowStyle}">
+                                    <TextBlock Text="IP address" Style="{StaticResource KeyTextStyle}" />
+                                    <TextBlock Text="{Binding Ip}" TextWrapping="Wrap" />
+                                </DockPanel>
+                                <DockPanel Style="{StaticResource KeyRowStyle}">
+                                    <TextBlock Text="Operating system" Style="{StaticResource KeyTextStyle}" />
+                                    <TextBlock Text="{Binding Os}" TextWrapping="Wrap" />
+                                </DockPanel>
+                                <DockPanel Style="{StaticResource KeyRowStyle}">
+                                    <TextBlock Text="Hardware" Style="{StaticResource KeyTextStyle}" />
+                                    <TextBlock Text="{Binding Hardware}" TextWrapping="Wrap" />
+                                </DockPanel>
+                                <DockPanel Style="{StaticResource KeyRowStyle}" Visibility="{Binding HasSerial, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Serial" Style="{StaticResource KeyTextStyle}" />
+                                    <TextBlock Text="{Binding Serial}" TextWrapping="Wrap" />
+                                </DockPanel>
+                                <DockPanel Style="{StaticResource KeyRowStyle}">
+                                    <TextBlock Text="Location" Style="{StaticResource KeyTextStyle}" />
+                                    <TextBlock TextWrapping="Wrap" Cursor="Hand">
+                                        <Hyperlink Command="{Binding ShowDevicesForLocationCommand}"
+                                                   ToolTip="Show every device at this location">
+                                            <Run Text="{Binding Location, Mode=OneWay}" />
+                                        </Hyperlink>
+                                    </TextBlock>
+                                </DockPanel>
+                                <DockPanel Style="{StaticResource KeyRowStyle}" Visibility="{Binding HasContact, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Contact" Style="{StaticResource KeyTextStyle}" />
+                                    <TextBlock Text="{Binding Contact}" TextWrapping="Wrap" />
+                                </DockPanel>
+                                <!-- Each group links to the Devices tab isolated to it. -->
+                                <DockPanel Style="{StaticResource KeyRowStyle}" Visibility="{Binding HasDeviceGroups, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Groups" Style="{StaticResource KeyTextStyle}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                    <ItemsControl ItemsSource="{Binding DeviceGroups}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border CornerRadius="10"
+                                                        Padding="8,1"
+                                                        Margin="0,0,4,4"
+                                                        Background="{StaticResource SurfaceHoverBrush}">
+                                                    <TextBlock FontSize="11.5" Cursor="Hand">
+                                                        <Hyperlink Command="{Binding ShowDevicesForGroupCommand}"
+                                                                   ToolTip="{Binding Description}">
+                                                            <Run Text="{Binding Name, Mode=OneWay}" />
+                                                        </Hyperlink>
+                                                    </TextBlock>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </DockPanel>
+                                <DockPanel Style="{StaticResource KeyRowStyle}" Visibility="{Binding HasDependencyParent, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Depends on" Style="{StaticResource KeyTextStyle}" />
+                                    <TextBlock Text="{Binding DependencyParentText}" TextWrapping="Wrap" />
+                                </DockPanel>
+                                <DockPanel Style="{StaticResource KeyRowStyle}" Visibility="{Binding HasInserted, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Added" Style="{StaticResource KeyTextStyle}" />
+                                    <TextBlock Text="{Binding InsertedText}" TextWrapping="Wrap" />
+                                </DockPanel>
+                                <DockPanel Style="{StaticResource KeyRowStyle}" Visibility="{Binding HasLastDiscovered, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Last discovered" Style="{StaticResource KeyTextStyle}" />
+                                    <TextBlock Text="{Binding LastDiscoveredText}" TextWrapping="Wrap" />
+                                </DockPanel>
+                                <DockPanel Style="{StaticResource KeyRowStyle}" Visibility="{Binding HasSysObjectId, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Object ID" Style="{StaticResource KeyTextStyle}" />
+                                    <TextBlock Text="{Binding SysObjectId}" TextWrapping="Wrap" />
+                                </DockPanel>
+                                <DockPanel Style="{StaticResource KeyRowStyle}" Visibility="{Binding HasSysDescr, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Description" Style="{StaticResource KeyTextStyle}" VerticalAlignment="Top" />
+                                    <TextBlock Text="{Binding SysDescr}" TextWrapping="Wrap" Style="{StaticResource SubtleTextStyle}" />
+                                </DockPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Grid.Column="1" Margin="7,0,0,0">
+                            <!-- ==================== Ping + availability ==================== -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="5*" />
+                                    <ColumnDefinition Width="3*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- LibreNMS's own 24h ping graph; clicking opens it
+                                     on the Graphs tab. Collapses quietly for a
+                                     device with no ping data. -->
+                                <Button Grid.Column="0"
+                                        Command="{Binding ShowPingGraphCommand}"
+                                        Style="{StaticResource OverviewCardButtonStyle}"
+                                        Margin="0,0,7,0"
+                                        Visibility="{Binding OverviewGraph.Svg, Converter={StaticResource NullToVisibility}}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="PING RESPONSE" Style="{StaticResource CardTitleStyle}" />
+                                        <TextBlock Grid.Row="0" Text="24h" Style="{StaticResource CardNoteStyle}" />
+                                        <svgc:SvgViewbox Grid.Row="1"
+                                                         SvgSource="{Binding OverviewGraph.Svg}"
+                                                         Stretch="Uniform"
+                                                         MaxHeight="170"
+                                                         HorizontalAlignment="Stretch"
+                                                         VerticalAlignment="Stretch"
+                                                         IsHitTestVisible="False" />
+                                    </Grid>
+                                </Button>
+
+                                <Border Grid.Column="1"
+                                        Style="{StaticResource OverviewCardStyle}"
+                                        Margin="7,0,0,0"
+                                        Visibility="{Binding HasAvailability, Converter={StaticResource BoolToVisibility}}">
+                                    <StackPanel>
+                                        <TextBlock Text="AVAILABILITY" Style="{StaticResource CardTitleStyle}" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <Viewbox Width="84" Height="84">
+                                                <Grid Width="100" Height="100">
+                                                    <Ellipse Width="80"
+                                                             Height="80"
+                                                             Margin="10"
+                                                             Stroke="{StaticResource SurfaceHoverBrush}"
+                                                             StrokeThickness="11" />
+                                                    <Path Data="{Binding Availability30DayFraction, Converter={StaticResource GaugeArc}}"
+                                                          Stroke="{Binding AvailabilityTileSeverity, Converter={StaticResource SeverityToBrush}}"
+                                                          StrokeThickness="11"
+                                                          StrokeStartLineCap="Round"
+                                                          StrokeEndLineCap="Round" />
+                                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                        <TextBlock Text="{Binding Availability30DayText}" FontSize="15" FontWeight="Bold" HorizontalAlignment="Center" />
+                                                        <TextBlock Text="30 days" FontSize="10" Style="{StaticResource SubtleTextStyle}" HorizontalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Viewbox>
+                                            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Style="{StaticResource SubtleTextStyle}" FontSize="12" Margin="0,0,0,4">
+                                                    <Run Text="24h " /><Run Text="{Binding Availability1DayText, Mode=OneWay}" Foreground="{StaticResource TextPrimaryBrush}" />
+                                                </TextBlock>
+                                                <TextBlock Style="{StaticResource SubtleTextStyle}" FontSize="12" Margin="0,0,0,4">
+                                                    <Run Text="7d " /><Run Text="{Binding Availability7DayText, Mode=OneWay}" Foreground="{StaticResource TextPrimaryBrush}" />
+                                                </TextBlock>
+                                                <TextBlock Style="{StaticResource SubtleTextStyle}" FontSize="12">
+                                                    <Run Text="1y " /><Run Text="{Binding Availability1YearText, Mode=OneWay}" Foreground="{StaticResource TextPrimaryBrush}" />
+                                                </TextBlock>
                                             </StackPanel>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <TextBlock Text="IP address" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,0" />
-                                <TextBlock Text="{Binding Ip}" TextWrapping="Wrap" Margin="0,0,0,14" />
-                                <TextBlock Text="Operating system" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,0" />
-                                <TextBlock Text="{Binding Os}" TextWrapping="Wrap" Margin="0,0,0,14" />
-                                <TextBlock Text="Hardware" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,0" />
-                                <TextBlock Text="{Binding Hardware}" TextWrapping="Wrap" Margin="0,0,0,14" />
-                                <TextBlock Text="Type" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,0" />
-                                <TextBlock Text="{Binding Type}" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
+                                        </StackPanel>
 
-                        <Border Background="{StaticResource SurfaceBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="20"
-                                Margin="6,0">
-                            <StackPanel>
-                                <TextBlock Text="Location" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,14" Cursor="Hand">
-                                    <Hyperlink Command="{Binding ShowDevicesForLocationCommand}"
-                                               ToolTip="Show every device at this location">
-                                        <Run Text="{Binding Location, Mode=OneWay}" />
-                                    </Hyperlink>
-                                </TextBlock>
-                                <TextBlock Text="Contact" Style="{StaticResource SectionHeaderStyle}" Visibility="{Binding HasContact, Converter={StaticResource BoolToVisibility}}" />
-                                <TextBlock Text="{Binding Contact}" TextWrapping="Wrap" Visibility="{Binding HasContact, Converter={StaticResource BoolToVisibility}}" />
-                            </StackPanel>
-                        </Border>
+                                        <!-- One segment per day for the last 30 days,
+                                             red on a day with any downtime. -->
+                                        <ItemsControl ItemsSource="{Binding AvailabilityTimeline}" Margin="0,14,0,0">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Rows="1" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Height="14"
+                                                            Margin="0.5,0"
+                                                            CornerRadius="1.5"
+                                                            Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}"
+                                                            ToolTip="{Binding TooltipText}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
 
-                        <!-- Hidden entirely for a device in no groups (most
-                             of them) - see DeviceDetailViewModel.HasDeviceGroups.
-                             Each name is its own link: clicking closes this
-                             window and jumps to the Devices tab isolated down
-                             to that one group, same action as the Location
-                             link above. -->
-                        <Border Background="{StaticResource SurfaceBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="20"
-                                Margin="6,0"
-                                Visibility="{Binding HasDeviceGroups, Converter={StaticResource BoolToVisibility}}">
-                            <StackPanel>
-                                <TextBlock Text="Device groups" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,0" />
-                                <ItemsControl ItemsSource="{Binding DeviceGroups}" Margin="0,4,0,0">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock TextWrapping="Wrap" Cursor="Hand" Margin="0,2">
-                                                <Hyperlink Command="{Binding ShowDevicesForGroupCommand}"
-                                                           ToolTip="{Binding Description}">
-                                                    <Run Text="{Binding Name, Mode=OneWay}" />
-                                                </Hyperlink>
-                                            </TextBlock>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </Border>
+                                        <Expander Style="{StaticResource AccordionExpanderStyle}"
+                                                  IsExpanded="False"
+                                                  Margin="0,10,0,0"
+                                                  Visibility="{Binding HasOutages, Converter={StaticResource BoolToVisibility}}">
+                                            <!-- A TextBlock header: StringFormat on Header
+                                                 itself is ignored (it's typed object). -->
+                                            <Expander.Header>
+                                                <TextBlock Text="{Binding Outages.Count, StringFormat=Recent outages ({0})}" />
+                                            </Expander.Header>
+                                            <ItemsControl ItemsSource="{Binding Outages}" Margin="0,10,0,0">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,0,0,6">
+                                                            <TextBlock FontSize="12">
+                                                                <Run Text="{Binding StartedText, Mode=OneWay}" /><Run Text=" &#8594; " /><Run Text="{Binding EndedText, Mode=OneWay}" />
+                                                            </TextBlock>
+                                                            <TextBlock Text="{Binding DurationText}" Style="{StaticResource SubtleTextStyle}" FontSize="11" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Expander>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
 
-                        <Border Background="{StaticResource SurfaceBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="20"
-                                Margin="6,0">
-                            <StackPanel>
-                                <TextBlock Text="Uptime" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding UptimeText}" TextWrapping="Wrap" Margin="0,0,0,14" />
-                                <TextBlock Text="Device added" Style="{StaticResource SectionHeaderStyle}" Visibility="{Binding HasInserted, Converter={StaticResource BoolToVisibility}}" />
-                                <TextBlock Text="{Binding InsertedText}" TextWrapping="Wrap" Visibility="{Binding HasInserted, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,14" />
-                                <TextBlock Text="Last discovered" Style="{StaticResource SectionHeaderStyle}" Visibility="{Binding HasLastDiscovered, Converter={StaticResource BoolToVisibility}}" />
-                                <TextBlock Text="{Binding LastDiscoveredText}" TextWrapping="Wrap" Visibility="{Binding HasLastDiscovered, Converter={StaticResource BoolToVisibility}}" />
-                            </StackPanel>
-                        </Border>
+                            <!-- ==================== Alerts + resources ==================== -->
+                            <UniformGrid Rows="1" Margin="0,14,0,0">
+                                <Button Command="{Binding SelectAlertsCommand}"
+                                        Style="{StaticResource OverviewCardButtonStyle}"
+                                        Margin="0,0,7,0">
+                                    <StackPanel>
+                                        <Grid>
+                                            <TextBlock Text="ACTIVE ALERTS" Style="{StaticResource CardTitleStyle}" />
+                                            <TextBlock Text="{Binding ActiveAlerts.Count, StringFormat={}{0} open}" Style="{StaticResource CardNoteStyle}" />
+                                        </Grid>
+                                        <TextBlock Text="No active alerts."
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   Visibility="{Binding HasActiveAlerts, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                        <ItemsControl ItemsSource="{Binding ActiveAlerts}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <DockPanel Margin="0,0,0,9">
+                                                        <Ellipse DockPanel.Dock="Left"
+                                                                 Width="8"
+                                                                 Height="8"
+                                                                 Margin="0,0,10,0"
+                                                                 VerticalAlignment="Center"
+                                                                 Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                        <TextBlock DockPanel.Dock="Right"
+                                                                   Text="{Binding AgeText}"
+                                                                   Style="{StaticResource SubtleTextStyle}"
+                                                                   FontSize="11.5"
+                                                                   Margin="10,0,0,0" />
+                                                        <TextBlock Text="{Binding RuleName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    </DockPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Button>
 
-                        <Border Background="{StaticResource SurfaceBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="20"
-                                Margin="6,0,0,0"
-                                Visibility="{Binding HasTechnicalDetails, Converter={StaticResource BoolToVisibility}}">
-                            <StackPanel>
-                                <TextBlock Text="Object ID" Style="{StaticResource SectionHeaderStyle}" Visibility="{Binding HasSysObjectId, Converter={StaticResource BoolToVisibility}}" />
-                                <TextBlock Text="{Binding SysObjectId}" TextWrapping="Wrap" Visibility="{Binding HasSysObjectId, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,14" />
-                                <TextBlock Text="Serial number" Style="{StaticResource SectionHeaderStyle}" Visibility="{Binding HasSerial, Converter={StaticResource BoolToVisibility}}" />
-                                <TextBlock Text="{Binding Serial}" TextWrapping="Wrap" Visibility="{Binding HasSerial, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,14" />
-                                <TextBlock Text="Depends on" Style="{StaticResource SectionHeaderStyle}" Visibility="{Binding HasDependencyParent, Converter={StaticResource BoolToVisibility}}" />
-                                <TextBlock Text="{Binding DependencyParentText}" TextWrapping="Wrap" Visibility="{Binding HasDependencyParent, Converter={StaticResource BoolToVisibility}}" />
-                            </StackPanel>
-                        </Border>
-                    </UniformGrid>
-
-                    <!-- Same 5-card-wide proportions as the row above -
-                         outage tracker at 4 cards, the ping thumbnail at 1 -
-                         rather than two separate full-width rows. -->
-                    <Grid Margin="0,16,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="4*" />
-                            <ColumnDefinition Width="1*" />
-                        </Grid.ColumnDefinitions>
-
-                    <Border Grid.Column="0"
-                            Background="{StaticResource SurfaceBrush}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="20"
-                            Margin="0,0,6,0"
-                            Visibility="{Binding HasAvailability, Converter={StaticResource BoolToVisibility}}">
-                        <StackPanel>
-                            <TextBlock Text="Availability" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
-
-                            <UniformGrid Rows="1" Columns="4">
-                                <StackPanel Margin="0,0,10,0">
-                                    <TextBlock Text="24 hours" Style="{StaticResource SubtleTextStyle}" />
-                                    <TextBlock Text="{Binding Availability1DayText}" FontSize="18" FontWeight="SemiBold" />
-                                </StackPanel>
-                                <StackPanel Margin="0,0,10,0">
-                                    <TextBlock Text="7 days" Style="{StaticResource SubtleTextStyle}" />
-                                    <TextBlock Text="{Binding Availability7DayText}" FontSize="18" FontWeight="SemiBold" />
-                                </StackPanel>
-                                <StackPanel Margin="0,0,10,0">
-                                    <TextBlock Text="30 days" Style="{StaticResource SubtleTextStyle}" />
-                                    <TextBlock Text="{Binding Availability30DayText}" FontSize="18" FontWeight="SemiBold" />
-                                </StackPanel>
-                                <StackPanel>
-                                    <TextBlock Text="1 year" Style="{StaticResource SubtleTextStyle}" />
-                                    <TextBlock Text="{Binding Availability1YearText}" FontSize="18" FontWeight="SemiBold" />
-                                </StackPanel>
+                                <Button Command="{Binding SelectResourcesCommand}"
+                                        Style="{StaticResource OverviewCardButtonStyle}"
+                                        Margin="7,0,0,0"
+                                        Visibility="{Binding HasOverviewResources, Converter={StaticResource BoolToVisibility}}">
+                                    <StackPanel>
+                                        <TextBlock Text="RESOURCES" Style="{StaticResource CardTitleStyle}" />
+                                        <ItemsControl ItemsSource="{Binding OverviewResources}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Margin="0,0,0,11">
+                                                        <DockPanel>
+                                                            <TextBlock DockPanel.Dock="Right"
+                                                                       Text="{Binding ValueText}"
+                                                                       Foreground="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                            <TextBlock Text="{Binding Label}" />
+                                                        </DockPanel>
+                                                        <Border Style="{StaticResource UsageTrackStyle}">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="{Binding PercentValue, Converter={StaticResource PercentToStarWidth}}" />
+                                                                    <ColumnDefinition Width="{Binding PercentValue, Converter={StaticResource PercentToStarWidth}, ConverterParameter=invert}" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <Border CornerRadius="2.5" Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                            </Grid>
+                                                        </Border>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Button>
                             </UniformGrid>
 
-                            <!-- A compact status-page-style history bar: one segment per day
-                                 over the last 30 days, red if the device had any downtime
-                                 that day. UniformGrid with a fixed Rows="1" spaces the
-                                 segments evenly across the full width regardless of count. -->
-                            <ItemsControl ItemsSource="{Binding AvailabilityTimeline}" Margin="0,16,0,0">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <UniformGrid Rows="1" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
+                            <!-- ==================== Sensors + neighbours ==================== -->
+                            <UniformGrid Rows="1" Margin="0,14,0,0">
+                                <Button Command="{Binding SelectSensorsCommand}"
+                                        Style="{StaticResource OverviewCardButtonStyle}"
+                                        Margin="0,0,7,0"
+                                        Visibility="{Binding HasSensors, Converter={StaticResource BoolToVisibility}}">
+                                    <StackPanel>
+                                        <Grid>
+                                            <TextBlock Text="SENSORS" Style="{StaticResource CardTitleStyle}" />
+                                            <TextBlock Text="{Binding SensorsCardNote}" Style="{StaticResource CardNoteStyle}" />
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding OverviewSensors}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Margin="0,0,0,11">
+                                                        <DockPanel>
+                                                            <TextBlock DockPanel.Dock="Right"
+                                                                       Text="{Binding ValueText}"
+                                                                       Margin="10,0,0,0"
+                                                                       Foreground="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                            <TextBlock Text="{Binding Description}" TextTrimming="CharacterEllipsis" />
+                                                        </DockPanel>
+                                                        <Border Style="{StaticResource UsageTrackStyle}"
+                                                                Visibility="{Binding HasLimitFraction, Converter={StaticResource BoolToVisibility}}">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="{Binding LimitPercent, Converter={StaticResource PercentToStarWidth}}" />
+                                                                    <ColumnDefinition Width="{Binding LimitPercent, Converter={StaticResource PercentToStarWidth}, ConverterParameter=invert}" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <Border CornerRadius="2.5" Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                            </Grid>
+                                                        </Border>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Button>
+
+                                <!-- A row per neighbour: clicking one opens it
+                                     here (#58) when LibreNMS knows it. -->
+                                <Border Style="{StaticResource OverviewCardStyle}"
+                                        Margin="7,0,0,0"
+                                        Visibility="{Binding HasOverviewNeighbours, Converter={StaticResource BoolToVisibility}}">
+                                    <StackPanel>
+                                        <Grid>
+                                            <TextBlock Text="NEIGHBOURS" Style="{StaticResource CardTitleStyle}" />
+                                            <TextBlock Text="LLDP / CDP" Style="{StaticResource CardNoteStyle}" />
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding OverviewNeighbours}" Margin="-4,-6,-4,0">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Style="{StaticResource CardRowButtonStyle}"
+                                                            Command="{Binding OpenNeighborCommand}"
+                                                            IsEnabled="{Binding CanOpenNeighbor}"
+                                                            ToolTip="{Binding NeighborToolTip}">
+                                                        <DockPanel>
+                                                            <Ellipse DockPanel.Dock="Left"
+                                                                     Width="8"
+                                                                     Height="8"
+                                                                     Margin="0,0,10,0"
+                                                                     VerticalAlignment="Center"
+                                                                     Fill="{Binding StatusSeverity, Converter={StaticResource SeverityToBrush}}" />
+                                                            <TextBlock DockPanel.Dock="Right"
+                                                                       Text="{Binding DisplayName}"
+                                                                       Style="{StaticResource SubtleTextStyle}"
+                                                                       FontSize="11.5"
+                                                                       Margin="10,0,0,0" />
+                                                            <TextBlock Text="{Binding NeighborText}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        </DockPanel>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- ==================== Busiest ports ==================== -->
+                    <Button Command="{Binding SelectPortsCommand}"
+                            Style="{StaticResource OverviewCardButtonStyle}"
+                            Margin="0,14,0,0"
+                            Visibility="{Binding HasOverviewPorts, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <Grid>
+                                <TextBlock Text="BUSIEST PORTS" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="in / out" Style="{StaticResource CardNoteStyle}" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding OverviewPorts}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Height="28"
-                                                Margin="1,0"
-                                                CornerRadius="2"
-                                                Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}"
-                                                ToolTip="{Binding TooltipText}" />
+                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,7">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="18" />
+                                                    <ColumnDefinition Width="150" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="100" />
+                                                    <ColumnDefinition Width="100" />
+                                                </Grid.ColumnDefinitions>
+                                                <Ellipse Grid.Column="0"
+                                                         Width="8"
+                                                         Height="8"
+                                                         HorizontalAlignment="Left"
+                                                         VerticalAlignment="Center"
+                                                         Fill="{Binding StatusSeverity, Converter={StaticResource SeverityToBrush}}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="2" Text="{Binding SecondaryName}" Style="{StaticResource SubtleTextStyle}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="3" Text="{Binding InRateText}" HorizontalAlignment="Right" Style="{StaticResource SubtleTextStyle}" />
+                                                <TextBlock Grid.Column="4" Text="{Binding OutRateText}" HorizontalAlignment="Right" Style="{StaticResource SubtleTextStyle}" />
+                                            </Grid>
+                                        </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <Grid Margin="0,4,0,0">
-                                <TextBlock Text="30 days ago" Style="{StaticResource SubtleTextStyle}" FontSize="10" HorizontalAlignment="Left" />
-                                <TextBlock Text="Today" Style="{StaticResource SubtleTextStyle}" FontSize="10" HorizontalAlignment="Right" />
-                            </Grid>
-
-                            <Expander Style="{StaticResource AccordionExpanderStyle}"
-                                      IsExpanded="False"
-                                      Margin="0,16,0,0"
-                                      Visibility="{Binding HasOutages, Converter={StaticResource BoolToVisibility}}">
-                                <!-- StringFormat has no effect on Header directly - it is
-                                     typed object, not string, so WPF silently skips the
-                                     format and shows the raw count instead. A TextBlock
-                                     as the header content sidesteps that. -->
-                                <Expander.Header>
-                                    <TextBlock Text="{Binding Outages.Count, StringFormat=Recent outages ({0})}" />
-                                </Expander.Header>
-                                <ItemsControl ItemsSource="{Binding Outages}" Margin="0,10,0,0">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid Margin="0,0,0,6">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" VerticalAlignment="Center">
-                                                    <Run Text="{Binding StartedText, Mode=OneWay}" /><Run Text=" &#8594; " /><Run Text="{Binding EndedText, Mode=OneWay}" />
-                                                </TextBlock>
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding DurationText}"
-                                                           Style="{StaticResource SubtleTextStyle}"
-                                                           VerticalAlignment="Center"
-                                                           Margin="12,0,0,0" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </Expander>
                         </StackPanel>
-                    </Border>
-
-                    <!-- "At a glance" ping response over the last day (issue
-                         #11) - ping is the one graph essentially every
-                         monitored device has, unlike processor/storage,
-                         which only some do. Clicking it jumps to the same
-                         graph on the Graphs tab, same as the Resources/
-                         Sensors quick links. LibreNMS's graph endpoint
-                         ignores only_graph/no_legend, so axes/legend always
-                         render regardless of size (confirmed live) - rather
-                         than fighting that by shrinking to an illegible
-                         thumbnail, this fills the same height as the
-                         Availability card next to it (both are auto-sized
-                         Grid siblings, so the row's height is whichever is
-                         taller, and Stretch=Fill below fills that height in
-                         full) and stretches to fill its column's width, so
-                         the legend/values stay readable and the graph scales
-                         with the window instead of a fixed pixel size.
-                         Silently collapses rather than showing an error if
-                         this device happens to have no ping data - this is a
-                         nice-to-have summary, not a section worth an error
-                         banner of its own. -->
-                    <Button Grid.Column="1"
-                            Command="{Binding ShowPingGraphCommand}"
-                            Style="{StaticResource OverviewCardButtonStyle}"
-                            Margin="6,0,0,0"
-                            Visibility="{Binding OverviewGraph.Svg, Converter={StaticResource NullToVisibility}}">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="Ping response (24h)" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
-                            <svgc:SvgViewbox Grid.Row="1"
-                                             SvgSource="{Binding OverviewGraph.Svg}"
-                                             Stretch="Uniform"
-                                             HorizontalAlignment="Stretch"
-                                             VerticalAlignment="Stretch"
-                                             IsHitTestVisible="False" />
-                        </Grid>
                     </Button>
-                    </Grid>
-
-                    <!-- UniformGrid sizes itself from its visible children only, so the
-                         Ports tile - hidden entirely on a device with no
-                         interfaces - does not leave a blank gap behind it. -->
-                    <UniformGrid Rows="1" Margin="0,12,0,0">
-                        <Button Command="{Binding SelectSensorsCommand}"
-                                Style="{StaticResource OverviewCardButtonStyle}"
-                                Margin="4,0">
-                            <StackPanel HorizontalAlignment="Left">
-                                <TextBlock Text="Sensors" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding Sensors.Count}" Style="{StaticResource HeadingTextStyle}" />
-                                <TextBlock Text="{Binding SensorAlertSummaryText}"
-                                           Style="{StaticResource SubtleTextStyle}"
-                                           Visibility="{Binding SensorAlertSummaryText, Converter={StaticResource StringToVisibility}}" />
-                            </StackPanel>
-                        </Button>
-
-                        <Button Command="{Binding SelectPortsCommand}"
-                                Style="{StaticResource OverviewCardButtonStyle}"
-                                Margin="4,0"
-                                Visibility="{Binding ShowPortsNav, Converter={StaticResource BoolToVisibility}}">
-                            <StackPanel HorizontalAlignment="Left">
-                                <TextBlock Text="Ports" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding Ports.Count}" Style="{StaticResource HeadingTextStyle}" />
-                                <TextBlock Style="{StaticResource SubtleTextStyle}">
-                                    <Run Text="{Binding PortsUpCount, Mode=OneWay}" /><Run Text=" up, " /><Run Text="{Binding PortsDownCount, Mode=OneWay}" /><Run Text=" down" />
-                                </TextBlock>
-                            </StackPanel>
-                        </Button>
-
-                        <Button Command="{Binding SelectAlertsCommand}"
-                                Style="{StaticResource OverviewCardButtonStyle}"
-                                Margin="4,0">
-                            <StackPanel HorizontalAlignment="Left">
-                                <TextBlock Text="Alerts" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding ActiveAlerts.Count}" Style="{StaticResource HeadingTextStyle}" />
-                                <TextBlock Text="{Binding ActiveAlertSummaryText}"
-                                           Style="{StaticResource SubtleTextStyle}"
-                                           Visibility="{Binding ActiveAlertSummaryText, Converter={StaticResource StringToVisibility}}" />
-                            </StackPanel>
-                        </Button>
-
-                        <Button Command="{Binding SelectResourcesCommand}"
-                                Style="{StaticResource OverviewCardButtonStyle}"
-                                Margin="4,0"
-                                Visibility="{Binding ShowResourcesNav, Converter={StaticResource BoolToVisibility}}">
-                            <StackPanel HorizontalAlignment="Left">
-                                <TextBlock Text="Resources" Style="{StaticResource SectionHeaderStyle}" />
-                                <TextBlock Text="{Binding Processors.Count, StringFormat={}{0} CPUs}" Style="{StaticResource HeadingTextStyle}" />
-                                <TextBlock Text="{Binding ResourceSummaryText}" Style="{StaticResource SubtleTextStyle}" />
-                            </StackPanel>
-                        </Button>
-                    </UniformGrid>
                 </StackPanel>
             </ScrollViewer>
 
@@ -931,7 +1278,7 @@
                                 <Border Background="{StaticResource SurfaceBrush}"
                                         BorderBrush="{StaticResource BorderBrush}"
                                         BorderThickness="1"
-                                        CornerRadius="6"
+                                        CornerRadius="12"
                                         Margin="0,0,0,12">
                                     <StackPanel>
 
@@ -1478,7 +1825,7 @@
                     <Border Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="6"
+                            CornerRadius="12"
                             Padding="16"
                             Margin="0,0,0,12"
                             Visibility="{Binding HasProcessors, Converter={StaticResource BoolToVisibility}}">
@@ -1528,7 +1875,7 @@
                     <Border Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="6"
+                            CornerRadius="12"
                             Padding="16"
                             Margin="0,0,0,12"
                             Visibility="{Binding HasMempools, Converter={StaticResource BoolToVisibility}}">
@@ -1580,8 +1927,9 @@
                     <Border Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="6"
+                            CornerRadius="12"
                             Padding="16"
+                            Margin="0,0,0,12"
                             Visibility="{Binding HasStorage, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
                             <Grid Margin="0,0,0,10">
@@ -1632,7 +1980,7 @@
                     <Border Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="6"
+                            CornerRadius="12"
                             Padding="16"
                             Margin="0,0,0,12"
                             Visibility="{Binding HasPoe, Converter={StaticResource BoolToVisibility}}">
@@ -1714,7 +2062,7 @@
                         Background="{StaticResource SurfaceBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="6"
+                        CornerRadius="12"
                         Padding="20"
                         Margin="0,0,0,16">
                     <StackPanel>
@@ -2058,7 +2406,7 @@
                             Background="{StaticResource SurfaceAltBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="6">
+                            CornerRadius="12">
                         <Grid Margin="12">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -2355,7 +2703,7 @@
                 <Border Background="{StaticResource SurfaceAltBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="6"
+                        CornerRadius="12"
                         Padding="14,12"
                         Margin="0,0,0,16">
                     <StackPanel>
@@ -2387,7 +2735,7 @@
                 <Border Background="{StaticResource SurfaceAltBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="6"
+                        CornerRadius="12"
                         Padding="14,12"
                         Margin="0,0,0,16">
                     <StackPanel>
@@ -2425,7 +2773,7 @@
                 <Border Background="{StaticResource SurfaceAltBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="6"
+                        CornerRadius="12"
                         Padding="14,12"
                         Margin="0,0,0,16">
                     <StackPanel>
@@ -2458,7 +2806,7 @@
                 <Border Background="{StaticResource SurfaceAltBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="6"
+                        CornerRadius="12"
                         Padding="14,12"
                         Margin="0,0,0,16">
                     <StackPanel>
@@ -2493,7 +2841,7 @@
                 <Border Background="{StaticResource SurfaceAltBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="6"
+                        CornerRadius="12"
                         Padding="14,12"
                         Margin="0,0,0,16">
                     <StackPanel>
@@ -2511,7 +2859,7 @@
                 <Border Background="{StaticResource SurfaceAltBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="6"
+                        CornerRadius="12"
                         Padding="14,12"
                         Margin="0,0,0,16">
                     <StackPanel>
@@ -2675,6 +3023,7 @@
                 </StackPanel>
             </StackPanel>
             </ScrollViewer>
+            </Grid>
             </Grid>
         </Grid>
 
