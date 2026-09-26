@@ -59,6 +59,7 @@
                                            Text="{TemplateBinding Tag}"
                                            FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                            FontSize="14"
+                                           TextAlignment="Center"
                                            Foreground="{TemplateBinding Foreground}"
                                            VerticalAlignment="Center" />
                                 <!-- Plain-text labels are drawn by this
@@ -136,6 +137,7 @@
                                            Text="{TemplateBinding Tag}"
                                            FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                            FontSize="14"
+                                           TextAlignment="Center"
                                            Foreground="{TemplateBinding Foreground}"
                                            VerticalAlignment="Center" />
                                 <ContentPresenter Grid.Column="1" VerticalAlignment="Center">
@@ -532,7 +534,18 @@
                             Content="Collapse"
                             Command="{Binding ToggleDeviceNavCommand}" />
                 </StackPanel>
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ScrollViewer>
+                    <ScrollViewer.Style>
+                        <Style TargetType="ScrollViewer">
+                            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+                            <Style.Triggers>
+                                <!-- Icons only: a scrollbar would push them off centre; the wheel still scrolls. -->
+                                <DataTrigger Binding="{Binding IsDeviceNavExpanded}" Value="False">
+                                    <Setter Property="VerticalScrollBarVisibility" Value="Hidden" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ScrollViewer.Style>
                     <!-- Compact items with icons in foldable groups: each group
                          heading folds its items away (remembered in settings,
                          shared by every device window) - except the group
