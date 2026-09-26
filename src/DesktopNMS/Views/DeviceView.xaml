@@ -261,6 +261,36 @@
             </Setter>
         </Style>
 
+        <!-- A Neighbours tab card: the Overview card's look, outlined in the
+             accent while it or its node in the graph is hovered. -->
+        <Style x:Key="NeighbourCardStyle" TargetType="Button">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="14,12">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                            </DataTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- ======================== Overview cards ======================== -->
 
         <!-- A plain (not clickable) Overview card. -->
@@ -1422,105 +1452,102 @@
                            TextWrapping="Wrap"
                            Visibility="{Binding ShowNeighboursEmptyMessage, Converter={StaticResource BoolToVisibility}}" />
 
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding VisibleNeighbours}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Command="{Binding OpenCommand}"
-                                        Style="{StaticResource OverviewCardButtonStyle}"
-                                        Margin="0,0,0,10">
-                                    <Button.ToolTip>
-                                        <ToolTip>
-                                            <TextBlock Text="{Binding SourceText}" />
-                                        </ToolTip>
-                                    </Button.ToolTip>
-                                    <Grid>
-                                        <Grid.Style>
-                                            <Style TargetType="Grid">
-                                                <Style.Triggers>
-                                                    <!-- No longer seen, but LibreNMS still has the record. -->
-                                                    <DataTrigger Binding="{Binding IsStale}" Value="True">
-                                                        <Setter Property="Opacity" Value="0.55" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Grid.Style>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
+                <!-- The graph on the left, the cards on the right. Hovering
+                     either highlights the neighbour in both. -->
+                <Grid Grid.Row="1" Visibility="{Binding HasNeighbours, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="320" />
+                        <ColumnDefinition Width="400" />
+                    </Grid.ColumnDefinitions>
 
-                                        <!-- The neighbour's state, on a tile tinted to match. -->
-                                        <Grid Grid.Column="0" Width="38" Height="38" Margin="0,0,14,0" VerticalAlignment="Top">
-                                            <Border CornerRadius="10" Opacity="0.16" Background="{Binding StateSeverity, Converter={StaticResource SeverityToBrush}}" />
-                                            <Ellipse Width="10" Height="10" Fill="{Binding StateSeverity, Converter={StaticResource SeverityToBrush}}" />
-                                        </Grid>
+                    <Border Grid.Column="0" Style="{StaticResource OverviewCardStyle}" Margin="0,0,14,0" Padding="8">
+                        <views:NeighbourGraph Items="{Binding VisibleNeighbours}"
+                                              CenterName="{Binding Name}"
+                                              CenterSeverity="{Binding StateSeverity}" />
+                    </Border>
 
-                                        <StackPanel Grid.Column="1">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                <Border CornerRadius="9"
-                                                        Margin="10,0,0,0"
-                                                        Padding="8,1"
-                                                        VerticalAlignment="Center"
-                                                        Background="{StaticResource SurfaceHoverBrush}">
-                                                    <TextBlock Text="{Binding MatchText}" FontSize="11" Style="{StaticResource SubtleTextStyle}" />
-                                                </Border>
-                                                <TextBlock Text="{Binding StateText}"
-                                                           FontSize="11"
-                                                           Margin="8,0,0,0"
-                                                           VerticalAlignment="Center"
-                                                           Foreground="{Binding StateSeverity, Converter={StaticResource SeverityToBrush}}" />
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding Description}"
-                                                       Style="{StaticResource SubtleTextStyle}"
-                                                       Margin="0,2,0,0"
-                                                       TextTrimming="CharacterEllipsis" />
-                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                                <TextBlock Text="&#xE839;"
-                                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                                           FontSize="12"
-                                                           Margin="0,0,7,0"
-                                                           VerticalAlignment="Center"
-                                                           Style="{StaticResource SubtleTextStyle}" />
-                                                <TextBlock Text="{Binding ConnectionText}" VerticalAlignment="Center" />
-                                                <TextBlock Text="{Binding LocalPortStateText, StringFormat={}  ·  {0}}"
+                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding VisibleNeighbours}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Command="{Binding OpenCommand}"
+                                            Style="{StaticResource NeighbourCardStyle}"
+                                            Margin="0,0,4,10"
+                                            MouseEnter="OnNeighbourCardMouseEnter"
+                                            MouseLeave="OnNeighbourCardMouseLeave">
+                                        <Grid>
+                                            <Grid.Style>
+                                                <Style TargetType="Grid">
+                                                    <Style.Triggers>
+                                                        <!-- No longer seen, but LibreNMS still has the record. -->
+                                                        <DataTrigger Binding="{Binding IsStale}" Value="True">
+                                                            <Setter Property="Opacity" Value="0.55" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Grid.Style>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- The neighbour's state, on a tile tinted to match. -->
+                                            <Grid Grid.Column="0" Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Top">
+                                                <Border CornerRadius="9" Opacity="0.16" Background="{Binding StateSeverity, Converter={StaticResource SeverityToBrush}}" />
+                                                <Ellipse Width="9" Height="9" Fill="{Binding StateSeverity, Converter={StaticResource SeverityToBrush}}" />
+                                            </Grid>
+
+                                            <StackPanel Grid.Column="1">
+                                                <DockPanel>
+                                                    <TextBlock DockPanel.Dock="Right"
+                                                               Text="Open &#x203A;"
+                                                               FontSize="12"
+                                                               Margin="8,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource AccentBrush}"
+                                                               Visibility="{Binding IsKnownDevice, Converter={StaticResource BoolToVisibility}}" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                </DockPanel>
+                                                <TextBlock Text="{Binding Description}"
                                                            Style="{StaticResource SubtleTextStyle}"
-                                                           VerticalAlignment="Center"
-                                                           Visibility="{Binding HasLocalPort, Converter={StaticResource BoolToVisibility}}" />
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding SourceText}"
-                                                       Style="{StaticResource SubtleTextStyle}"
-                                                       FontSize="11"
-                                                       Margin="0,4,0,0" />
-                                        </StackPanel>
-
-                                        <!-- This device's port traffic, and the way in. -->
-                                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="16,0,0,0">
-                                            <StackPanel Visibility="{Binding HasLocalPort, Converter={StaticResource BoolToVisibility}}" HorizontalAlignment="Right">
-                                                <TextBlock Style="{StaticResource SubtleTextStyle}" FontSize="11.5" HorizontalAlignment="Right">
-                                                    <Run Text="In " /><Run Text="{Binding LocalPort.InRateText, Mode=OneWay}" Foreground="{StaticResource TextPrimaryBrush}" />
+                                                           Margin="0,2,0,0"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <WrapPanel Margin="0,6,0,0">
+                                                    <Border CornerRadius="9" Margin="0,0,6,4" Padding="8,1" Background="{StaticResource SurfaceHoverBrush}">
+                                                        <TextBlock Text="{Binding MatchText}" FontSize="11" Style="{StaticResource SubtleTextStyle}" />
+                                                    </Border>
+                                                    <Border CornerRadius="9" Margin="0,0,6,4" Padding="8,1" Background="{StaticResource SurfaceHoverBrush}">
+                                                        <TextBlock Text="{Binding StateText}" FontSize="11" Foreground="{Binding StateSeverity, Converter={StaticResource SeverityToBrush}}" />
+                                                    </Border>
+                                                </WrapPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                    <TextBlock Text="&#xE839;"
+                                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                               FontSize="12"
+                                                               Margin="0,0,7,0"
+                                                               VerticalAlignment="Center"
+                                                               Style="{StaticResource SubtleTextStyle}" />
+                                                    <TextBlock Text="{Binding ConnectionText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                                           FontSize="11.5"
+                                                           Margin="19,3,0,0"
+                                                           Visibility="{Binding HasLocalPort, Converter={StaticResource BoolToVisibility}}">
+                                                    <Run Text="{Binding LocalPortStateText, Mode=OneWay}" /><Run Text="  ·  In " /><Run Text="{Binding LocalPort.InRateText, Mode=OneWay}" /><Run Text="  ·  Out " /><Run Text="{Binding LocalPort.OutRateText, Mode=OneWay}" />
                                                 </TextBlock>
-                                                <TextBlock Style="{StaticResource SubtleTextStyle}" FontSize="11.5" HorizontalAlignment="Right">
-                                                    <Run Text="Out " /><Run Text="{Binding LocalPort.OutRateText, Mode=OneWay}" Foreground="{StaticResource TextPrimaryBrush}" />
-                                                </TextBlock>
+                                                <TextBlock Text="{Binding SourceText}"
+                                                           Style="{StaticResource SubtleTextStyle}"
+                                                           FontSize="11"
+                                                           Opacity="0.8"
+                                                           Margin="0,6,0,0" />
                                             </StackPanel>
-                                            <TextBlock Text="Open &#xE76C;"
-                                                       FontSize="12"
-                                                       Margin="0,6,0,0"
-                                                       HorizontalAlignment="Right"
-                                                       Foreground="{DynamicResource AccentBrush}"
-                                                       Visibility="{Binding IsKnownDevice, Converter={StaticResource BoolToVisibility}}">
-                                                <TextBlock.FontFamily>Segoe UI, Segoe Fluent Icons</TextBlock.FontFamily>
-                                            </TextBlock>
-                                        </StackPanel>
-                                    </Grid>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
             </Grid>
 
             <!-- ==================== Sensors ==================== -->

@@ -49,6 +49,25 @@ public partial class DeviceView : Window
         StateChanged += (_, _) => OnStateChanged();
     }
 
+    // ------------------------------------------------------------------ neighbours
+
+    // Hovering a card highlights its node in the graph (and the reverse, from the graph itself).
+    private void OnNeighbourCardMouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: DeviceNeighbourItemViewModel item })
+        {
+            item.IsHighlighted = true;
+        }
+    }
+
+    private void OnNeighbourCardMouseLeave(object sender, MouseEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: DeviceNeighbourItemViewModel item })
+        {
+            item.IsHighlighted = false;
+        }
+    }
+
     // ------------------------------------------------------------------ title bar
 
     // Segoe Fluent Icons' ChromeRestore / ChromeMaximize.

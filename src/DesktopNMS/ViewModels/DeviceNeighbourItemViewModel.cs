@@ -110,6 +110,15 @@ public sealed class DeviceNeighbourItemViewModel : ObservableObject
 
     public bool IsStale => !_neighbour.Active;
 
+    private bool _isHighlighted;
+
+    /// <summary>Hovered in the graph or its card is - the other one highlights it too.</summary>
+    public bool IsHighlighted
+    {
+        get => _isHighlighted;
+        set => SetProperty(ref _isHighlighted, value);
+    }
+
     /// <summary>Order: live, known devices first.</summary>
     public int SortRank => (IsActive ? 0 : 2) + (IsKnownDevice ? 0 : 1);
 

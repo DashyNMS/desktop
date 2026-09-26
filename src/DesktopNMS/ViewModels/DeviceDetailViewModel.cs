@@ -1922,6 +1922,15 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public string StateText => State.ToDisplayString();
 
+    /// <summary>The state as a colour - the Neighbours graph's centre node.</summary>
+    public AlertSeverity StateSeverity => State switch
+    {
+        DeviceState.Up => AlertSeverity.Ok,
+        DeviceState.Down => AlertSeverity.Critical,
+        DeviceState.Maintenance => AlertSeverity.Warning,
+        _ => AlertSeverity.Unknown,
+    };
+
     public string Ip => Blank(_device?.Ip);
 
     /// <summary>
@@ -3157,8 +3166,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
     }
 
+    // A new list each time, so the graph sees a change and redraws.
     public IReadOnlyList<DeviceNeighbourItemViewModel> VisibleNeighbours => string.IsNullOrWhiteSpace(_neighbourSearchText)
-        ? Neighbours
+        ? Neighbours.ToList()
         : Neighbours.Where(n => n.Matches(_neighbourSearchText.Trim())).ToList();
 
     /// <summary>"12 neighbours · 9 in LibreNMS".</summary>
@@ -4295,6 +4305,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ShowNameDetails));
         OnPropertyChanged(nameof(State));
         OnPropertyChanged(nameof(StateText));
+        OnPropertyChanged(nameof(StateSeverity));
         OnPropertyChanged(nameof(Ip));
         OnPropertyChanged(nameof(Os));
         OnPropertyChanged(nameof(Hardware));
