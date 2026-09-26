@@ -45,6 +45,39 @@ public partial class DeviceView : Window
         PreviewMouseDown += OnNavigationMouseDown;
 
         ApplyGridLayouts();
+
+        StateChanged += (_, _) => OnStateChanged();
+    }
+
+    // ------------------------------------------------------------------ title bar
+
+    // Segoe Fluent Icons' ChromeRestore / ChromeMaximize.
+    private static readonly string RestoreGlyph = char.ConvertFromUtf32(0xE923);
+    private static readonly string MaximiseGlyphText = char.ConvertFromUtf32(0xE922);
+
+    private void OnMinimiseClick(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+
+    private void OnMaximiseClick(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Maximized)
+        {
+            SystemCommands.RestoreWindow(this);
+        }
+        else
+        {
+            SystemCommands.MaximizeWindow(this);
+        }
+    }
+
+    private void OnCloseClick(object sender, RoutedEventArgs e) => SystemCommands.CloseWindow(this);
+
+    /// <summary>As the main window's: inset the content by the resize border while maximised, which Windows pushes off-screen.</summary>
+    private void OnStateChanged()
+    {
+        var maximised = WindowState == WindowState.Maximized;
+        RootGrid.Margin = maximised ? SystemParameters.WindowResizeBorderThickness : new Thickness(0);
+        MaximiseGlyph.Text = maximised ? RestoreGlyph : MaximiseGlyphText;
+        MaximiseButton.ToolTip = maximised ? "Restore" : "Maximise";
     }
 
     /// <summary>
