@@ -76,16 +76,21 @@ public partial class MainWindow : Window
 
         // Hidden to the tray or minimised: nothing on screen to keep live.
         IsVisibleChanged += (_, _) => NotifyVisibility();
-        StateChanged += (_, _) => NotifyVisibility();
+        StateChanged += (_, _) =>
+        {
+            NotifyVisibility();
+            OnStateChanged();
+        };
 
         RestorePlacement();
+        OnStateChanged();
         ApplyGridLayouts();
     }
 
     private void DevicesTabButton_MouseEnter(object sender, MouseEventArgs e)
     {
         _devicesFlyoutCloseTimer.Stop();
-        DevicesFlyout.IsOpen = true;
+        DevicesFlyout.IsOpen = !_viewModel.IsNavExpanded;
     }
 
     private void DevicesTabButton_MouseLeave(object sender, MouseEventArgs e) => _devicesFlyoutCloseTimer.Start();
@@ -103,7 +108,7 @@ public partial class MainWindow : Window
     private void AlertsTabButton_MouseEnter(object sender, MouseEventArgs e)
     {
         _alertsFlyoutCloseTimer.Stop();
-        AlertsFlyout.IsOpen = true;
+        AlertsFlyout.IsOpen = !_viewModel.IsNavExpanded;
     }
 
     private void AlertsTabButton_MouseLeave(object sender, MouseEventArgs e) => _alertsFlyoutCloseTimer.Start();
@@ -121,7 +126,7 @@ public partial class MainWindow : Window
     private void MapsTabButton_MouseEnter(object sender, MouseEventArgs e)
     {
         _mapsFlyoutCloseTimer.Stop();
-        MapsFlyout.IsOpen = true;
+        MapsFlyout.IsOpen = !_viewModel.IsNavExpanded;
     }
 
     private void MapsTabButton_MouseLeave(object sender, MouseEventArgs e) => _mapsFlyoutCloseTimer.Start();
@@ -139,7 +144,7 @@ public partial class MainWindow : Window
     private void NeighboursTabButton_MouseEnter(object sender, MouseEventArgs e)
     {
         _neighboursFlyoutCloseTimer.Stop();
-        NeighboursFlyout.IsOpen = true;
+        NeighboursFlyout.IsOpen = !_viewModel.IsNavExpanded;
     }
 
     private void NeighboursTabButton_MouseLeave(object sender, MouseEventArgs e) => _neighboursFlyoutCloseTimer.Start();
@@ -173,6 +178,42 @@ public partial class MainWindow : Window
             menu.DataContext = DataContext;
             menu.IsOpen = true;
         }
+    }
+
+    // ------------------------------------------------------------------ title bar
+
+    // Segoe Fluent Icons' ChromeRestore / ChromeMaximize.
+    private static readonly string RestoreGlyph = char.ConvertFromUtf32(0xE923);
+    private static readonly string MaximiseGlyphText = char.ConvertFromUtf32(0xE922);
+
+    private void OnMinimiseClick(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+
+    private void OnMaximiseClick(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Maximized)
+        {
+            SystemCommands.RestoreWindow(this);
+        }
+        else
+        {
+            SystemCommands.MaximizeWindow(this);
+        }
+    }
+
+    // Close as Windows' own button would - to the tray, if that's the setting (OnClosing).
+    private void OnCloseClick(object sender, RoutedEventArgs e) => SystemCommands.CloseWindow(this);
+
+    /// <summary>
+    /// A maximised window with its own title bar sits partly off-screen - Windows
+    /// pushes its resize border past the monitor edge - so the content is
+    /// inset by that border while maximised. The maximise button becomes restore.
+    /// </summary>
+    private void OnStateChanged()
+    {
+        var maximised = WindowState == WindowState.Maximized;
+        RootGrid.Margin = maximised ? SystemParameters.WindowResizeBorderThickness : new Thickness(0);
+        MaximiseGlyph.Text = maximised ? RestoreGlyph : MaximiseGlyphText;
+        MaximiseButton.ToolTip = maximised ? "Restore" : "Maximise";
     }
 
     private void NotifyVisibility() =>

@@ -72,6 +72,7 @@ public partial class App : Application
         // Must run before any window (or anything else that applies a style)
         // is constructed - see ApplyTheme's remarks.
         ApplyTheme(settings.Current.Theme);
+        WindowTheming.Register();
 
         // Before the main window exists, so the Logs tab (only shown when
         // Graylog is set up) is right from the first frame. Graylog doesn't
@@ -316,7 +317,6 @@ public partial class App : Application
         services.AddSingleton<IWindowService>(sp => sp.GetRequiredService<WindowService>());
         services.AddSingleton<ISelfActionTracker, SelfActionTracker>();
         services.AddSingleton<IDashboardLayoutService, DashboardLayoutService>();
-        services.AddSingleton<IServerBrandingService, ServerBrandingService>();
 
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<DeviceListViewModel>();

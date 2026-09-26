@@ -54,7 +54,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly CustomMapsViewModel _customMaps;
     private readonly LogsViewModel _logs;
     private readonly IGraylogApi _graylog;
-    private readonly IServerBrandingService _branding;
     private readonly ISelfActionTracker _selfActions;
     private readonly IUpdateCheckService _updates;
     private readonly ILogger<MainViewModel> _logger;
@@ -85,7 +84,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// DashyNMS's own icon, decoded once and reused for every window rather
-    /// than on every <see cref="HeaderLogo"/> access - it never changes, so
+    /// than on every <see cref="AppLogo"/> access - it never changes, so
     /// there is nothing to gain by re-decoding it.
     /// </summary>
     private static readonly Lazy<BitmapImage> AppIconLogo = new(() =>
@@ -121,7 +120,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         CustomMapsViewModel customMaps,
         LogsViewModel logs,
         IGraylogApi graylog,
-        IServerBrandingService branding,
         ISelfActionTracker selfActions,
         IUpdateCheckService updates,
         ILogger<MainViewModel> logger)
@@ -148,19 +146,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _logs = logs;
         _graylog = graylog;
         _graylog.ConfigurationChanged += OnGraylogConfigurationChanged;
-        _branding = branding;
         _selfActions = selfActions;
         _updates = updates;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
-        _branding.Changed += OnBrandingChanged;
         _client.Failover.Changed += OnFailoverChanged;
         SwitchBackToMainAddressCommand = new RelayCommand(SwitchBackToMainAddress);
         _updates.ReadyUpdateChanged += OnReadyUpdateChanged;
         InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => IsUpdateReady && !_isInstallingUpdate);
         ViewUpdateNotesCommand = new RelayCommand(ViewUpdateNotes);
-        _settings.Changed += OnLogoSettingChanged;
+        _settings.Changed += OnBadgeSettingChanged;
 
         Alerts = new ObservableCollection<AlertItemViewModel>();
         AlertsView = CollectionViewSource.GetDefaultView(Alerts);
@@ -454,6 +450,27 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand SignOutCommand { get; }
 
+    /// <summary>The sidebar shows labels beside its icons - the hamburger button toggles it, remembered between runs.</summary>
+    public bool IsNavExpanded
+    {
+        get => _settings.Current.NavExpanded;
+        set
+        {
+            if (_settings.Current.NavExpanded == value)
+            {
+                return;
+            }
+
+            _settings.Current.NavExpanded = value;
+            _settings.SaveQuietly();
+            OnPropertyChanged();
+        }
+    }
+
+    public RelayCommand ToggleNavCommand => _toggleNavCommand ??= new RelayCommand(() => IsNavExpanded = !IsNavExpanded);
+
+    private RelayCommand? _toggleNavCommand;
+
     public RelayCommand ExitCommand { get; }
 
     /// <summary>The device list, for the Devices tab's content to bind to.</summary>
@@ -494,32 +511,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>The Logs tab only shows while Graylog - its only source so far - is set up.</summary>
     public bool ShowLogsTab => _graylog.IsConfigured;
 
-    /// <summary>The connected server's favicon, shown next to the tabs. Null until it loads, or if there isn't one.</summary>
-    public BitmapImage? ServerLogo => _branding.Logo;
+    /// <summary>DashyNMS's own icon, in the title bar.</summary>
+    public BitmapImage AppLogo => AppIconLogo.Value;
 
-    /// <summary>
-    /// What the shell header's logo slot actually shows: the server's own
-    /// branding when <see cref="AppSettings.ShowServerLogo"/> is on and one
-    /// has loaded, DashyNMS's own icon otherwise - see that setting's
-    /// remarks for why someone would turn it off.
-    /// </summary>
-    public BitmapImage? HeaderLogo => _settings.Current.ShowServerLogo ? ServerLogo : AppIconLogo.Value;
-
-    public bool HasHeaderLogo => HeaderLogo is not null;
-
-    private void OnBrandingChanged(object? sender, EventArgs e)
-    {
-        OnPropertyChanged(nameof(ServerLogo));
-        OnPropertyChanged(nameof(HeaderLogo));
-        OnPropertyChanged(nameof(HasHeaderLogo));
-    }
-
-    private void OnLogoSettingChanged(object? sender, AppSettings settings)
-    {
-        RaiseAlertBadgeChanged();
-        OnPropertyChanged(nameof(HeaderLogo));
-        OnPropertyChanged(nameof(HasHeaderLogo));
-    }
+    private void OnBadgeSettingChanged(object? sender, AppSettings settings) => RaiseAlertBadgeChanged();
 
     public MainTab SelectedTab
     {
@@ -2100,8 +2095,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _client.Failover.Changed -= OnFailoverChanged;
         _updates.ReadyUpdateChanged -= OnReadyUpdateChanged;
         _graylog.ConfigurationChanged -= OnGraylogConfigurationChanged;
-        _branding.Changed -= OnBrandingChanged;
-        _settings.Changed -= OnLogoSettingChanged;
+        _settings.Changed -= OnBadgeSettingChanged;
         _groupMembership.Changed -= OnGroupMembershipChanged;
         GroupFilter.PropertyChanged -= OnGroupFilterPropertyChanged;
 
