@@ -38,7 +38,9 @@ public sealed class DeviceNavGroup : ObservableObject
     /// <summary>Folded away by the user - see <see cref="IsExpanded"/> for whether it actually shows its items.</summary>
     public bool IsCollapsed => _settings.Current.CollapsedDeviceNavGroups.Contains(Key, StringComparer.Ordinal);
 
-    public bool IsExpanded => !IsCollapsed || _containsSelection();
+    // Icons only (the sidebar collapsed), there are no headings to unfold a
+    // group from, so every group shows its items.
+    public bool IsExpanded => !IsCollapsed || _containsSelection() || !_settings.Current.DeviceNavExpanded;
 
     /// <summary>Segoe chevrons: down when open, right when folded.</summary>
     public string ExpanderGlyph => IsExpanded ? "" : "";

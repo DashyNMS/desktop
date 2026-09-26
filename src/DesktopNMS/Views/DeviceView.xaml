@@ -106,6 +106,66 @@
             </Setter>
         </Style>
 
+        <!-- Icons only: an item's label shows as its tooltip instead. -->
+        <Style x:Key="DeviceNavItemTipStyle" TargetType="ToggleButton" BasedOn="{StaticResource DeviceNavItemStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDeviceNavExpanded}" Value="False">
+                    <Setter Property="ToolTip" Value="{Binding Content, RelativeSource={RelativeSource Self}}" />
+                    <Setter Property="ToolTipService.Placement" Value="Right" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- The sidebar's collapse button: an item's look, never selected. -->
+        <Style x:Key="DeviceNavActionStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="Transparent" CornerRadius="8" Padding="12,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="28" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{TemplateBinding Tag}"
+                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                           FontSize="14"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           VerticalAlignment="Center" />
+                                <ContentPresenter Grid.Column="1" VerticalAlignment="Center">
+                                    <ContentPresenter.Resources>
+                                        <DataTemplate DataType="{x:Type sys:String}">
+                                            <TextBlock Text="{Binding}"
+                                                       FontSize="13"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                        </DataTemplate>
+                                    </ContentPresenter.Resources>
+                                </ContentPresenter>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDeviceNavExpanded}" Value="False">
+                    <Setter Property="ToolTip" Value="Show labels" />
+                    <Setter Property="ToolTipService.Placement" Value="Right" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- A sidebar group heading that folds its group away - chevron,
              small caps text, and whatever else the Content carries (the
              alert badge on Alerts & logs). -->
@@ -157,6 +217,20 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <!-- Icons only: no headings, just a line between groups. -->
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDeviceNavExpanded}" Value="False">
+                    <Setter Property="IsHitTestVisible" Value="False" />
+                    <Setter Property="Margin" Value="4,9,4,8" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Rectangle Height="1" Fill="{StaticResource BorderBrush}" />
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
         <!-- A card that behaves like a button - jumps to the named section
@@ -422,7 +496,7 @@
         <!-- ======================== Sidebar + section content ======================== -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="208" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -432,10 +506,32 @@
                  dozen (FDB, ARP, routing, VLANs, ... alongside what is here
                  already) - a flat row would just run off the window edge,
                  where a vertical list keeps scaling by scrolling instead. -->
+            <!-- Icons and labels, or icons only from the button at the
+                 bottom (IsDeviceNavExpanded, remembered): 68px then, the
+                 icons centred, with lines in place of the group headings. -->
             <Border Grid.Column="0"
                     Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="0,0,1,0">
+                    BorderThickness="0,0,1,0"
+                    ClipToBounds="True">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Width" Value="208" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsDeviceNavExpanded}" Value="False">
+                                <Setter Property="Width" Value="68" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <DockPanel>
+                <StackPanel DockPanel.Dock="Bottom" Margin="8,0,8,10">
+                    <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="4,0,4,8" />
+                    <Button Style="{StaticResource DeviceNavActionStyle}"
+                            Tag="&#xE700;"
+                            Content="Collapse"
+                            Command="{Binding ToggleDeviceNavCommand}" />
+                </StackPanel>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <!-- Compact items with icons in foldable groups: each group
                          heading folds its items away (remembered in settings,
@@ -448,7 +544,7 @@
                     <StackPanel Margin="8,12">
                         <ToggleButton Content="Overview"
                                       Tag="&#xE80F;"
-                                      Style="{StaticResource DeviceNavItemStyle}"
+                                      Style="{StaticResource DeviceNavItemTipStyle}"
                                       IsChecked="{Binding IsOverviewSelected, Mode=OneWay}"
                                       Command="{Binding SelectOverviewCommand}" />
 
@@ -460,12 +556,12 @@
                         <StackPanel Visibility="{Binding HealthGroup.IsExpanded, Converter={StaticResource BoolToVisibility}}">
                             <ToggleButton Content="Sensors"
                                           Tag="&#xE9D9;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          Style="{StaticResource DeviceNavItemTipStyle}"
                                           IsChecked="{Binding IsSensorsSelected, Mode=OneWay}"
                                           Command="{Binding SelectSensorsCommand}" />
                             <ToggleButton Content="Graphs"
                                           Tag="&#xE9D2;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          Style="{StaticResource DeviceNavItemTipStyle}"
                                           IsChecked="{Binding IsGraphsSelected, Mode=OneWay}"
                                           Command="{Binding SelectGraphsCommand}" />
                         </StackPanel>
@@ -479,13 +575,13 @@
                         <StackPanel Visibility="{Binding HardwareGroup.IsExpanded, Converter={StaticResource BoolToVisibility}}">
                             <ToggleButton Content="Resources"
                                           Tag="&#xEC4A;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          Style="{StaticResource DeviceNavItemTipStyle}"
                                           IsChecked="{Binding IsResourcesSelected, Mode=OneWay}"
                                           Command="{Binding SelectResourcesCommand}"
                                           Visibility="{Binding ShowResourcesNav, Converter={StaticResource BoolToVisibility}}" />
                             <ToggleButton Content="Inventory"
                                           Tag="&#xE7B8;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          Style="{StaticResource DeviceNavItemTipStyle}"
                                           IsChecked="{Binding IsInventorySelected, Mode=OneWay}"
                                           Command="{Binding SelectInventoryCommand}"
                                           Visibility="{Binding Inventory.ShowNav, Converter={StaticResource BoolToVisibility}}" />
@@ -500,37 +596,37 @@
                         <StackPanel Visibility="{Binding NetworkGroup.IsExpanded, Converter={StaticResource BoolToVisibility}}">
                             <ToggleButton Content="Ports"
                                           Tag="&#xE839;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          Style="{StaticResource DeviceNavItemTipStyle}"
                                           IsChecked="{Binding IsPortsSelected, Mode=OneWay}"
                                           Command="{Binding SelectPortsCommand}"
                                           Visibility="{Binding ShowPortsNav, Converter={StaticResource BoolToVisibility}}" />
                             <ToggleButton Content="VLANs"
                                           Tag="&#xE8EC;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          Style="{StaticResource DeviceNavItemTipStyle}"
                                           IsChecked="{Binding IsVlansSelected, Mode=OneWay}"
                                           Command="{Binding SelectVlansCommand}"
                                           Visibility="{Binding ShowVlansNav, Converter={StaticResource BoolToVisibility}}" />
                             <ToggleButton Content="FDB"
                                           Tag="&#xE8FD;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          Style="{StaticResource DeviceNavItemTipStyle}"
                                           IsChecked="{Binding IsFdbSelected, Mode=OneWay}"
                                           Command="{Binding SelectFdbCommand}"
                                           Visibility="{Binding ShowFdbNav, Converter={StaticResource BoolToVisibility}}" />
                             <ToggleButton Content="ARP"
                                           Tag="&#xE968;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          Style="{StaticResource DeviceNavItemTipStyle}"
                                           IsChecked="{Binding IsArpSelected, Mode=OneWay}"
                                           Command="{Binding SelectArpCommand}"
                                           Visibility="{Binding ShowArpNav, Converter={StaticResource BoolToVisibility}}" />
                             <ToggleButton Content="Routing"
                                           Tag="&#xE8AB;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          Style="{StaticResource DeviceNavItemTipStyle}"
                                           IsChecked="{Binding IsRoutingSelected, Mode=OneWay}"
                                           Command="{Binding SelectRoutingCommand}"
                                           Visibility="{Binding Routing.ShowNav, Converter={StaticResource BoolToVisibility}}" />
                             <ToggleButton Content="Wireless"
                                           Tag="&#xE701;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          Style="{StaticResource DeviceNavItemTipStyle}"
                                           IsChecked="{Binding IsWirelessSelected, Mode=OneWay}"
                                           Command="{Binding SelectWirelessCommand}"
                                           Visibility="{Binding Wireless.ShowNav, Converter={StaticResource BoolToVisibility}}" />
@@ -567,10 +663,22 @@
                             </StackPanel>
                         </Button>
                         <StackPanel Visibility="{Binding LogsGroup.IsExpanded, Converter={StaticResource BoolToVisibility}}">
+                            <Grid>
                             <ToggleButton Tag="&#xE7BA;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
                                           IsChecked="{Binding IsAlertsSelected, Mode=OneWay}"
                                           Command="{Binding SelectAlertsCommand}">
+                                <!-- Its content is a panel, not text, so its
+                                     icons-only tooltip is spelt out. -->
+                                <ToggleButton.Style>
+                                    <Style TargetType="ToggleButton" BasedOn="{StaticResource DeviceNavItemStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDeviceNavExpanded}" Value="False">
+                                                <Setter Property="ToolTip" Value="Alerts" />
+                                                <Setter Property="ToolTipService.Placement" Value="Right" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ToggleButton.Style>
                                 <!-- A red count badge only while there are active
                                      alerts (#100) - it reads as "needs attention",
                                      unlike a plain count in brackets. -->
@@ -597,9 +705,28 @@
                                     </Border>
                                 </StackPanel>
                             </ToggleButton>
+                            <!-- Icons only, the count sits on the icon instead. -->
+                            <Border Background="{StaticResource CriticalBrush}"
+                                    CornerRadius="7"
+                                    MinWidth="15"
+                                    Height="15"
+                                    Padding="4,0"
+                                    Margin="28,2,0,0"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Top"
+                                    IsHitTestVisible="False"
+                                    Visibility="{Binding ShowRailAlertBadge, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="{Binding ActiveAlerts.Count, Mode=OneWay}"
+                                           Foreground="White"
+                                           FontSize="9.5"
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Border>
+                            </Grid>
                             <ToggleButton Content="Event log"
                                           Tag="&#xE81C;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          Style="{StaticResource DeviceNavItemTipStyle}"
                                           IsChecked="{Binding IsEventLogSelected, Mode=OneWay}"
                                           Command="{Binding SelectEventLogCommand}" />
                         </StackPanel>
@@ -617,13 +744,13 @@
                         <StackPanel Visibility="{Binding IntegrationsGroup.IsExpanded, Converter={StaticResource BoolToVisibility}}">
                             <ToggleButton Content="Graylog"
                                           Tag="&#xE8A5;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          Style="{StaticResource DeviceNavItemTipStyle}"
                                           IsChecked="{Binding IsGraylogSelected, Mode=OneWay}"
                                           Command="{Binding SelectGraylogCommand}"
                                           Visibility="{Binding ShowGraylogSection, Converter={StaticResource BoolToVisibility}}" />
                             <ToggleButton Content="Unimus"
                                           Tag="&#xE90F;"
-                                          Style="{StaticResource DeviceNavItemStyle}"
+                                          Style="{StaticResource DeviceNavItemTipStyle}"
                                           IsChecked="{Binding IsConfigSelected, Mode=OneWay}"
                                           Command="{Binding SelectConfigCommand}"
                                           Visibility="{Binding ShowUnimusSection, Converter={StaticResource BoolToVisibility}}" />
@@ -635,6 +762,7 @@
                              than two that both have to stay in sync. -->
                     </StackPanel>
                 </ScrollViewer>
+                </DockPanel>
             </Border>
 
             <!-- ==================== Section content ==================== -->

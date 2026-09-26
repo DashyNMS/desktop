@@ -2264,8 +2264,38 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public DeviceNavGroup IntegrationsGroup { get; }
 
+    /// <summary>
+    /// The sidebar shows labels and section headings; off, it's icons only,
+    /// with a line between groups. Remembered, shared by every device window.
+    /// </summary>
+    public bool IsDeviceNavExpanded
+    {
+        get => _settings.Current.DeviceNavExpanded;
+        set
+        {
+            if (_settings.Current.DeviceNavExpanded == value)
+            {
+                return;
+            }
+
+            _settings.Current.DeviceNavExpanded = value;
+            _settings.SaveQuietly();
+            OnPropertyChanged();
+            RefreshNavGroups();
+            OnPropertyChanged(nameof(ShowCollapsedAlertBadge));
+            OnPropertyChanged(nameof(ShowRailAlertBadge));
+        }
+    }
+
+    public RelayCommand ToggleDeviceNavCommand => _toggleDeviceNavCommand ??= new RelayCommand(() => IsDeviceNavExpanded = !IsDeviceNavExpanded);
+
+    private RelayCommand? _toggleDeviceNavCommand;
+
     /// <summary>With Alerts &amp; logs folded away, its heading carries the active-alert badge instead, so alerts are never hidden.</summary>
     public bool ShowCollapsedAlertBadge => !LogsGroup.IsExpanded && HasActiveAlerts;
+
+    /// <summary>Icons only, the Alerts icon carries the count.</summary>
+    public bool ShowRailAlertBadge => !IsDeviceNavExpanded && HasActiveAlerts;
 
     private void RefreshNavGroups()
     {
@@ -2552,6 +2582,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
         OnPropertyChanged(nameof(HasActiveAlerts));
         OnPropertyChanged(nameof(ShowCollapsedAlertBadge));
+        OnPropertyChanged(nameof(ShowRailAlertBadge));
         OnPropertyChanged(nameof(ShowNoActiveAlertsMessage));
         OnPropertyChanged(nameof(ActiveCriticalCount));
         OnPropertyChanged(nameof(ActiveWarningCount));

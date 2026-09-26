@@ -120,6 +120,9 @@ public sealed class AppSettings
     /// <summary>The main window's sidebar shows its labels (the hamburger button) rather than icons only.</summary>
     public bool NavExpanded { get; set; }
 
+    /// <summary>Device Details' sidebar shows its labels and section headings (the default) rather than icons only.</summary>
+    public bool DeviceNavExpanded { get; set; } = true;
+
     /// <summary>
     /// Also consider GitHub pre-release ("preview") builds - rollups of
     /// in-progress work published between stable releases - when checking
@@ -271,6 +274,7 @@ public sealed class AppSettings
         LastNotifiedUpdateVersion = LastNotifiedUpdateVersion,
         LastRunVersion = LastRunVersion,
         NavExpanded = NavExpanded,
+        DeviceNavExpanded = DeviceNavExpanded,
         IncludePreviewBuilds = IncludePreviewBuilds,
         SuppressBulkAlertActionConfirmation = SuppressBulkAlertActionConfirmation,
         ShowAlertTabBadge = ShowAlertTabBadge,
