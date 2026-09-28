@@ -113,10 +113,14 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         // every subsequent request through that connection fails until the app
         // is restarted. SocketsHttpHandler is used instead so idle connections
         // are proactively evicted well before a typical proxy timeout.
+        //
+        // Redirects are followed by SameServerRedirectHandler (below) rather
+        // than here: .NET would carry the X-Auth-Token header to wherever a
+        // redirect pointed, another host included.
         var handler = new SocketsHttpHandler
         {
             AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
-            AllowAutoRedirect = true,
+            AllowAutoRedirect = false,
             UseCookies = false,
             PooledConnectionIdleTimeout = TimeSpan.FromSeconds(90),
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
@@ -151,13 +155,14 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
             handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
         }
 
-        var http = new HttpClient(handler, disposeHandler: false)
+        var redirects = new SameServerRedirectHandler(handler);
+        var http = new HttpClient(redirects, disposeHandler: false)
         {
             BaseAddress = onBackup && !dialBackupHost ? connection.BackupApiBase : connection.ApiBase,
             Timeout = TimeSpan.FromSeconds(connection.TimeoutSeconds),
         };
 
-        http.DefaultRequestHeaders.Add("X-Auth-Token", connection.ApiToken);
+        http.DefaultRequestHeaders.Add(SameServerRedirectHandler.TokenHeader, connection.ApiToken);
         http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         http.DefaultRequestHeaders.UserAgent.ParseAdd("DashyNMS/0.1 (+https://librenms.org)");
 
@@ -169,7 +174,9 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
             oldHttp = _http;
             oldHandler = _handler;
             _http = http;
-            _handler = handler;
+
+            // The outer handler: disposing it disposes the sockets handler too.
+            _handler = redirects;
             _connection = connection;
         }
 
