@@ -47,6 +47,10 @@ public sealed class TemplatesViewModel : ObservableObject
 
         RefreshCommand = new AsyncRelayCommand(LoadAsync, () => _session.IsConnected && !IsBusy);
         AddTemplateCommand = new RelayCommand(AddTemplate);
+        Csv = new CsvExport(
+            "alert-templates",
+            new[] { "Name", "Title", "Rules", "Rule names" },
+            () => Filtered.View.Cast<AlertTemplateItemViewModel>().Select(t => CsvExport.Row(t.Name, t.Title, t.RuleCount, t.AttachedRuleNames)));
         ClearFiltersCommand = new RelayCommand(() => Filtered.SearchText = string.Empty);
     }
 
@@ -58,6 +62,9 @@ public sealed class TemplatesViewModel : ObservableObject
     public AsyncRelayCommand RefreshCommand { get; }
 
     public RelayCommand AddTemplateCommand { get; }
+
+    /// <summary>Copy / Save as CSV of the templates shown (#142).</summary>
+    public CsvExport Csv { get; }
 
     public RelayCommand ClearFiltersCommand { get; }
 

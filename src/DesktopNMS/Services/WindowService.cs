@@ -557,6 +557,13 @@ public sealed class WindowService : IWindowService
         return ShowRuleEditorDialog(viewModel);
     }
 
+    public bool ShowDuplicateRuleDialog(AlertRule rule)
+    {
+        var viewModel = _services.GetRequiredService<RuleEditorViewModel>();
+        viewModel.InitializeAsCopy(rule);
+        return ShowRuleEditorDialog(viewModel);
+    }
+
     private bool ShowRuleEditorDialog(RuleEditorViewModel viewModel)
     {
         var window = new RuleEditorWindow(viewModel);

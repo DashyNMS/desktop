@@ -58,6 +58,14 @@ public sealed class RulesViewModel : ObservableObject
         RefreshCommand = new AsyncRelayCommand(LoadAsync, () => _session.IsConnected && !IsBusy);
         AddRuleCommand = new RelayCommand(AddRule);
         ClearFiltersCommand = new RelayCommand(ClearFilters);
+        EnableSelectedCommand = new AsyncRelayCommand(() => SetSelectedDisabledAsync(false), () => HasSelection && !_isBulkUpdating);
+        DisableSelectedCommand = new AsyncRelayCommand(() => SetSelectedDisabledAsync(true), () => HasSelection && !_isBulkUpdating);
+
+        Csv = new CsvExport(
+            "alert-rules",
+            new[] { "Name", "Severity", "Enabled", "Condition", "Target", "Template", "Active alerts", "Notes" },
+            () => Filtered.View.Cast<RuleItemViewModel>().Select(r => CsvExport.Row(
+                r.Name, r.SeverityText, r.IsDisabled ? "No" : "Yes", r.ConditionText, r.TargetSummary, r.TemplateName, r.ActiveAlertCount, r.Notes)));
 
         _monitor.Polled += OnPolled;
     }
@@ -75,6 +83,109 @@ public sealed class RulesViewModel : ObservableObject
     public RelayCommand AddRuleCommand { get; }
 
     public RelayCommand ClearFiltersCommand { get; }
+
+    /// <summary>Copy / Save as CSV of the rules shown (#142).</summary>
+    public CsvExport Csv { get; }
+
+    // -------------------------------------------------------------- selection (#144)
+
+    private IReadOnlyList<RuleItemViewModel> _selectedRules = Array.Empty<RuleItemViewModel>();
+    private bool _isBulkUpdating;
+
+    /// <summary>Enables every selected rule - only the ones not already enabled are written.</summary>
+    public AsyncRelayCommand EnableSelectedCommand { get; }
+
+    /// <summary>Disables every selected rule - only the ones not already disabled are written.</summary>
+    public AsyncRelayCommand DisableSelectedCommand { get; }
+
+    public bool HasSelection => _selectedRules.Count > 0;
+
+    /// <summary>Several rows selected: the toolbar offers Enable / Disable for all of them.</summary>
+    public bool HasMultipleSelection => _selectedRules.Count > 1;
+
+    public string SelectionText => $"{_selectedRules.Count} selected";
+
+    /// <summary>The grid's selection changed - set by the view.</summary>
+    public void SetSelection(IEnumerable<RuleItemViewModel> rules)
+    {
+        _selectedRules = rules.ToList();
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(HasMultipleSelection));
+        OnPropertyChanged(nameof(SelectionText));
+        EnableSelectedCommand.RaiseCanExecuteChanged();
+        DisableSelectedCommand.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>More rules than this asks first.</summary>
+    private const int BulkConfirmThreshold = 3;
+
+    /// <summary>
+    /// Enables or disables the selected rules together (#144). LibreNMS has
+    /// no toggle route, so each is a full edit_rule write built from the rule
+    /// as loaded, then re-read - four at a time; one failing doesn't stop the
+    /// rest, and failures are reported together.
+    /// </summary>
+    private async Task SetSelectedDisabledAsync(bool disable)
+    {
+        var items = _selectedRules.Where(r => r.IsDisabled != disable).ToList();
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var verb = disable ? "Disable" : "Enable";
+        if (items.Count > BulkConfirmThreshold
+            && !_windows.Confirm($"{verb} rules", $"{verb} {items.Count} alert rules in LibreNMS?"))
+        {
+            return;
+        }
+
+        _isBulkUpdating = true;
+        EnableSelectedCommand.RaiseCanExecuteChanged();
+        DisableSelectedCommand.RaiseCanExecuteChanged();
+
+        var failures = new List<string>();
+        using var gate = new System.Threading.SemaphoreSlim(4);
+        await Task.WhenAll(items.Select(async item =>
+        {
+            await gate.WaitAsync().ConfigureAwait(true);
+            item.IsToggling = true;
+            try
+            {
+                var request = AlertRuleWriteRequest.FromRule(item.Rule);
+                request.Disabled = disable ? 1 : 0;
+                await _client.Rules.UpdateAsync(request).ConfigureAwait(true);
+
+                var fresh = await _client.Rules.GetAsync(item.Id).ConfigureAwait(true);
+                if (fresh is not null)
+                {
+                    item.Update(fresh);
+                }
+            }
+            catch (LibreNmsApiException ex)
+            {
+                _logger.LogWarning(ex, "Could not {Verb} alert rule {RuleId}", verb.ToLowerInvariant(), item.Id);
+                failures.Add($"{item.Name}: {ex.ToUserMessage()}");
+            }
+            finally
+            {
+                item.IsToggling = false;
+                gate.Release();
+            }
+        })).ConfigureAwait(true);
+
+        _isBulkUpdating = false;
+        EnableSelectedCommand.RaiseCanExecuteChanged();
+        DisableSelectedCommand.RaiseCanExecuteChanged();
+        Filtered.Refresh();
+
+        if (failures.Count > 0)
+        {
+            _windows.ShowError($"{verb} failed", failures.Count == 1
+                ? failures[0]
+                : $"{failures.Count} of {items.Count} rules couldn't be changed:\n\n{string.Join("\n", failures.Take(8))}");
+        }
+    }
 
     // -------------------------------------------------------------- severity filter
 
@@ -183,13 +294,30 @@ public sealed class RulesViewModel : ObservableObject
 
         try
         {
-            var rules = await _client.Rules.ListAsync().ConfigureAwait(true);
+            var rulesTask = _client.Rules.ListAsync();
+            var templatesTask = TryLoadTemplatesAsync();
+            await Task.WhenAll(rulesTask, templatesTask).ConfigureAwait(true);
+
+            // Each rule's template (#140), as LibreNMS derives it: the
+            // template listing the rule, else the Default Alert Template -
+            // whose own mappings are never stored (see TemplatesViewModel).
+            var templateByRule = new Dictionary<int, string>();
+            foreach (var template in templatesTask.Result)
+            {
+                foreach (var ruleId in template.AlertRules)
+                {
+                    templateByRule.TryAdd(ruleId, template.Name ?? $"Template {template.Id}");
+                }
+            }
 
             Rules.Clear();
-            foreach (var rule in rules.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
+            foreach (var rule in rulesTask.Result.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
             {
-                var item = new RuleItemViewModel(rule, EditRule, DeleteRule, ToggleDisabled, ShowAlerts);
-                item.ActiveAlertCount = _alertCounts.GetValueOrDefault(rule.Id);
+                var item = new RuleItemViewModel(rule, EditRule, DeleteRule, ToggleDisabled, ShowAlerts, DuplicateRule)
+                {
+                    ActiveAlertCount = _alertCounts.GetValueOrDefault(rule.Id),
+                    TemplateName = templateByRule.GetValueOrDefault(rule.Id, DefaultTemplateName),
+                };
                 Rules.Add(item);
             }
         }
@@ -235,6 +363,30 @@ public sealed class RulesViewModel : ObservableObject
     private void AddRule()
     {
         if (_windows.ShowAddRuleDialog())
+        {
+            _ = LoadAsync();
+        }
+    }
+
+    private const string DefaultTemplateName = "Default Alert Template";
+
+    /// <summary>The templates, for the Template column - without them the column just says Default, rather than the rules failing to load.</summary>
+    private async Task<IReadOnlyList<AlertTemplate>> TryLoadTemplatesAsync()
+    {
+        try
+        {
+            return await _client.AlertTemplates.ListAsync().ConfigureAwait(true);
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not load alert templates for the Rules tab's Template column");
+            return Array.Empty<AlertTemplate>();
+        }
+    }
+
+    private void DuplicateRule(RuleItemViewModel item)
+    {
+        if (_windows.ShowDuplicateRuleDialog(item.Rule))
         {
             _ = LoadAsync();
         }

@@ -113,6 +113,9 @@ public interface IWindowService
     /// <summary>Shows the "Edit rule" dialog for an existing alert rule. Returns true if it was saved.</summary>
     bool ShowEditRuleDialog(AlertRule rule);
 
+    /// <summary>The Add rule editor, filled from an existing rule (#139) - saving creates a new one.</summary>
+    bool ShowDuplicateRuleDialog(AlertRule rule);
+
     /// <summary>
     /// Shows the "Schedule maintenance" dialog for a device (issue #38).
     /// Returns LibreNMS's own confirmation message on success, or null if the

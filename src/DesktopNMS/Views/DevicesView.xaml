@@ -264,21 +264,21 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <DataGridTextColumn Header="IP" Width="130" Binding="{Binding Ip}" />
-                        <DataGridTextColumn Header="OS" Width="110" Binding="{Binding Os}" />
-                        <DataGridTextColumn Header="Hardware" Width="*" Binding="{Binding Hardware}" />
-                        <DataGridTextColumn Header="Location" Width="140" Binding="{Binding Location}" />
-                        <DataGridTextColumn Header="Uptime" Width="100" Binding="{Binding UptimeText}" />
+                        <DataGridTextColumn Header="IP" Width="130" Binding="{Binding Ip}" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="OS" Width="110" Binding="{Binding Os}" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="Hardware" Width="*" Binding="{Binding Hardware}" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="Location" Width="140" Binding="{Binding Location}" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="Uptime" Width="100" Binding="{Binding UptimeText}" ElementStyle="{StaticResource GridTextCellStyle}" />
 
                         <!-- Off by default (issue #40) - shown via the column
                              header's own right-click menu. Appended after the
                              always-on columns above so an older saved layout
                              (fewer columns than this) leaves these untouched,
                              i.e. still hidden, rather than mis-mapping onto them. -->
-                        <DataGridTextColumn Header="Type" Width="110" Binding="{Binding Type}" Visibility="Collapsed" />
-                        <DataGridTextColumn Header="Contact" Width="140" Binding="{Binding Contact}" Visibility="Collapsed" />
-                        <DataGridTextColumn Header="Serial" Width="140" Binding="{Binding Serial}" Visibility="Collapsed" />
-                        <DataGridTextColumn Header="Last discovered" Width="140" Binding="{Binding LastDiscoveredText}" Visibility="Collapsed" />
+                        <DataGridTextColumn Header="Type" Width="110" Binding="{Binding Type}" Visibility="Collapsed" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="Contact" Width="140" Binding="{Binding Contact}" Visibility="Collapsed" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="Serial" Width="140" Binding="{Binding Serial}" Visibility="Collapsed" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="Last discovered" Width="140" Binding="{Binding LastDiscoveredText}" Visibility="Collapsed" ElementStyle="{StaticResource GridTextCellStyle}" />
 
                     </DataGrid.Columns>
 

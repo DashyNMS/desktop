@@ -119,9 +119,9 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTextColumn Header="Description" Width="1*" Binding="{Binding Description}" />
+                    <DataGridTextColumn Header="Description" Width="1*" Binding="{Binding Description}" ElementStyle="{StaticResource GridTextCellStyle}" />
 
-                    <DataGridTextColumn Header="Type" Width="80" Binding="{Binding TypeText}" SortMemberPath="TypeText" />
+                    <DataGridTextColumn Header="Type" Width="80" Binding="{Binding TypeText}" ElementStyle="{StaticResource GridTextCellStyle}" SortMemberPath="TypeText" />
 
                     <DataGridTextColumn Header="Devices" Width="70" Binding="{Binding MemberCountText}" SortMemberPath="MemberCount">
                         <DataGridTextColumn.ElementStyle>
