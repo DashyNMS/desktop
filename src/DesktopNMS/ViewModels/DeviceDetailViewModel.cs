@@ -3139,6 +3139,42 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
     }
 
+    // ------------------------------------------------------------------ CSV export (#67)
+
+    // Each table's rows as shown - after its search - named after the device.
+    private CsvExport? _portsCsv;
+    private CsvExport? _vlansCsv;
+    private CsvExport? _fdbCsv;
+    private CsvExport? _arpCsv;
+    private CsvExport? _sensorsCsv;
+
+    public CsvExport PortsCsv => _portsCsv ??= new CsvExport(
+        () => $"{Name}-ports",
+        new[] { "Port", "Description", "Status", "Speed", "In", "Out", "Errors", "Media", "Duplex", "MTU", "MAC", "IP addresses", "Neighbour" },
+        () => PortsView.Cast<PortItemViewModel>().Select(p => CsvExport.Row(
+            p.DisplayName, p.SecondaryName, p.StatusText, p.SpeedText, p.InRateText, p.OutRateText, p.ErrorCount,
+            p.MediaText, p.DuplexText, p.MtuText, p.MacAddressText, p.IpAddressesText, p.NeighborText)));
+
+    public CsvExport VlansCsv => _vlansCsv ??= new CsvExport(
+        () => $"{Name}-vlans",
+        new[] { "VLAN", "Name", "Ports" },
+        () => VlansView.Cast<VlanItemViewModel>().Select(v => CsvExport.Row(v.NumberText, v.NameText, v.PortsSummaryText)));
+
+    public CsvExport FdbCsv => _fdbCsv ??= new CsvExport(
+        () => $"{Name}-fdb",
+        new[] { "MAC", "Port", "VLAN", "VLAN name", "Updated" },
+        () => FdbView.Cast<FdbItemViewModel>().Select(f => CsvExport.Row(f.MacAddressText, f.PortText, f.VlanText, f.VlanNameText, f.UpdatedText)));
+
+    public CsvExport ArpCsv => _arpCsv ??= new CsvExport(
+        () => $"{Name}-arp",
+        new[] { "IP address", "MAC", "Port" },
+        () => ArpView.Cast<ArpItemViewModel>().Select(a => CsvExport.Row(a.Ipv4AddressText, a.MacAddressText, a.PortText)));
+
+    public CsvExport SensorsCsv => _sensorsCsv ??= new CsvExport(
+        () => $"{Name}-sensors",
+        new[] { "Group", "Sensor", "State", "Value", "Last updated" },
+        () => SensorGroups.SelectMany(g => g.Sensors.Select(s => CsvExport.Row(g.Name, s.RowLabel, s.SeverityText, s.ValueText, s.LastUpdateText))));
+
     // ------------------------------------------------------------------ neighbours
 
     /// <summary>What this device is connected to - see <see cref="DeviceNeighbours"/>.</summary>

@@ -1578,6 +1578,7 @@
                     <ItemsControl Grid.Column="1"
                                   ItemsSource="{Binding SensorGraphLinks}"
                                   HorizontalAlignment="Right"
+                                  Margin="0,0,44,0"
                                   VerticalAlignment="Center">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -1592,6 +1593,7 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <views:CsvExportButton Grid.Column="1" Export="{Binding SensorsCsv}" HorizontalAlignment="Right" VerticalAlignment="Center" />
                 </Grid>
 
                 <Grid Grid.Row="1">
@@ -1716,6 +1718,7 @@
                          Width="320"
                          HorizontalAlignment="Left"
                          Margin="0,0,0,10" />
+                <views:CsvExportButton Grid.Row="0" Export="{Binding PortsCsv}" HorizontalAlignment="Right" VerticalAlignment="Top" />
 
                 <Grid Grid.Row="1">
                 <DataGrid x:Name="PortsGrid"
@@ -1898,6 +1901,7 @@
                          Width="320"
                          HorizontalAlignment="Left"
                          Margin="0,0,0,10" />
+                <views:CsvExportButton Grid.Row="0" Export="{Binding VlansCsv}" HorizontalAlignment="Right" VerticalAlignment="Top" />
 
                 <Grid Grid.Row="1">
                     <DataGrid x:Name="VlansGrid"
@@ -1973,6 +1977,7 @@
                          Width="320"
                          HorizontalAlignment="Left"
                          Margin="0,0,0,10" />
+                <views:CsvExportButton Grid.Row="0" Export="{Binding FdbCsv}" HorizontalAlignment="Right" VerticalAlignment="Top" />
 
                 <Grid Grid.Row="1">
                     <DataGrid x:Name="FdbGrid"
@@ -2044,6 +2049,7 @@
                          Width="320"
                          HorizontalAlignment="Left"
                          Margin="0,0,0,10" />
+                <views:CsvExportButton Grid.Row="0" Export="{Binding ArpCsv}" HorizontalAlignment="Right" VerticalAlignment="Top" />
 
                 <Grid Grid.Row="1">
                     <DataGrid x:Name="ArpGrid"

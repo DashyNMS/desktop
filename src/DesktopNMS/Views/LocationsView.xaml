@@ -109,7 +109,7 @@
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <DataGridTextColumn Header="Fixed" Width="70" Binding="{Binding FixedCoordinatesText}" SortMemberPath="FixedCoordinatesText"
+                    <DataGridTextColumn Header="Fixed" Width="70" Binding="{Binding FixedCoordinatesText}" ElementStyle="{StaticResource GridTextCellStyle}" SortMemberPath="FixedCoordinatesText"
                                          ToolTipService.ToolTip="Whether these coordinates stay fixed, or a device's own reported coordinates can overwrite them" />
 
                     <DataGridTextColumn Header="Devices" Width="80" Binding="{Binding MemberCountText}" SortMemberPath="MemberCount">
