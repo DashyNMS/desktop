@@ -22,6 +22,31 @@ public class UnimusExportTests
         Assert.Equal("core_sw_01__.cfg", name);
     }
 
+    [Theory]
+    [InlineData('<')]
+    [InlineData('>')]
+    [InlineData(':')]
+    [InlineData('"')]
+    [InlineData('/')]
+    [InlineData('\\')]
+    [InlineData('|')]
+    [InlineData('?')]
+    [InlineData('*')]
+    [InlineData('\t')]
+    [InlineData('\0')]
+    public void File_name_replaces_every_windows_invalid_character_on_any_platform(char invalid)
+    {
+        var name = UnimusExport.FileNameFor($"sw{invalid}01", null, ".cfg");
+
+        Assert.Equal("sw_01.cfg", name);
+    }
+
+    [Fact]
+    public void File_name_keeps_ordinary_punctuation()
+    {
+        Assert.Equal("sw-core.01 (a)_b.cfg", UnimusExport.FileNameFor("sw-core.01 (a)_b", null, ".cfg"));
+    }
+
     [Fact]
     public void File_name_falls_back_when_the_device_has_no_name()
     {

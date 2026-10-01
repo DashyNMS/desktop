@@ -774,8 +774,12 @@ internal sealed class LogsApi : ILogsApi
 
     public LogsApi(ILibreNmsTransport transport) => _transport = transport;
 
+    /// <summary>"/42" for one device, or nothing at all for every device - LibreNMS treats the segment as optional (#194).</summary>
+    private static string DeviceSegment(int? deviceId)
+        => deviceId is { } id ? "/" + id.ToString(CultureInfo.InvariantCulture) : string.Empty;
+
     public Task<IReadOnlyList<AlertLogEntry>> ListAlertLogAsync(
-        int deviceId,
+        int? deviceId,
         int limit = 50,
         CancellationToken cancellationToken = default)
     {
@@ -786,7 +790,7 @@ internal sealed class LogsApi : ILogsApi
 
         var url = string.Create(
             CultureInfo.InvariantCulture,
-            $"logs/alertlog/{deviceId}?limit={limit}&sortorder=DESC");
+            $"logs/alertlog{DeviceSegment(deviceId)}?limit={limit}&sortorder=DESC");
 
         return _transport.GetCollectionAsync<AlertLogEntry>(url, "logs", cancellationToken);
     }
@@ -821,7 +825,7 @@ internal sealed class LogsApi : ILogsApi
     }
 
     public Task<IReadOnlyList<EventLogEntry>> ListEventLogAsync(
-        int deviceId,
+        int? deviceId,
         int limit = 50,
         CancellationToken cancellationToken = default)
     {
@@ -832,7 +836,7 @@ internal sealed class LogsApi : ILogsApi
 
         var url = string.Create(
             CultureInfo.InvariantCulture,
-            $"logs/eventlog/{deviceId}?limit={limit}&sortorder=DESC");
+            $"logs/eventlog{DeviceSegment(deviceId)}?limit={limit}&sortorder=DESC");
 
         return _transport.GetCollectionAsync<EventLogEntry>(url, "logs", cancellationToken);
     }

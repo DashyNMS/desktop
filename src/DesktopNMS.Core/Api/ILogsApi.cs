@@ -6,12 +6,13 @@ namespace DesktopNMS.Core.Api;
 public interface ILogsApi
 {
     /// <summary>
-    /// GET /api/v0/logs/alertlog/{device}, newest first.
+    /// GET /api/v0/logs/alertlog/{device}, newest first - or, with no device,
+    /// GET /api/v0/logs/alertlog for every device's entries together.
     /// </summary>
-    /// <param name="deviceId">Device to fetch entries for. The route also accepts a hostname.</param>
+    /// <param name="deviceId">Device to fetch entries for, or null for every device. Each entry still carries its device id, hostname and sysName.</param>
     /// <param name="limit">Maximum entries to return. The server defaults to 50.</param>
     Task<IReadOnlyList<AlertLogEntry>> ListAlertLogAsync(
-        int deviceId,
+        int? deviceId,
         int limit = 50,
         CancellationToken cancellationToken = default);
 
@@ -27,7 +28,8 @@ public interface ILogsApi
 
     /// <summary>
     /// GET /api/v0/logs/eventlog/{device}, newest first - LibreNMS's general
-    /// audit trail for the device, distinct from the alert log.
+    /// audit trail for the device, distinct from the alert log. With no device,
+    /// GET /api/v0/logs/eventlog returns every device's entries together.
     /// </summary>
     /// <remarks>
     /// There is no separate offset/skip parameter here (a "start" query
@@ -37,10 +39,10 @@ public interface ILogsApi
     /// call with a larger <paramref name="limit"/> and taking only the tail
     /// beyond what is already on screen, rather than true paging.
     /// </remarks>
-    /// <param name="deviceId">Device to fetch entries for. The route also accepts a hostname.</param>
+    /// <param name="deviceId">Device to fetch entries for, or null for every device (#194).</param>
     /// <param name="limit">Maximum entries to return, counted from newest. The server defaults to 50.</param>
     Task<IReadOnlyList<EventLogEntry>> ListEventLogAsync(
-        int deviceId,
+        int? deviceId,
         int limit = 50,
         CancellationToken cancellationToken = default);
 }
