@@ -38,6 +38,13 @@ public sealed class EventLogEntry
     [JsonPropertyName("severity")]
     public int? Severity { get; set; }
 
+    /// <summary>The device's hostname, joined in by LibreNMS - so a fleet-wide list (no device in the URL) can say whose entry this is. Null for an entry not tied to a device.</summary>
+    [JsonPropertyName("hostname")]
+    public string? Hostname { get; set; }
+
+    [JsonPropertyName("sysName")]
+    public string? SysName { get; set; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? AdditionalData { get; set; }
 

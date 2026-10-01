@@ -337,8 +337,9 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
             return "No rules yet - edit the view to add some.";
         }
 
-        var text = string.Join(view.MatchAll ? " and " : " or ", rules.Select(r =>
-            $"{NeighbourViewText.FieldName(r.Field).ToLowerInvariant()} {NeighbourViewText.OperatorName(r.Operator)} \"{r.Value.Trim()}\""));
+        var text = string.Join(view.MatchAll ? " and " : " or ", rules.Select(r => r.IsSupported
+            ? $"{NeighbourViewText.FieldName(r.Field).ToLowerInvariant()} {NeighbourViewText.OperatorName(r.Operator)} \"{r.Value.Trim()}\""
+            : "a rule from a newer version of DashyNMS"));
         return char.ToUpperInvariant(text[0]) + text[1..];
     }
 

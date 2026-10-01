@@ -30,7 +30,7 @@ public interface ISettingsStore
     void Replace(AppSettings settings);
 }
 
-/// <summary>JSON-backed settings in %APPDATA%\DesktopNMS\settings.json.</summary>
+/// <summary>JSON-backed settings, by default in %APPDATA%\DashyNMS\settings.json.</summary>
 public sealed class SettingsStore : ISettingsStore
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -42,14 +42,22 @@ public sealed class SettingsStore : ISettingsStore
     };
 
     private readonly ILogger<SettingsStore> _logger;
+    private readonly string _settingsFile;
     private readonly object _sync = new();
 
     private AppSettings _current = new();
     private bool _loaded;
 
     public SettingsStore(ILogger<SettingsStore> logger)
+        : this(logger, AppPaths.SettingsFile)
+    {
+    }
+
+    /// <summary>Uses <paramref name="settingsFile"/> instead of the per-user default - for tests, and for hosts that keep their data elsewhere.</summary>
+    public SettingsStore(ILogger<SettingsStore> logger, string settingsFile)
     {
         _logger = logger;
+        _settingsFile = settingsFile;
     }
 
     public AppSettings Current
@@ -75,9 +83,9 @@ public sealed class SettingsStore : ISettingsStore
 
             try
             {
-                if (File.Exists(AppPaths.SettingsFile))
+                if (File.Exists(_settingsFile))
                 {
-                    var json = File.ReadAllText(AppPaths.SettingsFile);
+                    var json = File.ReadAllText(_settingsFile);
                     var loaded = JsonSerializer.Deserialize<AppSettings>(json, SerializerOptions);
                     if (loaded is not null)
                     {
@@ -90,7 +98,7 @@ public sealed class SettingsStore : ISettingsStore
             catch (Exception ex)
             {
                 // A corrupt settings file must not stop the app starting.
-                _logger.LogWarning(ex, "Could not read {Path}; falling back to defaults", AppPaths.SettingsFile);
+                _logger.LogWarning(ex, "Could not read {Path}; falling back to defaults", _settingsFile);
                 TryBackupCorruptFile();
             }
 
@@ -102,7 +110,16 @@ public sealed class SettingsStore : ISettingsStore
 
     public void SaveQuietly() => Write();
 
-    public void Save() => Changed?.Invoke(this, Write());
+    /// <remarks>
+    /// Writes first, then raises <see cref="Changed"/>. Folding the write into the
+    /// event call (<c>Changed?.Invoke(this, Write())</c>) skipped the write
+    /// entirely whenever nothing was subscribed (#191).
+    /// </remarks>
+    public void Save()
+    {
+        var saved = Write();
+        Changed?.Invoke(this, saved);
+    }
 
     private AppSettings Write()
     {
@@ -116,11 +133,11 @@ public sealed class SettingsStore : ISettingsStore
             try
             {
                 var json = JsonSerializer.Serialize(snapshot, SerializerOptions);
-                WriteAtomic(AppPaths.SettingsFile, json);
+                WriteAtomic(_settingsFile, json);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Could not write {Path}", AppPaths.SettingsFile);
+                _logger.LogError(ex, "Could not write {Path}", _settingsFile);
             }
         }
 
@@ -153,10 +170,10 @@ public sealed class SettingsStore : ISettingsStore
     {
         try
         {
-            if (File.Exists(AppPaths.SettingsFile))
+            if (File.Exists(_settingsFile))
             {
-                var backup = AppPaths.SettingsFile + ".corrupt";
-                File.Copy(AppPaths.SettingsFile, backup, overwrite: true);
+                var backup = _settingsFile + ".corrupt";
+                File.Copy(_settingsFile, backup, overwrite: true);
                 _logger.LogInformation("Kept a copy of the unreadable settings file at {Path}", backup);
             }
         }

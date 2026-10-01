@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Core.Security;
 using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.Core.Api;
@@ -39,6 +40,9 @@ public sealed class UnimusApi : IUnimusApi, IDisposable
 
     private HttpClient? _http;
     private HttpMessageHandler? _handler;
+
+    /// <summary>The last certificate turned down under "Allow untrusted certificate", picked up by the request that failed on it (#189).</summary>
+    private CertificateDetails? _rejectedCertificate;
     private UnimusConnection? _connection;
 
     public UnimusApi(ILogger<UnimusApi> logger)
@@ -71,9 +75,14 @@ public sealed class UnimusApi : IUnimusApi, IDisposable
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
         };
 
+        _rejectedCertificate = null;
         if (connection.AllowUntrustedCertificate)
         {
-            handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+            handler.SslOptions.RemoteCertificateValidationCallback = CertificateTrust.CreateCallback(
+                connection.WebRoot.Host,
+                allowUntrusted: true,
+                connection.TrustedCertificates,
+                details => _rejectedCertificate = details);
         }
 
         var http = new HttpClient(handler, disposeHandler: false)
@@ -256,7 +265,11 @@ public sealed class UnimusApi : IUnimusApi, IDisposable
         catch (HttpRequestException ex)
         {
             _logger.LogWarning(ex, "Could not reach Unimus at {BaseAddress}", http.BaseAddress);
-            throw new UnimusApiException(DescribeTransportFailure(ex), innerException: ex);
+            var rejected = Interlocked.Exchange(ref _rejectedCertificate, null);
+            throw new UnimusApiException(rejected is null ? DescribeTransportFailure(ex) : CertificateTrust.DescribeRejection(rejected, "Unimus"), innerException: ex)
+            {
+                UntrustedCertificate = rejected,
+            };
         }
     }
 
@@ -288,7 +301,7 @@ public sealed class UnimusApi : IUnimusApi, IDisposable
 
     private static string DescribeTransportFailure(HttpRequestException ex) => ex.InnerException switch
     {
-        System.Security.Authentication.AuthenticationException => "Could not verify Unimus's TLS certificate. If it uses a self-signed or internal certificate, enable \"Ignore SSL certificate errors\" in Settings.",
+        System.Security.Authentication.AuthenticationException => "Could not verify Unimus's TLS certificate. If it uses a self-signed or internal certificate, enable \"Allow an untrusted or self-signed certificate\" in Settings.",
         _ => $"Could not reach Unimus: {ex.Message}",
     };
 

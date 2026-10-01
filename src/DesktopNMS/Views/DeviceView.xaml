@@ -1080,6 +1080,10 @@
                                     <TextBlock Text="Last discovered" Style="{StaticResource KeyTextStyle}" />
                                     <TextBlock Text="{Binding LastDiscoveredText}" TextWrapping="Wrap" />
                                 </DockPanel>
+                                <DockPanel Style="{StaticResource KeyRowStyle}" Visibility="{Binding HasLastPolled, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Last polled" Style="{StaticResource KeyTextStyle}" />
+                                    <TextBlock Text="{Binding LastPolledText}" TextWrapping="Wrap" />
+                                </DockPanel>
                                 <DockPanel Style="{StaticResource KeyRowStyle}" Visibility="{Binding HasSysObjectId, Converter={StaticResource BoolToVisibility}}">
                                     <TextBlock Text="Object ID" Style="{StaticResource KeyTextStyle}" />
                                     <TextBlock Text="{Binding SysObjectId}" TextWrapping="Wrap" />

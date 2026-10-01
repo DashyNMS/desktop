@@ -111,7 +111,7 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
         catch (LibreNmsApiException ex)
         {
             _logger.LogWarning(ex, "Connection test failed against {Host}", connection.WebRoot);
-            return ConnectionTestResult.Failure(ex.ToUserMessage(), ex.IsAuthenticationFailure);
+            return ConnectionTestResult.Failure(ex.ToUserMessage(), ex.IsAuthenticationFailure, ex.UntrustedCertificate);
         }
         catch (Exception ex)
         {
@@ -141,7 +141,8 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
             _logger.LogWarning(ex, "Connection test failed against the backup address {Backup} too", connection.BackupWebRoot);
             return ConnectionTestResult.Failure(
                 $"Neither the server's address nor the backup address ({connection.BackupWebRoot}) answered: {ex.ToUserMessage()}",
-                ex.IsAuthenticationFailure);
+                ex.IsAuthenticationFailure,
+                ex.UntrustedCertificate);
         }
     }
 

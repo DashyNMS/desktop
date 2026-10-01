@@ -15,6 +15,7 @@ public sealed class ConnectionViewModel : ObservableObject
 {
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
+    private readonly IWindowService _windows;
 
     private string _serverUrl = string.Empty;
     private string _apiToken = string.Empty;
@@ -24,10 +25,11 @@ public sealed class ConnectionViewModel : ObservableObject
     private string? _errorMessage;
     private string? _successMessage;
 
-    public ConnectionViewModel(ISessionService session, ISettingsStore settings)
+    public ConnectionViewModel(ISessionService session, ISettingsStore settings, IWindowService windows)
     {
         _session = session;
         _settings = settings;
+        _windows = windows;
 
         var current = settings.Current;
         _serverUrl = current.ServerUrl ?? string.Empty;
@@ -135,6 +137,17 @@ public sealed class ConnectionViewModel : ObservableObject
             var result = await _session
                 .SignInAsync(ServerUrl, ApiToken, AllowUntrustedCertificate, RememberToken, timeout.Token, BackupAddress)
                 .ConfigureAwait(true);
+
+            // A certificate the user hasn't accepted yet (or one that has
+            // changed): show it, and only on their say-so trust it and try again (#189).
+            if (result.UntrustedCertificate is { } certificate && _windows.ConfirmTrustCertificate("LibreNMS", certificate))
+            {
+                _session.TrustCertificate(certificate);
+                using var retryTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(seconds));
+                result = await _session
+                    .SignInAsync(ServerUrl, ApiToken, AllowUntrustedCertificate, RememberToken, retryTimeout.Token, BackupAddress)
+                    .ConfigureAwait(true);
+            }
 
             if (result.Succeeded)
             {

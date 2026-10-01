@@ -11,6 +11,17 @@ namespace DesktopNMS.Core.Alerting;
 public static class UnimusExport
 {
     /// <summary>
+    /// What Windows refuses in a file name. A fixed list rather than
+    /// <see cref="Path.GetInvalidFileNameChars"/>, which off Windows only
+    /// covers '/' and NUL - a backup exported on a phone would otherwise
+    /// keep ':', '*' or '?' and be unusable once copied to Windows (#193).
+    /// </summary>
+    private const string WindowsInvalidFileNameChars = "<>:\"/\\|?*";
+
+    /// <summary>True for anything Windows won't allow in a file name: the reserved punctuation and control characters.</summary>
+    public static bool IsUnsafeInFileName(char c) => c < 32 || WindowsInvalidFileNameChars.Contains(c);
+
+    /// <summary>
     /// "sw-core-01_2026-09-18_1801.cfg" - the device name plus the
     /// backup's own time, so several exports of the same device sort by date
     /// and never collide. Anything Windows won't allow in a file name becomes
@@ -19,8 +30,7 @@ public static class UnimusExport
     public static string FileNameFor(string? deviceName, DateTime? localTime, string extension)
     {
         var name = string.IsNullOrWhiteSpace(deviceName) ? "device" : deviceName.Trim();
-        var invalid = Path.GetInvalidFileNameChars();
-        var safe = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
+        var safe = new string(name.Select(c => IsUnsafeInFileName(c) ? '_' : c).ToArray());
 
         var stamp = localTime is { } t ? $"_{t:yyyy-MM-dd_HHmm}" : string.Empty;
         var ext = extension.StartsWith('.') ? extension : "." + extension;

@@ -1,4 +1,5 @@
 using System.Net;
+using DesktopNMS.Core.Security;
 
 namespace DesktopNMS.Core.Api;
 
@@ -20,6 +21,13 @@ public sealed class GraylogApiException : Exception
     }
 
     public HttpStatusCode? StatusCode { get; }
+
+    /// <summary>
+    /// Set when the connection failed only because the server's certificate
+    /// isn't one the user has trusted yet, or has changed since they did,
+    /// with "Allow untrusted certificate" on - so the app can show it and ask (#189).
+    /// </summary>
+    public CertificateDetails? UntrustedCertificate { get; init; }
 
     /// <summary>True when the username or password was rejected, so Settings can flag it rather than just showing a generic failure.</summary>
     public bool IsAuthenticationFailure =>

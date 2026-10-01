@@ -2103,6 +2103,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public bool HasLastDiscovered => LastDiscoveredText is not null;
 
+    /// <summary>"2 min ago · took 1.7 s" - when LibreNMS last polled this device and how long it took (#190).</summary>
+    public string? LastPolledText => _device?.LastPolled is { } t
+        ? DurationFormat.Format(ServerTime.Age(t, _settings.Current.ServerTimestampsAreUtc)) + " ago"
+            + (_device.LastPolledTimeTaken is { } taken ? " · took " + taken.ToString("0.0", CultureInfo.CurrentCulture) + " s" : string.Empty)
+        : null;
+
+    public bool HasLastPolled => LastPolledText is not null;
+
     /// <summary>Whether the Overview's "Technical" card has anything to show at all - it should not appear as an empty card for a device with none of Object ID/Serial/Depends-on. Location/Contact and Uptime/Device-added/Last-discovered have their own cards, but never hide entirely, since Location and Uptime always show something (even just "-").</summary>
     public bool HasTechnicalDetails => HasSysObjectId || HasSerial || HasDependencyParent;
 
@@ -4369,6 +4377,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasInserted));
         OnPropertyChanged(nameof(LastDiscoveredText));
         OnPropertyChanged(nameof(HasLastDiscovered));
+        OnPropertyChanged(nameof(LastPolledText));
+        OnPropertyChanged(nameof(HasLastPolled));
         OnPropertyChanged(nameof(HasTechnicalDetails));
         OnPropertyChanged(nameof(HasLocation));
         ShowDevicesForLocationCommand.RaiseCanExecuteChanged();

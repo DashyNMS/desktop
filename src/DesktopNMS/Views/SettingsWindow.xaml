@@ -220,7 +220,7 @@
                                 <TextBlock Style="{StaticResource SubtleTextStyle}"
                                            TextWrapping="Wrap"
                                            Margin="0,6,0,0"
-                                           Text="Takes effect the next time you sign in." />
+                                           Text="For a self-signed or internally-issued certificate. You are shown the certificate and asked before it is trusted; after that only that exact certificate is accepted. Takes effect the next time you sign in." />
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -994,13 +994,13 @@
                                            Margin="0,4,0,0"
                                            Text="Leave blank and save to keep the token already stored. Generate one in Unimus under User management, API tokens." />
 
-                                <CheckBox Content="Ignore SSL certificate errors"
+                                <CheckBox Content="Allow an untrusted or self-signed certificate"
                                           IsChecked="{Binding UnimusAllowUntrustedCertificate}"
                                           Margin="0,16,0,0" />
                                 <TextBlock Style="{StaticResource SubtleTextStyle}"
                                            TextWrapping="Wrap"
                                            Margin="0,4,0,0"
-                                           Text="Only enable this if Unimus uses a self-signed or internally-issued certificate you trust." />
+                                           Text="For a self-signed or internally-issued certificate. Testing the connection shows the certificate and asks before trusting it; after that only that exact certificate is accepted." />
 
                                 <TextBlock Text="LibreNMS discovery domain (optional)" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
                                 <TextBox Text="{Binding UnimusMyDomain, UpdateSourceTrigger=PropertyChanged}" ToolTip="e.g. internal.example.com" />
@@ -1119,13 +1119,13 @@
                                            Margin="0,4,0,0"
                                            Text="Leave blank and save to keep the password already stored. To use a Graylog access token instead, enter the token as the username and the word token as the password." />
 
-                                <CheckBox Content="Ignore SSL certificate errors"
+                                <CheckBox Content="Allow an untrusted or self-signed certificate"
                                           IsChecked="{Binding GraylogAllowUntrustedCertificate}"
                                           Margin="0,16,0,0" />
                                 <TextBlock Style="{StaticResource SubtleTextStyle}"
                                            TextWrapping="Wrap"
                                            Margin="0,4,0,0"
-                                           Text="Only enable this if Graylog uses a self-signed or internally-issued certificate you trust." />
+                                           Text="For a self-signed or internally-issued certificate. Testing the connection shows the certificate and asks before trusting it; after that only that exact certificate is accepted." />
 
                                 <TextBlock Text="Display time zone" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
                                 <TextBox Text="{Binding GraylogTimezone, UpdateSourceTrigger=PropertyChanged, Delay=300}"

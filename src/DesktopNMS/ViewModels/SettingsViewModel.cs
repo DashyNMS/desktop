@@ -839,19 +839,34 @@ public sealed class SettingsViewModel : ObservableObject
 
         IsTestingUnimusConnection = true;
 
-        using var probe = new UnimusApi(Microsoft.Extensions.Logging.Abstractions.NullLogger<UnimusApi>.Instance);
-        probe.Configure(new UnimusConnection(webRoot, token, UnimusAllowUntrustedCertificate));
-
         try
         {
-            await probe.TestConnectionAsync().ConfigureAwait(true);
-            UnimusTestSucceeded = true;
-            UnimusTestStatusText = "Connected to Unimus successfully.";
-        }
-        catch (UnimusApiException ex)
-        {
-            UnimusTestSucceeded = false;
-            UnimusTestStatusText = ex.ToUserMessage();
+            // Twice at most: once as configured, and once more if the user
+            // accepts a certificate it turned down (#189).
+            for (var attempt = 0; ; attempt++)
+            {
+                using var probe = new UnimusApi(Microsoft.Extensions.Logging.Abstractions.NullLogger<UnimusApi>.Instance);
+                probe.Configure(new UnimusConnection(webRoot, token, UnimusAllowUntrustedCertificate, trustedCertificates: _draft.Unimus.TrustedCertificates));
+
+                try
+                {
+                    await probe.TestConnectionAsync().ConfigureAwait(true);
+                    UnimusTestSucceeded = true;
+                    UnimusTestStatusText = "Connected to Unimus successfully.";
+                    return;
+                }
+                catch (UnimusApiException ex)
+                {
+                    if (attempt == 0 && TryTrustCertificate("Unimus", ex.UntrustedCertificate, _draft.Unimus.TrustedCertificates))
+                    {
+                        continue;
+                    }
+
+                    UnimusTestSucceeded = false;
+                    UnimusTestStatusText = ex.ToUserMessage();
+                    return;
+                }
+            }
         }
         finally
         {
@@ -1161,6 +1176,26 @@ public sealed class SettingsViewModel : ObservableObject
         private set => SetProperty(ref _graylogTestSucceeded, value);
     }
 
+    /// <summary>
+    /// Shows a certificate a connection test turned down and asks whether to
+    /// trust it. On yes, adds it to <paramref name="trustedCertificates"/> (part of
+    /// this draft, saved with it) and returns true, so the caller tests again (#189).
+    /// </summary>
+    private bool TryTrustCertificate(string service, CertificateDetails? certificate, List<string> trustedCertificates)
+    {
+        if (certificate is null || !_windows.ConfirmTrustCertificate(service, certificate))
+        {
+            return false;
+        }
+
+        if (!trustedCertificates.Any(f => CertificateTrust.SameFingerprint(f, certificate.Fingerprint)))
+        {
+            trustedCertificates.Add(certificate.Fingerprint);
+        }
+
+        return true;
+    }
+
     /// <summary>Tries what's in the form without touching the live <see cref="IGraylogApi"/> until Save - the same approach as <see cref="TestUnimusConnectionAsync"/>.</summary>
     private async Task TestGraylogConnectionAsync()
     {
@@ -1177,21 +1212,37 @@ public sealed class SettingsViewModel : ObservableObject
 
         IsTestingGraylogConnection = true;
 
-        using var probe = new GraylogApi(Microsoft.Extensions.Logging.Abstractions.NullLogger<GraylogApi>.Instance);
-        probe.Configure(connection);
-
         try
         {
-            var streams = await probe.TestConnectionAsync().ConfigureAwait(true);
-            GraylogTestSucceeded = true;
-            GraylogTestStatusText = streams == 1
-                ? "Connected to Graylog - 1 stream available."
-                : $"Connected to Graylog - {streams} streams available.";
-        }
-        catch (GraylogApiException ex)
-        {
-            GraylogTestSucceeded = false;
-            GraylogTestStatusText = ex.ToUserMessage();
+            // Twice at most: once as configured, and once more if the user
+            // accepts a certificate it turned down (#189).
+            for (var attempt = 0; ; attempt++)
+            {
+                using var probe = new GraylogApi(Microsoft.Extensions.Logging.Abstractions.NullLogger<GraylogApi>.Instance);
+                probe.Configure(connection);
+
+                try
+                {
+                    var streams = await probe.TestConnectionAsync().ConfigureAwait(true);
+                    GraylogTestSucceeded = true;
+                    GraylogTestStatusText = streams == 1
+                        ? "Connected to Graylog - 1 stream available."
+                        : $"Connected to Graylog - {streams} streams available.";
+                    return;
+                }
+                catch (GraylogApiException ex)
+                {
+                    if (attempt == 0 && TryTrustCertificate("Graylog", ex.UntrustedCertificate, _draft.Graylog.TrustedCertificates))
+                    {
+                        connection = GraylogConnection.FromSettings(_draft.Graylog, password, out _) ?? connection;
+                        continue;
+                    }
+
+                    GraylogTestSucceeded = false;
+                    GraylogTestStatusText = ex.ToUserMessage();
+                    return;
+                }
+            }
         }
         finally
         {
@@ -2240,6 +2291,17 @@ public sealed class SettingsViewModel : ObservableObject
                 .ReconnectAsync(_draft.ServerUrl ?? string.Empty, ServerTokenInput, _draft.AllowUntrustedCertificate, _draft.BackupServerAddress, timeout.Token)
                 .ConfigureAwait(true);
 
+            if (result.UntrustedCertificate is { } certificate && TryTrustCertificate("LibreNMS", certificate, _draft.TrustedCertificates))
+            {
+                // Saved straight away too: signing in reads the live settings,
+                // not this draft.
+                _session.TrustCertificate(certificate);
+                using var retryTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(seconds));
+                result = await _session
+                    .ReconnectAsync(_draft.ServerUrl ?? string.Empty, ServerTokenInput, _draft.AllowUntrustedCertificate, _draft.BackupServerAddress, retryTimeout.Token)
+                    .ConfigureAwait(true);
+            }
+
             if (!result.Succeeded)
             {
                 ConnectionError = result.ErrorMessage;
@@ -2296,6 +2358,6 @@ public sealed class SettingsViewModel : ObservableObject
             return;
         }
 
-        _unimus.Configure(new UnimusConnection(webRoot, token, UnimusAllowUntrustedCertificate));
+        _unimus.Configure(new UnimusConnection(webRoot, token, UnimusAllowUntrustedCertificate, trustedCertificates: _draft.Unimus.TrustedCertificates));
     }
 }

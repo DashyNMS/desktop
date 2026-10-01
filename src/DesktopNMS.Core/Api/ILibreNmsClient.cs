@@ -93,8 +93,11 @@ public sealed class ConnectionTestResult
     /// <summary>The main address couldn't be reached, but the backup address answered - connect on the backup.</summary>
     public bool UsedBackupAddress { get; private init; }
 
+    /// <summary>Set when the test failed only because the server's certificate needs the user's say-so - show it and ask, then test again (#189).</summary>
+    public Security.CertificateDetails? UntrustedCertificate { get; private init; }
+
     public static ConnectionTestResult Success(SystemInfo info, bool usedBackupAddress = false) => new(true, info, null, false) { UsedBackupAddress = usedBackupAddress };
 
-    public static ConnectionTestResult Failure(string message, bool isAuthenticationFailure = false)
-        => new(false, null, message, isAuthenticationFailure);
+    public static ConnectionTestResult Failure(string message, bool isAuthenticationFailure = false, Security.CertificateDetails? untrustedCertificate = null)
+        => new(false, null, message, isAuthenticationFailure) { UntrustedCertificate = untrustedCertificate };
 }

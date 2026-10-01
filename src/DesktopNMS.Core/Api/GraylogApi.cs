@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Core.Security;
 using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.Core.Api;
@@ -72,6 +73,9 @@ public sealed class GraylogApi : IGraylogApi, IDisposable
 
     private HttpClient? _http;
     private HttpMessageHandler? _handler;
+
+    /// <summary>The last certificate turned down under "Allow untrusted certificate", picked up by the request that failed on it (#189).</summary>
+    private CertificateDetails? _rejectedCertificate;
     private GraylogConnection? _connection;
 
     public GraylogApi(ILogger<GraylogApi> logger)
@@ -105,9 +109,14 @@ public sealed class GraylogApi : IGraylogApi, IDisposable
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
         };
 
+        _rejectedCertificate = null;
         if (connection.AllowUntrustedCertificate)
         {
-            handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+            handler.SslOptions.RemoteCertificateValidationCallback = CertificateTrust.CreateCallback(
+                connection.Root.Host,
+                allowUntrusted: true,
+                connection.TrustedCertificates,
+                details => _rejectedCertificate = details);
         }
 
         var http = new HttpClient(handler, disposeHandler: false)
@@ -242,7 +251,11 @@ public sealed class GraylogApi : IGraylogApi, IDisposable
         catch (HttpRequestException ex)
         {
             _logger.LogWarning(ex, "Could not reach Graylog at {BaseAddress}", http.BaseAddress);
-            throw new GraylogApiException(DescribeTransportFailure(ex), innerException: ex);
+            var rejected = Interlocked.Exchange(ref _rejectedCertificate, null);
+            throw new GraylogApiException(rejected is null ? DescribeTransportFailure(ex) : CertificateTrust.DescribeRejection(rejected, "Graylog"), innerException: ex)
+            {
+                UntrustedCertificate = rejected,
+            };
         }
     }
 
@@ -328,7 +341,7 @@ public sealed class GraylogApi : IGraylogApi, IDisposable
 
     private static string DescribeTransportFailure(HttpRequestException ex) => ex.InnerException switch
     {
-        System.Security.Authentication.AuthenticationException => "Could not verify Graylog's TLS certificate. If it uses a self-signed or internal certificate, enable \"Ignore SSL certificate errors\" in Settings.",
+        System.Security.Authentication.AuthenticationException => "Could not verify Graylog's TLS certificate. If it uses a self-signed or internal certificate, enable \"Allow an untrusted or self-signed certificate\" in Settings.",
         _ => $"Could not reach Graylog: {ex.Message}",
     };
 

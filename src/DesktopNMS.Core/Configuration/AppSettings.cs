@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using DesktopNMS.Core.Models;
 
 namespace DesktopNMS.Core.Configuration;
@@ -62,8 +64,11 @@ public sealed class AppSettings
     /// </summary>
     public string? BackupServerAddress { get; set; }
 
-    /// <summary>Accept self-signed or internally-issued certificates.</summary>
+    /// <summary>Ask before trusting a certificate the normal checks reject (self-signed, internal CA, wrong name) - then only the certificates in <see cref="TrustedCertificates"/> are accepted (#189).</summary>
     public bool AllowUntrustedCertificate { get; set; }
+
+    /// <summary>SHA-256 fingerprints ("AB:CD:...") of the LibreNMS server certificates the user has accepted - see <see cref="Security.CertificateTrust"/>.</summary>
+    public List<string> TrustedCertificates { get; set; } = new();
 
     /// <summary>Per-request HTTP timeout.</summary>
     public int TimeoutSeconds { get; set; } = 30;
@@ -263,6 +268,7 @@ public sealed class AppSettings
         ServerUrl = ServerUrl,
         BackupServerAddress = BackupServerAddress,
         AllowUntrustedCertificate = AllowUntrustedCertificate,
+        TrustedCertificates = TrustedCertificates.ToList(),
         TimeoutSeconds = TimeoutSeconds,
         PollIntervalSeconds = PollIntervalSeconds,
         RememberToken = RememberToken,
@@ -313,12 +319,17 @@ public sealed class AppSettings
     public void Normalise()
     {
         if (TimeoutSeconds < 5) TimeoutSeconds = 5;
+        TrustedCertificates ??= new List<string>();
         if (TimeoutSeconds > 300) TimeoutSeconds = 300;
         if (PollIntervalSeconds < 15) PollIntervalSeconds = 15;
         if (PollIntervalSeconds > 3600) PollIntervalSeconds = 3600;
 
         Notifications ??= new NotificationSettings();
         Filter ??= new AlertFilterSettings();
+        Unimus ??= new UnimusSettings();
+        Unimus.TrustedCertificates ??= new List<string>();
+        Graylog ??= new GraylogSettings();
+        Graylog.TrustedCertificates ??= new List<string>();
 
         if (string.IsNullOrWhiteSpace(DefaultMap))
         {
@@ -817,6 +828,14 @@ public sealed class DashboardWidget
 
     public DateTime? GraphCustomTo { get; set; }
 
+    /// <summary>
+    /// Anything in the stored widget this version doesn't model - another
+    /// widget type's settings, written by DashyNMS Mobile or a newer desktop -
+    /// kept as it was so saving here never strips it (#196).
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+
     public DashboardWidget Clone() => new()
     {
         Id = Id,
@@ -835,12 +854,14 @@ public sealed class DashboardWidget
         GraphTimeRangePreset = GraphTimeRangePreset,
         GraphCustomFrom = GraphCustomFrom,
         GraphCustomTo = GraphCustomTo,
+        Extra = Extra is null ? null : new Dictionary<string, JsonElement>(Extra),
     };
 
     /// <summary>Clamps anything a hand-edited settings file could have made nonsensical.</summary>
     public void Normalise()
     {
         if (string.IsNullOrWhiteSpace(Id)) Id = Guid.NewGuid().ToString("N");
+        if (string.IsNullOrWhiteSpace(WidgetType)) WidgetType = DashboardWidgetTypes.Sensors;
         if (string.IsNullOrWhiteSpace(Title)) Title = "Widget";
         if (Column < 0) Column = 0;
         if (Row < 0) Row = 0;
@@ -1068,6 +1089,9 @@ public sealed class UnimusSettings
     /// </summary>
     public bool AllowUntrustedCertificate { get; set; }
 
+    /// <summary>SHA-256 fingerprints of the Unimus certificates the user has accepted - see <see cref="Security.CertificateTrust"/>.</summary>
+    public List<string> TrustedCertificates { get; set; } = new();
+
     /// <summary>
     /// LibreNMS's own discovery domain suffix (its <c>mydomain</c> config) -
     /// one of the candidates tried when matching a LibreNMS device to a
@@ -1081,6 +1105,7 @@ public sealed class UnimusSettings
         Enabled = Enabled,
         Url = Url,
         AllowUntrustedCertificate = AllowUntrustedCertificate,
+        TrustedCertificates = TrustedCertificates.ToList(),
         MyDomain = MyDomain,
     };
 }
@@ -1135,6 +1160,9 @@ public sealed class GraylogSettings
     /// <summary>Accept a self-signed or internally-issued certificate - not a LibreNMS setting (LibreNMS uses its own server-wide HTTP client options), but the same per-integration choice Unimus has here.</summary>
     public bool AllowUntrustedCertificate { get; set; }
 
+    /// <summary>SHA-256 fingerprints of the Graylog certificates the user has accepted - see <see cref="Security.CertificateTrust"/>.</summary>
+    public List<string> TrustedCertificates { get; set; } = new();
+
     /// <summary><c>graylog.timezone</c> - show message times in this zone rather than this PC's own. Takes a Windows or IANA name (e.g. "Europe/London", as LibreNMS itself would); blank means local time.</summary>
     public string? Timezone { get; set; }
 
@@ -1170,6 +1198,7 @@ public sealed class GraylogSettings
         BaseUri = BaseUri,
         Username = Username,
         AllowUntrustedCertificate = AllowUntrustedCertificate,
+        TrustedCertificates = TrustedCertificates.ToList(),
         Timezone = Timezone,
         DeviceLogLevel = DeviceLogLevel,
         DeviceRowCount = DeviceRowCount,

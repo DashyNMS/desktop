@@ -29,7 +29,10 @@ public static class AppPaths
 
     private static string CreateDataDirectory()
     {
-        var root = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        // Create: off Windows the folder may not exist yet, and without it
+        // GetFolderPath returns "" - leaving the data folder relative to the
+        // working directory (#192).
+        var root = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.Create);
         var path = Path.Combine(root, FolderName);
         Directory.CreateDirectory(path);
         return path;

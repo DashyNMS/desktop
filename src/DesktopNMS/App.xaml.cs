@@ -12,6 +12,7 @@ using DesktopNMS.Core.CustomMaps;
 using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Topology;
 using DesktopNMS.Infrastructure;
+using DesktopNMS.Security;
 using DesktopNMS.Services;
 using DesktopNMS.ViewModels;
 using DesktopNMS.Views;
@@ -123,6 +124,20 @@ public partial class App : Application
 
         var restored = await session.TryRestoreAsync().ConfigureAwait(true);
 
+        // The saved session's certificate isn't trusted yet - typically the
+        // first run after "Allow untrusted certificate" stopped meaning "accept
+        // anything" (#189), or the certificate changed. Ask here, rather than
+        // dropping to sign-in and asking for the token again.
+        if (restored?.UntrustedCertificate is { } certificate)
+        {
+            windows.ShowMain();
+            if (windows.ConfirmTrustCertificate("LibreNMS", certificate))
+            {
+                session.TrustCertificate(certificate);
+                restored = await session.TryRestoreAsync().ConfigureAwait(true);
+            }
+        }
+
         if (restored is null || !restored.Succeeded)
         {
             if (restored is { Succeeded: false })
@@ -203,7 +218,7 @@ public partial class App : Application
             return;
         }
 
-        var connection = new UnimusConnection(webRoot, token, settings.AllowUntrustedCertificate);
+        var connection = new UnimusConnection(webRoot, token, settings.AllowUntrustedCertificate, trustedCertificates: settings.TrustedCertificates);
         _services.GetRequiredService<IUnimusApi>().Configure(connection);
     }
 
@@ -298,6 +313,11 @@ public partial class App : Application
         });
 
         services.AddDesktopNmsCore();
+
+        // Secret storage is per platform - DPAPI here (#152).
+        services.AddSingleton<ITokenProtector, DpapiTokenProtector>();
+        services.AddSingleton<IUnimusTokenProtector, DpapiUnimusTokenProtector>();
+        services.AddSingleton<IGraylogPasswordProtector, DpapiGraylogPasswordProtector>();
 
         services.AddSingleton<ISessionService, SessionService>();
         services.AddSingleton<IDeviceCache, DeviceCache>();

@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using DesktopNMS.Core.Json;
+using DesktopNMS.Core.Security;
 using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.Core.Api;
@@ -20,6 +21,9 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
 
     private HttpClient? _http;
     private HttpMessageHandler? _handler;
+
+    /// <summary>The last certificate turned down under "Allow untrusted certificate", picked up by the request that failed on it (#189).</summary>
+    private CertificateDetails? _rejectedCertificate;
     private LibreNmsConnection? _connection;
     private bool _disposed;
     private bool _configuring;
@@ -149,10 +153,17 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
             }
         };
 
+        _rejectedCertificate = null;
         if (connection.AllowUntrustedCertificate)
         {
-            // Opt-in only: many LibreNMS installs sit behind an internal CA.
-            handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+            // Opt-in only: many LibreNMS installs sit behind an internal CA or
+            // use a self-signed certificate. Even then, only certificates the
+            // user has looked at and accepted get through (#189).
+            handler.SslOptions.RemoteCertificateValidationCallback = CertificateTrust.CreateCallback(
+                onBackup && !dialBackupHost ? connection.BackupWebRoot!.Host : connection.WebRoot.Host,
+                allowUntrusted: true,
+                connection.TrustedCertificates,
+                details => _rejectedCertificate = details);
         }
 
         var redirects = new SameServerRedirectHandler(handler);
@@ -330,7 +341,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         }
         catch (HttpRequestException ex)
         {
-            throw new LibreNmsApiException(DescribeTransportFailure(ex), innerException: ex, looksLikeStaleConnection: IsStaleConnectionFailure(ex));
+            throw TransportFailure(ex);
         }
 
         using (response)
@@ -421,7 +432,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         }
         catch (HttpRequestException ex)
         {
-            throw new LibreNmsApiException(DescribeTransportFailure(ex), innerException: ex, looksLikeStaleConnection: IsStaleConnectionFailure(ex));
+            throw TransportFailure(ex);
         }
 
         using (response)
@@ -547,6 +558,21 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         HttpStatusCode.ServiceUnavailable => "The LibreNMS server is unavailable.",
         _ => $"LibreNMS returned HTTP {(int)statusCode} for '{relativeUrl}'.",
     };
+
+    /// <summary>The exception for a request that never got an HTTP response - carrying the rejected certificate, when that was why.</summary>
+    private LibreNmsApiException TransportFailure(HttpRequestException ex)
+    {
+        var rejected = IsCertificateRejection(ex) ? Interlocked.Exchange(ref _rejectedCertificate, null) : null;
+        if (rejected is not null)
+        {
+            return new LibreNmsApiException(CertificateTrust.DescribeRejection(rejected, "LibreNMS"), innerException: ex)
+            {
+                UntrustedCertificate = rejected,
+            };
+        }
+
+        return new LibreNmsApiException(DescribeTransportFailure(ex), innerException: ex, looksLikeStaleConnection: IsStaleConnectionFailure(ex));
+    }
 
     private string DescribeTransportFailure(HttpRequestException ex)
     {
