@@ -12,6 +12,7 @@ using DesktopNMS.Core.CustomMaps;
 using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Topology;
 using DesktopNMS.Infrastructure;
+using DesktopNMS.Security;
 using DesktopNMS.Services;
 using DesktopNMS.ViewModels;
 using DesktopNMS.Views;
@@ -312,6 +313,11 @@ public partial class App : Application
         });
 
         services.AddDesktopNmsCore();
+
+        // Secret storage is per platform - DPAPI here (#152).
+        services.AddSingleton<ITokenProtector, DpapiTokenProtector>();
+        services.AddSingleton<IUnimusTokenProtector, DpapiUnimusTokenProtector>();
+        services.AddSingleton<IGraylogPasswordProtector, DpapiGraylogPasswordProtector>();
 
         services.AddSingleton<ISessionService, SessionService>();
         services.AddSingleton<IDeviceCache, DeviceCache>();
