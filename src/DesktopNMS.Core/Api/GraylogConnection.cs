@@ -17,8 +17,10 @@ public sealed class GraylogConnection
         string username,
         string password,
         bool allowUntrustedCertificate = false,
-        int timeoutSeconds = 30)
+        int timeoutSeconds = 30,
+        IReadOnlyCollection<string>? trustedCertificates = null)
     {
+        TrustedCertificates = trustedCertificates?.ToArray() ?? Array.Empty<string>();
         Root = root ?? throw new ArgumentNullException(nameof(root));
         Version = string.IsNullOrWhiteSpace(version) ? GraylogSettings.Version21 : version;
         BaseUri = string.IsNullOrWhiteSpace(baseUri) ? null : baseUri.Trim();
@@ -40,6 +42,9 @@ public sealed class GraylogConnection
     public string Password { get; }
 
     public bool AllowUntrustedCertificate { get; }
+
+    /// <summary>SHA-256 fingerprints of the certificates the user has accepted for this server - see <see cref="Security.CertificateTrust"/>.</summary>
+    public IReadOnlyCollection<string> TrustedCertificates { get; }
 
     public int TimeoutSeconds { get; }
 
@@ -98,7 +103,7 @@ public sealed class GraylogConnection
             return null;
         }
 
-        return new GraylogConnection(root, settings.Version, settings.BaseUri, settings.Username.Trim(), password, settings.AllowUntrustedCertificate);
+        return new GraylogConnection(root, settings.Version, settings.BaseUri, settings.Username.Trim(), password, settings.AllowUntrustedCertificate, trustedCertificates: settings.TrustedCertificates);
     }
 
     /// <summary>

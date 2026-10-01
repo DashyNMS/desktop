@@ -7,8 +7,9 @@ public sealed class LibreNmsConnection
 {
     public const string ApiPathSegment = "api/v0";
 
-    public LibreNmsConnection(Uri webRoot, string apiToken, bool allowUntrustedCertificate = false, int timeoutSeconds = 30, Uri? backupWebRoot = null)
+    public LibreNmsConnection(Uri webRoot, string apiToken, bool allowUntrustedCertificate = false, int timeoutSeconds = 30, Uri? backupWebRoot = null, IReadOnlyCollection<string>? trustedCertificates = null)
     {
+        TrustedCertificates = trustedCertificates?.ToArray() ?? Array.Empty<string>();
         BackupWebRoot = backupWebRoot;
         WebRoot = webRoot ?? throw new ArgumentNullException(nameof(webRoot));
         ApiToken = apiToken ?? throw new ArgumentNullException(nameof(apiToken));
@@ -24,8 +25,14 @@ public sealed class LibreNmsConnection
 
     public string ApiToken { get; }
 
-    /// <summary>Accept self-signed / mismatched certificates. Off by default.</summary>
+    /// <summary>
+    /// Ask before trusting a certificate the normal checks reject, then accept
+    /// only the ones in <see cref="TrustedCertificates"/> - see <see cref="Security.CertificateTrust"/>. Off by default.
+    /// </summary>
     public bool AllowUntrustedCertificate { get; }
+
+    /// <summary>SHA-256 fingerprints of the certificates the user has accepted for this server.</summary>
+    public IReadOnlyCollection<string> TrustedCertificates { get; }
 
     public int TimeoutSeconds { get; }
 

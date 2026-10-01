@@ -41,6 +41,9 @@ public interface ISessionService
     /// </summary>
     Task<ConnectionTestResult> ReconnectAsync(string serverUrl, string? newApiToken, bool allowUntrustedCertificate, string? backupAddress, CancellationToken cancellationToken = default);
 
+    /// <summary>Remembers that the user accepted this LibreNMS certificate, so the next sign-in accepts it (#189).</summary>
+    void TrustCertificate(DesktopNMS.Core.Security.CertificateDetails certificate);
+
 
     /// <summary>
     /// Attempts to sign in with the saved address and token. Returns false when
@@ -115,7 +118,8 @@ public sealed class SessionService : ISessionService
             apiToken.Trim(),
             allowUntrustedCertificate,
             settings.TimeoutSeconds,
-            backupWebRoot);
+            backupWebRoot,
+            settings.TrustedCertificates);
 
         // Back on the caller's (UI) thread: saving settings and StateChanged
         // below set every listener updating what's on screen.
@@ -161,6 +165,20 @@ public sealed class SessionService : ISessionService
         return string.IsNullOrWhiteSpace(text) || LibreNmsConnection.TryParseWebRoot(text, out backup, out error);
     }
 
+    public void TrustCertificate(DesktopNMS.Core.Security.CertificateDetails certificate)
+    {
+        ArgumentNullException.ThrowIfNull(certificate);
+
+        var trusted = _settings.Current.TrustedCertificates;
+        if (!trusted.Any(f => DesktopNMS.Core.Security.CertificateTrust.SameFingerprint(f, certificate.Fingerprint)))
+        {
+            trusted.Add(certificate.Fingerprint);
+            _settings.Save();
+        }
+
+        _logger.LogInformation("Trusted the certificate {Fingerprint} for {Host}", certificate.Fingerprint, certificate.Host);
+    }
+
     public Task<ConnectionTestResult> ReconnectAsync(string serverUrl, string? newApiToken, bool allowUntrustedCertificate, string? backupAddress, CancellationToken cancellationToken = default)
     {
         return SignInAsync(serverUrl, newApiToken ?? string.Empty, allowUntrustedCertificate, _settings.Current.RememberToken, cancellationToken, backupAddress);
@@ -191,7 +209,8 @@ public sealed class SessionService : ISessionService
             token!,
             settings.AllowUntrustedCertificate,
             settings.TimeoutSeconds,
-            TryParseBackup(settings.BackupServerAddress, out var savedBackup, out _) ? savedBackup : null);
+            TryParseBackup(settings.BackupServerAddress, out var savedBackup, out _) ? savedBackup : null,
+            settings.TrustedCertificates);
 
         // Back on the caller's (UI) thread: saving settings and StateChanged
         // below set every listener updating what's on screen.

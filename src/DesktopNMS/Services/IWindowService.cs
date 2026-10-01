@@ -148,6 +148,12 @@ public interface IWindowService
     bool Confirm(string title, string message);
 
     /// <summary>
+    /// Shows a certificate the normal checks rejected and asks whether to trust
+    /// it for <paramref name="service"/> ("LibreNMS", "Graylog", "Unimus") - #189.
+    /// </summary>
+    bool ConfirmTrustCertificate(string service, DesktopNMS.Core.Security.CertificateDetails certificate);
+
+    /// <summary>
     /// Same as <see cref="Confirm"/>, but with a "don't ask me again"
     /// checkbox. Its state is returned separately from the confirm/cancel
     /// answer and regardless of it - the checkbox is a standalone "stop

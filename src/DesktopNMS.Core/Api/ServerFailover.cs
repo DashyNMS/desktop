@@ -118,6 +118,14 @@ public sealed class ServerFailover
     {
         ArgumentNullException.ThrowIfNull(ex);
 
+        // A certificate waiting for the user to accept it (or changed since they
+        // did) is a question for them, not a dead server - failing over would
+        // route around exactly the warning they need to see (#189).
+        if (ex.UntrustedCertificate is not null)
+        {
+            return false;
+        }
+
         if (ex.StatusCode is not null || ex.InnerException is null)
         {
             return false;

@@ -424,6 +424,21 @@ public sealed class WindowService : IWindowService
     public (bool Confirmed, bool DontAskAgain) ConfirmWithOptOut(string title, string message, string dontAskAgainLabel = "Don't ask me again")
         => ShowConfirmDialog(title, message, showDontAskAgain: true, dontAskAgainLabel);
 
+    public bool ConfirmTrustCertificate(string service, DesktopNMS.Core.Security.CertificateDetails certificate)
+    {
+        var (title, message) = DesktopNMS.Core.Security.CertificateTrust.DescribeForPrompt(certificate, service);
+        var viewModel = new ConfirmDialogViewModel(title, message, showDontAskAgain: false, dontAskAgainLabel: string.Empty, confirmLabel: "Trust this certificate", isError: certificate.ReplacesTrustedCertificate);
+        var window = new ConfirmDialog(viewModel);
+        RememberPlacement(window);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            OwnByMain(window);
+        }
+
+        return window.ShowDialog() == true;
+    }
+
     /// <summary>
     /// A themed dialog rather than <see cref="MessageBox"/> for confirmations -
     /// a plain Windows message box does not pick up the app's own dark/light
