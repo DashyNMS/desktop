@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace DesktopNMS.Views;
 
@@ -29,7 +30,16 @@ public sealed class SmileAndWaveOverlay : Canvas
     private static readonly TimeSpan WalkOffDuration = TimeSpan.FromSeconds(1.2);
     private static readonly TimeSpan Stagger = TimeSpan.FromSeconds(0.08);
 
-    private Storyboard? _storyboard;
+
+    /// <summary>
+    /// Every animation started for the current show, so it can be stopped
+    /// early. Each is started straight on its transform with BeginAnimation:
+    /// a Storyboard does not reach transforms nested inside a TransformGroup
+    /// built in code, and silently leaves them where they started.
+    /// </summary>
+    private readonly List<(Animatable Target, DependencyProperty Property)> _running = new();
+
+    private DispatcherTimer? _timer;
 
     public SmileAndWaveOverlay()
     {
@@ -40,7 +50,7 @@ public sealed class SmileAndWaveOverlay : Canvas
         Panel.SetZIndex(this, 1000);
     }
 
-    public bool IsPlaying => _storyboard is not null;
+    public bool IsPlaying => _timer is not null;
 
     /// <summary>Raised once the penguins have gone, whether they finished or were dismissed.</summary>
     public event EventHandler? Finished;
@@ -56,12 +66,12 @@ public sealed class SmileAndWaveOverlay : Canvas
         try
         {
             Children.Clear();
-            var storyboard = new Storyboard();
             var reducedMotion = !SystemParameters.ClientAreaAnimation;
 
             var groupWidth = Spacing * (Scales.Length - 1) + PenguinWidth;
             var groupLeft = Math.Max(8, (width - groupWidth) / 2);
             var standTop = OverlayHeight - PenguinHeight - 6;
+            var showLength = WaveEnd + WalkOffDuration + TimeSpan.FromTicks(Stagger.Ticks * Scales.Length);
 
             for (var i = 0; i < Scales.Length; i++)
             {
@@ -76,24 +86,30 @@ public sealed class SmileAndWaveOverlay : Canvas
                 {
                     penguin.Walk.X = standX;
                     penguin.Flipper.Angle = -140;
-                }
-                else
-                {
-                    // Walk in from off the left edge, keeping the line in order.
-                    var startX = -PenguinWidth - 20 - (Scales.Length - 1 - i) * Spacing;
-                    var endX = width + 20 + i * Spacing;
-                    penguin.Walk.X = startX;
-
-                    Add(storyboard, penguin.Walk, TranslateTransform.XProperty,
-                        new DoubleAnimation(startX, standX, WalkInEnd - delay) { BeginTime = delay });
-                    Add(storyboard, penguin.Walk, TranslateTransform.XProperty,
-                        new DoubleAnimation(standX, endX, WalkOffDuration) { BeginTime = WaveEnd + delay });
-
-                    Add(storyboard, penguin.Waddle, RotateTransform.AngleProperty, Waddle(delay, WalkInEnd));
-                    Add(storyboard, penguin.Waddle, RotateTransform.AngleProperty, Waddle(WaveEnd + delay, WaveEnd + delay + WalkOffDuration));
+                    continue;
                 }
 
-                Add(storyboard, penguin.Flipper, RotateTransform.AngleProperty, Wave(WalkInEnd + delay, reducedMotion));
+                // In from off the left edge (keeping the line in order), stand
+                // still to wave, then off past the right edge.
+                var startX = -PenguinWidth - 20 - (Scales.Length - 1 - i) * Spacing;
+                var endX = width + 20 + i * Spacing;
+                // The front of the line sets off first, so nobody catches up.
+                var walkOffStart = WaveEnd + TimeSpan.FromTicks(Stagger.Ticks * (Scales.Length - 1 - i));
+                penguin.Walk.X = startX;
+
+                Animate(penguin.Walk, TranslateTransform.XProperty, Frames(
+                    (TimeSpan.Zero, startX),
+                    (delay, startX),
+                    (WalkInEnd, standX),
+                    (walkOffStart, standX),
+                    (walkOffStart + WalkOffDuration, endX)));
+
+                var waddle = new DoubleAnimationUsingKeyFrames();
+                AddWaddle(waddle, delay, WalkInEnd);
+                AddWaddle(waddle, walkOffStart, walkOffStart + WalkOffDuration);
+                Animate(penguin.Waddle, RotateTransform.AngleProperty, waddle);
+
+                Animate(penguin.Flipper, RotateTransform.AngleProperty, Wave(WalkInEnd + delay));
             }
 
             var caption = BuildCaption();
@@ -101,17 +117,18 @@ public sealed class SmileAndWaveOverlay : Canvas
             caption.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             Canvas.SetLeft(caption, Math.Max(8, (width - caption.DesiredSize.Width) / 2));
             Canvas.SetTop(caption, 4);
-            Add(storyboard, caption, OpacityProperty, Fade(WalkInEnd, WaveEnd + TimeSpan.FromSeconds(0.2)));
+            caption.BeginAnimation(OpacityProperty, Fade(WalkInEnd, WaveEnd + TimeSpan.FromSeconds(0.2)));
 
             if (reducedMotion)
             {
                 // Nothing walks, so fade the penguins in and out with the caption instead.
-                Add(storyboard, this, OpacityProperty, Fade(TimeSpan.Zero, TimeSpan.FromSeconds(3.4)));
+                showLength = TimeSpan.FromSeconds(3.7);
+                BeginAnimation(OpacityProperty, Fade(TimeSpan.Zero, TimeSpan.FromSeconds(3.4)));
             }
 
-            storyboard.Completed += (_, _) => Stop();
-            _storyboard = storyboard;
-            storyboard.Begin(this, true);
+            _timer = new DispatcherTimer { Interval = showLength };
+            _timer.Tick += (_, _) => Stop();
+            _timer.Start();
         }
         catch (Exception)
         {
@@ -124,19 +141,26 @@ public sealed class SmileAndWaveOverlay : Canvas
 
     private void Stop()
     {
+        var wasPlaying = _timer is not null;
+        _timer?.Stop();
+        _timer = null;
+
         try
         {
-            _storyboard?.Stop(this);
+            foreach (var (target, property) in _running)
+            {
+                target.BeginAnimation(property, null);
+            }
+
+            BeginAnimation(OpacityProperty, null);
         }
         catch (Exception)
         {
             // Cosmetic only - nothing to recover.
         }
 
-        var wasPlaying = _storyboard is not null;
-        _storyboard = null;
+        _running.Clear();
         Children.Clear();
-        Opacity = 1;
 
         if (wasPlaying)
         {
@@ -144,69 +168,60 @@ public sealed class SmileAndWaveOverlay : Canvas
         }
     }
 
-    private static void Add(Storyboard storyboard, DependencyObject target, DependencyProperty property, Timeline animation)
+    private void Animate(Animatable target, DependencyProperty property, AnimationTimeline animation)
     {
-        Storyboard.SetTarget(animation, target);
-        Storyboard.SetTargetProperty(animation, new PropertyPath(property));
-        storyboard.Children.Add(animation);
+        _running.Add((target, property));
+        target.BeginAnimation(property, animation);
     }
 
-    /// <summary>A side-to-side rock while walking, always settling back upright.</summary>
-    private static DoubleAnimationUsingKeyFrames Waddle(TimeSpan from, TimeSpan to)
+    private static DoubleAnimationUsingKeyFrames Frames(params (TimeSpan At, double Value)[] frames)
     {
-        var frames = new DoubleAnimationUsingKeyFrames { BeginTime = from };
-        var length = to - from;
+        var animation = new DoubleAnimationUsingKeyFrames();
+        foreach (var (at, value) in frames)
+        {
+            animation.KeyFrames.Add(new LinearDoubleKeyFrame(value, KeyTime.FromTimeSpan(at)));
+        }
+
+        return animation;
+    }
+
+    /// <summary>A side-to-side rock between <paramref name="from"/> and <paramref name="to"/>, starting and ending upright.</summary>
+    private static void AddWaddle(DoubleAnimationUsingKeyFrames frames, TimeSpan from, TimeSpan to)
+    {
         var step = TimeSpan.FromSeconds(0.15);
         var sign = 1;
-        var at = TimeSpan.Zero;
 
-        frames.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-        while (at + step < length)
+        frames.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(from)));
+        for (var at = from + step; at < to; at += step)
         {
-            at += step;
             frames.KeyFrames.Add(new LinearDoubleKeyFrame(7 * sign, KeyTime.FromTimeSpan(at)));
             sign = -sign;
         }
 
-        frames.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(length)));
-        return frames;
+        frames.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(to)));
     }
 
-    /// <summary>Raise the right flipper, wave it three times, and put it down again.</summary>
-    private static DoubleAnimationUsingKeyFrames Wave(TimeSpan from, bool reducedMotion)
+    /// <summary>Raise the right flipper at <paramref name="from"/>, wave it three times, and put it down again.</summary>
+    private static DoubleAnimationUsingKeyFrames Wave(TimeSpan from)
     {
-        var frames = new DoubleAnimationUsingKeyFrames { BeginTime = from };
-        if (reducedMotion)
-        {
-            // Already raised; just hold it there.
-            frames.KeyFrames.Add(new DiscreteDoubleKeyFrame(-140, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-            return frames;
-        }
+        var frames = new DoubleAnimationUsingKeyFrames();
+        frames.KeyFrames.Add(new DiscreteDoubleKeyFrame(-15, KeyTime.FromTimeSpan(TimeSpan.Zero)));
 
-        var times = new List<(double Seconds, double Angle)>
+        foreach (var (seconds, angle) in new[] { (0.0, -15.0), (0.2, -140.0), (0.4, -105.0), (0.6, -140.0), (0.8, -105.0), (1.0, -140.0), (1.25, -15.0) })
         {
-            (0, -15), (0.2, -140), (0.4, -105), (0.6, -140), (0.8, -105), (1.0, -140), (1.25, -15),
-        };
-
-        foreach (var (seconds, angle) in times)
-        {
-            frames.KeyFrames.Add(new EasingDoubleKeyFrame(angle, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(seconds)),
+            frames.KeyFrames.Add(new EasingDoubleKeyFrame(angle, KeyTime.FromTimeSpan(from + TimeSpan.FromSeconds(seconds)),
                 new SineEase { EasingMode = EasingMode.EaseInOut }));
         }
 
         return frames;
     }
 
-    private static DoubleAnimationUsingKeyFrames Fade(TimeSpan inAt, TimeSpan outAt)
-    {
-        var frames = new DoubleAnimationUsingKeyFrames();
-        frames.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-        frames.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(inAt)));
-        frames.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromTimeSpan(inAt + TimeSpan.FromSeconds(0.3))));
-        frames.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromTimeSpan(outAt)));
-        frames.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(outAt + TimeSpan.FromSeconds(0.3))));
-        return frames;
-    }
+    private static DoubleAnimationUsingKeyFrames Fade(TimeSpan inAt, TimeSpan outAt) => Frames(
+        (TimeSpan.Zero, 0),
+        (inAt, 0),
+        (inAt + TimeSpan.FromSeconds(0.3), 1),
+        (outAt, 1),
+        (outAt + TimeSpan.FromSeconds(0.3), 0));
 
     private Border BuildCaption() => new()
     {
