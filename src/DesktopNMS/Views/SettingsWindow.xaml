@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        xmlns:local="clr-namespace:DesktopNMS.Views"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel}"
         Title="DashyNMS settings"
@@ -13,7 +14,9 @@
         MinHeight="440"
         Icon="pack://application:,,,/Assets/app.ico"
         Background="{StaticResource BackgroundBrush}"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        PreviewMouseDown="OnPreviewMouseDown"
+        PreviewKeyDown="OnPreviewKeyDown">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -1226,8 +1229,35 @@
 
                     <!-- ==================== About ==================== -->
                     <StackPanel Visibility="{Binding IsAboutSectionSelected, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="About" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,4" />
-                        <TextBlock Text="{Binding CurrentVersionText}" Style="{StaticResource SubtleTextStyle}" Margin="0,0,0,14" />
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <!-- The DashyNMS mark, drawn as vectors so it stays crisp at this size. -->
+                            <Viewbox Grid.Column="0"
+                                     Width="44"
+                                     Height="44"
+                                     Margin="0,0,14,0"
+                                     VerticalAlignment="Center"
+                                     MouseLeftButtonDown="OnAboutLogoMouseDown">
+                                <Canvas Width="100" Height="100">
+                                    <Ellipse Width="92" Height="92" Canvas.Left="4" Canvas.Top="4" Fill="{StaticResource SurfaceAltBrush}" />
+                                    <Ellipse Width="84.5" Height="84.5" Canvas.Left="7.75" Canvas.Top="7.75"
+                                             Stroke="{StaticResource AccentBrush}" StrokeThickness="7.5" />
+                                    <Polyline Points="24,55 38,55 45.5,33 56.5,71 64,50 77,50"
+                                              Stroke="{StaticResource TextPrimaryBrush}"
+                                              StrokeThickness="8.5"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round" />
+                                </Canvas>
+                            </Viewbox>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="About" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,4" />
+                                <TextBlock Text="{Binding CurrentVersionText}" Style="{StaticResource SubtleTextStyle}" />
+                            </StackPanel>
+                        </Grid>
 
                         <CheckBox Content="Include preview builds"
                                   IsChecked="{Binding IncludePreviewBuilds}"
@@ -1300,6 +1330,10 @@
                 </Grid>
             </ScrollViewer>
         </Grid>
+
+        <!-- Hidden: see OnAboutLogoMouseDown. Sits on top of the content,
+             never hit-testable, so it never gets in the way. -->
+        <local:SmileAndWaveOverlay x:Name="SmileAndWave" Grid.Row="0" />
 
         <Border Grid.Row="1"
                 Background="{StaticResource SurfaceBrush}"
