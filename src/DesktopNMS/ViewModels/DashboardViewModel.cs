@@ -373,9 +373,11 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         "PinnedDevices" => new PinnedDevicesWidgetViewModel(_layout, model, _settings, deviceId => _windows.ShowDeviceDetail(deviceId)),
         "Graph" => new GraphWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger, (deviceId, graphName) => _windows.ShowDeviceGraph(deviceId, graphName)),
         "Wireless" => new WirelessWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger, deviceId => _windows.ShowDeviceWireless(deviceId)),
-        // "Sensors" (and any future/unknown type, so a layout from a newer
-        // version does not blow up) fall back to the Sensors widget.
-        _ => new SensorWidgetViewModel(_layout, model, OpenDeviceCommand),
+        "Sensors" => new SensorWidgetViewModel(_layout, model, OpenDeviceCommand),
+
+        // A type from DashyNMS Mobile or a newer version: say so, rather than
+        // passing it off as an empty Sensors widget (#196).
+        _ => new UnsupportedWidgetViewModel(_layout, model),
     };
 
     public void Dispose()

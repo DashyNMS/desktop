@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using DesktopNMS.Core.Models;
 
 namespace DesktopNMS.Core.Configuration;
@@ -826,6 +828,14 @@ public sealed class DashboardWidget
 
     public DateTime? GraphCustomTo { get; set; }
 
+    /// <summary>
+    /// Anything in the stored widget this version doesn't model - another
+    /// widget type's settings, written by DashyNMS Mobile or a newer desktop -
+    /// kept as it was so saving here never strips it (#196).
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+
     public DashboardWidget Clone() => new()
     {
         Id = Id,
@@ -844,12 +854,14 @@ public sealed class DashboardWidget
         GraphTimeRangePreset = GraphTimeRangePreset,
         GraphCustomFrom = GraphCustomFrom,
         GraphCustomTo = GraphCustomTo,
+        Extra = Extra is null ? null : new Dictionary<string, JsonElement>(Extra),
     };
 
     /// <summary>Clamps anything a hand-edited settings file could have made nonsensical.</summary>
     public void Normalise()
     {
         if (string.IsNullOrWhiteSpace(Id)) Id = Guid.NewGuid().ToString("N");
+        if (string.IsNullOrWhiteSpace(WidgetType)) WidgetType = DashboardWidgetTypes.Sensors;
         if (string.IsNullOrWhiteSpace(Title)) Title = "Widget";
         if (Column < 0) Column = 0;
         if (Row < 0) Row = 0;

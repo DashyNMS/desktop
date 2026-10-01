@@ -135,7 +135,8 @@ public static class Neighbours
             return false;
         }
 
-        bool Test(NeighbourRule rule) => RuleMatches(rule, rule.Field switch
+        // A rule from a newer version (#197) can't be evaluated here, so it never matches.
+        bool Test(NeighbourRule rule) => rule.IsSupported && RuleMatches(rule, rule.Field switch
         {
             NeighbourRuleField.SystemName => neighbour.AnnouncedName,
             NeighbourRuleField.SystemDescription => neighbour.Description,

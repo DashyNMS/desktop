@@ -705,6 +705,23 @@
             </Grid>
         </DataTemplate>
 
+        <!-- ======================== Unsupported widget body ======================== -->
+        <!-- A widget type from DashyNMS Mobile or a newer version (#196): say
+             so plainly. Its settings are kept, so it still works where it was made. -->
+        <DataTemplate DataType="{x:Type vm:UnsupportedWidgetViewModel}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16">
+                <TextBlock Text="{Binding Message}"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Style="{StaticResource SubtleTextStyle}" />
+                <TextBlock Text="{Binding WidgetType, StringFormat='Widget type: {0}'}"
+                           TextAlignment="Center"
+                           Margin="0,6,0,0"
+                           FontSize="11"
+                           Style="{StaticResource SubtleTextStyle}" />
+            </StackPanel>
+        </DataTemplate>
+
         <!-- ======================== Pinned devices widget body ======================== -->
         <!-- Same data as the Devices tab's own pinned/starred devices, with its
              own Unpin button so a device can be un-favourited from here too. -->

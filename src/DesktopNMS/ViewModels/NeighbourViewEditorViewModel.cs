@@ -42,6 +42,9 @@ public sealed class NeighbourViewEditorViewModel : ObservableObject
     private string _previewText = "Checking...";
     private string? _errorMessage;
 
+    /// <summary>Rules from a newer version (DashyNMS Mobile or a later desktop) that this editor can't show - kept aside and saved back unchanged (#197).</summary>
+    private readonly List<NeighbourRule> _unsupportedRules = new();
+
     public NeighbourViewEditorViewModel(INeighbourDirectory directory, IDeviceCache devices)
     {
         _directory = directory;
@@ -61,6 +64,12 @@ public sealed class NeighbourViewEditorViewModel : ObservableObject
         AddRule(new NeighbourRule());
         _ = LoadSnapshotAsync();
     }
+
+    public bool HasUnsupportedRules => _unsupportedRules.Count > 0;
+
+    public string UnsupportedRulesText => _unsupportedRules.Count == 1
+        ? "This view also has 1 rule from a newer version of DashyNMS. It's kept as it is, but this version can't show or check it."
+        : $"This view also has {_unsupportedRules.Count} rules from a newer version of DashyNMS. They're kept as they are, but this version can't show or check them.";
 
     /// <summary>True to save, false to cancel.</summary>
     public event EventHandler<bool>? RequestClose;
@@ -152,10 +161,20 @@ public sealed class NeighbourViewEditorViewModel : ObservableObject
             RemoveRule(row);
         }
 
+        _unsupportedRules.Clear();
         foreach (var rule in existing.Rules)
         {
+            if (!rule.IsSupported)
+            {
+                _unsupportedRules.Add(rule.Clone());
+                continue;
+            }
+
             AddRule(rule.Clone());
         }
+
+        OnPropertyChanged(nameof(HasUnsupportedRules));
+        OnPropertyChanged(nameof(UnsupportedRulesText));
 
         if (Rules.Count == 0)
         {
@@ -172,7 +191,9 @@ public sealed class NeighbourViewEditorViewModel : ObservableObject
         Name = Name.Trim(),
         MatchAll = MatchAll,
         ShowOnMap = ShowOnMap,
-        Rules = Rules.Select(r => r.ToRule()).Where(r => !string.IsNullOrWhiteSpace(r.Value)).ToList(),
+        Rules = Rules.Select(r => r.ToRule()).Where(r => !string.IsNullOrWhiteSpace(r.Value))
+            .Concat(_unsupportedRules.Select(r => r.Clone()))
+            .ToList(),
     };
 
     private void AddRule(NeighbourRule rule)
@@ -196,7 +217,7 @@ public sealed class NeighbourViewEditorViewModel : ObservableObject
             return;
         }
 
-        if (!Rules.Any(r => !string.IsNullOrWhiteSpace(r.Value)))
+        if (!Rules.Any(r => !string.IsNullOrWhiteSpace(r.Value)) && _unsupportedRules.Count == 0)
         {
             ErrorMessage = "Add at least one rule with something to look for.";
             return;
