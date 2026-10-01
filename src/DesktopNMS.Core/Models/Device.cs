@@ -122,7 +122,7 @@ public sealed class Device
     [JsonPropertyName("last_discovered")]
     public DateTime? LastDiscovered { get; set; }
 
-    /// <summary>When LibreNMS last finished polling this device ("2026-10-01 08:12:41", server time). Null if it has never been polled.</summary>
+    /// <summary>When LibreNMS last finished polling this device - "2026-10-01 08:12:41" (server time, no zone) or, from a Laravel datetime cast, "2026-10-01T08:12:41.000000Z" (UTC). Null if it has never been polled.</summary>
     [JsonPropertyName("last_polled")]
     public DateTime? LastPolled { get; set; }
 
