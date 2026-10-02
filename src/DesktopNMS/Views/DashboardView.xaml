@@ -705,6 +705,243 @@
             </Grid>
         </DataTemplate>
 
+        <!-- ======================== Top interfaces / errors / devices body ======================== -->
+        <!-- One template for all three (#199-#201): the rows - device, port, the
+             two numbers and a bar - under headings that double as the ranking
+             control. The count and (errors) the eye are in the title bar - see
+             the TopWidgetHeader template below. -->
+        <DataTemplate DataType="{x:Type vm:TopWidgetViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="1">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding HasRows, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel Margin="6,0,6,6">
+                            <!-- Column headings, lined up with the rows' numbers. In
+                                 and Out are the ranking control: click one to rank by
+                                 it, click it again for Total (both lit). -->
+                            <Grid Margin="8,0,8,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="78" />
+                                    <ColumnDefinition Width="78" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.Resources>
+                                    <Style x:Key="TopHeadingButton" TargetType="Button">
+                                        <Setter Property="Cursor" Value="Hand" />
+                                        <Setter Property="HorizontalAlignment" Value="Right" />
+                                        <Setter Property="ToolTip" Value="{Binding RankText}" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="Transparent" Padding="4,2,0,2">
+                                                        <ContentPresenter />
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </Grid.Resources>
+
+                                <TextBlock Grid.Column="0" Text="{Binding NameHeading}" FontSize="11" VerticalAlignment="Center" Style="{StaticResource SubtleTextStyle}" />
+
+                                <Button Grid.Column="1" Style="{StaticResource TopHeadingButton}" Command="{Binding RankByInCommand}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="InHeading" Text="In" FontSize="11" Style="{StaticResource SubtleTextStyle}" />
+                                        <TextBlock x:Name="InArrow" Text="&#xE74B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9" Margin="3,1,0,0" VerticalAlignment="Center" Visibility="Collapsed" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="2" Style="{StaticResource TopHeadingButton}" Command="{Binding RankByOutCommand}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="OutHeading" Text="Out" FontSize="11" Style="{StaticResource SubtleTextStyle}" />
+                                        <TextBlock x:Name="OutArrow" Text="&#xE74B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9" Margin="3,1,0,0" VerticalAlignment="Center" Visibility="Collapsed" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <ItemsControl x:Name="TopRows" ItemsSource="{Binding Rows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Command="{Binding DataContext.OpenCommand, ElementName=TopRows}"
+                                                CommandParameter="{Binding}"
+                                                Cursor="Hand"
+                                                HorizontalContentAlignment="Stretch"
+                                                ToolTip="{Binding Subtitle}">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="RowBorder" Background="Transparent" CornerRadius="6" Padding="8,5">
+                                                        <ContentPresenter />
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource SurfaceAltBrush}" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="78" />
+                                                    <ColumnDefinition Width="78" />
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,0">
+                                                    <Ellipse Width="7"
+                                                             Height="7"
+                                                             Margin="0,1,7,0"
+                                                             VerticalAlignment="Center"
+                                                             Fill="{Binding DeviceState, Converter={StaticResource DeviceStateToBrush}}"
+                                                             Visibility="{Binding HasDeviceState, Converter={StaticResource BoolToVisibility}}" />
+                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+
+                                                <TextBlock x:Name="InValue" Grid.Column="1" Text="{Binding InText}" TextAlignment="Right" />
+                                                <TextBlock x:Name="OutValue" Grid.Column="2" Text="{Binding OutText}" TextAlignment="Right" />
+
+                                                <TextBlock Grid.Row="1"
+                                                           Grid.Column="0"
+                                                           Text="{Binding Subtitle}"
+                                                           FontSize="11"
+                                                           Margin="14,1,8,0"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Style="{StaticResource SubtleTextStyle}"
+                                                           Visibility="{Binding HasSubtitle, Converter={StaticResource BoolToVisibility}}" />
+
+                                                <!-- How full: a port against its speed, a device against the top row. -->
+                                                <Border Grid.Row="1"
+                                                        Grid.Column="1"
+                                                        Grid.ColumnSpan="2"
+                                                        Height="4"
+                                                        Margin="12,6,0,0"
+                                                        VerticalAlignment="Center"
+                                                        CornerRadius="2"
+                                                        Background="{StaticResource BorderBrush}">
+                                                    <Border x:Name="Bar"
+                                                            HorizontalAlignment="Stretch"
+                                                            CornerRadius="2"
+                                                            Background="{StaticResource AccentBrush}"
+                                                            RenderTransformOrigin="0,0.5">
+                                                        <Border.RenderTransform>
+                                                            <ScaleTransform ScaleX="{Binding BarFraction}" />
+                                                        </Border.RenderTransform>
+                                                    </Border>
+                                                </Border>
+                                            </Grid>
+                                        </Button>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsWarning}" Value="True">
+                                                <Setter TargetName="InValue" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                                                <Setter TargetName="OutValue" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                                                <Setter TargetName="Bar" Property="Background" Value="{StaticResource WarningBrush}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsCritical}" Value="True">
+                                                <Setter TargetName="InValue" Property="Foreground" Value="{StaticResource CriticalBrush}" />
+                                                <Setter TargetName="OutValue" Property="Foreground" Value="{StaticResource CriticalBrush}" />
+                                                <Setter TargetName="Bar" Property="Background" Value="{StaticResource CriticalBrush}" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <TextBlock Text="Loading..."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource SubtleTextStyle}"
+                               Visibility="{Binding ShowLoading, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="{Binding EmptyText}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource SubtleTextStyle}"
+                               Visibility="{Binding ShowEmptyMessage, Converter={StaticResource BoolToVisibility}}" />
+                </Grid>
+
+                <StackPanel Grid.Row="2" Margin="12,0,12,6">
+                    <TextBlock Text="{Binding ErrorMessage}"
+                               TextWrapping="Wrap"
+                               FontSize="11"
+                               Foreground="{StaticResource CriticalBrush}"
+                               Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="{Binding FootnoteText}"
+                               TextWrapping="Wrap"
+                               FontSize="11"
+                               Style="{StaticResource SubtleTextStyle}"
+                               Visibility="{Binding HasFootnote, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsInRanked}" Value="True">
+                    <Setter TargetName="InHeading" Property="Foreground" Value="{StaticResource AccentBrush}" />
+                    <Setter TargetName="InArrow" Property="Foreground" Value="{StaticResource AccentBrush}" />
+                    <Setter TargetName="InArrow" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsOutRanked}" Value="True">
+                    <Setter TargetName="OutHeading" Property="Foreground" Value="{StaticResource AccentBrush}" />
+                    <Setter TargetName="OutArrow" Property="Foreground" Value="{StaticResource AccentBrush}" />
+                    <Setter TargetName="OutArrow" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- A Top widget's title-bar controls: "Top 3 ▾" and, for errors, the
+             eye that hides ports with no errors. -->
+        <DataTemplate DataType="{x:Type vm:TopWidgetHeader}">
+            <StackPanel Orientation="Horizontal">
+                <ComboBox ItemsSource="{Binding CountChoices}"
+                          SelectedItem="{Binding Widget.SelectedCount}"
+                          ItemStringFormat="Top {0}"
+                          FontSize="12"
+                          MinWidth="72"
+                          Height="28"
+                          VerticalContentAlignment="Center"
+                          ToolTip="How many to show" />
+                <ToggleButton x:Name="QuietToggle"
+                              IsChecked="{Binding Widget.HideQuiet}"
+                              Width="28"
+                              Height="28"
+                              Margin="4,0,0,0"
+                              Cursor="Hand"
+                              ToolTip="Hiding ports with no errors - click to show them"
+                              Visibility="{Binding Widget.OffersHideQuiet, Converter={StaticResource BoolToVisibility}}">
+                    <ToggleButton.Template>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border x:Name="Back" Background="Transparent" CornerRadius="6">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Back" Property="Background" Value="{StaticResource SurfaceAltBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </ToggleButton.Template>
+                    <TextBlock x:Name="QuietGlyph"
+                               Text="&#xED1A;"
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="13"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                </ToggleButton>
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Widget.HideQuiet}" Value="False">
+                    <Setter TargetName="QuietGlyph" Property="Text" Value="&#xE7B3;" />
+                    <Setter TargetName="QuietToggle" Property="ToolTip" Value="Showing every port - click to hide ports with no errors" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
         <!-- ======================== Unsupported widget body ======================== -->
         <!-- A widget type from DashyNMS Mobile or a newer version (#196): say
              so plainly. Its settings are kept, so it still works where it was made. -->
@@ -983,6 +1220,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0"
@@ -999,12 +1237,21 @@
                                      Margin="0,0,8,0"
                                      Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}}" />
 
+                            <!-- Widget-specific controls (a Top widget's count and eye),
+                                 templated by type; hidden while renaming. -->
+                            <ContentControl Grid.Column="1"
+                                            Content="{Binding HeaderOptions}"
+                                            Focusable="False"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,4,0"
+                                            Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+
                             <!-- Per-widget edit toggle: always available, independent of
                                  "Edit layout". Renaming and removing this widget only
                                  become possible once it is switched on; the icon and
                                  tooltip swap to Save once it is, so clicking it again
                                  reads as "done", not "undo the edit". -->
-                            <Button Grid.Column="1"
+                            <Button Grid.Column="2"
                                     Command="{Binding ToggleEditCommand}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
@@ -1030,7 +1277,7 @@
                                 </TextBlock>
                             </Button>
 
-                            <Button Grid.Column="2"
+                            <Button Grid.Column="3"
                                     ToolTip="Delete widget"
                                     Style="{StaticResource IconButtonStyle}"
                                     Command="{Binding RemoveCommand}"
@@ -1146,6 +1393,36 @@
                                     <StackPanel Margin="0,2">
                                         <TextBlock Text="Wireless" FontWeight="SemiBold" />
                                         <TextBlock Text="APs and clients on each wireless controller"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11" />
+                                    </StackPanel>
+                                </MenuItem.Header>
+                            </MenuItem>
+                            <MenuItem Command="{Binding AddTopInterfacesWidgetCommand}">
+                                <MenuItem.Header>
+                                    <StackPanel Margin="0,2">
+                                        <TextBlock Text="Top interfaces" FontWeight="SemiBold" />
+                                        <TextBlock Text="The busiest ports in the fleet, in and out"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11" />
+                                    </StackPanel>
+                                </MenuItem.Header>
+                            </MenuItem>
+                            <MenuItem Command="{Binding AddTopErrorsWidgetCommand}">
+                                <MenuItem.Header>
+                                    <StackPanel Margin="0,2">
+                                        <TextBlock Text="Top errors" FontWeight="SemiBold" />
+                                        <TextBlock Text="The ports with the most errors per second"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11" />
+                                    </StackPanel>
+                                </MenuItem.Header>
+                            </MenuItem>
+                            <MenuItem Command="{Binding AddTopDevicesWidgetCommand}">
+                                <MenuItem.Header>
+                                    <StackPanel Margin="0,2">
+                                        <TextBlock Text="Top devices" FontWeight="SemiBold" />
+                                        <TextBlock Text="The devices moving the most traffic"
                                                    Style="{StaticResource SubtleTextStyle}"
                                                    FontSize="11" />
                                     </StackPanel>

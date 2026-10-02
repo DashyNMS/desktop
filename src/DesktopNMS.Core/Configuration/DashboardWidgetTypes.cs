@@ -17,10 +17,14 @@ public static class DashboardWidgetTypes
     public const string PinnedDevices = "PinnedDevices";
     public const string Graph = "Graph";
     public const string Wireless = "Wireless";
+    public const string TopInterfaces = "TopInterfaces";
+    public const string TopErrors = "TopErrors";
+    public const string TopDevices = "TopDevices";
 
     public static IReadOnlySet<string> Known { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         Sensors, Alerts, AlertsGauge, DeviceStatus, RecentlyViewed, PinnedDevices, Graph, Wireless,
+        TopInterfaces, TopErrors, TopDevices,
     };
 
     public static bool IsKnown(string? widgetType) => widgetType is not null && Known.Contains(widgetType);

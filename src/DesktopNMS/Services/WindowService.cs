@@ -146,6 +146,17 @@ public sealed class WindowService : IWindowService
         }
     }
 
+    public void ShowDevicePort(int deviceId, int portId)
+    {
+        ShowDeviceDetail(deviceId);
+
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window)
+            && window.DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.ShowPort(portId);
+        }
+    }
+
     public void ShowDeviceDetail(int deviceId)
     {
         if (_openDeviceWindows.TryGetValue(deviceId, out var existing))

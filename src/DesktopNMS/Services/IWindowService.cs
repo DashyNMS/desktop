@@ -45,6 +45,9 @@ public interface IWindowService
     /// <summary>Shows a device's detail window on its Wireless section (#55) - the Dashboard Wireless widget's click-through.</summary>
     void ShowDeviceWireless(int deviceId);
 
+    /// <summary>Opens Device Details on its Ports section with one port picked - from a Top widget.</summary>
+    void ShowDevicePort(int deviceId, int portId);
+
     /// <summary>Shows the main window on a Neighbours view (#55), with this neighbour selected if one is named and listed - the MAC picks out which of several unnamed ones.</summary>
     void ShowNeighbour(string viewId, string? name, string? mac = null);
 

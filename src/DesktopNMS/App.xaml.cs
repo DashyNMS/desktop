@@ -350,6 +350,7 @@ public partial class App : Application
         services.AddSingleton<GroupsViewModel>();
         services.AddSingleton<LocationsViewModel>();
         services.AddSingleton<IFleetLinks, FleetLinks>();
+        services.AddSingleton<IFleetPorts, FleetPorts>();
         services.AddSingleton<INeighbourDirectory, NeighbourDirectory>();
         services.AddSingleton<NeighboursViewModel>();
         services.AddTransient<NeighbourViewEditorViewModel>();

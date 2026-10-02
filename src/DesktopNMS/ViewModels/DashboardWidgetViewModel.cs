@@ -86,6 +86,9 @@ public abstract class DashboardWidgetViewModel : ObservableObject
         set => SetProperty(ref _rowSpan, value);
     }
 
+    /// <summary>Widget-specific controls for the title bar, beside the edit button - templated by type. Null for a widget with none.</summary>
+    public virtual object? HeaderOptions => null;
+
     public RelayCommand RemoveCommand { get; }
 
     public RelayCommand ToggleEditCommand { get; }
