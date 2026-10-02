@@ -39,6 +39,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
@@ -139,12 +140,14 @@
                                  ToolTip="Filter by name, description, IP, switch, port or MAC" />
                     </StackPanel>
 
-                    <Button Grid.Column="4"
+                    <Rectangle Grid.Column="4" Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
+
+                    <Button Grid.Column="5"
                             Command="{Binding NewViewCommand}"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="New neighbourhood"
                             VerticalAlignment="Center"
-                            Margin="8,0,0,0">
+                            Margin="0">
                         <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
                     </Button>
                 </Grid>
