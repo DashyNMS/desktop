@@ -48,6 +48,9 @@ public interface IWindowService
     /// <summary>Opens Device Details on its Ports section with one port picked - from a Top widget.</summary>
     void ShowDevicePort(int deviceId, int portId);
 
+    /// <summary>The Dashboard's "Add widget" picker (#204). Returns the widget chosen, or null if cancelled.</summary>
+    DesktopNMS.ViewModels.WidgetCatalogEntry? ShowWidgetPicker(IReadOnlyList<DesktopNMS.ViewModels.WidgetCatalogEntry> catalog);
+
     /// <summary>Shows the main window on a Neighbours view (#55), with this neighbour selected if one is named and listed - the MAC picks out which of several unnamed ones.</summary>
     void ShowNeighbour(string viewId, string? name, string? mac = null);
 

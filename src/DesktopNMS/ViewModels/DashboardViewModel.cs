@@ -105,17 +105,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
             }
         });
 
-        AddSensorWidgetCommand = new RelayCommand(() => _layout.AddWidget("Sensors", "Sensors"));
-        AddAlertsWidgetCommand = new RelayCommand(() => _layout.AddWidget("Alerts", "Alerts"));
-        AddAlertsGaugeWidgetCommand = new RelayCommand(() => _layout.AddWidget("AlertsGauge", "Alerts gauge"));
-        AddDeviceStatusWidgetCommand = new RelayCommand(() => _layout.AddWidget("DeviceStatus", "Device status"));
-        AddRecentlyViewedWidgetCommand = new RelayCommand(() => _layout.AddWidget("RecentlyViewed", "Recently viewed"));
-        AddPinnedDevicesWidgetCommand = new RelayCommand(() => _layout.AddWidget("PinnedDevices", "Pinned devices"));
-        AddGraphWidgetCommand = new RelayCommand(() => _layout.AddWidget("Graph", "Graph"));
-        AddWirelessWidgetCommand = new RelayCommand(() => _layout.AddWidget("Wireless", "Wireless"));
-        AddTopInterfacesWidgetCommand = new RelayCommand(() => _layout.AddWidget(DashboardWidgetTypes.TopInterfaces, "Top interfaces"));
-        AddTopErrorsWidgetCommand = new RelayCommand(() => _layout.AddWidget(DashboardWidgetTypes.TopErrors, "Top errors"));
-        AddTopDevicesWidgetCommand = new RelayCommand(() => _layout.AddWidget(DashboardWidgetTypes.TopDevices, "Top devices"));
+        AddWidgetCommand = new RelayCommand(AddWidget);
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
@@ -130,30 +120,11 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     /// <summary>The widgets on the canvas, in the order they were created.</summary>
     public ObservableCollection<DashboardWidgetViewModel> Widgets { get; }
 
-    public RelayCommand AddSensorWidgetCommand { get; }
+    /// <summary>"Add widget": the picker (#204), then the chosen widget is added, scrolled to and briefly highlighted.</summary>
+    public RelayCommand AddWidgetCommand { get; }
 
-    public RelayCommand AddAlertsWidgetCommand { get; }
-
-    public RelayCommand AddAlertsGaugeWidgetCommand { get; }
-
-    public RelayCommand AddDeviceStatusWidgetCommand { get; }
-
-    public RelayCommand AddRecentlyViewedWidgetCommand { get; }
-
-    public RelayCommand AddPinnedDevicesWidgetCommand { get; }
-
-    /// <summary>The "Pinned devices" widget is only offered while pinning is on in Settings (#98).</summary>
-    public bool ShowPinnedDevicesWidgetOption => _settings.Current.EnablePinnedDevices;
-
-    public RelayCommand AddGraphWidgetCommand { get; }
-
-    public RelayCommand AddWirelessWidgetCommand { get; }
-
-    public RelayCommand AddTopInterfacesWidgetCommand { get; }
-
-    public RelayCommand AddTopErrorsWidgetCommand { get; }
-
-    public RelayCommand AddTopDevicesWidgetCommand { get; }
+    /// <summary>Raised with a just-added widget, so the view can scroll it into sight.</summary>
+    public event EventHandler<DashboardWidgetViewModel>? WidgetAdded;
 
     /// <summary>True while the user is arranging the dashboard: widgets show drag/resize/remove handles.</summary>
     public bool IsEditMode
@@ -322,8 +293,6 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
     private void OnSettingsChanged(object? sender, AppSettings settings)
     {
-        OnPropertyChanged(nameof(ShowPinnedDevicesWidgetOption));
-
         foreach (var widget in Widgets.OfType<SensorWidgetViewModel>())
         {
             widget.ApplyThresholds(settings);
@@ -386,6 +355,22 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>A Top widget row: a port opens its device on the Ports section with that port picked; a device opens Device Details.</summary>
+    private void AddWidget()
+    {
+        var chosen = _windows.ShowWidgetPicker(WidgetPickerViewModel.DefaultCatalog(_settings.Current.EnablePinnedDevices));
+        if (chosen is null)
+        {
+            return;
+        }
+
+        var model = _layout.AddWidget(chosen.WidgetType, chosen.Name);
+        if (_widgetIndex.TryGetValue(model.Id, out var added))
+        {
+            added.Flash();
+            WidgetAdded?.Invoke(this, added);
+        }
+    }
+
     private void OpenTopRow(TopRowViewModel row)
     {
         if (row.PortId is { } portId)

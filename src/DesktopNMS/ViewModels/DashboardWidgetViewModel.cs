@@ -26,6 +26,7 @@ public abstract class DashboardWidgetViewModel : ObservableObject
     private int _columnSpan;
     private int _rowSpan;
     private bool _isEditingWidget;
+    private bool _isHighlighted;
 
     protected DashboardWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model)
     {
@@ -84,6 +85,26 @@ public abstract class DashboardWidgetViewModel : ObservableObject
     {
         get => _rowSpan;
         set => SetProperty(ref _rowSpan, value);
+    }
+
+    /// <summary>Briefly true after the widget is added from the picker, so it stands out where it landed (#204).</summary>
+    public bool IsHighlighted
+    {
+        get => _isHighlighted;
+        private set => SetProperty(ref _isHighlighted, value);
+    }
+
+    /// <summary>Highlights the widget for a moment and a half.</summary>
+    public void Flash()
+    {
+        IsHighlighted = true;
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = System.TimeSpan.FromSeconds(1.6) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            IsHighlighted = false;
+        };
+        timer.Start();
     }
 
     /// <summary>Widget-specific controls for the title bar, beside the edit button - templated by type. Null for a widget with none.</summary>

@@ -1187,9 +1187,21 @@
                   Height="{Binding RowSpan, Converter={StaticResource GridUnitToPixels}}">
             <Border Margin="6"
                     Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1"
                     CornerRadius="6">
+                <!-- Outlined in the accent for a moment after being added from
+                     the picker (#204), so it's easy to spot where it landed. -->
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                        <Setter Property="BorderThickness" Value="1" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                <Setter Property="BorderThickness" Value="2" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -1337,131 +1349,14 @@
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <ToggleButton Content="Edit layout" Style="{StaticResource ChipToggleStyle}" IsChecked="{Binding IsEditMode}" />
 
-                <!-- Single entry point for every widget type; the list of
-                     choices grows in one place (this menu) rather than as an
-                     ever-widening row of "Add X widget" buttons. -->
+                <!-- Single entry point for every widget type: the widget picker
+                     (#204) - categories, search and a preview of each. -->
                 <Button Content="Add widget"
                         Style="{StaticResource PrimaryButtonStyle}"
                         Padding="12,6"
                         Margin="10,0,0,0"
-                        Click="OnAddWidgetClick"
-                        Visibility="{Binding IsEditMode, Converter={StaticResource BoolToVisibility}}">
-                    <Button.ContextMenu>
-                        <ContextMenu Placement="Bottom">
-                            <MenuItem Command="{Binding AddSensorWidgetCommand}">
-                                <MenuItem.Header>
-                                    <StackPanel Margin="0,2">
-                                        <TextBlock Text="Sensors" FontWeight="SemiBold" />
-                                        <TextBlock Text="Track specific dBm, signal, temperature or fan speed readings"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   FontSize="11" />
-                                    </StackPanel>
-                                </MenuItem.Header>
-                            </MenuItem>
-                            <MenuItem Command="{Binding AddAlertsWidgetCommand}">
-                                <MenuItem.Header>
-                                    <StackPanel Margin="0,2">
-                                        <TextBlock Text="Alerts" FontWeight="SemiBold" />
-                                        <TextBlock Text="A live feed of active alerts"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   FontSize="11" />
-                                    </StackPanel>
-                                </MenuItem.Header>
-                            </MenuItem>
-                            <MenuItem Command="{Binding AddAlertsGaugeWidgetCommand}">
-                                <MenuItem.Header>
-                                    <StackPanel Margin="0,2">
-                                        <TextBlock Text="Alerts gauge" FontWeight="SemiBold" />
-                                        <TextBlock Text="Critical and warning counts at a glance"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   FontSize="11" />
-                                    </StackPanel>
-                                </MenuItem.Header>
-                            </MenuItem>
-                            <MenuItem Command="{Binding AddDeviceStatusWidgetCommand}">
-                                <MenuItem.Header>
-                                    <StackPanel Margin="0,2">
-                                        <TextBlock Text="Device status" FontWeight="SemiBold" />
-                                        <TextBlock Text="Up, down, maintenance and disabled counts at a glance"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   FontSize="11" />
-                                    </StackPanel>
-                                </MenuItem.Header>
-                            </MenuItem>
-                            <MenuItem Command="{Binding AddWirelessWidgetCommand}">
-                                <MenuItem.Header>
-                                    <StackPanel Margin="0,2">
-                                        <TextBlock Text="Wireless" FontWeight="SemiBold" />
-                                        <TextBlock Text="APs and clients on each wireless controller"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   FontSize="11" />
-                                    </StackPanel>
-                                </MenuItem.Header>
-                            </MenuItem>
-                            <MenuItem Command="{Binding AddTopInterfacesWidgetCommand}">
-                                <MenuItem.Header>
-                                    <StackPanel Margin="0,2">
-                                        <TextBlock Text="Top interfaces" FontWeight="SemiBold" />
-                                        <TextBlock Text="The busiest ports in the fleet, in and out"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   FontSize="11" />
-                                    </StackPanel>
-                                </MenuItem.Header>
-                            </MenuItem>
-                            <MenuItem Command="{Binding AddTopErrorsWidgetCommand}">
-                                <MenuItem.Header>
-                                    <StackPanel Margin="0,2">
-                                        <TextBlock Text="Top errors" FontWeight="SemiBold" />
-                                        <TextBlock Text="The ports with the most errors per second"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   FontSize="11" />
-                                    </StackPanel>
-                                </MenuItem.Header>
-                            </MenuItem>
-                            <MenuItem Command="{Binding AddTopDevicesWidgetCommand}">
-                                <MenuItem.Header>
-                                    <StackPanel Margin="0,2">
-                                        <TextBlock Text="Top devices" FontWeight="SemiBold" />
-                                        <TextBlock Text="The devices moving the most traffic"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   FontSize="11" />
-                                    </StackPanel>
-                                </MenuItem.Header>
-                            </MenuItem>
-                            <MenuItem Command="{Binding AddRecentlyViewedWidgetCommand}">
-                                <MenuItem.Header>
-                                    <StackPanel Margin="0,2">
-                                        <TextBlock Text="Recently viewed" FontWeight="SemiBold" />
-                                        <TextBlock Text="A quick way back into devices you were just looking at"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   FontSize="11" />
-                                    </StackPanel>
-                                </MenuItem.Header>
-                            </MenuItem>
-                            <MenuItem Command="{Binding AddPinnedDevicesWidgetCommand}"
-                                      Visibility="{Binding ShowPinnedDevicesWidgetOption, Converter={StaticResource BoolToVisibility}}">
-                                <MenuItem.Header>
-                                    <StackPanel Margin="0,2">
-                                        <TextBlock Text="Pinned devices" FontWeight="SemiBold" />
-                                        <TextBlock Text="Devices you've starred on the Devices tab"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   FontSize="11" />
-                                    </StackPanel>
-                                </MenuItem.Header>
-                            </MenuItem>
-                            <MenuItem Command="{Binding AddGraphWidgetCommand}">
-                                <MenuItem.Header>
-                                    <StackPanel Margin="0,2">
-                                        <TextBlock Text="Graph" FontWeight="SemiBold" />
-                                        <TextBlock Text="A configurable graph for any device and time range"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   FontSize="11" />
-                                    </StackPanel>
-                                </MenuItem.Header>
-                            </MenuItem>
-                        </ContextMenu>
-                    </Button.ContextMenu>
-                </Button>
+                        Command="{Binding AddWidgetCommand}"
+                        Visibility="{Binding IsEditMode, Converter={StaticResource BoolToVisibility}}" />
             </StackPanel>
         </Border>
 

@@ -146,6 +146,20 @@ public sealed class WindowService : IWindowService
         }
     }
 
+    public WidgetCatalogEntry? ShowWidgetPicker(IReadOnlyList<WidgetCatalogEntry> catalog)
+    {
+        var viewModel = new WidgetPickerViewModel(catalog);
+        var window = new WidgetPickerWindow(viewModel);
+        RememberPlacement(window);
+
+        if (_mainWindow is { IsVisible: true })
+        {
+            OwnByMain(window);
+        }
+
+        return window.ShowDialog() == true ? viewModel.Chosen : null;
+    }
+
     public void ShowDevicePort(int deviceId, int portId)
     {
         ShowDeviceDetail(deviceId);
