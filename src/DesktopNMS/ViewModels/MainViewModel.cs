@@ -46,13 +46,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly DashboardViewModel _dashboard;
     private readonly GroupsViewModel _groups;
     private readonly LocationsViewModel _locations;
+    private readonly NeighboursViewModel _neighbours;
     private readonly RulesViewModel _rulesTab;
     private readonly TemplatesViewModel _templates;
     private readonly NetworkMapViewModel _networkMap;
     private readonly GeoMapViewModel _geoMap;
     private readonly CustomMapsViewModel _customMaps;
-    private readonly IServerBrandingService _branding;
+    private readonly LogsViewModel _logs;
+    private readonly IGraylogApi _graylog;
     private readonly ISelfActionTracker _selfActions;
+    private readonly IUpdateCheckService _updates;
     private readonly ILogger<MainViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, AlertItemViewModel> _index = new();
@@ -81,7 +84,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// DashyNMS's own icon, decoded once and reused for every window rather
-    /// than on every <see cref="HeaderLogo"/> access - it never changes, so
+    /// than on every <see cref="AppLogo"/> access - it never changes, so
     /// there is nothing to gain by re-decoding it.
     /// </summary>
     private static readonly Lazy<BitmapImage> AppIconLogo = new(() =>
@@ -109,13 +112,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         DashboardViewModel dashboard,
         GroupsViewModel groups,
         LocationsViewModel locations,
+        NeighboursViewModel neighbours,
         RulesViewModel rulesTab,
         TemplatesViewModel templates,
         NetworkMapViewModel networkMap,
         GeoMapViewModel geoMap,
         CustomMapsViewModel customMaps,
-        IServerBrandingService branding,
+        LogsViewModel logs,
+        IGraylogApi graylog,
         ISelfActionTracker selfActions,
+        IUpdateCheckService updates,
         ILogger<MainViewModel> logger)
     {
         _client = client;
@@ -131,18 +137,26 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _dashboard = dashboard;
         _groups = groups;
         _locations = locations;
+        _neighbours = neighbours;
         _rulesTab = rulesTab;
         _templates = templates;
         _networkMap = networkMap;
         _geoMap = geoMap;
         _customMaps = customMaps;
-        _branding = branding;
+        _logs = logs;
+        _graylog = graylog;
+        _graylog.ConfigurationChanged += OnGraylogConfigurationChanged;
         _selfActions = selfActions;
+        _updates = updates;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
-        _branding.Changed += OnBrandingChanged;
-        _settings.Changed += OnLogoSettingChanged;
+        _client.Failover.Changed += OnFailoverChanged;
+        SwitchBackToMainAddressCommand = new RelayCommand(SwitchBackToMainAddress);
+        _updates.ReadyUpdateChanged += OnReadyUpdateChanged;
+        InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => IsUpdateReady && !_isInstallingUpdate);
+        ViewUpdateNotesCommand = new RelayCommand(ViewUpdateNotes);
+        _settings.Changed += OnBadgeSettingChanged;
 
         Alerts = new ObservableCollection<AlertItemViewModel>();
         AlertsView = CollectionViewSource.GetDefaultView(Alerts);
@@ -175,12 +189,24 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectAlertsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Alerts);
         SelectGroupsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Groups);
         SelectLocationsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Locations);
+        // The tab itself opens on the table of every view.
+        SelectNeighboursTabCommand = new RelayCommand(() =>
+        {
+            SelectedTab = MainTab.Neighbours;
+            _neighbours.ShowViewList();
+        });
+        SelectNeighbourViewCommand = new RelayCommand(parameter =>
+        {
+            SelectedTab = MainTab.Neighbours;
+            _neighbours.SelectViewCommand.Execute(parameter);
+        });
         SelectRulesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Rules);
         SelectTemplatesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Templates);
         SelectMapsTabCommand = new RelayCommand(SelectDefaultMap);
         SelectNetworkMapTabCommand = new RelayCommand(() => SelectedTab = MainTab.MapsNetwork);
         SelectGeoMapTabCommand = new RelayCommand(() => SelectedTab = MainTab.MapsGeographical);
         SelectCustomMapsTabCommand = new RelayCommand(() => SelectedTab = MainTab.MapsCustom);
+        SelectLogsTabCommand = new RelayCommand(() => SelectedTab = MainTab.LogsGraylog);
         RefreshCurrentTabCommand = new RelayCommand(RefreshCurrentTab);
         ClearCurrentTabFiltersCommand = new RelayCommand(ClearCurrentTabFilters);
         SettingsCommand = new RelayCommand(OpenSettings);
@@ -266,6 +292,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectLocationsTabCommand { get; }
 
+    public RelayCommand SelectNeighboursTabCommand { get; }
+
+    /// <summary>The Neighbours hover menu's items - opens the tab on the view it's given.</summary>
+    public RelayCommand SelectNeighbourViewCommand { get; }
+
+
     public RelayCommand SelectRulesTabCommand { get; }
 
     public RelayCommand SelectTemplatesTabCommand { get; }
@@ -279,8 +311,137 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectCustomMapsTabCommand { get; }
 
+    public RelayCommand SelectLogsTabCommand { get; }
+
     /// <summary>F5: refreshes whichever tab is currently showing.</summary>
     public RelayCommand RefreshCurrentTabCommand { get; }
+
+    // ------------------------------------------------------------------ backup address
+
+    /// <summary>The server stopped answering at its own address and the app is talking to it through the backup address - see ServerFailover.</summary>
+    public bool IsOnBackupAddress => _client.Failover.IsOnBackup;
+
+    /// <summary>The main bar's backup address icon's tooltip and menu line: "Connected through the backup address 192.0.2.20 since 10:42 - nms.example.com stopped answering."</summary>
+    public string BackupAddressStatusText
+    {
+        get
+        {
+            var failover = _client.Failover;
+            if (!failover.IsOnBackup)
+            {
+                return string.Empty;
+            }
+
+            var since = failover.SwitchedAt is { } at ? " since " + at.ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.CurrentCulture) : string.Empty;
+            var host = _client.Connection?.WebRoot.Host ?? "the server";
+            return $"Connected through the backup address {failover.BackupAddress}{since} - {host} stopped answering.";
+        }
+    }
+
+    /// <summary>Back to the server's own address, by hand - if it still doesn't answer, two failures move it to the backup again.</summary>
+    public RelayCommand SwitchBackToMainAddressCommand { get; }
+
+    // The refresh follows from the switch itself - see OnFailoverChanged.
+    private void SwitchBackToMainAddress() => _client.Failover.FailBack();
+
+    // ------------------------------------------------------------------ updates
+
+    private bool _isInstallingUpdate;
+
+    /// <summary>A newer version is downloaded and verified - the main bar's update icon shows.</summary>
+    public bool IsUpdateReady => _updates.ReadyUpdate is not null;
+
+    /// <summary>The update icon's tooltip and menu line: "DashyNMS v1.2.0 is ready to install (running 1.1.0)."</summary>
+    public string UpdateReadyText => _updates.ReadyUpdate is { } ready
+        ? $"DashyNMS {ready.Version} is ready to install (running {_updates.CurrentVersion})."
+        : string.Empty;
+
+    /// <summary>Installs the ready update: DashyNMS closes, updates, and reopens on the new version.</summary>
+    public AsyncRelayCommand InstallUpdateCommand { get; }
+
+    /// <summary>The ready update's release notes on GitHub.</summary>
+    public RelayCommand ViewUpdateNotesCommand { get; }
+
+    /// <summary>Also the update-ready toast's "Restart to update" - which may arrive before this process has fetched the update itself.</summary>
+    public async Task InstallUpdateAsync()
+    {
+        if (_isInstallingUpdate)
+        {
+            return;
+        }
+
+        _isInstallingUpdate = true;
+        InstallUpdateCommand.RaiseCanExecuteChanged();
+        try
+        {
+            // On success the app shuts down from under this (InstallStarted).
+            if (!await _updates.InstallAsync().ConfigureAwait(true))
+            {
+                _windows.ShowError(
+                    "Update",
+                    "The update couldn't be started. Check for updates again from Settings, About, or download it from the release page.");
+            }
+        }
+        finally
+        {
+            _isInstallingUpdate = false;
+            InstallUpdateCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    private void ViewUpdateNotes()
+    {
+        var url = _updates.ReadyUpdate?.ReleaseUrl ?? UpdateCheckService.ReleasePageUrl(_updates.CurrentVersion);
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            _windows.OpenUrl(uri);
+        }
+    }
+
+    private void OnReadyUpdateChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() =>
+    {
+        OnPropertyChanged(nameof(IsUpdateReady));
+        OnPropertyChanged(nameof(UpdateReadyText));
+        InstallUpdateCommand.RaiseCanExecuteChanged();
+    });
+
+    private void OnFailoverChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() =>
+    {
+        OnPropertyChanged(nameof(IsOnBackupAddress));
+        OnPropertyChanged(nameof(BackupAddressStatusText));
+
+        if (_isConnected)
+        {
+            RefreshAfterAddressChange();
+        }
+    });
+
+    /// <summary>
+    /// Switched to the backup address or back: whatever failed while the
+    /// server wasn't answering would otherwise wait for its next poll - and
+    /// the dashboard's graphs until it's refreshed by hand - so everything
+    /// the app shows is fetched again now, through the new address.
+    /// </summary>
+    private void RefreshAfterAddressChange()
+    {
+        RequestRefresh();
+
+        if (_dashboard.RefreshCommand.CanExecute(null))
+        {
+            _dashboard.RefreshCommand.Execute(null);
+        }
+
+        if (_deviceList.RefreshCommand.CanExecute(null))
+        {
+            _deviceList.RefreshCommand.Execute(null);
+        }
+
+        // Any other tab that's open, too.
+        if (SelectedTab is not (MainTab.Dashboard or MainTab.Devices or MainTab.Alerts))
+        {
+            RefreshCurrentTab();
+        }
+    }
 
     /// <summary>Ctrl+L: clears the filters on whichever tab is currently showing.</summary>
     public RelayCommand ClearCurrentTabFiltersCommand { get; }
@@ -288,6 +449,27 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand SettingsCommand { get; }
 
     public RelayCommand SignOutCommand { get; }
+
+    /// <summary>The sidebar shows labels beside its icons - the hamburger button toggles it, remembered between runs.</summary>
+    public bool IsNavExpanded
+    {
+        get => _settings.Current.NavExpanded;
+        set
+        {
+            if (_settings.Current.NavExpanded == value)
+            {
+                return;
+            }
+
+            _settings.Current.NavExpanded = value;
+            _settings.SaveQuietly();
+            OnPropertyChanged();
+        }
+    }
+
+    public RelayCommand ToggleNavCommand => _toggleNavCommand ??= new RelayCommand(() => IsNavExpanded = !IsNavExpanded);
+
+    private RelayCommand? _toggleNavCommand;
 
     public RelayCommand ExitCommand { get; }
 
@@ -306,6 +488,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>The location list, for the Locations tab's content to bind to.</summary>
     public LocationsViewModel Locations => _locations;
 
+    /// <summary>The Neighbours tab (#55).</summary>
+    public NeighboursViewModel Neighbours => _neighbours;
+
     /// <summary>The alert rule list, for the Rules tab's content to bind to.</summary>
     public RulesViewModel Rules => _rulesTab;
 
@@ -321,31 +506,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>The custom maps, for Maps → Custom Maps to bind to.</summary>
     public CustomMapsViewModel CustomMaps => _customMaps;
 
-    /// <summary>The connected server's favicon, shown next to the tabs. Null until it loads, or if there isn't one.</summary>
-    public BitmapImage? ServerLogo => _branding.Logo;
+    public LogsViewModel Logs => _logs;
 
-    /// <summary>
-    /// What the shell header's logo slot actually shows: the server's own
-    /// branding when <see cref="AppSettings.ShowServerLogo"/> is on and one
-    /// has loaded, DashyNMS's own icon otherwise - see that setting's
-    /// remarks for why someone would turn it off.
-    /// </summary>
-    public BitmapImage? HeaderLogo => _settings.Current.ShowServerLogo ? ServerLogo : AppIconLogo.Value;
+    /// <summary>The Logs tab only shows while Graylog - its only source so far - is set up.</summary>
+    public bool ShowLogsTab => _graylog.IsConfigured;
 
-    public bool HasHeaderLogo => HeaderLogo is not null;
+    /// <summary>DashyNMS's own icon, in the title bar.</summary>
+    public BitmapImage AppLogo => AppIconLogo.Value;
 
-    private void OnBrandingChanged(object? sender, EventArgs e)
-    {
-        OnPropertyChanged(nameof(ServerLogo));
-        OnPropertyChanged(nameof(HeaderLogo));
-        OnPropertyChanged(nameof(HasHeaderLogo));
-    }
-
-    private void OnLogoSettingChanged(object? sender, AppSettings settings)
-    {
-        OnPropertyChanged(nameof(HeaderLogo));
-        OnPropertyChanged(nameof(HasHeaderLogo));
-    }
+    private void OnBadgeSettingChanged(object? sender, AppSettings settings) => RaiseAlertBadgeChanged();
 
     public MainTab SelectedTab
     {
@@ -362,12 +531,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsAlertsFamilyTabSelected));
                 OnPropertyChanged(nameof(IsGroupsTabSelected));
                 OnPropertyChanged(nameof(IsLocationsTabSelected));
+                OnPropertyChanged(nameof(IsNeighboursTabSelected));
                 OnPropertyChanged(nameof(IsRulesTabSelected));
                 OnPropertyChanged(nameof(IsTemplatesTabSelected));
                 OnPropertyChanged(nameof(IsMapsFamilyTabSelected));
                 OnPropertyChanged(nameof(IsNetworkMapTabSelected));
                 OnPropertyChanged(nameof(IsGeoMapTabSelected));
                 OnPropertyChanged(nameof(IsCustomMapsTabSelected));
+                OnPropertyChanged(nameof(IsLogsFamilyTabSelected));
+                OnPropertyChanged(nameof(IsGraylogLogsTabSelected));
 
                 // Loaded once, lazily, the first time a tab is actually looked at.
                 if (value == MainTab.Devices)
@@ -390,6 +562,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 {
                     _locations.OnShown();
                 }
+                else if (value == MainTab.Neighbours)
+                {
+                    _neighbours.OnShown();
+                }
                 else if (value == MainTab.Rules)
                 {
                     _rulesTab.OnShown();
@@ -410,7 +586,49 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 {
                     _customMaps.OnShown();
                 }
+
+                // Unlike the others, Logs also needs telling when it's left -
+                // its auto-update only runs while it's on screen.
+                if (value == MainTab.LogsGraylog)
+                {
+                    _logs.OnShown();
+                }
+                else
+                {
+                    _logs.OnHidden();
+                }
             }
+        }
+    }
+
+    /// <summary>Graylog switched on or off in Settings: show or hide the Logs tab, leaving it first if it's the one showing.</summary>
+    private void OnGraylogConfigurationChanged(object? sender, EventArgs e)
+    {
+        _dispatcher.InvokeAsync(() =>
+        {
+            if (!_graylog.IsConfigured && SelectedTab == MainTab.LogsGraylog)
+            {
+                SelectedTab = MainTab.Dashboard;
+            }
+
+            OnPropertyChanged(nameof(ShowLogsTab));
+        });
+    }
+
+    /// <summary>
+    /// The main window was shown or hidden (to the tray, or minimised) -
+    /// pauses or resumes anything that only runs while it's on screen (the
+    /// Logs tab's auto-update).
+    /// </summary>
+    public void OnWindowVisibilityChanged(bool isVisible)
+    {
+        if (isVisible && SelectedTab == MainTab.LogsGraylog)
+        {
+            _logs.OnShown();
+        }
+        else
+        {
+            _logs.OnHidden();
         }
     }
 
@@ -432,6 +650,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public bool IsLocationsTabSelected => SelectedTab == MainTab.Locations;
 
+    public bool IsNeighboursTabSelected => SelectedTab == MainTab.Neighbours;
+
     public bool IsRulesTabSelected => SelectedTab == MainTab.Rules;
 
     public bool IsTemplatesTabSelected => SelectedTab == MainTab.Templates;
@@ -444,6 +664,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public bool IsGeoMapTabSelected => SelectedTab == MainTab.MapsGeographical;
 
     public bool IsCustomMapsTabSelected => SelectedTab == MainTab.MapsCustom;
+
+    /// <summary>True for any Logs view (only Graylog so far) - keeps the Logs nav button highlighted, same "family" pattern as Maps.</summary>
+    public bool IsLogsFamilyTabSelected => SelectedTab is MainTab.LogsGraylog;
+
+    public bool IsGraylogLogsTabSelected => SelectedTab == MainTab.LogsGraylog;
 
     // -------------------------------------------------------------- filtering
 
@@ -720,6 +945,37 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public int TotalCount => Alerts.Count;
 
+    /// <summary>
+    /// What the Alerts tab's count badge counts: active alerts, plus
+    /// acknowledged ones unless Settings says otherwise - never recovered
+    /// ones, and regardless of the tab's own filters, so the badge always
+    /// reflects everything that's wrong.
+    /// </summary>
+    private IEnumerable<AlertItemViewModel> BadgeAlerts => Alerts.Where(a =>
+        a.State == AlertState.Active
+        || (a.State == AlertState.Acknowledged && _settings.Current.AlertTabBadgeIncludesAcknowledged));
+
+    public int AlertBadgeCount => BadgeAlerts.Count();
+
+    /// <summary>Red while any counted alert is critical; orange otherwise.</summary>
+    public bool AlertBadgeIsCritical => BadgeAlerts.Any(a => a.Severity == AlertSeverity.Critical);
+
+    /// <summary>"99+" past 99, so the badge stays small.</summary>
+    public string AlertBadgeText => AlertBadgeCount > 99 ? "99+" : AlertBadgeCount.ToString(System.Globalization.CultureInfo.CurrentCulture);
+
+    public bool ShowAlertBadge => _settings.Current.ShowAlertTabBadge && AlertBadgeCount > 0;
+
+    public string AlertBadgeToolTip
+    {
+        get
+        {
+            var critical = BadgeAlerts.Count(a => a.Severity == AlertSeverity.Critical);
+            var others = AlertBadgeCount - critical;
+            var scope = _settings.Current.AlertTabBadgeIncludesAcknowledged ? "active or acknowledged" : "active";
+            return $"{AlertBadgeCount} {scope} alert{(AlertBadgeCount == 1 ? string.Empty : "s")}: {critical} critical, {others} other";
+        }
+    }
+
     public int VisibleCount => AlertsView.Cast<object>().Count();
 
     /// <summary>Drives the loading/empty/no-matches split on the Alerts grid (issue #16).</summary>
@@ -760,6 +1016,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             _locations.OnShown();
         }
+        else if (SelectedTab == MainTab.Neighbours)
+        {
+            _neighbours.OnShown();
+        }
         else if (SelectedTab == MainTab.Rules)
         {
             _rulesTab.OnShown();
@@ -779,6 +1039,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         else if (SelectedTab == MainTab.MapsCustom)
         {
             _customMaps.OnShown();
+        }
+        else if (SelectedTab == MainTab.LogsGraylog)
+        {
+            _logs.OnShown();
         }
     }
 
@@ -822,6 +1086,30 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SetDeviceFilter(null, null);
         GroupFilter.SetAllChecked(true, notify: false);
         FilterRule = rule;
+
+        _suppressFilterPersistence = false;
+        OnFilterChanged();
+    }
+
+    /// <summary>
+    /// Switches to the Alerts tab with every other filter cleared, showing one
+    /// severity's unacknowledged alerts - or, for <paramref name="severity"/>
+    /// null, every alert including acknowledged ones. Used by the Dashboard's
+    /// Alerts gauge counts (#212).
+    /// </summary>
+    public void ShowAlertsWithSeverity(AlertSeverity? severity)
+    {
+        SelectedTab = MainTab.Alerts;
+        _suppressFilterPersistence = true;
+
+        ShowCritical = severity is null or AlertSeverity.Critical;
+        ShowWarning = severity is null or AlertSeverity.Warning;
+        ShowUnknownSeverity = severity is null;
+        ShowAcknowledged = severity is null;
+        SearchText = string.Empty;
+        FilterRule = null;
+        GroupFilter.SetAllChecked(true, notify: false);
+        SetDeviceFilter(null, null);
 
         _suppressFilterPersistence = false;
         OnFilterChanged();
@@ -1057,13 +1345,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         // Align the collection with the server's ordering, updating in place so
         // the selection and scroll position survive a refresh.
+        var visibilityChanged = false;
+
         for (var target = 0; target < alerts.Count; target++)
         {
             var alert = alerts[target];
 
             if (_index.TryGetValue(alert.Id, out var existing))
             {
+                // The view only filters an item when it's added, so an alert
+                // updated in place - e.g. now acknowledged, with acknowledged
+                // alerts hidden - would otherwise stay showing until a filter
+                // is next changed.
+                var wasShown = FilterAlert(existing);
                 existing.Update(alert, context);
+                visibilityChanged |= FilterAlert(existing) != wasShown;
 
                 var currentIndex = Alerts.IndexOf(existing);
                 if (currentIndex >= 0 && currentIndex != target && target < Alerts.Count)
@@ -1077,6 +1373,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 _index[alert.Id] = item;
                 Alerts.Insert(Math.Min(target, Alerts.Count), item);
             }
+        }
+
+        // Only when something's shown/hidden state actually changed - a
+        // refresh on every poll would disturb the grid for nothing.
+        if (visibilityChanged)
+        {
+            AlertsView.Refresh();
         }
 
         RaiseCountsChanged();
@@ -1429,6 +1732,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
                 break;
 
+            case MainTab.Neighbours:
+                if (_neighbours.RefreshCommand.CanExecute(null))
+                {
+                    _neighbours.RefreshCommand.Execute(null);
+                }
+
+                break;
+
             case MainTab.Rules:
                 if (_rulesTab.RefreshCommand.CanExecute(null))
                 {
@@ -1465,6 +1776,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 _ = _customMaps.RefreshAsync();
                 break;
 
+            case MainTab.LogsGraylog:
+                if (_logs.RefreshCommand.CanExecute(null))
+                {
+                    _logs.RefreshCommand.Execute(null);
+                }
+
+                break;
+
             default:
                 break;
         }
@@ -1494,6 +1813,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 _locations.ClearFiltersCommand.Execute(null);
                 break;
 
+            case MainTab.Neighbours:
+                _neighbours.ClearFiltersCommand.Execute(null);
+                break;
+
             case MainTab.Rules:
                 _rulesTab.ClearFiltersCommand.Execute(null);
                 break;
@@ -1508,6 +1831,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
             case MainTab.MapsGeographical:
                 _geoMap.ClearFiltersCommand.Execute(null);
+                break;
+
+            case MainTab.LogsGraylog:
+                _logs.ClearFiltersCommand.Execute(null);
                 break;
 
             case MainTab.Dashboard:
@@ -1751,8 +2078,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    private void RaiseAlertBadgeChanged()
+    {
+        OnPropertyChanged(nameof(AlertBadgeCount));
+        OnPropertyChanged(nameof(AlertBadgeIsCritical));
+        OnPropertyChanged(nameof(AlertBadgeText));
+        OnPropertyChanged(nameof(ShowAlertBadge));
+        OnPropertyChanged(nameof(AlertBadgeToolTip));
+    }
+
     private void RaiseCountsChanged()
     {
+        RaiseAlertBadgeChanged();
         OnPropertyChanged(nameof(CriticalCount));
         OnPropertyChanged(nameof(WarningCount));
         OnPropertyChanged(nameof(AcknowledgedCount));
@@ -1779,8 +2116,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _monitor.Polled -= OnPolled;
         _monitor.PollStarted -= OnPollStarted;
         _session.StateChanged -= OnSessionStateChanged;
-        _branding.Changed -= OnBrandingChanged;
-        _settings.Changed -= OnLogoSettingChanged;
+        _client.Failover.Changed -= OnFailoverChanged;
+        _updates.ReadyUpdateChanged -= OnReadyUpdateChanged;
+        _graylog.ConfigurationChanged -= OnGraylogConfigurationChanged;
+        _settings.Changed -= OnBadgeSettingChanged;
         _groupMembership.Changed -= OnGroupMembershipChanged;
         GroupFilter.PropertyChanged -= OnGroupFilterPropertyChanged;
 

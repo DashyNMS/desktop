@@ -68,6 +68,30 @@ public sealed class SensorItemViewModel : ObservableObject
 
     public AlertSeverity Severity => _severity;
 
+    /// <summary>
+    /// Where the reading sits between its low and high limits, 0-1, for a bar;
+    /// from zero to the high limit when there's no low one. Null without a
+    /// high limit - there's nothing to measure against.
+    /// </summary>
+    public double? LimitFraction
+    {
+        get
+        {
+            if (_sensor.LimitHigh is not { } high)
+            {
+                return null;
+            }
+
+            var low = _sensor.LimitLow is { } l && l < high ? l : Math.Min(0, _sensor.Current);
+            return high > low ? Math.Clamp((_sensor.Current - low) / (high - low), 0, 1) : null;
+        }
+    }
+
+    public bool HasLimitFraction => LimitFraction is not null;
+
+    /// <summary><see cref="LimitFraction"/> as a percentage, for PercentToStarWidth bars.</summary>
+    public double LimitPercent => (LimitFraction ?? 0) * 100;
+
     public string SeverityText => Severity == AlertSeverity.Unknown ? "No data" : Severity.ToDisplayString();
 
     public DateTime? LastUpdate => _sensor.LastUpdate;
@@ -99,6 +123,9 @@ public sealed class SensorItemViewModel : ObservableObject
         OnPropertyChanged(nameof(Description));
         OnPropertyChanged(nameof(Value));
         OnPropertyChanged(nameof(ValueText));
+        OnPropertyChanged(nameof(LimitFraction));
+        OnPropertyChanged(nameof(HasLimitFraction));
+        OnPropertyChanged(nameof(LimitPercent));
         OnPropertyChanged(nameof(LastUpdate));
         OnPropertyChanged(nameof(LastUpdateText));
         OnPropertyChanged(nameof(DeviceUrl));

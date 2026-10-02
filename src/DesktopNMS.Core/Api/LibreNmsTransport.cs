@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using DesktopNMS.Core.Json;
+using DesktopNMS.Core.Security;
 using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.Core.Api;
@@ -15,17 +16,36 @@ namespace DesktopNMS.Core.Api;
 public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
 {
     private readonly ILogger<LibreNmsTransport> _logger;
+    private readonly ServerFailover _failover;
     private readonly object _sync = new();
 
     private HttpClient? _http;
     private HttpMessageHandler? _handler;
+
+    /// <summary>The last certificate turned down under "Allow untrusted certificate", picked up by the request that failed on it (#189).</summary>
+    private CertificateDetails? _rejectedCertificate;
     private LibreNmsConnection? _connection;
     private bool _disposed;
+    private bool _configuring;
 
-    public LibreNmsTransport(ILogger<LibreNmsTransport> logger)
+    /// <param name="failover">The backup address state - shared with the app, which shows it and switches back; a throwaway transport (a connection test) gets its own.</param>
+    public LibreNmsTransport(ILogger<LibreNmsTransport> logger, ServerFailover? failover = null)
     {
         _logger = logger;
+        _failover = failover ?? new ServerFailover();
+        _failover.Changed += OnFailoverChanged;
     }
+
+    public ServerFailover Failover => _failover;
+
+    /// <summary>
+    /// Whether a struggling or unreachable server gets the usual few retries
+    /// with growing waits (see <see cref="TransientRetryPolicy"/>). Off for a
+    /// connection test, which should answer quickly - one try at the server
+    /// address, then one at the backup - rather than retry an address that
+    /// isn't answering for a minute or more first.
+    /// </summary>
+    public bool RetryTransientFailures { get; init; } = true;
 
     public LibreNmsConnection? Connection
     {
@@ -42,10 +62,52 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
     /// Points the transport at a LibreNMS instance. Safe to call repeatedly;
     /// the previous client and handler are disposed.
     /// </summary>
-    public void Configure(LibreNmsConnection connection)
+    /// <param name="startOnBackup">Dial the backup address from the start - the main one was unreachable when signing in.</param>
+    public void Configure(LibreNmsConnection connection, bool startOnBackup = false)
     {
         ArgumentNullException.ThrowIfNull(connection);
 
+        // The failover state first, so the client below is built for the right
+        // address from the start - no request slips out to the other one.
+        _configuring = true;
+        try
+        {
+            _failover.Configure(connection.BackupWebRoot?.ToString(), startOnBackup);
+        }
+        finally
+        {
+            _configuring = false;
+        }
+
+        Install(connection);
+        _logger.LogInformation(
+            "LibreNMS transport configured for {ApiBase}{Backup}",
+            connection.ApiBase,
+            connection.BackupWebRoot is { } backup ? $" (backup address {backup}{(startOnBackup ? ", in use" : string.Empty)})" : string.Empty);
+    }
+
+    /// <summary>Switched to the backup address or back: a fresh client, so no pooled connection to the old address carries on being used.</summary>
+    private void OnFailoverChanged(object? sender, EventArgs e)
+    {
+        var connection = Connection;
+        if (connection is null || _configuring)
+        {
+            return;
+        }
+
+        Install(connection);
+        if (_failover.IsOnBackup)
+        {
+            _logger.LogWarning("{Host} stopped answering - now using the backup address {Backup}", connection.WebRoot.Host, _failover.BackupAddress);
+        }
+        else
+        {
+            _logger.LogInformation("Switched back to the main address for {Host}", connection.WebRoot.Host);
+        }
+    }
+
+    private void Install(LibreNmsConnection connection)
+    {
         // A plain HttpClientHandler leaves .NET's default pooled-connection
         // lifetime (effectively unbounded) in place. Many LibreNMS installs sit
         // behind a reverse proxy (openresty/nginx) that silently drops
@@ -55,28 +117,63 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         // every subsequent request through that connection fails until the app
         // is restarted. SocketsHttpHandler is used instead so idle connections
         // are proactively evicted well before a typical proxy timeout.
+        //
+        // Redirects are followed by SameServerRedirectHandler (below) rather
+        // than here: .NET would carry the X-Auth-Token header to wherever a
+        // redirect pointed, another host included.
         var handler = new SocketsHttpHandler
         {
             AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
-            AllowAutoRedirect = true,
+            AllowAutoRedirect = false,
             UseCookies = false,
             PooledConnectionIdleTimeout = TimeSpan.FromSeconds(90),
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
         };
 
+        // On a backup that's just another route to the server (same scheme,
+        // port and path - see LibreNmsConnection.BackupIsAnotherRoute), dial
+        // its host in place of the URL's. The request itself still names the
+        // server, so TLS (SNI and the certificate check) and the Host header
+        // stay as they are. Any other backup is simply its own URL (below).
+        var onBackup = _failover.IsOnBackup && connection.BackupWebRoot is not null;
+        var dialBackupHost = onBackup && connection.BackupIsAnotherRoute;
+        handler.ConnectCallback = async (context, cancellationToken) =>
+        {
+            var host = dialBackupHost ? connection.BackupWebRoot!.DnsSafeHost : context.DnsEndPoint.Host;
+            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+            try
+            {
+                await socket.ConnectAsync(host, context.DnsEndPoint.Port, cancellationToken).ConfigureAwait(false);
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
+        };
+
+        _rejectedCertificate = null;
         if (connection.AllowUntrustedCertificate)
         {
-            // Opt-in only: many LibreNMS installs sit behind an internal CA.
-            handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+            // Opt-in only: many LibreNMS installs sit behind an internal CA or
+            // use a self-signed certificate. Even then, only certificates the
+            // user has looked at and accepted get through (#189).
+            handler.SslOptions.RemoteCertificateValidationCallback = CertificateTrust.CreateCallback(
+                onBackup && !dialBackupHost ? connection.BackupWebRoot!.Host : connection.WebRoot.Host,
+                allowUntrusted: true,
+                connection.TrustedCertificates,
+                details => _rejectedCertificate = details);
         }
 
-        var http = new HttpClient(handler, disposeHandler: false)
+        var redirects = new SameServerRedirectHandler(handler);
+        var http = new HttpClient(redirects, disposeHandler: false)
         {
-            BaseAddress = connection.ApiBase,
+            BaseAddress = onBackup && !dialBackupHost ? connection.BackupApiBase : connection.ApiBase,
             Timeout = TimeSpan.FromSeconds(connection.TimeoutSeconds),
         };
 
-        http.DefaultRequestHeaders.Add("X-Auth-Token", connection.ApiToken);
+        http.DefaultRequestHeaders.Add(SameServerRedirectHandler.TokenHeader, connection.ApiToken);
         http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         http.DefaultRequestHeaders.UserAgent.ParseAdd("DashyNMS/0.1 (+https://librenms.org)");
 
@@ -88,14 +185,15 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
             oldHttp = _http;
             oldHandler = _handler;
             _http = http;
-            _handler = handler;
+
+            // The outer handler: disposing it disposes the sockets handler too.
+            _handler = redirects;
             _connection = connection;
         }
 
         oldHttp?.Dispose();
         oldHandler?.Dispose();
 
-        _logger.LogInformation("LibreNMS transport configured for {ApiBase}", connection.ApiBase);
     }
 
     /// <summary>Drops the current connection; subsequent calls fail as "not signed in".</summary>
@@ -117,11 +215,49 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         oldHandler?.Dispose();
     }
 
-    public async Task<JsonDocument> SendAsync(
+    public Task<JsonDocument> SendAsync(
         HttpMethod method,
         string relativeUrl,
         object? body = null,
         CancellationToken cancellationToken = default)
+        => TrackReachabilityAsync(() => SendWithRetriesAsync(method, relativeUrl, body, cancellationToken));
+
+    public Task<string> SendRawAsync(string relativeUrl, CancellationToken cancellationToken = default)
+        => TrackReachabilityAsync(() => SendRawWithRetriesAsync(relativeUrl, cancellationToken));
+
+    /// <summary>
+    /// Counts each request, once its own retries are spent, towards the
+    /// backup address failover (see <see cref="ServerFailover"/>): an answer of
+    /// any kind shows the server's reachable; not reaching it at all counts
+    /// against it. The request that tips it over to the backup is tried
+    /// again there straight away, so its caller never sees the switch.
+    /// </summary>
+    private async Task<T> TrackReachabilityAsync<T>(Func<Task<T>> send)
+    {
+        try
+        {
+            var result = await send().ConfigureAwait(false);
+            _failover.RecordSuccess();
+            return result;
+        }
+        catch (LibreNmsApiException ex) when (ex.StatusCode is not null)
+        {
+            _failover.RecordSuccess();
+            throw;
+        }
+        catch (LibreNmsApiException ex) when (ServerFailover.IsUnreachable(ex) && _failover.RecordUnreachable())
+        {
+            var result = await send().ConfigureAwait(false);
+            _failover.RecordSuccess();
+            return result;
+        }
+    }
+
+    private async Task<JsonDocument> SendWithRetriesAsync(
+        HttpMethod method,
+        string relativeUrl,
+        object? body,
+        CancellationToken cancellationToken)
     {
         // A request that lands on a pooled connection the server (or an
         // intervening proxy) closed moments earlier hangs until HttpClient's
@@ -147,7 +283,8 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
             // of an instant hard failure - see TransientRetryPolicy for what
             // counts as transient and why only GET/PUT are eligible.
             catch (LibreNmsApiException ex) when (
-                attempt <= TransientRetryPolicy.MaxAttempts
+                RetryTransientFailures
+                && attempt <= TransientRetryPolicy.MaxAttempts
                 && TransientRetryPolicy.IsRetryable(method)
                 && TransientRetryPolicy.IsTransientFailure(ex)
                 && !cancellationToken.IsCancellationRequested)
@@ -204,7 +341,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         }
         catch (HttpRequestException ex)
         {
-            throw new LibreNmsApiException(DescribeTransportFailure(ex), innerException: ex, looksLikeStaleConnection: IsStaleConnectionFailure(ex));
+            throw TransportFailure(ex);
         }
 
         using (response)
@@ -233,7 +370,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         return false;
     }
 
-    public async Task<string> SendRawAsync(string relativeUrl, CancellationToken cancellationToken = default)
+    private async Task<string> SendRawWithRetriesAsync(string relativeUrl, CancellationToken cancellationToken)
     {
         // Same retry shape as SendAsync above - see its own comments for why.
         for (var attempt = 1; ; attempt++)
@@ -247,7 +384,8 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
                 _logger.LogDebug(ex, "Retrying {Url} after a possible stale pooled connection", relativeUrl);
             }
             catch (LibreNmsApiException ex) when (
-                attempt <= TransientRetryPolicy.MaxAttempts
+                RetryTransientFailures
+                && attempt <= TransientRetryPolicy.MaxAttempts
                 && TransientRetryPolicy.IsRetryable(HttpMethod.Get)
                 && TransientRetryPolicy.IsTransientFailure(ex)
                 && !cancellationToken.IsCancellationRequested)
@@ -294,7 +432,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         }
         catch (HttpRequestException ex)
         {
-            throw new LibreNmsApiException(DescribeTransportFailure(ex), innerException: ex, looksLikeStaleConnection: IsStaleConnectionFailure(ex));
+            throw TransportFailure(ex);
         }
 
         using (response)
@@ -421,23 +559,74 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         _ => $"LibreNMS returned HTTP {(int)statusCode} for '{relativeUrl}'.",
     };
 
-    private static string DescribeTransportFailure(HttpRequestException ex)
+    /// <summary>The exception for a request that never got an HTTP response - carrying the rejected certificate, when that was why.</summary>
+    private LibreNmsApiException TransportFailure(HttpRequestException ex)
     {
-        var inner = ex.InnerException;
+        var rejected = IsCertificateRejection(ex) ? Interlocked.Exchange(ref _rejectedCertificate, null) : null;
+        if (rejected is not null)
+        {
+            return new LibreNmsApiException(CertificateTrust.DescribeRejection(rejected, "LibreNMS"), innerException: ex)
+            {
+                UntrustedCertificate = rejected,
+            };
+        }
 
-        if (inner is System.Security.Authentication.AuthenticationException
-            || inner?.GetType().Name.Contains("Certificate", StringComparison.OrdinalIgnoreCase) == true)
+        return new LibreNmsApiException(DescribeTransportFailure(ex), innerException: ex, looksLikeStaleConnection: IsStaleConnectionFailure(ex));
+    }
+
+    private string DescribeTransportFailure(HttpRequestException ex)
+    {
+        var allowUntrusted = Connection?.AllowUntrustedCertificate == true;
+
+        // Our side rejecting the server's certificate - the one case ticking
+        // "Allow untrusted" helps, so only then (and only if it isn't ticked).
+        if (IsCertificateRejection(ex) && !allowUntrusted)
         {
             return "The server's TLS certificate was not trusted. Tick 'Allow untrusted certificate' if this is an internal CA or self-signed host.";
+        }
+
+        // The far end refusing the handshake (a TLS alert) is something else:
+        // whatever answered at that address won't talk TLS for this name -
+        // alert 112 is "unrecognised name". A certificate setting won't fix it.
+        if (ex.HttpRequestError == HttpRequestError.SecureConnectionError || FindInner<System.Security.Authentication.AuthenticationException>(ex) is not null)
+        {
+            var alert = System.Text.RegularExpressions.Regex.Match(ex.ToString(), @"TLS alert: '(\d+)'");
+            var detail = alert.Success
+                ? alert.Groups[1].Value switch
+                {
+                    "112" => " (TLS alert 112: it doesn't recognise this server name)",
+                    "40" => " (TLS alert 40: handshake failure)",
+                    "70" => " (TLS alert 70: protocol version)",
+                    var code => $" (TLS alert {code})",
+                }
+                : string.Empty;
+            return $"The secure connection couldn't be set up{detail}. Something answered at this address, but not as this LibreNMS server - check the address, or that the server is reachable from here.";
         }
 
         return ex.HttpRequestError switch
         {
             HttpRequestError.NameResolutionError => "The server name could not be resolved. Check the address.",
             HttpRequestError.ConnectionError => "Could not connect to the server. Check the address, port and that it is reachable from this machine.",
-            HttpRequestError.SecureConnectionError => "The TLS handshake failed. If the certificate is self-signed, tick 'Allow untrusted certificate'.",
             _ => $"Could not reach LibreNMS: {ex.Message}",
         };
+    }
+
+    /// <summary>This machine rejected the server's certificate (untrusted issuer, wrong name, expired) - as opposed to the server refusing the handshake.</summary>
+    private static bool IsCertificateRejection(Exception ex) =>
+        FindInner<System.Security.Authentication.AuthenticationException>(ex) is { } auth
+        && auth.Message.Contains("certificate", StringComparison.OrdinalIgnoreCase);
+
+    private static T? FindInner<T>(Exception ex) where T : Exception
+    {
+        for (var current = ex.InnerException; current is not null; current = current.InnerException)
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+        }
+
+        return null;
     }
 
     public void Dispose()
@@ -448,6 +637,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         }
 
         _disposed = true;
+        _failover.Changed -= OnFailoverChanged;
         Clear();
     }
 }

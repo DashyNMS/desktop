@@ -17,13 +17,27 @@ public sealed class RuleItemViewModel : ObservableObject
         Action<RuleItemViewModel> onEdit,
         Action<RuleItemViewModel> onDelete,
         Action<RuleItemViewModel> onToggleDisabled,
-        Action<RuleItemViewModel> onShowAlerts)
+        Action<RuleItemViewModel> onShowAlerts,
+        Action<RuleItemViewModel> onDuplicate)
     {
         _rule = rule;
+        DuplicateCommand = new RelayCommand(() => onDuplicate(this));
         EditCommand = new RelayCommand(() => onEdit(this));
         DeleteCommand = new RelayCommand(() => onDelete(this));
         ToggleDisabledCommand = new RelayCommand(() => onToggleDisabled(this), () => !_isToggling);
         ShowAlertsCommand = new RelayCommand(() => onShowAlerts(this), () => HasActiveAlerts);
+    }
+
+    /// <summary>Opens the Add rule editor filled from this rule (#139).</summary>
+    public RelayCommand DuplicateCommand { get; }
+
+    private string _templateName = string.Empty;
+
+    /// <summary>The alert template this rule uses (#140): the one listing it, else the Default Alert Template.</summary>
+    public string TemplateName
+    {
+        get => _templateName;
+        set => SetProperty(ref _templateName, value);
     }
 
     public AlertRule Rule => _rule;
@@ -152,5 +166,6 @@ public sealed class RuleItemViewModel : ObservableObject
         || SeverityText.Contains(term, StringComparison.OrdinalIgnoreCase)
         || TargetSummary.Contains(term, StringComparison.OrdinalIgnoreCase)
         || ConditionText.Contains(term, StringComparison.OrdinalIgnoreCase)
+        || TemplateName.Contains(term, StringComparison.OrdinalIgnoreCase)
         || (Notes?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false);
 }

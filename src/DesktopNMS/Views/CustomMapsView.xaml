@@ -447,6 +447,7 @@
                                    RenderVersion="{Binding RenderVersion}"
                                    Tiles="{Binding Tiles}"
                                    TileTemplate="{Binding TileTemplate}"
+                                   JiggleEnabled="{Binding JigglePhysics}"
                                    Visibility="{Binding HasMap, Converter={StaticResource BoolToVisibility}}" />
 
             <StackPanel Grid.Row="0"

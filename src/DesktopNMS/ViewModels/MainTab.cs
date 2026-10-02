@@ -9,6 +9,9 @@ public enum MainTab
     Alerts,
     Groups,
     Locations,
+
+    /// <summary>The user's views of what the switches see over LLDP/CDP (#55) - its own tab, with a hover menu of views.</summary>
+    Neighbours,
     Rules,
     Templates,
 
@@ -20,4 +23,7 @@ public enum MainTab
 
     /// <summary>Maps → Custom Maps - empty for now.</summary>
     MapsCustom,
+
+    /// <summary>Logs → Graylog: every device's Graylog messages (issue #114).</summary>
+    LogsGraylog,
 }

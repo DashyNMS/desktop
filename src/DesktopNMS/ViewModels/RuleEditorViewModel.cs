@@ -57,6 +57,11 @@ public sealed class RuleEditorViewModel : ObservableObject
     /// <summary>Null in create mode. In edit mode, the rule being edited - addresses the PUT and supplies the untouched builder when it couldn't be parsed.</summary>
     private AlertRule? _originalRule;
 
+    // What the form was filled from: the rule being edited, or the one being
+    // duplicated (#139) - whose targeting and condition carry over, though
+    // saving creates a new rule.
+    private AlertRule? _source;
+
     private string _name = string.Empty;
     private AlertSeverityOption _selectedSeverity = SeverityOptions[2];
     private string? _notes;
@@ -109,6 +114,7 @@ public sealed class RuleEditorViewModel : ObservableObject
     public void Initialize(AlertRule rule)
     {
         _originalRule = rule;
+        _source = rule;
         Name = rule.Name ?? string.Empty;
         SelectedSeverity = SeverityOptions.FirstOrDefault(s => s.Value == rule.Severity) ?? SeverityOptions[2];
         Notes = rule.Notes;
@@ -131,9 +137,24 @@ public sealed class RuleEditorViewModel : ObservableObject
         LoadCondition(rule);
     }
 
+    /// <summary>
+    /// Fills the dialog from an existing rule - conditions, severity,
+    /// targeting, flags, override SQL, procedure and notes - named
+    /// "... (copy)", and saves it as a new rule (#139).
+    /// </summary>
+    public void InitializeAsCopy(AlertRule rule)
+    {
+        Initialize(rule);
+        _originalRule = null;
+        Name = $"{rule.Name} (copy)";
+        OnPropertyChanged(nameof(IsEditMode));
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(IsMuted));
+    }
+
     public bool IsEditMode => _originalRule is not null;
 
-    public string Title => IsEditMode ? "Edit rule" : "Add rule";
+    public string Title => IsEditMode ? "Edit rule" : _source is not null ? "Duplicate rule" : "Add rule";
 
     public event EventHandler<bool>? RequestClose;
 
@@ -539,9 +560,9 @@ public sealed class RuleEditorViewModel : ObservableObject
             await Task.WhenAll(devicesTask, groupsTask, locationsTask, rulesTask).ConfigureAwait(true);
 
             MatchPicker.Items.Clear();
-            MatchPicker.Add(DeviceKind, devicesTask.Result.Select(d => (d.DeviceId, d.BestName)), (_originalRule?.Devices ?? new List<int>()).ToHashSet());
-            MatchPicker.Add(GroupKind, groupsTask.Result.Select(g => (g.Id, g.Name)), (_originalRule?.Groups ?? new List<int>()).ToHashSet());
-            MatchPicker.Add(LocationKind, locationsTask.Result.Select(l => (l.Id, l.Name)), (_originalRule?.Locations ?? new List<int>()).ToHashSet());
+            MatchPicker.Add(DeviceKind, devicesTask.Result.Select(d => (d.DeviceId, d.BestName)), (_source?.Devices ?? new List<int>()).ToHashSet());
+            MatchPicker.Add(GroupKind, groupsTask.Result.Select(g => (g.Id, g.Name)), (_source?.Groups ?? new List<int>()).ToHashSet());
+            MatchPicker.Add(LocationKind, locationsTask.Result.Select(l => (l.Id, l.Name)), (_source?.Locations ?? new List<int>()).ToHashSet());
 
             ImportableRules.Clear();
             foreach (var rule in rulesTask.Result.Where(r => r.Id != _originalRule?.Id).OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
@@ -568,7 +589,7 @@ public sealed class RuleEditorViewModel : ObservableObject
             // be parsed into the tree editor.
             var builderJson = IsConditionEditable
                 ? JsonSerializer.Serialize(Root.ToNode())
-                : _originalRule?.Builder ?? string.Empty;
+                : _source?.Builder ?? string.Empty;
 
             var devices = MatchPicker.CheckedIdsOf(DeviceKind).ToList();
             if (devices.Count == 0)

@@ -40,7 +40,127 @@ public partial class DeviceView : Window
         viewModel.ScrollToConfigLineRequested += OnScrollToConfigLineRequested;
         DiffRuler.NavigateRequested += OnDiffRulerNavigateRequested;
 
+        // Back and forward (#58): Alt+Left/Right and the mouse's own buttons, as in a browser.
+        PreviewKeyDown += OnNavigationKeyDown;
+        PreviewMouseDown += OnNavigationMouseDown;
+
         ApplyGridLayouts();
+
+        StateChanged += (_, _) => OnStateChanged();
+    }
+
+    // ------------------------------------------------------------------ neighbours
+
+    // Hovering a card highlights its node in the graph (and the reverse, from the graph itself).
+    private void OnNeighbourCardMouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: DeviceNeighbourItemViewModel item })
+        {
+            item.IsHighlighted = true;
+        }
+    }
+
+    private void OnNeighbourCardMouseLeave(object sender, MouseEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: DeviceNeighbourItemViewModel item })
+        {
+            item.IsHighlighted = false;
+        }
+    }
+
+    // ------------------------------------------------------------------ title bar
+
+    // Segoe Fluent Icons' ChromeRestore / ChromeMaximize.
+    private static readonly string RestoreGlyph = char.ConvertFromUtf32(0xE923);
+    private static readonly string MaximiseGlyphText = char.ConvertFromUtf32(0xE922);
+
+    private void OnMinimiseClick(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+
+    private void OnMaximiseClick(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Maximized)
+        {
+            SystemCommands.RestoreWindow(this);
+        }
+        else
+        {
+            SystemCommands.MaximizeWindow(this);
+        }
+    }
+
+    private void OnCloseClick(object sender, RoutedEventArgs e) => SystemCommands.CloseWindow(this);
+
+    /// <summary>As the main window's: inset the content by the resize border while maximised, which Windows pushes off-screen.</summary>
+    private void OnStateChanged()
+    {
+        var maximised = WindowState == WindowState.Maximized;
+        RootGrid.Margin = maximised ? SystemParameters.WindowResizeBorderThickness : new Thickness(0);
+        MaximiseGlyph.Text = maximised ? RestoreGlyph : MaximiseGlyphText;
+        MaximiseButton.ToolTip = maximised ? "Restore" : "Maximise";
+    }
+
+    /// <summary>
+    /// Shows another device in this window (#58) - the window, its size and
+    /// its column layouts stay; everything about the device comes from the
+    /// new view model. The host disposes the old one.
+    /// </summary>
+    public void ShowViewModel(DeviceDetailViewModel viewModel)
+    {
+        if (DataContext is DeviceDetailViewModel previous)
+        {
+            previous.PropertyChanged -= OnViewModelPropertyChanged;
+            previous.ScrollToConfigLineRequested -= OnScrollToConfigLineRequested;
+        }
+
+        // Nothing typed for the last device carries over.
+        EditAuthPassBox.Password = string.Empty;
+        EditCryptoPassBox.Password = string.Empty;
+        _configLinesPreviousOffset = 0;
+        _pendingConfigLinesOffset = null;
+
+        DataContext = viewModel;
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        viewModel.ScrollToConfigLineRequested += OnScrollToConfigLineRequested;
+    }
+
+    private void OnNavigationKeyDown(object sender, KeyEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Alt || DataContext is not DeviceDetailViewModel { History: { } history })
+        {
+            return;
+        }
+
+        // With Alt held, WPF reports the arrow as a system key.
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key == Key.Left && history.CanGoBack)
+        {
+            history.BackCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (key == Key.Right && history.CanGoForward)
+        {
+            history.ForwardCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    private void OnNavigationMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not DeviceDetailViewModel { History: { } history })
+        {
+            return;
+        }
+
+        if (e.ChangedButton == MouseButton.XButton1 && history.CanGoBack)
+        {
+            history.BackCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.ChangedButton == MouseButton.XButton2 && history.CanGoForward)
+        {
+            history.ForwardCommand.Execute(null);
+            e.Handled = true;
+        }
     }
 
     /// <summary>

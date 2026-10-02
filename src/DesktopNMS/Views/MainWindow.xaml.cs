@@ -28,6 +28,9 @@ public partial class MainWindow : Window
     /// <summary>Same again, for Network/Geographical/Custom Maps under the Maps button.</summary>
     private readonly DispatcherTimer _mapsFlyoutCloseTimer;
 
+    /// <summary>Same again, for the user's views under the Neighbours button.</summary>
+    private readonly DispatcherTimer _neighboursFlyoutCloseTimer;
+
     private bool _allowClose;
 
     public MainWindow(MainViewModel viewModel, ISettingsStore settings)
@@ -63,14 +66,31 @@ public partial class MainWindow : Window
         };
         MapsFlyout.PlacementTarget = MapsTabButton;
 
+        _neighboursFlyoutCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        _neighboursFlyoutCloseTimer.Tick += (_, _) =>
+        {
+            _neighboursFlyoutCloseTimer.Stop();
+            NeighboursFlyout.IsOpen = false;
+        };
+        NeighboursFlyout.PlacementTarget = NeighboursTabButton;
+
+        // Hidden to the tray or minimised: nothing on screen to keep live.
+        IsVisibleChanged += (_, _) => NotifyVisibility();
+        StateChanged += (_, _) =>
+        {
+            NotifyVisibility();
+            OnStateChanged();
+        };
+
         RestorePlacement();
+        OnStateChanged();
         ApplyGridLayouts();
     }
 
     private void DevicesTabButton_MouseEnter(object sender, MouseEventArgs e)
     {
         _devicesFlyoutCloseTimer.Stop();
-        DevicesFlyout.IsOpen = true;
+        DevicesFlyout.IsOpen = !_viewModel.IsNavExpanded;
     }
 
     private void DevicesTabButton_MouseLeave(object sender, MouseEventArgs e) => _devicesFlyoutCloseTimer.Start();
@@ -88,7 +108,7 @@ public partial class MainWindow : Window
     private void AlertsTabButton_MouseEnter(object sender, MouseEventArgs e)
     {
         _alertsFlyoutCloseTimer.Stop();
-        AlertsFlyout.IsOpen = true;
+        AlertsFlyout.IsOpen = !_viewModel.IsNavExpanded;
     }
 
     private void AlertsTabButton_MouseLeave(object sender, MouseEventArgs e) => _alertsFlyoutCloseTimer.Start();
@@ -106,7 +126,7 @@ public partial class MainWindow : Window
     private void MapsTabButton_MouseEnter(object sender, MouseEventArgs e)
     {
         _mapsFlyoutCloseTimer.Stop();
-        MapsFlyout.IsOpen = true;
+        MapsFlyout.IsOpen = !_viewModel.IsNavExpanded;
     }
 
     private void MapsTabButton_MouseLeave(object sender, MouseEventArgs e) => _mapsFlyoutCloseTimer.Start();
@@ -120,6 +140,103 @@ public partial class MainWindow : Window
         _mapsFlyoutCloseTimer.Stop();
         MapsFlyout.IsOpen = false;
     }
+
+    private void NeighboursTabButton_MouseEnter(object sender, MouseEventArgs e)
+    {
+        _neighboursFlyoutCloseTimer.Stop();
+        NeighboursFlyout.IsOpen = !_viewModel.IsNavExpanded;
+    }
+
+    private void NeighboursTabButton_MouseLeave(object sender, MouseEventArgs e) => _neighboursFlyoutCloseTimer.Start();
+
+    private void NeighboursFlyoutContent_MouseEnter(object sender, MouseEventArgs e) => _neighboursFlyoutCloseTimer.Stop();
+
+    private void NeighboursFlyoutContent_MouseLeave(object sender, MouseEventArgs e) => _neighboursFlyoutCloseTimer.Start();
+
+    private void NeighboursFlyoutItem_Click(object sender, RoutedEventArgs e)
+    {
+        _neighboursFlyoutCloseTimer.Stop();
+        NeighboursFlyout.IsOpen = false;
+    }
+
+    /// <summary>The backup address icon opens its menu on a plain click - the status line and Switch back.</summary>
+    private void OnBackupAddressClick(object sender, RoutedEventArgs e)
+    {
+        if (BackupAddressButton.ContextMenu is { } menu)
+        {
+            menu.PlacementTarget = BackupAddressButton;
+            menu.DataContext = DataContext;
+            menu.IsOpen = true;
+        }
+    }
+
+    private void OnUpdateReadyClick(object sender, RoutedEventArgs e)
+    {
+        if (UpdateReadyButton.ContextMenu is { } menu)
+        {
+            menu.PlacementTarget = UpdateReadyButton;
+            menu.DataContext = DataContext;
+            menu.IsOpen = true;
+        }
+    }
+
+    // ------------------------------------------------------------------ title bar
+
+    // Segoe Fluent Icons' ChromeRestore / ChromeMaximize.
+    private static readonly string RestoreGlyph = char.ConvertFromUtf32(0xE923);
+    private static readonly string MaximiseGlyphText = char.ConvertFromUtf32(0xE922);
+
+    private void OnMinimiseClick(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+
+    private void OnMaximiseClick(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Maximized)
+        {
+            SystemCommands.RestoreWindow(this);
+        }
+        else
+        {
+            SystemCommands.MaximizeWindow(this);
+        }
+    }
+
+    // Close as Windows' own button would - to the tray, if that's the setting (OnClosing).
+    private void OnCloseClick(object sender, RoutedEventArgs e) => SystemCommands.CloseWindow(this);
+
+    /// <summary>
+    /// A maximised window with its own title bar sits partly off-screen - Windows
+    /// pushes its resize border past the monitor edge - so the content is
+    /// inset by that border while maximised. The maximise button becomes restore.
+    /// </summary>
+    private void OnStateChanged()
+    {
+        if (WindowState != WindowState.Minimized)
+        {
+            _stateBeforeMinimise = WindowState;
+        }
+
+        var maximised = WindowState == WindowState.Maximized;
+        RootGrid.Margin = maximised ? SystemParameters.WindowResizeBorderThickness : new Thickness(0);
+        MaximiseGlyph.Text = maximised ? RestoreGlyph : MaximiseGlyphText;
+        MaximiseButton.ToolTip = maximised ? "Restore" : "Maximise";
+    }
+
+    // Normal or maximised - what to go back to after being minimised.
+    private WindowState _stateBeforeMinimise = WindowState.Normal;
+
+    /// <summary>Back to how it was before being minimised, and to the front (#181).</summary>
+    public void RestoreFromMinimised()
+    {
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = _stateBeforeMinimise;
+        }
+
+        Activate();
+    }
+
+    private void NotifyVisibility() =>
+        _viewModel.OnWindowVisibilityChanged(IsVisible && WindowState != WindowState.Minimized);
 
     /// <summary>
     /// Lets the app close the window for real. Without this the Closing handler
@@ -168,6 +285,10 @@ public partial class MainWindow : Window
         {
             LocationsViewControl.FocusSearch();
         }
+        else if (_viewModel.IsNeighboursTabSelected)
+        {
+            NeighboursViewControl.FocusSearch();
+        }
         else if (_viewModel.IsNetworkMapTabSelected)
         {
             NetworkMapViewControl.FocusSearch();
@@ -175,6 +296,10 @@ public partial class MainWindow : Window
         else if (_viewModel.IsGeoMapTabSelected)
         {
             GeoMapViewControl.FocusSearch();
+        }
+        else if (_viewModel.IsGraylogLogsTabSelected)
+        {
+            LogsViewControl.FocusSearch();
         }
 
         // Dashboard has no search box yet.
@@ -254,6 +379,7 @@ public partial class MainWindow : Window
         AlertsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Alerts"));
         GroupsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Groups"));
         LocationsViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Locations"));
+        NeighboursViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Neighbours.View"));
         HealthViewControl.ApplyGridLayout(layouts.GetValueOrDefault("Health.Sensors"));
     }
 
@@ -275,6 +401,7 @@ public partial class MainWindow : Window
             SetIfCaptured(layouts, "Alerts", AlertsViewControl.CaptureGridLayout());
             SetIfCaptured(layouts, "Groups", GroupsViewControl.CaptureGridLayout());
             SetIfCaptured(layouts, "Locations", LocationsViewControl.CaptureGridLayout());
+            SetIfCaptured(layouts, "Neighbours.View", NeighboursViewControl.CaptureGridLayout());
             SetIfCaptured(layouts, "Health.Sensors", HealthViewControl.CaptureGridLayout());
 
             _settings.Save();

@@ -30,6 +30,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -134,6 +135,15 @@
                             ToolTip="Add device">
                         <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
                     </Button>
+
+                    <!-- A list glyph next to the single "+", for adding many at once. -->
+                    <Button Grid.Column="4"
+                            Command="{Binding BulkAddDevicesCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Bulk add devices - paste a list or import a CSV"
+                            Margin="6,0,0,0">
+                        <TextBlock Text="&#xE8FD;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                    </Button>
                 </Grid>
 
                 <!-- A quick way back into something you were just looking at -
@@ -199,7 +209,7 @@
                              DeviceListViewModel's IsPinned SortDescription and
                              DevicesView.xaml.cs's Sorting handler, which keeps
                              it ahead of whichever column the user clicks. -->
-                        <DataGridTemplateColumn Header="" Width="40" CanUserSort="False">
+                        <DataGridTemplateColumn x:Name="PinColumn" Header="" Width="40" CanUserSort="False">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Button Command="{Binding TogglePinCommand}"
@@ -254,21 +264,21 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <DataGridTextColumn Header="IP" Width="130" Binding="{Binding Ip}" />
-                        <DataGridTextColumn Header="OS" Width="110" Binding="{Binding Os}" />
-                        <DataGridTextColumn Header="Hardware" Width="*" Binding="{Binding Hardware}" />
-                        <DataGridTextColumn Header="Location" Width="140" Binding="{Binding Location}" />
-                        <DataGridTextColumn Header="Uptime" Width="100" Binding="{Binding UptimeText}" />
+                        <DataGridTextColumn Header="IP" Width="130" Binding="{Binding Ip}" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="OS" Width="110" Binding="{Binding Os}" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="Hardware" Width="*" Binding="{Binding Hardware}" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="Location" Width="140" Binding="{Binding Location}" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="Uptime" Width="100" Binding="{Binding UptimeText}" ElementStyle="{StaticResource GridTextCellStyle}" />
 
                         <!-- Off by default (issue #40) - shown via the column
                              header's own right-click menu. Appended after the
                              always-on columns above so an older saved layout
                              (fewer columns than this) leaves these untouched,
                              i.e. still hidden, rather than mis-mapping onto them. -->
-                        <DataGridTextColumn Header="Type" Width="110" Binding="{Binding Type}" Visibility="Collapsed" />
-                        <DataGridTextColumn Header="Contact" Width="140" Binding="{Binding Contact}" Visibility="Collapsed" />
-                        <DataGridTextColumn Header="Serial" Width="140" Binding="{Binding Serial}" Visibility="Collapsed" />
-                        <DataGridTextColumn Header="Last discovered" Width="140" Binding="{Binding LastDiscoveredText}" Visibility="Collapsed" />
+                        <DataGridTextColumn Header="Type" Width="110" Binding="{Binding Type}" Visibility="Collapsed" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="Contact" Width="140" Binding="{Binding Contact}" Visibility="Collapsed" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="Serial" Width="140" Binding="{Binding Serial}" Visibility="Collapsed" ElementStyle="{StaticResource GridTextCellStyle}" />
+                        <DataGridTextColumn Header="Last discovered" Width="140" Binding="{Binding LastDiscoveredText}" Visibility="Collapsed" ElementStyle="{StaticResource GridTextCellStyle}" />
 
                     </DataGrid.Columns>
 

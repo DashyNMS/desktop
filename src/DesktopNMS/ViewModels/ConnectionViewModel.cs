@@ -15,6 +15,7 @@ public sealed class ConnectionViewModel : ObservableObject
 {
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
+    private readonly IWindowService _windows;
 
     private string _serverUrl = string.Empty;
     private string _apiToken = string.Empty;
@@ -24,13 +25,15 @@ public sealed class ConnectionViewModel : ObservableObject
     private string? _errorMessage;
     private string? _successMessage;
 
-    public ConnectionViewModel(ISessionService session, ISettingsStore settings)
+    public ConnectionViewModel(ISessionService session, ISettingsStore settings, IWindowService windows)
     {
         _session = session;
         _settings = settings;
+        _windows = windows;
 
         var current = settings.Current;
         _serverUrl = current.ServerUrl ?? string.Empty;
+        _backupAddress = current.BackupServerAddress ?? string.Empty;
         _allowUntrustedCertificate = current.AllowUntrustedCertificate;
         _rememberToken = current.RememberToken;
 
@@ -47,6 +50,15 @@ public sealed class ConnectionViewModel : ObservableObject
         get => _serverUrl;
         set => SetProperty(ref _serverUrl, value);
     }
+
+    /// <summary>Optional: another address for the same server - an IP, or another name - used if the main one stops answering (see ServerFailover).</summary>
+    public string BackupAddress
+    {
+        get => _backupAddress;
+        set => SetProperty(ref _backupAddress, value);
+    }
+
+    private string _backupAddress;
 
     /// <summary>
     /// Bound from the PasswordBox code-behind rather than by two-way binding,
@@ -118,16 +130,29 @@ public sealed class ConnectionViewModel : ObservableObject
 
         try
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(_settings.Current.TimeoutSeconds + 5));
+            // Long enough to try the backup address too, if the main one doesn't answer.
+            var seconds = _settings.Current.TimeoutSeconds + 5;
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(string.IsNullOrWhiteSpace(BackupAddress) ? seconds : seconds * 2));
 
             var result = await _session
-                .SignInAsync(ServerUrl, ApiToken, AllowUntrustedCertificate, RememberToken, timeout.Token)
+                .SignInAsync(ServerUrl, ApiToken, AllowUntrustedCertificate, RememberToken, timeout.Token, BackupAddress)
                 .ConfigureAwait(true);
+
+            // A certificate the user hasn't accepted yet (or one that has
+            // changed): show it, and only on their say-so trust it and try again (#189).
+            if (result.UntrustedCertificate is { } certificate && _windows.ConfirmTrustCertificate("LibreNMS", certificate))
+            {
+                _session.TrustCertificate(certificate);
+                using var retryTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(seconds));
+                result = await _session
+                    .SignInAsync(ServerUrl, ApiToken, AllowUntrustedCertificate, RememberToken, retryTimeout.Token, BackupAddress)
+                    .ConfigureAwait(true);
+            }
 
             if (result.Succeeded)
             {
                 var version = result.SystemInfo?.LocalVersion;
-                SuccessMessage = version is null ? "Connected." : $"Connected to LibreNMS {version}.";
+                SuccessMessage = (version is null ? "Connected" : $"Connected to LibreNMS {version}") + (result.UsedBackupAddress ? " through the backup address." : ".");
                 RequestClose?.Invoke(this, true);
                 return;
             }

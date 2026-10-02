@@ -7,6 +7,7 @@ using System.Windows.Media;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.CustomMaps;
+using DesktopNMS.Core.Graylog;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Updates;
@@ -28,6 +29,7 @@ public enum SettingsSection
     Appearance,
     Server,
     Integrations,
+    Graylog,
     About,
 }
 
@@ -101,12 +103,15 @@ public sealed class SettingsViewModel : ObservableObject
     private readonly IStartupRegistration _startup;
     private readonly IAlertNotificationService _notifications;
     private readonly IUpdateCheckService _updates;
+    private readonly System.Windows.Threading.Dispatcher _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
     private readonly IWindowService _windows;
     private readonly ISessionService _session;
     private readonly ILibreNmsClient _client;
     private readonly IUnimusApi _unimus;
     private readonly IUnimusTokenProtector _unimusTokens;
     private readonly IUnimusDeviceResolver _unimusResolver;
+    private readonly IGraylogApi _graylog;
+    private readonly IGraylogPasswordProtector _graylogPasswords;
     private readonly AppSettings _draft;
 
     private SettingsSection _selectedSection = SettingsSection.Polling;
@@ -124,6 +129,12 @@ public sealed class SettingsViewModel : ObservableObject
     private string? _unimusTestStatusText;
     private bool? _unimusTestSucceeded;
 
+    private bool _hasStoredGraylogPassword;
+    private string _graylogPasswordInput = string.Empty;
+    private bool _isTestingGraylogConnection;
+    private string? _graylogTestStatusText;
+    private bool? _graylogTestSucceeded;
+
     public SettingsViewModel(
         ISettingsStore store,
         IStartupRegistration startup,
@@ -135,6 +146,8 @@ public sealed class SettingsViewModel : ObservableObject
         IUnimusApi unimus,
         IUnimusTokenProtector unimusTokens,
         IUnimusDeviceResolver unimusResolver,
+        IGraylogApi graylog,
+        IGraylogPasswordProtector graylogPasswords,
         ICustomMapStore customMaps)
     {
         _store = store;
@@ -148,14 +161,17 @@ public sealed class SettingsViewModel : ObservableObject
         _unimus = unimus;
         _unimusTokens = unimusTokens;
         _unimusResolver = unimusResolver;
+        _graylog = graylog;
+        _graylogPasswords = graylogPasswords;
         _serverInfo = session.ServerInfo;
         _draft = store.Current.Clone();
         _hasStoredUnimusToken = unimusTokens.HasStoredToken;
+        _hasStoredGraylogPassword = graylogPasswords.HasStoredPassword;
 
         // The registry is the source of truth for auto-start, not the settings file.
         _draft.StartWithWindows = startup.IsEnabled;
 
-        SaveCommand = new RelayCommand(Save);
+        SaveCommand = new AsyncRelayCommand(SaveAsync, () => !IsTestingConnection);
         CancelCommand = new RelayCommand(() => RequestClose?.Invoke(this, false));
         PreviewCriticalCommand = new RelayCommand(() => _notifications.ShowPreview(AlertSeverity.Critical));
         PreviewWarningCommand = new RelayCommand(() => _notifications.ShowPreview(AlertSeverity.Warning));
@@ -169,6 +185,7 @@ public sealed class SettingsViewModel : ObservableObject
         SelectAppearanceSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Appearance);
         SelectServerSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Server);
         SelectIntegrationsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Integrations);
+        SelectGraylogSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Graylog);
         SelectMapsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Maps);
         ResetMapTileUrlCommand = new RelayCommand(() => MapTileUrl = null);
         SelectAboutSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.About);
@@ -176,21 +193,30 @@ public sealed class SettingsViewModel : ObservableObject
         RefreshServerInfoCommand = new AsyncRelayCommand(RefreshServerInfoAsync, () => !IsRefreshingServerInfo);
 
         CheckForUpdatesCommand = new AsyncRelayCommand(() => CheckForUpdatesAsync(notifyIfNewer: false));
+        InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => IsUpdateReady && !_isInstallingUpdate);
+        _updates.ReadyUpdateChanged += OnReadyUpdateChanged;
         ViewLatestReleaseCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri(_latestRelease!.HtmlUrl!)),
             () => _latestRelease?.HtmlUrl is not null);
         ViewReleasesPageCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri("https://github.com/DashyNMS/desktop/releases")));
+        ReportBugCommand = new RelayCommand(
+            () => _windows.OpenUrl(BugReportLink.Build(
+                _updates.CurrentVersion.ToString(),
+                System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+                _serverInfo?.LocalVersion)));
 
         TestUnimusConnectionCommand = new AsyncRelayCommand(TestUnimusConnectionAsync, () => !IsTestingUnimusConnection && !string.IsNullOrWhiteSpace(UnimusUrl));
         ClearUnimusTokenCommand = new RelayCommand(ClearUnimusToken, () => HasStoredUnimusToken || !string.IsNullOrEmpty(UnimusTokenInput));
+        TestGraylogConnectionCommand = new AsyncRelayCommand(TestGraylogConnectionAsync, () => !IsTestingGraylogConnection && !string.IsNullOrWhiteSpace(GraylogServer));
+        ClearGraylogPasswordCommand = new RelayCommand(ClearGraylogPassword, () => HasStoredGraylogPassword || !string.IsNullOrEmpty(GraylogPasswordInput));
 
         _ = CheckForUpdatesAsync(notifyIfNewer: false);
     }
 
     public event EventHandler<bool>? RequestClose;
 
-    public RelayCommand SaveCommand { get; }
+    public AsyncRelayCommand SaveCommand { get; }
 
     public RelayCommand CancelCommand { get; }
 
@@ -218,6 +244,8 @@ public sealed class SettingsViewModel : ObservableObject
 
     public RelayCommand SelectIntegrationsSectionCommand { get; }
 
+    public RelayCommand SelectGraylogSectionCommand { get; }
+
     public RelayCommand SelectMapsSectionCommand { get; }
 
     public RelayCommand SelectAboutSectionCommand { get; }
@@ -238,6 +266,7 @@ public sealed class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsAppearanceSectionSelected));
                 OnPropertyChanged(nameof(IsServerSectionSelected));
                 OnPropertyChanged(nameof(IsIntegrationsSectionSelected));
+                OnPropertyChanged(nameof(IsGraylogSectionSelected));
                 OnPropertyChanged(nameof(IsMapsSectionSelected));
                 OnPropertyChanged(nameof(IsAboutSectionSelected));
             }
@@ -261,6 +290,8 @@ public sealed class SettingsViewModel : ObservableObject
     public bool IsServerSectionSelected => SelectedSection == SettingsSection.Server;
 
     public bool IsIntegrationsSectionSelected => SelectedSection == SettingsSection.Integrations;
+
+    public bool IsGraylogSectionSelected => SelectedSection == SettingsSection.Graylog;
 
     public bool IsMapsSectionSelected => SelectedSection == SettingsSection.Maps;
 
@@ -292,8 +323,25 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Only true once the draft actually differs from what is running - so the notice does not show before anyone has touched anything.</summary>
-    public bool ThemeChangeRequiresRestart => _draft.Theme != _store.Current.Theme;
+    /// <summary>"Match Windows" (#81) - resolved each time DashyNMS starts.</summary>
+    public bool IsSystemTheme
+    {
+        get => _draft.Theme == AppTheme.System;
+        set
+        {
+            if (value)
+            {
+                SetDraftTheme(AppTheme.System);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Only true when the palette the draft would give differs from the one
+    /// running - so the notice doesn't show before anything has changed, or
+    /// for switching to "Match Windows" when Windows already matches.
+    /// </summary>
+    public bool ThemeChangeRequiresRestart => _draft.Theme.Resolve(ThemeState.WindowsUsesLightTheme()) != ThemeState.Effective;
 
     private void SetDraftTheme(AppTheme theme)
     {
@@ -305,6 +353,7 @@ public sealed class SettingsViewModel : ObservableObject
         _draft.Theme = theme;
         OnPropertyChanged(nameof(IsDarkTheme));
         OnPropertyChanged(nameof(IsLightTheme));
+        OnPropertyChanged(nameof(IsSystemTheme));
         OnPropertyChanged(nameof(ThemeChangeRequiresRestart));
     }
 
@@ -414,27 +463,104 @@ public sealed class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(AccentPreviewBrush));
     }
 
-    /// <summary>Off shows DashyNMS's own icon in the shell header instead of the connected server's logo - see <see cref="AppSettings.ShowServerLogo"/>.</summary>
-    public bool ShowServerLogo
-    {
-        get => _draft.ShowServerLogo;
-        set
-        {
-            if (_draft.ShowServerLogo == value)
-            {
-                return;
-            }
-
-            _draft.ShowServerLogo = value;
-            OnPropertyChanged();
-        }
-    }
-
     // ----------------------------------------------------------------- server
 
     public AsyncRelayCommand RefreshServerInfoCommand { get; }
 
     public string ServerUrlText => _session.Connection?.WebRoot.ToString() ?? "-";
+
+    /// <summary>Another IP or name for the same server, used once the main address stops answering - see <see cref="Core.Api.ServerFailover"/>. Applied to the live connection on Save.</summary>
+    public string BackupServerAddress
+    {
+        get => _draft.BackupServerAddress ?? string.Empty;
+        set
+        {
+            var text = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (_draft.BackupServerAddress == text)
+            {
+                return;
+            }
+
+            _draft.BackupServerAddress = text;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(BackupServerAddressError));
+            OnPropertyChanged(nameof(HasBackupServerAddressError));
+        }
+    }
+
+    public string? BackupServerAddressError => Services.SessionService.TryParseBackup(_draft.BackupServerAddress, out _, out var error) ? null : error;
+
+    public bool HasBackupServerAddressError => BackupServerAddressError is not null;
+
+    /// <summary>The LibreNMS server's address - changing it (or anything else about the connection) reconnects on Save.</summary>
+    public string ServerAddress
+    {
+        get => _draft.ServerUrl ?? string.Empty;
+        set
+        {
+            if (_draft.ServerUrl != value)
+            {
+                _draft.ServerUrl = value;
+                OnPropertyChanged();
+                ConnectionError = null;
+            }
+        }
+    }
+
+    public bool ServerAllowUntrustedCertificate
+    {
+        get => _draft.AllowUntrustedCertificate;
+        set
+        {
+            if (_draft.AllowUntrustedCertificate != value)
+            {
+                _draft.AllowUntrustedCertificate = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>A new API token, from the PasswordBox - blank keeps the one in use.</summary>
+    public string ServerTokenInput { get; set; } = string.Empty;
+
+    /// <summary>Why the connection couldn't be saved - neither the server address nor the backup answered, say.</summary>
+    public string? ConnectionError
+    {
+        get => _connectionError;
+        private set
+        {
+            if (SetProperty(ref _connectionError, value))
+            {
+                OnPropertyChanged(nameof(HasConnectionError));
+            }
+        }
+    }
+
+    private string? _connectionError;
+
+    public bool HasConnectionError => !string.IsNullOrEmpty(_connectionError);
+
+    /// <summary>Save is checking the new connection details - the server address first, then the backup.</summary>
+    public bool IsTestingConnection
+    {
+        get => _isTestingConnection;
+        private set
+        {
+            if (SetProperty(ref _isTestingConnection, value))
+            {
+                SaveCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    private bool _isTestingConnection;
+
+    private bool ConnectionChanged =>
+        !string.Equals(_draft.ServerUrl?.Trim(), _store.Current.ServerUrl?.Trim(), StringComparison.OrdinalIgnoreCase)
+        || _draft.AllowUntrustedCertificate != _store.Current.AllowUntrustedCertificate
+        || !string.Equals(_draft.BackupServerAddress, _store.Current.BackupServerAddress, StringComparison.OrdinalIgnoreCase)
+        || !string.IsNullOrWhiteSpace(ServerTokenInput)
+        || !_session.IsConnected;
 
     /// <summary>
     /// False only if the very first fetch (at sign-in) somehow never
@@ -713,24 +839,440 @@ public sealed class SettingsViewModel : ObservableObject
 
         IsTestingUnimusConnection = true;
 
-        using var probe = new UnimusApi(Microsoft.Extensions.Logging.Abstractions.NullLogger<UnimusApi>.Instance);
-        probe.Configure(new UnimusConnection(webRoot, token, UnimusAllowUntrustedCertificate));
-
         try
         {
-            await probe.TestConnectionAsync().ConfigureAwait(true);
-            UnimusTestSucceeded = true;
-            UnimusTestStatusText = "Connected to Unimus successfully.";
-        }
-        catch (UnimusApiException ex)
-        {
-            UnimusTestSucceeded = false;
-            UnimusTestStatusText = ex.ToUserMessage();
+            // Twice at most: once as configured, and once more if the user
+            // accepts a certificate it turned down (#189).
+            for (var attempt = 0; ; attempt++)
+            {
+                using var probe = new UnimusApi(Microsoft.Extensions.Logging.Abstractions.NullLogger<UnimusApi>.Instance);
+                probe.Configure(new UnimusConnection(webRoot, token, UnimusAllowUntrustedCertificate, trustedCertificates: _draft.Unimus.TrustedCertificates));
+
+                try
+                {
+                    await probe.TestConnectionAsync().ConfigureAwait(true);
+                    UnimusTestSucceeded = true;
+                    UnimusTestStatusText = "Connected to Unimus successfully.";
+                    return;
+                }
+                catch (UnimusApiException ex)
+                {
+                    if (attempt == 0 && TryTrustCertificate("Unimus", ex.UntrustedCertificate, _draft.Unimus.TrustedCertificates))
+                    {
+                        continue;
+                    }
+
+                    UnimusTestSucceeded = false;
+                    UnimusTestStatusText = ex.ToUserMessage();
+                    return;
+                }
+            }
         }
         finally
         {
             IsTestingUnimusConnection = false;
         }
+    }
+
+    // ------------------------------------------------------------------ integrations (Graylog, issue #114)
+
+    /// <summary>LibreNMS's <c>graylog.version</c> choices, with its own labels.</summary>
+    public IReadOnlyList<DefaultMapOption> GraylogVersionOptions { get; } = new[]
+    {
+        new DefaultMapOption(GraylogSettings.Version21, "2.1 or newer"),
+        new DefaultMapOption(GraylogSettings.Version20, "Less than 2.1"),
+        new DefaultMapOption(GraylogSettings.VersionOther, "Other"),
+    };
+
+    /// <summary>LibreNMS's <c>graylog.device-page.loglevel</c> choices - each includes every more severe level.</summary>
+    public IReadOnlyList<GraylogLevelOption> GraylogLogLevelOptions { get; } = GraylogLevelOption.All;
+
+    public bool GraylogEnabled
+    {
+        get => _draft.Graylog.Enabled;
+        set
+        {
+            if (_draft.Graylog.Enabled == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.Enabled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? GraylogServer
+    {
+        get => _draft.Graylog.Server;
+        set
+        {
+            if (_draft.Graylog.Server == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.Server = value;
+            OnPropertyChanged();
+            TestGraylogConnectionCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    /// <summary>Text so it can be blank (the scheme's default port); anything that isn't a whole number counts as blank.</summary>
+    public string GraylogPortText
+    {
+        get => _draft.Graylog.Port?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+        set
+        {
+            int? port = int.TryParse(value?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
+            if (_draft.Graylog.Port == port)
+            {
+                return;
+            }
+
+            _draft.Graylog.Port = port;
+            OnPropertyChanged();
+        }
+    }
+
+    public DefaultMapOption SelectedGraylogVersion
+    {
+        get => GraylogVersionOptions.FirstOrDefault(o => o.Value == _draft.Graylog.Version) ?? GraylogVersionOptions[0];
+        set
+        {
+            if (value is null || _draft.Graylog.Version == value.Value)
+            {
+                return;
+            }
+
+            _draft.Graylog.Version = value.Value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsGraylogBaseUriVisible));
+        }
+    }
+
+    /// <summary>LibreNMS only shows Base URI when the version is "Other".</summary>
+    public bool IsGraylogBaseUriVisible => _draft.Graylog.Version == GraylogSettings.VersionOther;
+
+    public string? GraylogBaseUri
+    {
+        get => _draft.Graylog.BaseUri;
+        set
+        {
+            if (_draft.Graylog.BaseUri == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.BaseUri = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? GraylogUsername
+    {
+        get => _draft.Graylog.Username;
+        set
+        {
+            if (_draft.Graylog.Username == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.Username = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Fed by the password PasswordBox's code-behind, like <see cref="UnimusTokenInput"/>; blank on save keeps the stored password.</summary>
+    public string GraylogPasswordInput
+    {
+        get => _graylogPasswordInput;
+        set
+        {
+            if (SetProperty(ref _graylogPasswordInput, value ?? string.Empty))
+            {
+                ClearGraylogPasswordCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool HasStoredGraylogPassword
+    {
+        get => _hasStoredGraylogPassword;
+        private set
+        {
+            if (SetProperty(ref _hasStoredGraylogPassword, value))
+            {
+                OnPropertyChanged(nameof(GraylogPasswordStatusText));
+                ClearGraylogPasswordCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string GraylogPasswordStatusText => HasStoredGraylogPassword ? "A password is saved." : "No password saved yet.";
+
+    public RelayCommand ClearGraylogPasswordCommand { get; }
+
+    private void ClearGraylogPassword()
+    {
+        GraylogPasswordInput = string.Empty;
+        HasStoredGraylogPassword = false;
+        _graylogPasswords.Clear();
+        _graylog.Clear();
+        GraylogTestStatusText = null;
+    }
+
+    public bool GraylogAllowUntrustedCertificate
+    {
+        get => _draft.Graylog.AllowUntrustedCertificate;
+        set
+        {
+            if (_draft.Graylog.AllowUntrustedCertificate == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.AllowUntrustedCertificate = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? GraylogTimezone
+    {
+        get => _draft.Graylog.Timezone;
+        set
+        {
+            if (_draft.Graylog.Timezone == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.Timezone = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(GraylogTimezoneStatusText));
+            OnPropertyChanged(nameof(IsGraylogTimezoneInvalid));
+        }
+    }
+
+    public bool IsGraylogTimezoneInvalid =>
+        !string.IsNullOrWhiteSpace(_draft.Graylog.Timezone) && GraylogQuery.FindTimeZone(_draft.Graylog.Timezone) is null;
+
+    public string GraylogTimezoneStatusText
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_draft.Graylog.Timezone))
+            {
+                return "Blank shows times in this PC's own time zone.";
+            }
+
+            var zone = GraylogQuery.FindTimeZone(_draft.Graylog.Timezone);
+            return zone is null
+                ? "Not a time zone Windows recognises - times will show in this PC's own time zone."
+                : $"Times will show in {zone.DisplayName}.";
+        }
+    }
+
+    public GraylogLevelOption SelectedGraylogLogLevel
+    {
+        get => GraylogLevelOption.For(_draft.Graylog.DeviceLogLevel);
+        set
+        {
+            if (value is null || _draft.Graylog.DeviceLogLevel == value.Level)
+            {
+                return;
+            }
+
+            _draft.Graylog.DeviceLogLevel = value.Level ?? GraylogSettings.DefaultLogLevel;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Text for the same reason as <see cref="GraylogPortText"/>; anything that isn't a positive whole number keeps the previous value.</summary>
+    public string GraylogRowCountText
+    {
+        get => _draft.Graylog.DeviceRowCount.ToString(CultureInfo.InvariantCulture);
+        set
+        {
+            if (!int.TryParse(value?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var rows) || rows < 1)
+            {
+                return;
+            }
+
+            rows = Math.Min(rows, GraylogSettings.MaxRowCount);
+            if (_draft.Graylog.DeviceRowCount == rows)
+            {
+                return;
+            }
+
+            _draft.Graylog.DeviceRowCount = rows;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? GraylogQueryField
+    {
+        get => _draft.Graylog.QueryField;
+        set
+        {
+            var queryField = string.IsNullOrWhiteSpace(value) ? GraylogSettings.DefaultQueryField : value.Trim();
+            if (_draft.Graylog.QueryField == queryField)
+            {
+                return;
+            }
+
+            _draft.Graylog.QueryField = queryField;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool GraylogMatchAnyAddress
+    {
+        get => _draft.Graylog.MatchAnyAddress;
+        set
+        {
+            if (_draft.Graylog.MatchAnyAddress == value)
+            {
+                return;
+            }
+
+            _draft.Graylog.MatchAnyAddress = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public AsyncRelayCommand TestGraylogConnectionCommand { get; }
+
+    public bool IsTestingGraylogConnection
+    {
+        get => _isTestingGraylogConnection;
+        private set
+        {
+            if (SetProperty(ref _isTestingGraylogConnection, value))
+            {
+                TestGraylogConnectionCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? GraylogTestStatusText
+    {
+        get => _graylogTestStatusText;
+        private set
+        {
+            if (SetProperty(ref _graylogTestStatusText, value))
+            {
+                OnPropertyChanged(nameof(HasGraylogTestStatus));
+            }
+        }
+    }
+
+    public bool HasGraylogTestStatus => !string.IsNullOrEmpty(_graylogTestStatusText);
+
+    public bool? GraylogTestSucceeded
+    {
+        get => _graylogTestSucceeded;
+        private set => SetProperty(ref _graylogTestSucceeded, value);
+    }
+
+    /// <summary>
+    /// Shows a certificate a connection test turned down and asks whether to
+    /// trust it. On yes, adds it to <paramref name="trustedCertificates"/> (part of
+    /// this draft, saved with it) and returns true, so the caller tests again (#189).
+    /// </summary>
+    private bool TryTrustCertificate(string service, CertificateDetails? certificate, List<string> trustedCertificates)
+    {
+        if (certificate is null || !_windows.ConfirmTrustCertificate(service, certificate))
+        {
+            return false;
+        }
+
+        if (!trustedCertificates.Any(f => CertificateTrust.SameFingerprint(f, certificate.Fingerprint)))
+        {
+            trustedCertificates.Add(certificate.Fingerprint);
+        }
+
+        return true;
+    }
+
+    /// <summary>Tries what's in the form without touching the live <see cref="IGraylogApi"/> until Save - the same approach as <see cref="TestUnimusConnectionAsync"/>.</summary>
+    private async Task TestGraylogConnectionAsync()
+    {
+        GraylogTestStatusText = null;
+
+        var password = string.IsNullOrEmpty(GraylogPasswordInput) ? _graylogPasswords.Load() : GraylogPasswordInput;
+        var connection = GraylogConnection.FromSettings(_draft.Graylog, password, out var error);
+        if (connection is null)
+        {
+            GraylogTestSucceeded = false;
+            GraylogTestStatusText = error;
+            return;
+        }
+
+        IsTestingGraylogConnection = true;
+
+        try
+        {
+            // Twice at most: once as configured, and once more if the user
+            // accepts a certificate it turned down (#189).
+            for (var attempt = 0; ; attempt++)
+            {
+                using var probe = new GraylogApi(Microsoft.Extensions.Logging.Abstractions.NullLogger<GraylogApi>.Instance);
+                probe.Configure(connection);
+
+                try
+                {
+                    var streams = await probe.TestConnectionAsync().ConfigureAwait(true);
+                    GraylogTestSucceeded = true;
+                    GraylogTestStatusText = streams == 1
+                        ? "Connected to Graylog - 1 stream available."
+                        : $"Connected to Graylog - {streams} streams available.";
+                    return;
+                }
+                catch (GraylogApiException ex)
+                {
+                    if (attempt == 0 && TryTrustCertificate("Graylog", ex.UntrustedCertificate, _draft.Graylog.TrustedCertificates))
+                    {
+                        connection = GraylogConnection.FromSettings(_draft.Graylog, password, out _) ?? connection;
+                        continue;
+                    }
+
+                    GraylogTestSucceeded = false;
+                    GraylogTestStatusText = ex.ToUserMessage();
+                    return;
+                }
+            }
+        }
+        finally
+        {
+            IsTestingGraylogConnection = false;
+        }
+    }
+
+    /// <summary>Saves a newly-typed password and reconfigures the live <see cref="IGraylogApi"/> - mirrors <c>App.ConfigureGraylogIfEnabled</c> for the running app.</summary>
+    private void ApplyGraylogConfiguration()
+    {
+        if (!string.IsNullOrEmpty(GraylogPasswordInput))
+        {
+            _graylogPasswords.Save(GraylogPasswordInput);
+        }
+
+        if (!GraylogEnabled)
+        {
+            _graylog.Clear();
+            return;
+        }
+
+        var password = string.IsNullOrEmpty(GraylogPasswordInput) ? _graylogPasswords.Load() : GraylogPasswordInput;
+        var connection = GraylogConnection.FromSettings(_draft.Graylog, password, out _);
+        if (connection is null)
+        {
+            _graylog.Clear();
+            return;
+        }
+
+        _graylog.Configure(connection);
     }
 
     // ------------------------------------------------------------------ about
@@ -740,6 +1282,9 @@ public sealed class SettingsViewModel : ObservableObject
     public RelayCommand ViewLatestReleaseCommand { get; }
 
     public RelayCommand ViewReleasesPageCommand { get; }
+
+    /// <summary>Opens a new GitHub issue with the app, Windows and LibreNMS versions filled in (#149) - see <see cref="BugReportLink"/>.</summary>
+    public RelayCommand ReportBugCommand { get; }
 
     public string CurrentVersionText => $"Version {_updates.CurrentVersion}";
 
@@ -807,18 +1352,75 @@ public sealed class SettingsViewModel : ObservableObject
 
         UpdateStatusText = !result.Succeeded
             ? "Could not check for updates. Check your internet connection."
-            : result.IsNewerVersionAvailable
-                ? result.LatestRelease!.Prerelease
-                    ? $"Preview {result.LatestRelease!.TagName} is available."
-                    : $"Version {result.LatestRelease!.TagName} is available."
-                : "You're up to date.";
+            : DescribeNewerVersion() ?? "You're up to date.";
 
         OnPropertyChanged(nameof(HasLatestRelease));
         OnPropertyChanged(nameof(LatestReleaseNotes));
         ViewLatestReleaseCommand.RaiseCanExecuteChanged();
+        RaiseUpdateReadyChanged();
 
         IsCheckingForUpdates = false;
     }
+
+    /// <summary>"Version v1.2.0 is downloading..." / "... is ready to install." - null when there's no newer version.</summary>
+    private string? DescribeNewerVersion()
+    {
+        if (!IsNewerVersionAvailable || _latestRelease is not { } release)
+        {
+            return null;
+        }
+
+        var what = release.Prerelease ? $"Preview {release.TagName}" : $"Version {release.TagName}";
+        return IsUpdateReady
+            ? $"{what} is downloaded and ready to install."
+            : $"{what} is available - downloading it in the background.";
+    }
+
+    private bool _isInstallingUpdate;
+
+    /// <summary>The newest version found is downloaded and verified - "Restart to update" shows.</summary>
+    public bool IsUpdateReady => _updates.ReadyUpdate is { } ready
+                                 && (_latestRelease is null || ready.Version == _latestRelease.TagName);
+
+    /// <summary>DashyNMS closes, installs the update and reopens on it - unsaved changes here are discarded.</summary>
+    public AsyncRelayCommand InstallUpdateCommand { get; }
+
+    private async Task InstallUpdateAsync()
+    {
+        _isInstallingUpdate = true;
+        InstallUpdateCommand.RaiseCanExecuteChanged();
+        try
+        {
+            // On success the app shuts down from under this (InstallStarted).
+            if (!await _updates.InstallAsync().ConfigureAwait(true))
+            {
+                _windows.ShowError("Update", "The update couldn't be started. Check again, or download it from the release page.");
+            }
+        }
+        finally
+        {
+            _isInstallingUpdate = false;
+            InstallUpdateCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    private void OnReadyUpdateChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() =>
+    {
+        RaiseUpdateReadyChanged();
+        if (!IsCheckingForUpdates && DescribeNewerVersion() is { } text)
+        {
+            UpdateStatusText = text;
+        }
+    });
+
+    private void RaiseUpdateReadyChanged()
+    {
+        OnPropertyChanged(nameof(IsUpdateReady));
+        InstallUpdateCommand.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>The dialog has closed - stop listening for the update download.</summary>
+    public void Detach() => _updates.ReadyUpdateChanged -= OnReadyUpdateChanged;
 
     /// <summary>0-23, for the quiet-hours pickers.</summary>
     public IReadOnlyList<int> Hours { get; } = Enumerable.Range(0, 24).ToArray();
@@ -990,6 +1592,54 @@ public sealed class SettingsViewModel : ObservableObject
             }
 
             _draft.SuppressBulkAlertActionConfirmation = suppress;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>See <see cref="AppSettings.ShowAlertTabBadge"/>.</summary>
+    /// <summary>Settings, Appearance: map nodes wobble when dragged (#207).</summary>
+    public bool JigglePhysicsOnMaps
+    {
+        get => _draft.JigglePhysicsOnMaps;
+        set
+        {
+            if (_draft.JigglePhysicsOnMaps == value)
+            {
+                return;
+            }
+
+            _draft.JigglePhysicsOnMaps = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowAlertTabBadge
+    {
+        get => _draft.ShowAlertTabBadge;
+        set
+        {
+            if (_draft.ShowAlertTabBadge == value)
+            {
+                return;
+            }
+
+            _draft.ShowAlertTabBadge = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>See <see cref="AppSettings.AlertTabBadgeIncludesAcknowledged"/>.</summary>
+    public bool AlertTabBadgeIncludesAcknowledged
+    {
+        get => _draft.AlertTabBadgeIncludesAcknowledged;
+        set
+        {
+            if (_draft.AlertTabBadgeIncludesAcknowledged == value)
+            {
+                return;
+            }
+
+            _draft.AlertTabBadgeIncludesAcknowledged = value;
             OnPropertyChanged();
         }
     }
@@ -1173,6 +1823,22 @@ public sealed class SettingsViewModel : ObservableObject
             }
 
             _draft.ShowRecentlyViewedDevices = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>See <see cref="AppSettings.EnablePinnedDevices"/> (#98).</summary>
+    public bool EnablePinnedDevices
+    {
+        get => _draft.EnablePinnedDevices;
+        set
+        {
+            if (_draft.EnablePinnedDevices == value)
+            {
+                return;
+            }
+
+            _draft.EnablePinnedDevices = value;
             OnPropertyChanged();
         }
     }
@@ -1580,8 +2246,24 @@ public sealed class SettingsViewModel : ObservableObject
         return PersistenceOptions[0];
     }
 
-    private void Save()
+    private async Task SaveAsync()
     {
+        // The error shows by the field; nothing's saved until it's fixed.
+        if (HasBackupServerAddressError)
+        {
+            SelectedSection = SettingsSection.Server;
+            return;
+        }
+
+        // New connection details are tried before anything's saved: the
+        // server address, then the backup address if it doesn't answer. If
+        // neither does, the dialog stays open on Server with the reason.
+        if (ConnectionChanged && !await TryReconnectAsync().ConfigureAwait(true))
+        {
+            SelectedSection = SettingsSection.Server;
+            return;
+        }
+
         _startup.SetEnabled(_draft.StartWithWindows);
 
         // Keep the window placement, filter chips, dashboard layout,
@@ -1594,11 +2276,70 @@ public sealed class SettingsViewModel : ObservableObject
         _draft.DashboardWidgets = _store.Current.DashboardWidgets;
         _draft.RecentlyViewedDevices = _store.Current.RecentlyViewedDevices;
         _draft.PinnedDevices = _store.Current.PinnedDevices;
+        _draft.CollapsedDeviceNavGroups = _store.Current.CollapsedDeviceNavGroups;
 
         ApplyUnimusConfiguration();
+        ApplyGraylogConfiguration();
 
         _store.Replace(_draft);
         RequestClose?.Invoke(this, true);
+    }
+
+    /// <summary>
+    /// Connects with the Server section's details - the server address
+    /// first, then the backup address if that doesn't answer - and switches
+    /// the running app over. False (with <see cref="ConnectionError"/> saying
+    /// why) if neither answered or the details are wrong.
+    /// </summary>
+    private async Task<bool> TryReconnectAsync()
+    {
+        ConnectionError = null;
+        IsTestingConnection = true;
+
+        try
+        {
+            // One try at each address (see LibreNmsClient.TestAsync), each up
+            // to the request timeout.
+            var seconds = _store.Current.TimeoutSeconds + 5;
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(string.IsNullOrWhiteSpace(_draft.BackupServerAddress) ? seconds : seconds * 2));
+
+            var result = await _session
+                .ReconnectAsync(_draft.ServerUrl ?? string.Empty, ServerTokenInput, _draft.AllowUntrustedCertificate, _draft.BackupServerAddress, timeout.Token)
+                .ConfigureAwait(true);
+
+            if (result.UntrustedCertificate is { } certificate && TryTrustCertificate("LibreNMS", certificate, _draft.TrustedCertificates))
+            {
+                // Saved straight away too: signing in reads the live settings,
+                // not this draft.
+                _session.TrustCertificate(certificate);
+                using var retryTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(seconds));
+                result = await _session
+                    .ReconnectAsync(_draft.ServerUrl ?? string.Empty, ServerTokenInput, _draft.AllowUntrustedCertificate, _draft.BackupServerAddress, retryTimeout.Token)
+                    .ConfigureAwait(true);
+            }
+
+            if (!result.Succeeded)
+            {
+                ConnectionError = result.ErrorMessage;
+                return false;
+            }
+
+            // Signing in saved the tidied-up address - keep that, not the typed one.
+            _draft.ServerUrl = _store.Current.ServerUrl;
+            _draft.BackupServerAddress = _store.Current.BackupServerAddress;
+            _draft.RememberToken = _store.Current.RememberToken;
+            OnPropertyChanged(nameof(ServerUrlText));
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            ConnectionError = "Neither the server address nor the backup address answered in time.";
+            return false;
+        }
+        finally
+        {
+            IsTestingConnection = false;
+        }
     }
 
     /// <summary>
@@ -1633,6 +2374,6 @@ public sealed class SettingsViewModel : ObservableObject
             return;
         }
 
-        _unimus.Configure(new UnimusConnection(webRoot, token, UnimusAllowUntrustedCertificate));
+        _unimus.Configure(new UnimusConnection(webRoot, token, UnimusAllowUntrustedCertificate, trustedCertificates: _draft.Unimus.TrustedCertificates));
     }
 }

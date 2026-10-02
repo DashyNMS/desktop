@@ -1,4 +1,3 @@
-using System.Runtime.Versioning;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Security;
@@ -10,12 +9,14 @@ namespace DesktopNMS.Core;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers the LibreNMS client, settings and secret storage. The UI layer
-    /// adds its own services on top.
+    /// Registers the LibreNMS, Unimus and Graylog clients and settings. Secret
+    /// storage (<see cref="ITokenProtector"/>, <see cref="IUnimusTokenProtector"/>,
+    /// <see cref="IGraylogPasswordProtector"/>) is platform-specific, so each app
+    /// registers its own - which keeps Core free of Windows-only code (#152).
     /// </summary>
-    [SupportedOSPlatform("windows")]
     public static IServiceCollection AddDesktopNmsCore(this IServiceCollection services)
     {
+        services.AddSingleton<ServerFailover>();
         services.AddSingleton<LibreNmsTransport>();
         services.AddSingleton<ILibreNmsTransport>(sp => sp.GetRequiredService<LibreNmsTransport>());
         services.AddSingleton<LibreNmsClient>();
@@ -23,14 +24,17 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<ISettingsStore, SettingsStore>();
         services.AddSingleton<INotificationStateStore, NotificationStateStore>();
-        services.AddSingleton<ITokenProtector, DpapiTokenProtector>();
 
         // Unimus (issue #115): a second, independent integration with its own
         // lifetime, configured/cleared from Settings rather than alongside
         // LibreNMS sign-in - see UnimusApi's own remarks.
         services.AddSingleton<UnimusApi>();
         services.AddSingleton<IUnimusApi>(sp => sp.GetRequiredService<UnimusApi>());
-        services.AddSingleton<IUnimusTokenProtector, DpapiUnimusTokenProtector>();
+
+        // Graylog (issue #114): the same independent, Settings-driven lifetime
+        // as Unimus - see GraylogApi's own remarks.
+        services.AddSingleton<GraylogApi>();
+        services.AddSingleton<IGraylogApi>(sp => sp.GetRequiredService<GraylogApi>());
 
         services.AddSingleton<IGitHubReleaseService, GitHubReleaseService>();
 

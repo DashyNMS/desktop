@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 
 namespace DesktopNMS.Services;
@@ -41,6 +42,21 @@ public interface IWindowService
     /// </summary>
     void ShowDeviceGraph(int deviceId, string graphName);
 
+    /// <summary>Shows a device's detail window on its Wireless section (#55) - the Dashboard Wireless widget's click-through.</summary>
+    void ShowDeviceWireless(int deviceId);
+
+    /// <summary>Opens Device Details on its Ports section with one port picked - from a Top widget.</summary>
+    void ShowDevicePort(int deviceId, int portId);
+
+    /// <summary>The Dashboard's "Add widget" picker (#204). Returns the widget chosen, or null if cancelled.</summary>
+    DesktopNMS.ViewModels.WidgetCatalogEntry? ShowWidgetPicker(IReadOnlyList<DesktopNMS.ViewModels.WidgetCatalogEntry> catalog);
+
+    /// <summary>Shows the main window on a Neighbours view (#55), with this neighbour selected if one is named and listed - the MAC picks out which of several unnamed ones.</summary>
+    void ShowNeighbour(string viewId, string? name, string? mac = null);
+
+    /// <summary>The Neighbours tab's New view (<paramref name="existing"/> null) or Edit view dialog - the saved view, or null if cancelled.</summary>
+    NeighbourViewDefinition? ShowNeighbourViewEditor(NeighbourViewDefinition? existing);
+
     /// <summary>Closes a device's detail window if it is currently open - a no-op otherwise.</summary>
     void CloseDeviceDetail(int deviceId);
 
@@ -59,6 +75,12 @@ public interface IWindowService
     /// <summary>Same as <see cref="ShowDevicesFilteredByLocation"/>, but isolating the Group facet instead - used by the device view's Device Groups section.</summary>
     void ShowDevicesFilteredByGroup(string groupName);
 
+    /// <summary>The Devices tab showing only devices in <paramref name="state"/> - from the Dashboard's Device status counts.</summary>
+    void ShowDevicesWithState(DesktopNMS.Core.Models.DeviceState state);
+
+    /// <summary>The Alerts tab showing one severity's unacknowledged alerts, or every alert for null - from the Dashboard's Alerts gauge.</summary>
+    void ShowAlertsWithSeverity(DesktopNMS.Core.Models.AlertSeverity? severity);
+
     /// <summary>Shows the settings dialog. Returns true if the user saved.</summary>
     bool ShowSettingsDialog();
 
@@ -76,8 +98,11 @@ public interface IWindowService
     /// <summary>Shows the sign-in dialog. Returns true if a session was established.</summary>
     bool ShowSignInDialog();
 
-    /// <summary>Shows the "Add device" dialog. Returns true if a device was added.</summary>
+    /// <summary>Shows the "Add device" dialog (which can hand over to "Bulk add devices"). Returns true if any device was added.</summary>
     bool ShowAddDeviceDialog();
+
+    /// <summary>Shows "Bulk add devices". Returns true if any device was added.</summary>
+    bool ShowBulkAddDevicesDialog();
 
     /// <summary>Shows the "Add device group" dialog. Returns true if a group was created.</summary>
     bool ShowAddDeviceGroupDialog();
@@ -99,6 +124,9 @@ public interface IWindowService
 
     /// <summary>Shows the "Edit rule" dialog for an existing alert rule. Returns true if it was saved.</summary>
     bool ShowEditRuleDialog(AlertRule rule);
+
+    /// <summary>The Add rule editor, filled from an existing rule (#139) - saving creates a new one.</summary>
+    bool ShowDuplicateRuleDialog(AlertRule rule);
 
     /// <summary>
     /// Shows the "Schedule maintenance" dialog for a device (issue #38).
@@ -130,6 +158,12 @@ public interface IWindowService
     void ShowInformation(string title, string message);
 
     bool Confirm(string title, string message);
+
+    /// <summary>
+    /// Shows a certificate the normal checks rejected and asks whether to trust
+    /// it for <paramref name="service"/> ("LibreNMS", "Graylog", "Unimus") - #189.
+    /// </summary>
+    bool ConfirmTrustCertificate(string service, DesktopNMS.Core.Security.CertificateDetails certificate);
 
     /// <summary>
     /// Same as <see cref="Confirm"/>, but with a "don't ask me again"

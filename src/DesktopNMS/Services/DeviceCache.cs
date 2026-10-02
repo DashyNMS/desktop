@@ -27,6 +27,16 @@ public interface IDeviceCache
     bool IsLoaded { get; }
 
     /// <summary>
+    /// The device whose IP or hostname is <paramref name="address"/>, or null
+    /// - how the Graylog tab names a message's source, as LibreNMS's
+    /// <c>Device::findByIp</c> / <c>findByHostname</c> do.
+    /// </summary>
+    Device? FindByAddress(string? address);
+
+    /// <summary>Every cached device - empty until the list has loaded.</summary>
+    IReadOnlyCollection<Device> All { get; }
+
+    /// <summary>
     /// Refreshes if the map is stale or is missing any of the given device ids.
     /// Never throws: a failed device fetch must not fail the alert poll.
     /// </summary>
@@ -73,6 +83,20 @@ public sealed class DeviceCache : IDeviceCache
         // Reference read of an immutable dictionary; replaced wholesale on refresh.
         var snapshot = _devices;
         return snapshot.TryGetValue(deviceId, out var device) ? device : null;
+    }
+
+    public IReadOnlyCollection<Device> All => _devices.Values;
+
+    public Device? FindByAddress(string? address)
+    {
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            return null;
+        }
+
+        var snapshot = _devices;
+        return snapshot.Values.FirstOrDefault(d => string.Equals(d.Ip, address, StringComparison.OrdinalIgnoreCase))
+               ?? snapshot.Values.FirstOrDefault(d => string.Equals(d.Hostname, address, StringComparison.OrdinalIgnoreCase));
     }
 
     public void Invalidate() => _lastRefresh = DateTimeOffset.MinValue;

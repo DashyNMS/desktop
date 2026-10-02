@@ -27,6 +27,7 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
         Vlans = new VlansApi(transport);
         DeviceGroups = new DeviceGroupsApi(transport);
         Locations = new LocationsApi(transport);
+        Routing = new RoutingApi(transport);
         PollerGroups = new PollerGroupsApi(transport);
         Logs = new LogsApi(transport);
         System = new SystemApi(transport);
@@ -59,6 +60,8 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
 
     public ILocationsApi Locations { get; }
 
+    public IRoutingApi Routing { get; }
+
     public IPollerGroupsApi PollerGroups { get; }
 
     public ILogsApi Logs { get; }
@@ -71,7 +74,9 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
 
     public bool IsConnected => _transport.Connection is not null;
 
-    public void Connect(LibreNmsConnection connection) => _transport.Configure(connection);
+    public void Connect(LibreNmsConnection connection, bool startOnBackup = false) => _transport.Configure(connection, startOnBackup);
+
+    public ServerFailover Failover => _transport.Failover;
 
     public void Disconnect() => _transport.Clear();
 
@@ -81,7 +86,7 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
 
         // Test against a throwaway transport so a failed attempt cannot replace
         // a working connection that is already in use.
-        using var probe = new LibreNmsTransport(NullLogger<LibreNmsTransport>.Instance);
+        using var probe = new LibreNmsTransport(NullLogger<LibreNmsTransport>.Instance) { RetryTransientFailures = false };
         probe.Configure(connection);
 
         var api = new SystemApi(probe);
@@ -92,6 +97,13 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
             _logger.LogInformation("Connection test succeeded against {Host} ({Version})", connection.WebRoot, info.LocalVersion);
             return ConnectionTestResult.Success(info);
         }
+        catch (LibreNmsApiException ex) when (connection.BackupWebRoot is not null && ServerFailover.IsUnreachable(ex))
+        {
+            // The main address didn't answer at all - the backup address
+            // might (see ServerFailover), and if it does, connect there.
+            _logger.LogWarning(ex, "{Host} didn't answer - trying the backup address {Backup}", connection.WebRoot.Host, connection.BackupWebRoot);
+            return await TestBackupAsync(connection, cancellationToken).ConfigureAwait(false);
+        }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             return ConnectionTestResult.Failure("The connection test was cancelled.");
@@ -99,12 +111,38 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
         catch (LibreNmsApiException ex)
         {
             _logger.LogWarning(ex, "Connection test failed against {Host}", connection.WebRoot);
-            return ConnectionTestResult.Failure(ex.ToUserMessage(), ex.IsAuthenticationFailure);
+            return ConnectionTestResult.Failure(ex.ToUserMessage(), ex.IsAuthenticationFailure, ex.UntrustedCertificate);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Connection test failed unexpectedly against {Host}", connection.WebRoot);
             return ConnectionTestResult.Failure(ex.Message);
+        }
+    }
+
+    /// <summary>The connection test again, dialling the backup address - the main address didn't answer.</summary>
+    private async Task<ConnectionTestResult> TestBackupAsync(LibreNmsConnection connection, CancellationToken cancellationToken)
+    {
+        using var probe = new LibreNmsTransport(NullLogger<LibreNmsTransport>.Instance) { RetryTransientFailures = false };
+        probe.Configure(connection, startOnBackup: true);
+
+        try
+        {
+            var info = await new SystemApi(probe).GetAsync(cancellationToken).ConfigureAwait(false);
+            _logger.LogInformation("Connection test succeeded against {Host} through its backup address {Backup}", connection.WebRoot, connection.BackupWebRoot);
+            return ConnectionTestResult.Success(info, usedBackupAddress: true);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return ConnectionTestResult.Failure("The connection test was cancelled.");
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Connection test failed against the backup address {Backup} too", connection.BackupWebRoot);
+            return ConnectionTestResult.Failure(
+                $"Neither the server's address nor the backup address ({connection.BackupWebRoot}) answered: {ex.ToUserMessage()}",
+                ex.IsAuthenticationFailure,
+                ex.UntrustedCertificate);
         }
     }
 

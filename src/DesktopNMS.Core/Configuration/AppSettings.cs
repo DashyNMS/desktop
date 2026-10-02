@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using DesktopNMS.Core.Models;
 
 namespace DesktopNMS.Core.Configuration;
@@ -27,6 +29,20 @@ public enum AppTheme
 {
     Dark,
     Light,
+
+    /// <summary>Whichever Windows is set to for apps (Settings, Personalisation, Colours) when DashyNMS starts (#81).</summary>
+    System,
+}
+
+public static class AppThemeExtensions
+{
+    /// <summary>The palette to actually use: Dark or Light, with <see cref="AppTheme.System"/> resolved from Windows' own app setting.</summary>
+    public static AppTheme Resolve(this AppTheme theme, bool windowsUsesLightTheme) => theme switch
+    {
+        AppTheme.Light => AppTheme.Light,
+        AppTheme.System => windowsUsesLightTheme ? AppTheme.Light : AppTheme.Dark,
+        _ => AppTheme.Dark,
+    };
 }
 
 /// <summary>
@@ -41,8 +57,18 @@ public sealed class AppSettings
     /// <summary>Root URL of the LibreNMS web UI, e.g. https://nms.example.com/.</summary>
     public string? ServerUrl { get; set; }
 
-    /// <summary>Accept self-signed or internally-issued certificates.</summary>
+    /// <summary>
+    /// Another address for the same LibreNMS server - an IP, or another name -
+    /// used once the main one stops answering, until switched back by hand.
+    /// See <see cref="Api.ServerFailover"/>.
+    /// </summary>
+    public string? BackupServerAddress { get; set; }
+
+    /// <summary>Ask before trusting a certificate the normal checks reject (self-signed, internal CA, wrong name) - then only the certificates in <see cref="TrustedCertificates"/> are accepted (#189).</summary>
     public bool AllowUntrustedCertificate { get; set; }
+
+    /// <summary>SHA-256 fingerprints ("AB:CD:...") of the LibreNMS server certificates the user has accepted - see <see cref="Security.CertificateTrust"/>.</summary>
+    public List<string> TrustedCertificates { get; set; } = new();
 
     /// <summary>Per-request HTTP timeout.</summary>
     public int TimeoutSeconds { get; set; } = 30;
@@ -93,6 +119,15 @@ public sealed class AppSettings
     /// </summary>
     public string? LastNotifiedUpdateVersion { get; set; }
 
+    /// <summary>The version that last ran - a different one at start-up means DashyNMS was just updated, worth saying so.</summary>
+    public string? LastRunVersion { get; set; }
+
+    /// <summary>The main window's sidebar shows its labels (the hamburger button) rather than icons only.</summary>
+    public bool NavExpanded { get; set; }
+
+    /// <summary>Device Details' sidebar shows its labels and section headings (the default) rather than icons only.</summary>
+    public bool DeviceNavExpanded { get; set; } = true;
+
     /// <summary>
     /// Also consider GitHub pre-release ("preview") builds - rollups of
     /// in-progress work published between stable releases - when checking
@@ -110,12 +145,21 @@ public sealed class AppSettings
     /// </summary>
     public bool SuppressBulkAlertActionConfirmation { get; set; }
 
+    /// <summary>A count badge on the main window's Alerts tab - red when any counted alert is critical, orange otherwise.</summary>
+    public bool ShowAlertTabBadge { get; set; } = true;
+
+    /// <summary>Whether <see cref="ShowAlertTabBadge"/>'s count includes acknowledged alerts, not just active ones.</summary>
+    public bool AlertTabBadgeIncludesAcknowledged { get; set; } = true;
+
     public NotificationSettings Notifications { get; set; } = new();
 
     public AlertFilterSettings Filter { get; set; } = new();
 
     /// <summary>Unimus config-backup integration (issue #115) - see <see cref="UnimusSettings"/>. The API token itself is encrypted separately by <see cref="Security.IUnimusTokenProtector"/>, the same split as the main LibreNMS token.</summary>
     public UnimusSettings Unimus { get; set; } = new();
+
+    /// <summary>Graylog log integration (issue #114) - see <see cref="GraylogSettings"/>. The password itself is encrypted separately by <see cref="Security.IGraylogPasswordProtector"/>, the same split as the Unimus token.</summary>
+    public GraylogSettings Graylog { get; set; } = new();
 
     /// <summary>Warning/critical bands applied to dBm sensors on the Health tab.</summary>
     public DbmThresholdSettings DbmThresholds { get; set; } = new();
@@ -152,6 +196,14 @@ public sealed class AppSettings
     /// <summary>Shows the recently-viewed strip above the Devices tab's grid. Does not affect the Dashboard widget, which is opt-in by adding it.</summary>
     public bool ShowRecentlyViewedDevices { get; set; } = true;
 
+    /// <summary>
+    /// Pinning devices to the top of the Devices tab (#98). Off hides the pin
+    /// column and actions and stops pinned devices sorting first, and takes
+    /// "Pinned devices" off the Dashboard's widget menu - without forgetting
+    /// <see cref="PinnedDevices"/>, so turning it back on restores them.
+    /// </summary>
+    public bool EnablePinnedDevices { get; set; } = true;
+
     /// <summary>How many devices <see cref="RecentlyViewedDevices"/> remembers - the same number is shown everywhere it appears.</summary>
     public int RecentlyViewedDeviceCount { get; set; } = 10;
 
@@ -163,6 +215,18 @@ public sealed class AppSettings
     /// </summary>
     public List<PinnedDevice> PinnedDevices { get; set; } = new();
 
+    /// <summary>Device Details sidebar groups the user has folded away ("health", "hardware", "network", "logs", "integrations") - the same for every device window.</summary>
+    public List<string> CollapsedDeviceNavGroups { get; set; } = new();
+
+    /// <summary>The Neighbours tab's views, in the order the user made them - see <see cref="NeighbourViewDefinition"/>.</summary>
+    public List<NeighbourViewDefinition> NeighbourViews { get; set; } = new();
+
+    /// <summary>The port graphs panel (Device Details' Ports, the Neighbours tab) is folded down, leaving the table the full height.</summary>
+    public bool PortGraphsCollapsed { get; set; }
+
+    /// <summary>Map nodes wobble like jelly when dragged, and their links bow and settle (#207). Purely visual - the saved layout is always where a node is dropped. Off by default, and does nothing while Windows animations are off.</summary>
+    public bool JigglePhysicsOnMaps { get; set; }
+
     /// <summary>
     /// The accent colour used for buttons, selection highlights and links
     /// throughout the app, as "#RRGGBB". Deliberately separate from the fixed
@@ -172,14 +236,6 @@ public sealed class AppSettings
 
     /// <summary>The base colour palette - see <see cref="AppTheme"/>.</summary>
     public AppTheme Theme { get; set; } = AppTheme.Dark;
-
-    /// <summary>
-    /// Show the connected server's own logo/favicon in the shell header when
-    /// it has one. Off shows DashyNMS's own icon instead - some servers'
-    /// branding does not suit every taste, or a shared/demo instance's mark
-    /// is not what someone wants to see every time they open the app.
-    /// </summary>
-    public bool ShowServerLogo { get; set; } = true;
 
     /// <summary>
     /// Which map the Maps tab opens on: "Network", "Geographical", or (once
@@ -204,13 +260,18 @@ public sealed class AppSettings
 
     public WindowPlacement? Window { get; set; }
 
+    /// <summary>Other resizable windows' size, position and state, by window type (#59) - Device Details, Settings, the editors.</summary>
+    public Dictionary<string, WindowPlacement> WindowPlacements { get; set; } = new();
+
     /// <summary>Remembered column widths/order and sort per DataGrid, keyed by a stable per-grid name (e.g. "Devices", "DeviceDetail.Ports") - see DataGridLayoutHelper.</summary>
     public Dictionary<string, GridLayout> GridLayouts { get; set; } = new();
 
     public AppSettings Clone() => new()
     {
         ServerUrl = ServerUrl,
+        BackupServerAddress = BackupServerAddress,
         AllowUntrustedCertificate = AllowUntrustedCertificate,
+        TrustedCertificates = TrustedCertificates.ToList(),
         TimeoutSeconds = TimeoutSeconds,
         PollIntervalSeconds = PollIntervalSeconds,
         RememberToken = RememberToken,
@@ -223,11 +284,17 @@ public sealed class AppSettings
         StartWithWindows = StartWithWindows,
         StartupTab = StartupTab,
         LastNotifiedUpdateVersion = LastNotifiedUpdateVersion,
+        LastRunVersion = LastRunVersion,
+        NavExpanded = NavExpanded,
+        DeviceNavExpanded = DeviceNavExpanded,
         IncludePreviewBuilds = IncludePreviewBuilds,
         SuppressBulkAlertActionConfirmation = SuppressBulkAlertActionConfirmation,
+        ShowAlertTabBadge = ShowAlertTabBadge,
+        AlertTabBadgeIncludesAcknowledged = AlertTabBadgeIncludesAcknowledged,
         Notifications = Notifications.Clone(),
         Filter = Filter.Clone(),
         Unimus = Unimus.Clone(),
+        Graylog = Graylog.Clone(),
         DbmThresholds = DbmThresholds.Clone(),
         SignalThresholds = SignalThresholds.Clone(),
         TemperatureThresholds = TemperatureThresholds.Clone(),
@@ -236,14 +303,19 @@ public sealed class AppSettings
         DashboardWidgets = DashboardWidgets.Select(w => w.Clone()).ToList(),
         RecentlyViewedDevices = RecentlyViewedDevices.Select(d => d.Clone()).ToList(),
         ShowRecentlyViewedDevices = ShowRecentlyViewedDevices,
+        EnablePinnedDevices = EnablePinnedDevices,
         RecentlyViewedDeviceCount = RecentlyViewedDeviceCount,
         PinnedDevices = PinnedDevices.Select(d => d.Clone()).ToList(),
+        CollapsedDeviceNavGroups = CollapsedDeviceNavGroups.ToList(),
+        NeighbourViews = NeighbourViews.Select(v => v.Clone()).ToList(),
+        PortGraphsCollapsed = PortGraphsCollapsed,
+        JigglePhysicsOnMaps = JigglePhysicsOnMaps,
         AccentColor = AccentColor,
         Theme = Theme,
-        ShowServerLogo = ShowServerLogo,
         DefaultMap = DefaultMap,
         MapTileUrl = MapTileUrl,
         Window = Window?.Clone(),
+        WindowPlacements = WindowPlacements.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
         GridLayouts = GridLayouts.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
     };
 
@@ -251,12 +323,17 @@ public sealed class AppSettings
     public void Normalise()
     {
         if (TimeoutSeconds < 5) TimeoutSeconds = 5;
+        TrustedCertificates ??= new List<string>();
         if (TimeoutSeconds > 300) TimeoutSeconds = 300;
         if (PollIntervalSeconds < 15) PollIntervalSeconds = 15;
         if (PollIntervalSeconds > 3600) PollIntervalSeconds = 3600;
 
         Notifications ??= new NotificationSettings();
         Filter ??= new AlertFilterSettings();
+        Unimus ??= new UnimusSettings();
+        Unimus.TrustedCertificates ??= new List<string>();
+        Graylog ??= new GraylogSettings();
+        Graylog.TrustedCertificates ??= new List<string>();
 
         if (string.IsNullOrWhiteSpace(DefaultMap))
         {
@@ -278,6 +355,14 @@ public sealed class AppSettings
             RecentlyViewedDevices = RecentlyViewedDevices.Take(RecentlyViewedDeviceCount).ToList();
         }
         PinnedDevices ??= new List<PinnedDevice>();
+        CollapsedDeviceNavGroups ??= new List<string>();
+        NeighbourViews ??= new List<NeighbourViewDefinition>();
+        NeighbourViews.RemoveAll(v => v is null);
+        foreach (var view in NeighbourViews)
+        {
+            view.Normalise();
+        }
+
         GridLayouts ??= new Dictionary<string, GridLayout>();
         DbmThresholds ??= new DbmThresholdSettings();
         SignalThresholds ??= new SignalThresholdSettings();
@@ -747,6 +832,36 @@ public sealed class DashboardWidget
 
     public DateTime? GraphCustomTo { get; set; }
 
+    /// <summary>For a Top interfaces, Top errors or Top devices widget: how many rows to show.</summary>
+    public int TopCount { get; set; } = 3;
+
+    /// <summary>For a Top widget: rank by traffic (or errors) in, out, or both together.</summary>
+    [JsonIgnore]
+    public Devices.RankBy TopRankBy
+    {
+        get => Enum.TryParse<Devices.RankBy>(TopRankByName, ignoreCase: true, out var by) && Enum.IsDefined(by) ? by : Devices.RankBy.Total;
+        set => TopRankByName = value.ToString();
+    }
+
+    /// <summary>
+    /// <see cref="TopRankBy"/> as stored. Text rather than the enum so a value
+    /// this version doesn't know (from DashyNMS Mobile or a newer desktop) reads
+    /// as Total instead of failing the whole settings file (see #197).
+    /// </summary>
+    [JsonPropertyName("topRankBy")]
+    public string TopRankByName { get; set; } = nameof(Devices.RankBy.Total);
+
+    /// <summary>For a Top errors widget: leave out ports with no errors, so a healthy network shows "No interface errors" rather than a list of zeros.</summary>
+    public bool TopHideQuiet { get; set; } = true;
+
+    /// <summary>
+    /// Anything in the stored widget this version doesn't model - another
+    /// widget type's settings, written by DashyNMS Mobile or a newer desktop -
+    /// kept as it was so saving here never strips it (#196).
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+
     public DashboardWidget Clone() => new()
     {
         Id = Id,
@@ -765,17 +880,24 @@ public sealed class DashboardWidget
         GraphTimeRangePreset = GraphTimeRangePreset,
         GraphCustomFrom = GraphCustomFrom,
         GraphCustomTo = GraphCustomTo,
+        TopCount = TopCount,
+        TopRankByName = TopRankByName,
+        TopHideQuiet = TopHideQuiet,
+        Extra = Extra is null ? null : new Dictionary<string, JsonElement>(Extra),
     };
 
     /// <summary>Clamps anything a hand-edited settings file could have made nonsensical.</summary>
     public void Normalise()
     {
         if (string.IsNullOrWhiteSpace(Id)) Id = Guid.NewGuid().ToString("N");
+        if (string.IsNullOrWhiteSpace(WidgetType)) WidgetType = DashboardWidgetTypes.Sensors;
         if (string.IsNullOrWhiteSpace(Title)) Title = "Widget";
         if (Column < 0) Column = 0;
         if (Row < 0) Row = 0;
         if (ColumnSpan < MinColumnSpan) ColumnSpan = MinColumnSpan;
         if (RowSpan < MinRowSpan) RowSpan = MinRowSpan;
+        if (TopCount < 1) TopCount = 1;
+        if (TopCount > 50) TopCount = 50;
         Sensors ??= new List<PinnedSensor>();
     }
 }
@@ -998,6 +1120,9 @@ public sealed class UnimusSettings
     /// </summary>
     public bool AllowUntrustedCertificate { get; set; }
 
+    /// <summary>SHA-256 fingerprints of the Unimus certificates the user has accepted - see <see cref="Security.CertificateTrust"/>.</summary>
+    public List<string> TrustedCertificates { get; set; } = new();
+
     /// <summary>
     /// LibreNMS's own discovery domain suffix (its <c>mydomain</c> config) -
     /// one of the candidates tried when matching a LibreNMS device to a
@@ -1011,7 +1136,107 @@ public sealed class UnimusSettings
         Enabled = Enabled,
         Url = Url,
         AllowUntrustedCertificate = AllowUntrustedCertificate,
+        TrustedCertificates = TrustedCertificates.ToList(),
         MyDomain = MyDomain,
+    };
+}
+
+/// <summary>
+/// Configuration for the Graylog log integration (issue #114) - mirrors
+/// LibreNMS's own Graylog settings (Settings, External, Graylog; the
+/// <c>graylog.*</c> keys in its <c>config_definitions.json</c>) field for
+/// field, since LibreNMS's API doesn't expose its config for this app to
+/// read. Like Unimus, this app talks to Graylog directly with its own
+/// credentials rather than through LibreNMS, whose Graylog pages only exist
+/// in its web UI.
+/// </summary>
+public sealed class GraylogSettings
+{
+    /// <summary>LibreNMS's <c>graylog.version</c> values.</summary>
+    public const string Version20 = "2.0";
+
+    public const string Version21 = "2.1";
+
+    public const string VersionOther = "other";
+
+    /// <summary>LibreNMS's <c>graylog.device-page.loglevel</c> default - every level.</summary>
+    public const int DefaultLogLevel = 7;
+
+    /// <summary>LibreNMS's <c>graylog.device-page.rowCount</c> default.</summary>
+    public const int DefaultRowCount = 10;
+
+    /// <summary>LibreNMS's <c>graylog.query.field</c> default.</summary>
+    public const string DefaultQueryField = "source";
+
+    /// <summary>The most messages a page can ask Graylog for - LibreNMS's own largest page size is 250; this leaves room without asking for a huge page.</summary>
+    public const int MaxRowCount = 500;
+
+    public bool Enabled { get; set; }
+
+    /// <summary><c>graylog.server</c> - the Graylog server's address, e.g. https://graylog.example.com.</summary>
+    public string? Server { get; set; }
+
+    /// <summary><c>graylog.port</c> - optional; blank means the scheme's default (80/443).</summary>
+    public int? Port { get; set; }
+
+    /// <summary><c>graylog.version</c> - "2.1" (2.1 or newer, the API lives under /api), "2.0" (older, no /api prefix) or "other" (use <see cref="BaseUri"/>).</summary>
+    public string Version { get; set; } = Version21;
+
+    /// <summary><c>graylog.base_uri</c> - the search path to use instead of the default, only when <see cref="Version"/> is "other".</summary>
+    public string? BaseUri { get; set; }
+
+    /// <summary><c>graylog.username</c>. For a Graylog access token, this is the token and the password is the word "token".</summary>
+    public string? Username { get; set; }
+
+    /// <summary>Accept a self-signed or internally-issued certificate - not a LibreNMS setting (LibreNMS uses its own server-wide HTTP client options), but the same per-integration choice Unimus has here.</summary>
+    public bool AllowUntrustedCertificate { get; set; }
+
+    /// <summary>SHA-256 fingerprints of the Graylog certificates the user has accepted - see <see cref="Security.CertificateTrust"/>.</summary>
+    public List<string> TrustedCertificates { get; set; } = new();
+
+    /// <summary><c>graylog.timezone</c> - show message times in this zone rather than this PC's own. Takes a Windows or IANA name (e.g. "Europe/London", as LibreNMS itself would); blank means local time.</summary>
+    public string? Timezone { get; set; }
+
+    /// <summary><c>graylog.device-page.loglevel</c> - the highest syslog level (0-7) shown by default on a device's Graylog tab.</summary>
+    public int DeviceLogLevel { get; set; } = DefaultLogLevel;
+
+    /// <summary><c>graylog.device-page.rowCount</c> - how many messages a device's Graylog tab shows per page by default.</summary>
+    public int DeviceRowCount { get; set; } = DefaultRowCount;
+
+    /// <summary><c>graylog.query.field</c> - the Graylog message field matched against a device's addresses.</summary>
+    public string QueryField { get; set; } = DefaultQueryField;
+
+    /// <summary><c>graylog.match-any-address</c> - match every IP address on the device, not just its primary addresses and names.</summary>
+    public bool MatchAnyAddress { get; set; }
+
+    /// <summary>Whether the Logs tab's Graylog view re-fetches on its own - its Auto-update toggle, remembered between sessions. Not a LibreNMS setting.</summary>
+    public bool LogsAutoUpdate { get; set; } = true;
+
+    /// <summary>How often the Logs tab auto-updates, in seconds.</summary>
+    public int LogsAutoUpdateSeconds { get; set; } = DefaultLogsAutoUpdateSeconds;
+
+    public const int DefaultLogsAutoUpdateSeconds = 30;
+
+    /// <summary>How many messages the Logs tab loads per page by default.</summary>
+    public const int DefaultLogsRowCount = 50;
+
+    public GraylogSettings Clone() => new()
+    {
+        Enabled = Enabled,
+        Server = Server,
+        Port = Port,
+        Version = Version,
+        BaseUri = BaseUri,
+        Username = Username,
+        AllowUntrustedCertificate = AllowUntrustedCertificate,
+        TrustedCertificates = TrustedCertificates.ToList(),
+        Timezone = Timezone,
+        DeviceLogLevel = DeviceLogLevel,
+        DeviceRowCount = DeviceRowCount,
+        QueryField = QueryField,
+        MatchAnyAddress = MatchAnyAddress,
+        LogsAutoUpdate = LogsAutoUpdate,
+        LogsAutoUpdateSeconds = LogsAutoUpdateSeconds,
     };
 }
 

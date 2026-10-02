@@ -70,6 +70,17 @@ public sealed class AlertsWidgetViewModel : DashboardWidgetViewModel, IDisposabl
             }
         });
 
+        // Clicking a row stays in the app: Device Details, as on the Alerts tab.
+        OpenDeviceDetailsCommand = new RelayCommand(parameter =>
+        {
+            if (parameter is AlertItemViewModel item)
+            {
+                windows.ShowDeviceDetail(item.DeviceId);
+            }
+        });
+
+        Header = new AlertsWidgetHeader(this);
+
         _monitor.Polled += OnPolled;
 
         // The monitor does not cache its last result for a late subscriber, so
@@ -86,6 +97,20 @@ public sealed class AlertsWidgetViewModel : DashboardWidgetViewModel, IDisposabl
     public RelayCommand OpenAlertCommand { get; }
 
     public RelayCommand OpenDeviceCommand { get; }
+
+    public RelayCommand OpenDeviceDetailsCommand { get; }
+
+    /// <summary>The title bar's counted severity toggles (#212).</summary>
+    public override object? HeaderOptions => Header;
+
+    public AlertsWidgetHeader Header { get; }
+
+    /// <summary>Unacknowledged critical alerts - the count on the title bar's critical toggle, whatever the filter.</summary>
+    public int CriticalCount { get; private set; }
+
+    public int WarningCount { get; private set; }
+
+    public int AcknowledgedCount { get; private set; }
 
     /// <summary>Show unacknowledged critical alerts (and, if <see cref="IncludeAcknowledged"/>, acknowledged ones too).</summary>
     public bool ShowCritical
@@ -218,6 +243,13 @@ public sealed class AlertsWidgetViewModel : DashboardWidgetViewModel, IDisposabl
         // filter is hiding" - only non-recovered alerts count toward the
         // empty-vs-no-matches distinction.
         var totalCount = _lastAlerts.Count(a => a.State != AlertState.Recovered);
+        var active = _lastAlerts.Where(a => a.State != AlertState.Recovered).ToList();
+        CriticalCount = active.Count(a => !a.IsAcknowledged && a.Severity == AlertSeverity.Critical);
+        WarningCount = active.Count(a => !a.IsAcknowledged && a.Severity == AlertSeverity.Warning);
+        AcknowledgedCount = active.Count(a => a.IsAcknowledged);
+        OnPropertyChanged(nameof(CriticalCount));
+        OnPropertyChanged(nameof(WarningCount));
+        OnPropertyChanged(nameof(AcknowledgedCount));
         LoadState.CompleteLoad(totalCount, Alerts.Count);
     }
 
@@ -242,4 +274,12 @@ public sealed class AlertsWidgetViewModel : DashboardWidgetViewModel, IDisposabl
     }
 
     public void Dispose() => _monitor.Polled -= OnPolled;
+}
+
+/// <summary>The Alerts widget's title-bar controls: Critical, Warning and Acknowledged toggles with their counts (#212). Its own type so the title bar templates it without re-drawing the widget.</summary>
+public sealed class AlertsWidgetHeader
+{
+    public AlertsWidgetHeader(AlertsWidgetViewModel widget) => Widget = widget;
+
+    public AlertsWidgetViewModel Widget { get; }
 }

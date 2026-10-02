@@ -9,9 +9,9 @@ public class UnimusExportTests
     [Fact]
     public void File_name_combines_device_and_backup_time()
     {
-        var name = UnimusExport.FileNameFor("r-sw-core-01", new DateTime(2026, 9, 18, 18, 1, 0), "cfg");
+        var name = UnimusExport.FileNameFor("sw-core-01", new DateTime(2026, 9, 18, 18, 1, 0), "cfg");
 
-        Assert.Equal("r-sw-core-01_2026-09-18_1801.cfg", name);
+        Assert.Equal("sw-core-01_2026-09-18_1801.cfg", name);
     }
 
     [Fact]
@@ -20,6 +20,31 @@ public class UnimusExportTests
         var name = UnimusExport.FileNameFor("core/sw:01*?", null, ".cfg");
 
         Assert.Equal("core_sw_01__.cfg", name);
+    }
+
+    [Theory]
+    [InlineData('<')]
+    [InlineData('>')]
+    [InlineData(':')]
+    [InlineData('"')]
+    [InlineData('/')]
+    [InlineData('\\')]
+    [InlineData('|')]
+    [InlineData('?')]
+    [InlineData('*')]
+    [InlineData('\t')]
+    [InlineData('\0')]
+    public void File_name_replaces_every_windows_invalid_character_on_any_platform(char invalid)
+    {
+        var name = UnimusExport.FileNameFor($"sw{invalid}01", null, ".cfg");
+
+        Assert.Equal("sw_01.cfg", name);
+    }
+
+    [Fact]
+    public void File_name_keeps_ordinary_punctuation()
+    {
+        Assert.Equal("sw-core.01 (a)_b.cfg", UnimusExport.FileNameFor("sw-core.01 (a)_b", null, ".cfg"));
     }
 
     [Fact]

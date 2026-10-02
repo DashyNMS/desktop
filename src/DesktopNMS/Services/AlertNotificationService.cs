@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using DesktopNMS.Core;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
@@ -97,14 +98,7 @@ public sealed class AlertNotificationService : IAlertNotificationService
 
     public void Handle(AlertPollResult result)
     {
-        if (!result.Succeeded)
-        {
-            return;
-        }
-
-        var settings = _settings.Current.Notifications;
-
-        if (result.Changes.Count == 0)
+        if (!result.Succeeded || result.Changes.Count == 0)
         {
             return;
         }
@@ -113,160 +107,75 @@ public sealed class AlertNotificationService : IAlertNotificationService
         // is shown - clear out problem toasts this poll has made stale.
         RemoveStaleProblemToasts(result.Changes);
 
-        if (!settings.Enabled)
-        {
-            _logger.LogInformation(
-                "{Count} alert change(s) not notified: notifications are switched off in settings",
-                result.Changes.Count);
-            return;
-        }
+        // Which changes notify, and what they say, is decided in Core so the
+        // phone app decides the same way (#195); this class only shows it.
+        var plan = AlertNotificationPlanner.Plan(
+            result.Changes,
+            result.IsFirstPoll,
+            _settings.Current.Notifications,
+            DateTime.Now,
+            DeviceNameFor,
+            alert => _devices.Get(alert.DeviceId)?.Location,
+            change => _selfActions.WasSelfInitiated(change.Alert.Id, change.Kind));
 
-        if (result.IsFirstPoll && settings.SuppressOnFirstPoll)
-        {
-            _logger.LogInformation(
-                "{Count} alert change(s) not notified: this was the first poll after starting",
-                result.Changes.Count);
-            return;
-        }
-
-        var notifiable = result.Changes.Where(change => ShouldNotify(change, settings)).ToList();
-
-        if (notifiable.Count == 0)
+        if (plan.Notifications.Count == 0)
         {
             // "Why did nothing pop up?" is the most common question this app
             // will be asked, so make the log answer it directly.
             _logger.LogInformation(
-                "{Count} alert change(s), none notifiable ({Reasons})",
+                "{Count} alert change(s) not notified: {Reason}",
                 result.Changes.Count,
-                DescribeSuppression(result.Changes, settings));
+                plan.SuppressionReason);
             return;
         }
 
         _logger.LogInformation(
-            "Notifying {Notifiable} of {Total} alert change(s)",
-            notifiable.Count,
-            result.Changes.Count);
+            "Notifying {Notifiable} of {Total} alert change(s){Summary}",
+            plan.NotifiableCount,
+            result.Changes.Count,
+            plan.IsSummary ? " as one summary" : string.Empty);
 
-        if (notifiable.Count > settings.MaxToastsPerPoll)
+        foreach (var notification in plan.Notifications)
         {
-            ShowSummary(notifiable);
-            return;
-        }
-
-        foreach (var change in notifiable)
-        {
-            ShowChange(change, settings);
-        }
-    }
-
-    /// <summary>Explains, in one line, why a set of changes produced no toast.</summary>
-    private static string DescribeSuppression(IReadOnlyList<AlertChange> changes, NotificationSettings settings)
-    {
-        var reasons = new List<string>();
-
-        var quiet = changes.Count(c => settings.IsInQuietHours(DateTime.Now, c.Alert.Severity));
-        if (quiet > 0)
-        {
-            reasons.Add($"{quiet} within quiet hours");
-        }
-
-        var acknowledged = changes.Count(c => c.Kind == AlertChangeKind.Acknowledged);
-        if (acknowledged > 0 && !settings.NotifyOnAcknowledge)
-        {
-            reasons.Add($"{acknowledged} acknowledged, and 'notify on acknowledge' is off");
-        }
-
-        var recovered = changes.Count(c => c.Kind == AlertChangeKind.Recovered);
-        if (recovered > 0 && !settings.NotifyOnRecovery)
-        {
-            reasons.Add($"{recovered} recovered, and 'notify on recovery' is off");
-        }
-
-        foreach (var severity in new[] { AlertSeverity.Critical, AlertSeverity.Warning, AlertSeverity.Ok })
-        {
-            if (settings.ForSeverity(severity).Enabled)
+            if (notification.Change is { } change)
             {
-                continue;
+                ShowChange(change, notification);
             }
-
-            var count = changes.Count(c => c.IsProblem && c.Alert.Severity == severity);
-            if (count > 0)
+            else
             {
-                reasons.Add($"{count} {severity.ToDisplayString().ToLowerInvariant()}, which is switched off");
+                ShowSummary(notification);
             }
         }
-
-        return reasons.Count > 0 ? string.Join("; ", reasons) : "no reason recorded";
     }
 
-    private bool ShouldNotify(AlertChange change, NotificationSettings settings)
-    {
-        // Acknowledging or returning an alert to active from within this app
-        // must not toast you about your own action.
-        if (change.Kind is AlertChangeKind.Acknowledged or AlertChangeKind.Unacknowledged
-            && _selfActions.WasSelfInitiated(change.Alert.Id, change.Kind))
-        {
-            return false;
-        }
-
-        var severity = change.Alert.Severity;
-
-        if (settings.IsInQuietHours(DateTime.Now, severity))
-        {
-            return false;
-        }
-
-        return change.Kind switch
-        {
-            AlertChangeKind.New or AlertChangeKind.Reopened or AlertChangeKind.Unacknowledged
-                => settings.ForSeverity(severity).Enabled,
-            AlertChangeKind.Recovered => settings.NotifyOnRecovery,
-            AlertChangeKind.Acknowledged => settings.NotifyOnAcknowledge,
-            _ => false,
-        };
-    }
-
-    private void ShowChange(AlertChange change, NotificationSettings settings)
+    private void ShowChange(AlertChange change, PlannedNotification notification)
     {
         var alert = change.Alert;
-        var isProblem = change.IsProblem;
-        var severitySettings = settings.ForSeverity(alert.Severity);
-
-        // Recoveries and acknowledgements are informational: never make them sticky.
-        var persistence = isProblem ? severitySettings.Persistence : ToastPersistence.Transient;
-        var playSound = isProblem ? severitySettings.PlaySound : false;
-
-        var title = BuildTitle(change);
-        var body = alert.DisplayRuleName;
-
-        var detail = string.IsNullOrWhiteSpace(alert.Note)
-            ? null
-            : FirstLine(alert.Note!);
 
         try
         {
             if (_toastsUnavailable)
             {
-                _trayFallback.ShowBalloon(title, body, alert.Severity);
+                _trayFallback.ShowBalloon(notification.Title, notification.Body, alert.Severity);
                 return;
             }
 
             var builder = new ToastContentBuilder()
                 .AddArgument(ArgumentAction, "show")
                 .AddArgument(ArgumentAlertId, alert.Id)
-                .AddText(title)
-                .AddText(body);
+                .AddText(notification.Title)
+                .AddText(notification.Body);
 
-            if (detail is not null)
+            if (notification.Detail is not null)
             {
-                builder.AddText(detail);
+                builder.AddText(notification.Detail);
             }
 
             builder.AddAttributionText(BuildAttribution(alert));
 
-            ApplyAudio(builder, persistence, playSound);
-            ApplyScenario(builder, persistence);
-            AddButtons(builder, change, persistence);
+            ApplyAudio(builder, notification.Persistence, notification.PlaySound);
+            ApplyScenario(builder, notification.Persistence);
+            AddButtons(builder, change, notification.Persistence);
 
             builder.Show(toast =>
             {
@@ -275,79 +184,48 @@ public sealed class AlertNotificationService : IAlertNotificationService
 
                 // Keep problems in the notification centre for a day; clear
                 // informational toasts out after an hour.
-                toast.ExpirationTime = DateTimeOffset.Now.Add(isProblem ? TimeSpan.FromDays(1) : TimeSpan.FromHours(1));
+                toast.ExpirationTime = DateTimeOffset.Now.Add(notification.IsProblem ? TimeSpan.FromDays(1) : TimeSpan.FromHours(1));
             });
 
             _logger.LogInformation(
                 "Toast shown for alert {AlertId} ({Kind}, {Persistence}): {Title}",
                 alert.Id,
                 change.Kind,
-                persistence,
-                title);
+                notification.Persistence,
+                notification.Title);
         }
         catch (Exception ex)
         {
             _toastsUnavailable = true;
             _logger.LogWarning(ex, "Could not show a toast; falling back to tray balloons");
-            _trayFallback.ShowBalloon(title, body, alert.Severity);
+            _trayFallback.ShowBalloon(notification.Title, notification.Body, alert.Severity);
         }
     }
 
-    private void ShowSummary(IReadOnlyList<AlertChange> changes)
+    private void ShowSummary(PlannedNotification notification)
     {
-        var problems = changes.Where(c => c.IsProblem).ToList();
-        var critical = problems.Count(c => c.Alert.Severity == AlertSeverity.Critical);
-        var warning = problems.Count(c => c.Alert.Severity == AlertSeverity.Warning);
-
-        var title = problems.Count > 0
-            ? $"{problems.Count} new alerts"
-            : $"{changes.Count} alert updates";
-
-        var parts = new List<string>();
-        if (critical > 0)
-        {
-            parts.Add($"{critical} critical");
-        }
-
-        if (warning > 0)
-        {
-            parts.Add($"{warning} warning");
-        }
-
-        var hosts = problems
-            .Select(c => DeviceNameFor(c.Alert))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(4)
-            .ToList();
-
-        var body = parts.Count > 0 ? string.Join(", ", parts) : "See DashyNMS for details.";
-        var detail = hosts.Count > 0 ? string.Join(", ", hosts) : null;
-
-        var makeSticky = critical > 0
-            && _settings.Current.Notifications.Critical.Persistence != ToastPersistence.Transient;
-
         try
         {
             if (_toastsUnavailable)
             {
-                _trayFallback.ShowBalloon(title, body, critical > 0 ? AlertSeverity.Critical : AlertSeverity.Warning);
+                _trayFallback.ShowBalloon(notification.Title, notification.Body, notification.Severity);
                 return;
             }
 
             var builder = new ToastContentBuilder()
                 .AddArgument(ArgumentAction, "show")
-                .AddText(title)
-                .AddText(body);
+                .AddText(notification.Title)
+                .AddText(notification.Body);
 
-            if (detail is not null)
+            if (notification.Detail is not null)
             {
-                builder.AddText(detail);
+                builder.AddText(notification.Detail);
             }
 
             builder.AddAttributionText("DashyNMS");
 
-            ApplyAudio(builder, makeSticky ? ToastPersistence.UntilDismissed : ToastPersistence.Transient, playSound: true);
-            ApplyScenario(builder, makeSticky ? ToastPersistence.UntilDismissed : ToastPersistence.Transient);
+            ApplyAudio(builder, notification.Persistence, notification.PlaySound);
+            ApplyScenario(builder, notification.Persistence);
 
             // No "Open" button - clicking the toast body already does this,
             // via the "show" argument set on the whole toast above.
@@ -364,7 +242,7 @@ public sealed class AlertNotificationService : IAlertNotificationService
         {
             _toastsUnavailable = true;
             _logger.LogWarning(ex, "Could not show the summary toast");
-            _trayFallback.ShowBalloon(title, body, critical > 0 ? AlertSeverity.Critical : AlertSeverity.Warning);
+            _trayFallback.ShowBalloon(notification.Title, notification.Body, notification.Severity);
         }
     }
 
@@ -534,25 +412,10 @@ public sealed class AlertNotificationService : IAlertNotificationService
         builder.AddAudio(DefaultSound);
     }
 
-    private string BuildTitle(AlertChange change)
-    {
-        var alert = change.Alert;
-        var device = DeviceNameFor(alert);
-
-        return change.Kind switch
-        {
-            AlertChangeKind.Recovered => $"Recovered: {device}",
-            AlertChangeKind.Acknowledged => $"Acknowledged: {device}",
-            AlertChangeKind.Unacknowledged => $"Unacknowledged: {device}",
-            AlertChangeKind.Reopened => $"{alert.Severity.ToDisplayString()} again: {device}",
-            _ => $"{alert.Severity.ToDisplayString()}: {device}",
-        };
-    }
-
     private string BuildAttribution(Alert alert)
     {
         var host = _session.Connection?.WebRoot.Host ?? "LibreNMS";
-        var time = alert.Timestamp?.ToString("HH:mm", CultureInfo.CurrentCulture);
+        var time = ServerTime.ToLocal(alert.Timestamp, _settings.Current.ServerTimestampsAreUtc)?.ToString("HH:mm", CultureInfo.CurrentCulture);
 
         return time is null ? host : $"{host} at {time}";
     }
@@ -562,13 +425,6 @@ public sealed class AlertNotificationService : IAlertNotificationService
         // Toast tags are limited to 64 characters.
         var tag = $"alert-{alertId}-{kind}";
         return tag.Length <= 64 ? tag : tag[..64];
-    }
-
-    private static string FirstLine(string text)
-    {
-        var index = text.IndexOfAny(new[] { '\r', '\n' });
-        var line = index >= 0 ? text[..index] : text;
-        return line.Length <= 120 ? line : line[..117] + "...";
     }
 
     private void OnToastActivated(ToastNotificationActivatedEventArgsCompat args)
@@ -583,9 +439,12 @@ public sealed class AlertNotificationService : IAlertNotificationService
                 ? parsed
                 : null;
 
-            var request = action.Equals("acknowledge", StringComparison.OrdinalIgnoreCase)
-                ? new ToastActionRequest(ToastAction.Acknowledge, alertId)
-                : new ToastActionRequest(ToastAction.Show, alertId);
+            var request = action.ToLowerInvariant() switch
+            {
+                "acknowledge" => new ToastActionRequest(ToastAction.Acknowledge, alertId),
+                "install-update" => new ToastActionRequest(ToastAction.InstallUpdate, null),
+                _ => new ToastActionRequest(ToastAction.Show, alertId),
+            };
 
             ActionRequested?.Invoke(this, request);
         }

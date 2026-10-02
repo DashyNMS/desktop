@@ -18,11 +18,19 @@ public interface ISettingsStore
     /// <summary>Writes <see cref="Current"/> to disk.</summary>
     void Save();
 
+    /// <summary>
+    /// Writes <see cref="Current"/> to disk without raising <see cref="Changed"/> -
+    /// for a display preference only the thing that set it cares about (a
+    /// folded panel or sidebar group), so saving it doesn't set every
+    /// listener re-applying settings that haven't changed.
+    /// </summary>
+    void SaveQuietly();
+
     /// <summary>Swaps in a new settings object and persists it.</summary>
     void Replace(AppSettings settings);
 }
 
-/// <summary>JSON-backed settings in %APPDATA%\DesktopNMS\settings.json.</summary>
+/// <summary>JSON-backed settings, by default in %APPDATA%\DashyNMS\settings.json.</summary>
 public sealed class SettingsStore : ISettingsStore
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -34,14 +42,22 @@ public sealed class SettingsStore : ISettingsStore
     };
 
     private readonly ILogger<SettingsStore> _logger;
+    private readonly string _settingsFile;
     private readonly object _sync = new();
 
     private AppSettings _current = new();
     private bool _loaded;
 
     public SettingsStore(ILogger<SettingsStore> logger)
+        : this(logger, AppPaths.SettingsFile)
+    {
+    }
+
+    /// <summary>Uses <paramref name="settingsFile"/> instead of the per-user default - for tests, and for hosts that keep their data elsewhere.</summary>
+    public SettingsStore(ILogger<SettingsStore> logger, string settingsFile)
     {
         _logger = logger;
+        _settingsFile = settingsFile;
     }
 
     public AppSettings Current
@@ -67,9 +83,9 @@ public sealed class SettingsStore : ISettingsStore
 
             try
             {
-                if (File.Exists(AppPaths.SettingsFile))
+                if (File.Exists(_settingsFile))
                 {
-                    var json = File.ReadAllText(AppPaths.SettingsFile);
+                    var json = File.ReadAllText(_settingsFile);
                     var loaded = JsonSerializer.Deserialize<AppSettings>(json, SerializerOptions);
                     if (loaded is not null)
                     {
@@ -82,7 +98,7 @@ public sealed class SettingsStore : ISettingsStore
             catch (Exception ex)
             {
                 // A corrupt settings file must not stop the app starting.
-                _logger.LogWarning(ex, "Could not read {Path}; falling back to defaults", AppPaths.SettingsFile);
+                _logger.LogWarning(ex, "Could not read {Path}; falling back to defaults", _settingsFile);
                 TryBackupCorruptFile();
             }
 
@@ -92,7 +108,20 @@ public sealed class SettingsStore : ISettingsStore
         }
     }
 
+    public void SaveQuietly() => Write();
+
+    /// <remarks>
+    /// Writes first, then raises <see cref="Changed"/>. Folding the write into the
+    /// event call (<c>Changed?.Invoke(this, Write())</c>) skipped the write
+    /// entirely whenever nothing was subscribed (#191).
+    /// </remarks>
     public void Save()
+    {
+        var saved = Write();
+        Changed?.Invoke(this, saved);
+    }
+
+    private AppSettings Write()
     {
         AppSettings snapshot;
 
@@ -104,15 +133,15 @@ public sealed class SettingsStore : ISettingsStore
             try
             {
                 var json = JsonSerializer.Serialize(snapshot, SerializerOptions);
-                WriteAtomic(AppPaths.SettingsFile, json);
+                WriteAtomic(_settingsFile, json);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Could not write {Path}", AppPaths.SettingsFile);
+                _logger.LogError(ex, "Could not write {Path}", _settingsFile);
             }
         }
 
-        Changed?.Invoke(this, snapshot);
+        return snapshot;
     }
 
     public void Replace(AppSettings settings)
@@ -141,10 +170,10 @@ public sealed class SettingsStore : ISettingsStore
     {
         try
         {
-            if (File.Exists(AppPaths.SettingsFile))
+            if (File.Exists(_settingsFile))
             {
-                var backup = AppPaths.SettingsFile + ".corrupt";
-                File.Copy(AppPaths.SettingsFile, backup, overwrite: true);
+                var backup = _settingsFile + ".corrupt";
+                File.Copy(_settingsFile, backup, overwrite: true);
                 _logger.LogInformation("Kept a copy of the unreadable settings file at {Path}", backup);
             }
         }

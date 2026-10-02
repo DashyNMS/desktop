@@ -16,22 +16,35 @@ namespace DesktopNMS.ViewModels;
 public sealed class RecentlyViewedWidgetViewModel : DashboardWidgetViewModel, IDisposable
 {
     private readonly ISettingsStore _settings;
+    private readonly IDeviceCache _devices;
+    private readonly DeviceMonitor _deviceMonitor;
+    private readonly System.Windows.Threading.Dispatcher _dispatcher;
     private readonly Action<int> _openDevice;
 
     public RecentlyViewedWidgetViewModel(
         IDashboardLayoutService layout,
         DashboardWidget model,
         ISettingsStore settings,
+        IDeviceCache devices,
+        DeviceMonitor deviceMonitor,
         Action<int> openDevice)
         : base(layout, model)
     {
         _settings = settings;
+        _devices = devices;
+        _deviceMonitor = deviceMonitor;
+        _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
         _openDevice = openDevice;
 
         Devices = new ObservableCollection<RecentlyViewedDeviceItemViewModel>();
         Rebuild();
 
         _settings.Changed += OnSettingsChanged;
+
+        // Each row's status dot and "hardware 00B7 location" come from the
+        // device list, so refresh with it (#212).
+        _deviceMonitor.Polled += OnDevicesPolled;
+        _deviceMonitor.Start();
     }
 
     public ObservableCollection<RecentlyViewedDeviceItemViewModel> Devices { get; }
@@ -40,17 +53,29 @@ public sealed class RecentlyViewedWidgetViewModel : DashboardWidgetViewModel, ID
 
     private void OnSettingsChanged(object? sender, AppSettings settings) => Rebuild();
 
+    private void OnDevicesPolled(object? sender, DevicePollResult result)
+    {
+        if (result.Succeeded)
+        {
+            _dispatcher.InvokeAsync(Rebuild);
+        }
+    }
+
     private void Rebuild()
     {
         Devices.Clear();
 
         foreach (var entry in _settings.Current.RecentlyViewedDevices)
         {
-            Devices.Add(new RecentlyViewedDeviceItemViewModel(entry, _openDevice));
+            Devices.Add(new RecentlyViewedDeviceItemViewModel(entry, _openDevice, _devices.Get(entry.DeviceId)));
         }
 
         OnPropertyChanged(nameof(HasDevices));
     }
 
-    public void Dispose() => _settings.Changed -= OnSettingsChanged;
+    public void Dispose()
+    {
+        _settings.Changed -= OnSettingsChanged;
+        _deviceMonitor.Polled -= OnDevicesPolled;
+    }
 }

@@ -16,14 +16,23 @@ public static class AppPaths
     /// <summary>DPAPI-encrypted Unimus API token - kept separate from <see cref="TokenFile"/> since it is a distinct secret for a distinct service.</summary>
     public static string UnimusTokenFile => Path.Combine(DataDirectory, "unimus-token.dat");
 
+    /// <summary>DPAPI-encrypted Graylog API password - its own file for the same reason as <see cref="UnimusTokenFile"/>.</summary>
+    public static string GraylogPasswordFile => Path.Combine(DataDirectory, "graylog-password.dat");
+
     /// <summary>Alert ids and states already notified about, so a restart is quiet.</summary>
     public static string NotificationStateFile => Path.Combine(DataDirectory, "notified.json");
 
     public static string LogDirectory { get; } = CreateSubdirectory("logs");
 
+    /// <summary>Where a downloaded update's installer waits to be run - see Updates.UpdatePackage.</summary>
+    public static string UpdatesDirectory => Path.Combine(DataDirectory, "updates");
+
     private static string CreateDataDirectory()
     {
-        var root = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        // Create: off Windows the folder may not exist yet, and without it
+        // GetFolderPath returns "" - leaving the data folder relative to the
+        // working directory (#192).
+        var root = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.Create);
         var path = Path.Combine(root, FolderName);
         Directory.CreateDirectory(path);
         return path;

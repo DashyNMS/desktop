@@ -106,6 +106,20 @@ public interface IDevicesApi
     Task<IReadOnlyList<DeviceOutage>> GetOutagesAsync(int deviceId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// GET /api/v0/inventory/{id}/all - every ENTITY-MIB physical inventory
+    /// row for the device in one call (#164). The route without /all only
+    /// returns one level at a time, as LibreNMS's website expands its tree.
+    /// </summary>
+    Task<IReadOnlyList<InventoryEntry>> GetInventoryAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/devices/{id}/wireless-sensors - the device's wireless
+    /// readings (#55): AP and client counts on a controller, signal and
+    /// noise on a radio link. Empty for anything without a radio.
+    /// </summary>
+    Task<IReadOnlyList<WirelessSensor>> GetWirelessSensorsAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// GET /api/v0/devices/{id}/discover. Queues an on-demand rediscovery of
     /// the device - a GET despite the side effect, per LibreNMS's own API.
     /// There is no separate "poll now" endpoint; discovery is the closest the
@@ -195,11 +209,27 @@ public interface ILinksApi
 public interface IPortsApi
 {
     /// <summary>
-    /// GET /api/v0/devices/{id}/ports. Unlike sensors, LibreNMS has no
-    /// fleet-wide ports endpoint - only per device - so this is fetched on
-    /// demand by whatever needs one device's interfaces, not by a shared poller.
+    /// GET /api/v0/devices/{id}/ports - one device's interfaces with
+    /// everything the Ports tab shows, fetched on demand rather than by a
+    /// shared poller.
     /// </summary>
     Task<IReadOnlyList<Port>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/ports with just port_id, device_id, ifName and ifDescr -
+    /// every port in the fleet, for naming the ends of the network map's
+    /// links (see <see cref="Topology.NetworkTopology.Build"/>). Checked
+    /// live: about 1.4 MB for 9,000 ports, fine to fetch alongside the links.
+    /// </summary>
+    Task<IReadOnlyList<Port>> ListAllNamesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/ports with names plus status, speed, duplex, VLAN, MTU, last change, and traffic, error and packet rates -
+    /// every port in the fleet, for the Access points page (#55) to show the
+    /// state of each AP's switch port. Checked live: about 9,000 ports in
+    /// 1.4 seconds.
+    /// </summary>
+    Task<IReadOnlyList<Port>> ListAllStatusAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// GET /api/v0/devices/{id}/ip. Every IPv4/IPv6 address bound to any of
@@ -228,6 +258,20 @@ public interface IArpApi
     /// own API groups ARP by IP/network/MAC query first, device second.
     /// </summary>
     Task<IReadOnlyList<ArpEntry>> ListForDeviceAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/resources/ip/arp/{mac} - every ARP entry, fleet-wide, for
+    /// one MAC address (12 hex digits, any case). How an LLDP neighbour that
+    /// announces its MAC is traced to a monitored device's IP.
+    /// </summary>
+    Task<IReadOnlyList<ArpEntry>> FindByMacAsync(string mac, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/resources/ip/arp/all - every IPv4-to-MAC mapping in the
+    /// fleet (checked live: about 9,500 entries in 1.4 seconds). How the
+    /// Neighbours tab gives an IP to a neighbour LibreNMS doesn't monitor.
+    /// </summary>
+    Task<IReadOnlyList<ArpEntry>> ListAllAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>VLAN endpoints.</summary>
@@ -314,12 +358,14 @@ public interface ILocationsApi
     Task CreateAsync(string name, double lat, double lng, bool fixedCoordinates, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// PATCH /api/v0/locations/{id}. Addressed by id, not name (unlike
-    /// <see cref="IDeviceGroupsApi.UpdateAsync"/>) - LibreNMS's own docs only
-    /// list lat/lng as editable here, no rename parameter, so there is
-    /// nothing to rename anyway.
+    /// PATCH /api/v0/locations/{id}: renames and/or moves a location.
+    /// LibreNMS's edit_location applies every key sent
+    /// (<c>$location->fill($request->all())</c>) and only location, lat and
+    /// lng are fillable - so the name is always sent (a missing one used to
+    /// go as null and wipe it, #169), and "fixed coordinates" can't be
+    /// changed after a location is created.
     /// </summary>
-    Task UpdateAsync(int id, double lat, double lng, bool fixedCoordinates, CancellationToken cancellationToken = default);
+    Task UpdateAsync(int id, string name, double lat, double lng, CancellationToken cancellationToken = default);
 
     /// <summary>DELETE /api/v0/locations/{id}.</summary>
     Task DeleteAsync(int id, CancellationToken cancellationToken = default);
@@ -346,4 +392,26 @@ public interface IDeviceHealthApi
 
     /// <summary>GET /api/v0/devices/{id}/health/storage(/{sensor_id}) - see <see cref="ListProcessorsAsync"/>.</summary>
     Task<IReadOnlyList<StorageVolume>> ListStorageAsync(int deviceId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Routing data for one device (#53): BGP sessions, OSPF/OSPFv3 neighbours
+/// and VRFs. LibreNMS answers "none" differently per route - an empty list,
+/// a 404 ("VRFs do not exist") or a 500 ("Error retrieving ospfv3_nbrs") -
+/// so every method here turns "none" into an empty list and only throws for
+/// a real failure.
+/// </summary>
+public interface IRoutingApi
+{
+    /// <summary>GET /api/v0/bgp?hostname={id}.</summary>
+    Task<IReadOnlyList<BgpSession>> ListBgpSessionsAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>GET /api/v0/ospf?hostname={id}.</summary>
+    Task<IReadOnlyList<OspfNeighbour>> ListOspfNeighboursAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>GET /api/v0/ospfv3?hostname={id} - a 500 when there are none.</summary>
+    Task<IReadOnlyList<Ospfv3Neighbour>> ListOspfv3NeighboursAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>GET /api/v0/routing/vrf?hostname={id} - a 404 when there are none.</summary>
+    Task<IReadOnlyList<Vrf>> ListVrfsAsync(int deviceId, CancellationToken cancellationToken = default);
 }

@@ -57,7 +57,7 @@
                           MaxDropDownHeight="320"
                           ItemsSource="{Binding Fields}"
                           SelectedItem="{Binding SelectedField}"
-                          Text="{Binding FieldSearchText, UpdateSourceTrigger=PropertyChanged}"
+                          Text="{Binding FieldSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
                           PreviewTextInput="OnFieldPickerPreviewTextInput"
                           ToolTip="Type to filter, e.g. devices.uptime"
                           Margin="0,0,4,0" />

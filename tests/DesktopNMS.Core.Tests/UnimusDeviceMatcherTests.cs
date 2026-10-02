@@ -12,9 +12,9 @@ public class UnimusDeviceMatcherTests
     [Fact]
     public void Matches_by_address_when_no_hostname_candidate_matches()
     {
-        var devices = new[] { Device(2, "10.46.102.33", "r-sw-rc-desk-02") };
+        var devices = new[] { Device(2, "192.0.2.33", "sw-desk-02") };
 
-        var match = UnimusDeviceMatcher.Match(devices, new[] { "switch1", "10.46.102.33" });
+        var match = UnimusDeviceMatcher.Match(devices, new[] { "switch1", "192.0.2.33" });
 
         Assert.NotNull(match);
         Assert.Equal(2, match!.Id);
@@ -26,9 +26,9 @@ public class UnimusDeviceMatcherTests
         // The real bug this exists to work around: Unimus's own
         // findByAddress endpoint never matches on description (its
         // hostname-ish field) at all - only Address. Confirmed live.
-        var devices = new[] { Device(5, "10.46.102.48", "r-sw-aud-fia-01.fia.riedel.local") };
+        var devices = new[] { Device(5, "192.0.2.48", "sw-aud-01.corp.example.net") };
 
-        var match = UnimusDeviceMatcher.Match(devices, new[] { "r-sw-aud-fia-01.fia.riedel.local", "10.0.0.1" });
+        var match = UnimusDeviceMatcher.Match(devices, new[] { "sw-aud-01.corp.example.net", "10.0.0.1" });
 
         Assert.NotNull(match);
         Assert.Equal(5, match!.Id);

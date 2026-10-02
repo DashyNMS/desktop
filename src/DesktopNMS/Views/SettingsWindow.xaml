@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        xmlns:local="clr-namespace:DesktopNMS.Views"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel}"
         Title="DashyNMS settings"
@@ -13,7 +14,9 @@
         MinHeight="440"
         Icon="pack://application:,,,/Assets/app.ico"
         Background="{StaticResource BackgroundBrush}"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        PreviewMouseDown="OnPreviewMouseDown"
+        PreviewKeyDown="OnPreviewKeyDown">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -84,10 +87,14 @@
                                       IsChecked="{Binding IsMapsSectionSelected, Mode=OneWay}"
                                       Command="{Binding SelectMapsSectionCommand}" />
 
-                        <!-- Its own group, like Devices - the natural home
-                             for future integrations (Graylog, #114) rather
-                             than only ever having one item. -->
+                        <!-- Its own group, like Devices - one page per
+                             integration, each talking to its service
+                             directly rather than through LibreNMS. -->
                         <TextBlock Text="INTEGRATIONS" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
+                        <ToggleButton Content="Graylog"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsGraylogSectionSelected, Mode=OneWay}"
+                                      Command="{Binding SelectGraylogSectionCommand}" />
                         <ToggleButton Content="Unimus"
                                       Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsIntegrationsSectionSelected, Mode=OneWay}"
@@ -213,7 +220,7 @@
                                 <TextBlock Style="{StaticResource SubtleTextStyle}"
                                            TextWrapping="Wrap"
                                            Margin="0,6,0,0"
-                                           Text="Takes effect the next time you sign in." />
+                                           Text="For a self-signed or internally-issued certificate. You are shown the certificate and asked before it is trusted; after that only that exact certificate is accepted. Takes effect the next time you sign in." />
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -221,6 +228,25 @@
                     <!-- ==================== Alert display ==================== -->
                     <StackPanel Visibility="{Binding IsAlertDisplaySectionSelected, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="Alert display" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
+
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Alerts tab count" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <CheckBox Content="Show an alert count on the Alerts tab"
+                                          IsChecked="{Binding ShowAlertTabBadge}" />
+                                <CheckBox Content="Include acknowledged alerts in the count"
+                                          IsChecked="{Binding AlertTabBadgeIncludesAcknowledged}"
+                                          IsEnabled="{Binding ShowAlertTabBadge}"
+                                          Margin="0,8,0,0" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Red while any counted alert is critical, orange otherwise. Counts every alert, whatever the Alerts tab's own filters are showing." />
+                            </StackPanel>
+                        </Border>
 
                         <!-- Three separate cards rather than grouped - unlike
                              Polling's pairs, these three genuinely don't
@@ -564,6 +590,18 @@
                                 </Grid>
                             </StackPanel>
                         </Border>
+
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12" Margin="0,12,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Pinned devices" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <CheckBox Content="Let me pin devices to the top of the Devices tab"
+                                          IsChecked="{Binding EnablePinnedDevices}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Off hides the pin column and pin actions, stops pinned devices sorting first and removes the Pinned devices Dashboard widget from the add menu. Your pins are kept, so turning this back on restores them." />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- ==================== Maps ==================== -->
@@ -655,25 +693,11 @@
                     <StackPanel Visibility="{Binding IsAppearanceSectionSelected, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="Appearance" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
-                        <!-- Three separate cards, each self-contained with its
-                             own heading and explanatory text, rather than
-                             text living outside the card it describes. Server
-                             logo first since it's the simplest control on the
-                             page and was the one most easily missed when it
-                             trailed after the taller colour picker; Theme
-                             next; Accent colour last since its sliders/hex/
-                             preview make it the tallest of the three. -->
-                        <Border Background="{StaticResource SurfaceAltBrush}"
-                                CornerRadius="6"
-                                Padding="14,12"
-                                Margin="0,0,0,16">
-                            <StackPanel>
-                                <TextBlock Text="Server logo" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
-                                <CheckBox Content="Show the connected server's own logo in the header"
-                                          IsChecked="{Binding ShowServerLogo}" />
-                            </StackPanel>
-                        </Border>
-
+                        <!-- Separate cards, each self-contained with its own
+                             heading and explanatory text, rather than text
+                             living outside the card it describes. Theme
+                             first; Accent colour last since its sliders/hex/
+                             preview make it the taller of the two. -->
                         <Border Background="{StaticResource SurfaceAltBrush}"
                                 CornerRadius="6"
                                 Padding="14,12"
@@ -684,13 +708,32 @@
                                     <StackPanel Orientation="Horizontal">
                                         <ToggleButton Content="Dark" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsDarkTheme}" />
                                         <ToggleButton Content="Light" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsLightTheme}" />
+                                        <ToggleButton Content="Match Windows" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsSystemTheme}" />
                                     </StackPanel>
                                 </Border>
                                 <TextBlock Style="{StaticResource SubtleTextStyle}"
                                            TextWrapping="Wrap"
                                            Margin="0,8,0,0"
+                                           Text="Match Windows uses your Windows app mode (Settings, Personalisation, Colours) each time DashyNMS starts."
+                                           Visibility="{Binding IsSystemTheme, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,8,0,0"
                                            Text="Needs a restart to fully apply - unlike the accent colour below, changing this while DashyNMS is running does not repaint what's already open."
                                            Visibility="{Binding ThemeChangeRequiresRestart, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16">
+                            <StackPanel>
+                                <CheckBox Content="Jiggle physics on maps" IsChecked="{Binding JigglePhysicsOnMaps}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Nodes wobble like jelly when you drag them on the network map or a custom map, and their links bow and settle. Just for fun: a node is always saved where you drop it. Nothing moves while Windows animations are turned off." />
                             </StackPanel>
                         </Border>
 
@@ -774,13 +817,64 @@
                     <StackPanel Visibility="{Binding IsServerSectionSelected, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="Server" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
-                        <!-- One card for the whole thing rather than one per
-                             field group - unlike Appearance/Polling this page
-                             is a single read-only info panel with one action
-                             (Refresh), not several independent settings, so
-                             splitting it into multiple cards would be
-                             grouping for its own sake rather than clarifying
-                             anything. -->
+                        <!-- The connection itself, editable. Save tries the
+                             server address first and, if it doesn't answer,
+                             the backup address - and only saves once one of
+                             them does, so a typo can't cut the app off. -->
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="Server address" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <TextBox Text="{Binding ServerAddress, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="For example https://nms.example.com" />
+
+                                <TextBlock Text="Backup address" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
+                                <TextBox Text="{Binding BackupServerAddress, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Another address for the same server, e.g. https://192.0.2.20/" />
+                                <TextBlock Text="{Binding BackupServerAddressError}"
+                                           Foreground="{StaticResource CriticalBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Visibility="{Binding HasBackupServerAddressError, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="Optional. Another address for the same LibreNMS server, as a URL like the server address - https://192.0.2.20/ or http://nms-backup:8080/. Used if the server address stops answering twice in a row, until you switch back. If only the host differs, HTTPS still checks the certificate against the server's own name." />
+
+                                <TextBlock Text="API token" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
+                                <PasswordBox x:Name="ServerTokenBox" PasswordChanged="OnServerTokenChanged" />
+                                <TextBlock Text="Leave blank to keep the token in use."
+                                           Style="{StaticResource SubtleTextStyle}"
+                                           Margin="0,4,0,0" />
+
+                                <CheckBox Content="Allow an untrusted or self-signed certificate"
+                                          IsChecked="{Binding ServerAllowUntrustedCertificate}"
+                                          Margin="0,14,0,0" />
+
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,12,0,0"
+                                           Text="Changes here are checked when you save: the server address first, then the backup address if it doesn't answer. Nothing is saved until one of them does." />
+
+                                <TextBlock Text="Checking the connection..."
+                                           Style="{StaticResource SubtleTextStyle}"
+                                           Margin="0,10,0,0"
+                                           Visibility="{Binding IsTestingConnection, Converter={StaticResource BoolToVisibility}}" />
+
+                                <Border Background="#33DA3633"
+                                        BorderBrush="{StaticResource CriticalBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="5"
+                                        Padding="12,10"
+                                        Margin="0,10,0,0"
+                                        Visibility="{Binding HasConnectionError, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="{Binding ConnectionError}" TextWrapping="Wrap" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+
+                        <!-- What the app is connected to right now - read-only,
+                             with Refresh. -->
                         <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
                             <StackPanel>
                                 <!-- The URL is the card's header, paired with
@@ -913,13 +1007,13 @@
                                            Margin="0,4,0,0"
                                            Text="Leave blank and save to keep the token already stored. Generate one in Unimus under User management, API tokens." />
 
-                                <CheckBox Content="Ignore SSL certificate errors"
+                                <CheckBox Content="Allow an untrusted or self-signed certificate"
                                           IsChecked="{Binding UnimusAllowUntrustedCertificate}"
                                           Margin="0,16,0,0" />
                                 <TextBlock Style="{StaticResource SubtleTextStyle}"
                                            TextWrapping="Wrap"
                                            Margin="0,4,0,0"
-                                           Text="Only enable this if Unimus uses a self-signed or internally-issued certificate you trust." />
+                                           Text="For a self-signed or internally-issued certificate. Testing the connection shows the certificate and asks before trusting it; after that only that exact certificate is accepted." />
 
                                 <TextBlock Text="LibreNMS discovery domain (optional)" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
                                 <TextBox Text="{Binding UnimusMyDomain, UpdateSourceTrigger=PropertyChanged}" ToolTip="e.g. internal.example.com" />
@@ -959,10 +1053,224 @@
                         </Border>
                     </StackPanel>
 
+                    <!-- ==================== Integrations (Graylog) ==================== -->
+                    <!-- The same fields, order and help as LibreNMS's own
+                         Settings, External, Graylog page (its graylog.*
+                         config), plus the SSL option Unimus has here. -->
+                    <StackPanel Visibility="{Binding IsGraylogSectionSelected, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Graylog" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14"
+                                   Text="Shows a device's log messages from Graylog on the Graylog tab in Device Details, found the same way LibreNMS finds them. Talks to Graylog directly with its own credentials - not through LibreNMS - so copy these from LibreNMS's Settings, External, Graylog." />
+
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12" Margin="0,0,0,12">
+                            <StackPanel>
+                                <CheckBox Content="Enable Graylog integration" IsChecked="{Binding GraylogEnabled}" />
+
+                                <Grid Margin="0,16,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="110" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Server" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                        <TextBox Text="{Binding GraylogServer, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="e.g. https://graylog.example.com" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Port" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                        <TextBox Text="{Binding GraylogPortText, UpdateSourceTrigger=LostFocus}"
+                                                 ToolTip="e.g. 9000" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="The address of the Graylog server's API. With no port, 80 is used for http:// and 443 for https://." />
+
+                                <TextBlock Text="Version" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <ComboBox ItemsSource="{Binding GraylogVersionOptions}"
+                                          SelectedItem="{Binding SelectedGraylogVersion}"
+                                          DisplayMemberPath="Label"
+                                          Width="220"
+                                          HorizontalAlignment="Left" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="Used to work out where the API is. If you've changed Graylog's API address from the default, choose Other and enter its base URI." />
+
+                                <StackPanel Visibility="{Binding IsGraylogBaseUriVisible, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Base URI" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                    <TextBox Text="{Binding GraylogBaseUri, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="e.g. /api/search/universal/relative" />
+                                    <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0"
+                                               Text="The search API's path on the server, if you changed it from Graylog's default." />
+                                </StackPanel>
+
+                                <TextBlock Text="Username" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding GraylogUsername, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="Password" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <PasswordBox x:Name="GraylogPasswordBox" PasswordChanged="OnGraylogPasswordChanged" />
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding GraylogPasswordStatusText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1"
+                                            Content="Clear"
+                                            Command="{Binding ClearGraylogPasswordCommand}"
+                                            Padding="10,4" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="Leave blank and save to keep the password already stored. To use a Graylog access token instead, enter the token as the username and the word token as the password." />
+
+                                <CheckBox Content="Allow an untrusted or self-signed certificate"
+                                          IsChecked="{Binding GraylogAllowUntrustedCertificate}"
+                                          Margin="0,16,0,0" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="For a self-signed or internally-issued certificate. Testing the connection shows the certificate and asks before trusting it; after that only that exact certificate is accepted." />
+
+                                <TextBlock Text="Display time zone" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding GraylogTimezone, UpdateSourceTrigger=PropertyChanged, Delay=300}"
+                                         ToolTip="e.g. Europe/London" />
+                                <TextBlock Text="{Binding GraylogTimezoneStatusText}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsGraylogTimezoneInvalid}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,2,0,0"
+                                           Text="Graylog stores times in UTC. Enter a time zone (the same name LibreNMS uses, e.g. Europe/London) to show them in that zone instead." />
+
+                                <TextBlock Text="Query field" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding GraylogQueryField, UpdateSourceTrigger=LostFocus}"
+                                         Width="220"
+                                         HorizontalAlignment="Left" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="The Graylog message field matched against a device's addresses. LibreNMS's default is source." />
+
+                                <CheckBox Content="Match any address"
+                                          IsChecked="{Binding GraylogMatchAnyAddress}"
+                                          Margin="0,16,0,0" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="Match every IP address on a device, not just its hostname and primary address, against the source of a message." />
+
+                                <Grid Margin="0,16,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0"
+                                            Content="Test connection"
+                                            Command="{Binding TestGraylogConnectionCommand}"
+                                            Padding="10,6" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding GraylogTestStatusText}"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0,0,0"
+                                               Visibility="{Binding HasGraylogTestStatus, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding GraylogTestSucceeded}" Value="False">
+                                                        <Setter Property="Foreground" Value="{StaticResource CriticalBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
+                            <StackPanel>
+                                <TextBlock Text="Device Graylog tab" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,10" />
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Log level" Style="{StaticResource SubtleTextStyle}" Margin="0,0,0,6" />
+                                        <ComboBox ItemsSource="{Binding GraylogLogLevelOptions}"
+                                                  SelectedItem="{Binding SelectedGraylogLogLevel}"
+                                                  DisplayMemberPath="Label"
+                                                  Width="200" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Row count" Style="{StaticResource SubtleTextStyle}" Margin="0,0,0,6" />
+                                        <TextBox Text="{Binding GraylogRowCountText, UpdateSourceTrigger=LostFocus}"
+                                                 Width="80"
+                                                 HorizontalAlignment="Left" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="What a device's Graylog tab starts on: the least severe level shown (each level includes everything more severe) and how many messages per page. Both can be changed on the tab itself." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
                     <!-- ==================== About ==================== -->
                     <StackPanel Visibility="{Binding IsAboutSectionSelected, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="About" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,4" />
-                        <TextBlock Text="{Binding CurrentVersionText}" Style="{StaticResource SubtleTextStyle}" Margin="0,0,0,14" />
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <!-- The DashyNMS mark, drawn as vectors so it stays crisp at this size. -->
+                            <Viewbox Grid.Column="0"
+                                     Width="44"
+                                     Height="44"
+                                     Margin="0,0,14,0"
+                                     VerticalAlignment="Center"
+                                     MouseLeftButtonDown="OnAboutLogoMouseDown">
+                                <Canvas Width="100" Height="100">
+                                    <Ellipse Width="92" Height="92" Canvas.Left="4" Canvas.Top="4" Fill="{StaticResource SurfaceAltBrush}" />
+                                    <Ellipse Width="84.5" Height="84.5" Canvas.Left="7.75" Canvas.Top="7.75"
+                                             Stroke="{StaticResource AccentBrush}" StrokeThickness="7.5" />
+                                    <Polyline Points="24,55 38,55 45.5,33 56.5,71 64,50 77,50"
+                                              Stroke="{StaticResource TextPrimaryBrush}"
+                                              StrokeThickness="8.5"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round" />
+                                </Canvas>
+                            </Viewbox>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="About" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,4" />
+                                <TextBlock Text="{Binding CurrentVersionText}" Style="{StaticResource SubtleTextStyle}" />
+                            </StackPanel>
+                        </Grid>
 
                         <CheckBox Content="Include preview builds"
                                   IsChecked="{Binding IncludePreviewBuilds}"
@@ -989,12 +1297,20 @@
                                             Padding="10,6"
                                             Margin="12,0,0,0" />
                                 </Grid>
-                                <Button Content="View on GitHub"
-                                        Command="{Binding ViewLatestReleaseCommand}"
-                                        HorizontalAlignment="Left"
-                                        Padding="10,6"
-                                        Margin="0,10,0,0"
-                                        Visibility="{Binding IsNewerVersionAvailable, Converter={StaticResource BoolToVisibility}}" />
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,10,0,0"
+                                            Visibility="{Binding IsNewerVersionAvailable, Converter={StaticResource BoolToVisibility}}">
+                                    <Button Content="Restart to update"
+                                            Command="{Binding InstallUpdateCommand}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Padding="10,6"
+                                            Margin="0,0,8,0"
+                                            ToolTip="DashyNMS closes, installs the update and reopens on the new version. Unsaved changes here are discarded."
+                                            Visibility="{Binding IsUpdateReady, Converter={StaticResource BoolToVisibility}}" />
+                                    <Button Content="View on GitHub"
+                                            Command="{Binding ViewLatestReleaseCommand}"
+                                            Padding="10,6" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
@@ -1012,16 +1328,25 @@
                                                        IsToolBarVisible="False" />
                         </Border>
 
-                        <Button Content="View all releases on GitHub"
-                                Command="{Binding ViewReleasesPageCommand}"
-                                HorizontalAlignment="Left"
-                                Padding="10,6"
-                                Margin="0,14,0,0" />
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <Button Content="View all releases on GitHub"
+                                    Command="{Binding ViewReleasesPageCommand}"
+                                    Padding="10,6" />
+                            <Button Content="Report a bug"
+                                    Command="{Binding ReportBugCommand}"
+                                    ToolTip="Opens a new GitHub issue with your DashyNMS, Windows and LibreNMS versions filled in - nothing is sent until you submit it there"
+                                    Padding="10,6"
+                                    Margin="8,0,0,0" />
+                        </StackPanel>
                     </StackPanel>
 
                 </Grid>
             </ScrollViewer>
         </Grid>
+
+        <!-- Hidden: see OnAboutLogoMouseDown. Sits on top of the content,
+             never hit-testable, so it never gets in the way. -->
+        <local:SmileAndWaveOverlay x:Name="SmileAndWave" Grid.Row="0" />
 
         <Border Grid.Row="1"
                 Background="{StaticResource SurfaceBrush}"

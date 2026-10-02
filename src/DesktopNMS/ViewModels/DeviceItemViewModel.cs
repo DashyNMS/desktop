@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using DesktopNMS.Core;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
@@ -13,6 +14,7 @@ public sealed class DeviceItemViewModel : ObservableObject
     private DeviceNameStyle _nameStyle;
     private bool _isUnderMaintenance;
     private bool _isPinned;
+    private bool _serverTimestampsAreUtc;
 
     public DeviceItemViewModel(Device device, DeviceNameStyle nameStyle, Action<int> onTogglePin)
     {
@@ -92,8 +94,21 @@ public sealed class DeviceItemViewModel : ObservableObject
 
     /// <summary>Optional grid column (issue #40) - an absolute timestamp rather than a "X ago" style, since a sortable column reads better as a fixed value than one that keeps re-rendering as time passes.</summary>
     public string LastDiscoveredText => _device.LastDiscovered is { } t
-        ? t.ToLocalTime().ToString("dd MMM HH:mm", CultureInfo.InvariantCulture)
+        ? ServerTime.ToLocal(t, ServerTimestampsAreUtc).ToString("dd MMM HH:mm", CultureInfo.InvariantCulture)
         : "-";
+
+    /// <summary>Settings' "server stores timestamps in UTC" - see <see cref="ServerTime"/> (#150).</summary>
+    public bool ServerTimestampsAreUtc
+    {
+        get => _serverTimestampsAreUtc;
+        set
+        {
+            if (SetProperty(ref _serverTimestampsAreUtc, value))
+            {
+                OnPropertyChanged(nameof(LastDiscoveredText));
+            }
+        }
+    }
 
     public string UptimeText => _device.State == DeviceState.Up ? FormatUptime(_device.Uptime) : "-";
 
