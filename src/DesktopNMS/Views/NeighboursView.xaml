@@ -59,7 +59,7 @@
                             Command="{Binding NewViewCommand}"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="New view">
-                        <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                        <TextBlock Text="+" FontFamily="{StaticResource BodyFont}" FontSize="20" FontWeight="SemiBold" />
                     </Button>
                 </Grid>
             </Border>

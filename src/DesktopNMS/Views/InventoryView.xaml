@@ -89,7 +89,7 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
-                                    <TextBlock Text="{Binding SerialText}" FontFamily="Consolas" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding SerialText}" FontFamily="{StaticResource MonoFont}" VerticalAlignment="Center" />
                                     <Button Command="{Binding DataContext.CopySerialCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                             CommandParameter="{Binding}"
                                             Style="{StaticResource IconButtonStyle}"

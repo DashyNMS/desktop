@@ -82,7 +82,7 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <StackPanel Margin="8,3">
-                                                <TextBlock Text="{Binding Peer}" FontFamily="Consolas" />
+                                                <TextBlock Text="{Binding Peer}" FontFamily="{StaticResource MonoFont}" />
                                                 <TextBlock Text="{Binding Description}"
                                                            Style="{StaticResource SubtleTextStyle}"
                                                            FontSize="11"

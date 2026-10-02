@@ -149,7 +149,8 @@
                            RenderOptions.BitmapScalingMode="HighQuality" />
                     <TextBlock Text="DashyNMS"
                                FontSize="13"
-                               FontWeight="SemiBold"
+                               FontFamily="{StaticResource DisplayFont}"
+                               FontWeight="Bold"
                                Foreground="{StaticResource TextPrimaryBrush}"
                                VerticalAlignment="Center" />
                     <TextBlock Text="{Binding ServerDescription}"

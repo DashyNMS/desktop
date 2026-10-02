@@ -108,7 +108,7 @@
                     <Button Command="{Binding AddRuleCommand}"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Add rule">
-                        <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                        <TextBlock Text="+" FontFamily="{StaticResource BodyFont}" FontSize="20" FontWeight="SemiBold" />
                     </Button>
                 </StackPanel>
             </Grid>
