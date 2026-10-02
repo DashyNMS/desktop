@@ -30,20 +30,48 @@
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,0,0,1"
                     Padding="18,12">
+                <!-- One row (#221): the state pills (shift-click shows only that
+                     one), the neighbourhood chips, then search and + on the right. -->
                 <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <!-- Neighbourhoods (#221): All, then each one with its count.
-                         Right-click one to edit, delete, move it or show it on
-                         the network map; + on the right makes a new one. -->
-                    <ItemsControl Grid.Row="0" Grid.Column="0" ItemsSource="{Binding Neighbourhoods}">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ToggleButton IsChecked="{Binding ShowUp}" Tag="{x:Static vm:NeighbourState.Up}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide those that are up (shift-click to show only these)" Margin="0,0,10,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                                <TextBlock Text="up" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <ToggleButton IsChecked="{Binding ShowDown}" Tag="{x:Static vm:NeighbourState.Down}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide those that are down - the device itself, its switch port, or the switch (shift-click to show only these)" Margin="0,0,10,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                                <TextBlock Text="down" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <ToggleButton IsChecked="{Binding ShowOther}" Tag="{x:Static vm:NeighbourState.Other}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide shut-down ports, disabled or in-maintenance devices, and ones LibreNMS no longer sees (shift-click to show only these)"
+                                      Margin="0,0,10,0"
+                                      Visibility="{Binding HasOther, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding OtherCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                                <TextBlock Text="other" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                    </StackPanel>
+
+                    <Rectangle Grid.Column="1" Style="{StaticResource ToolBarSeparatorStyle}" Margin="4,6,14,6" />
+
+                    <!-- Neighbourhoods: All, then each one with its count. Right-click
+                         one to edit, delete, move it or show it on the network map. -->
+                    <ItemsControl Grid.Column="2" ItemsSource="{Binding Neighbourhoods}" VerticalAlignment="Center">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <WrapPanel />
@@ -58,7 +86,7 @@
                                              CommandParameter="{Binding}"
                                              Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                              ToolTip="{Binding RulesText}"
-                                             Margin="0,0,6,6">
+                                             Margin="0,3,6,3">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{Binding Name}" />
                                         <TextBlock Text="{Binding CountText}" Margin="6,0,0,0" Opacity="0.7" />
@@ -94,59 +122,31 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <Button Grid.Row="0"
-                            Grid.Column="1"
-                            Command="{Binding NewViewCommand}"
-                            Style="{StaticResource IconButtonStyle}"
-                            ToolTip="New neighbourhood"
-                            VerticalAlignment="Top"
-                            Margin="12,0,0,0">
-                        <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
-                    </Button>
-
-                    <!-- Search, the state chips (shift-click shows only that one) and the count. -->
-                    <WrapPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,6,0,0">
-                        <TextBox x:Name="SearchBox"
-                                 Width="300"
-                                 Style="{StaticResource SearchTextBoxStyle}"
-                                 Tag="Search name, description, IP, switch, port or MAC"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                                 ToolTip="Filter by name, description, IP, switch, port or MAC"
-                                 Margin="0,0,8,0" />
+                    <!-- Search and clear, then + - the same corner as every other tab. -->
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
                         <Button Command="{Binding ClearFiltersCommand}"
                                 Style="{StaticResource IconButtonStyle}"
                                 ToolTip="Clear search and filters"
-                                Margin="0,0,12,0"
+                                Margin="0,0,4,0"
                                 Visibility="{Binding HasAnyFilterApplied, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
                         </Button>
+                        <TextBox x:Name="SearchBox"
+                                 Width="240"
+                                 Style="{StaticResource SearchTextBoxStyle}"
+                                 Tag="Search"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                                 ToolTip="Filter by name, description, IP, switch, port or MAC" />
+                    </StackPanel>
 
-                        <ToggleButton IsChecked="{Binding ShowUp}" Tag="{x:Static vm:NeighbourState.Up}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide those that are up (shift-click to show only these)" Margin="0,0,10,0">
-                            <StackPanel Orientation="Horizontal">
-                                <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                                <TextBlock Text="up" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </ToggleButton>
-                        <ToggleButton IsChecked="{Binding ShowDown}" Tag="{x:Static vm:NeighbourState.Down}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide those that are down - the device itself, its switch port, or the switch (shift-click to show only these)" Margin="0,0,10,0">
-                            <StackPanel Orientation="Horizontal">
-                                <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                                <TextBlock Text="down" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </ToggleButton>
-                        <ToggleButton IsChecked="{Binding ShowOther}" Tag="{x:Static vm:NeighbourState.Other}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide shut-down ports, disabled or in-maintenance devices, and ones LibreNMS no longer sees (shift-click to show only these)"
-                                      Margin="0,0,10,0"
-                                      Visibility="{Binding HasOther, Converter={StaticResource BoolToVisibility}}">
-                            <StackPanel Orientation="Horizontal">
-                                <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding OtherCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
-                                <TextBlock Text="other" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </ToggleButton>
-
-                        <TextBlock Text="{Binding CountText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="4,0,0,0" />
-                    </WrapPanel>
+                    <Button Grid.Column="4"
+                            Command="{Binding NewViewCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="New neighbourhood"
+                            VerticalAlignment="Center"
+                            Margin="8,0,0,0">
+                        <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                    </Button>
                 </Grid>
             </Border>
 

@@ -153,20 +153,6 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     /// <summary>Back to every neighbour - the "All" chip, and clicking the tab itself.</summary>
     public void ShowAll() => SelectedView = null;
 
-    /// <summary>"312 neighbours", or "24 of 312 neighbours" while search or the state chips hide some.</summary>
-    public string CountText
-    {
-        get
-        {
-            var total = Items.Count;
-            var shown = ItemsView.Cast<object>().Count();
-            var noun = total == 1 ? "neighbour" : "neighbours";
-            return shown == total
-                ? total.ToString("N0", CultureInfo.CurrentCulture) + " " + noun
-                : $"{shown.ToString("N0", CultureInfo.CurrentCulture)} of {total.ToString("N0", CultureInfo.CurrentCulture)} {noun}";
-        }
-    }
-
     public RelayCommand ToggleShowOnMapCommand { get; }
 
     public RelayCommand MoveLeftCommand { get; }
@@ -442,7 +428,6 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(DownCount));
         OnPropertyChanged(nameof(OtherCount));
         OnPropertyChanged(nameof(HasOther));
-        OnPropertyChanged(nameof(CountText));
 
         if (_pendingSelection is null && selectedKey is not null)
         {
@@ -597,7 +582,6 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         ItemsView.Refresh();
         OnPropertyChanged(nameof(HasAnyFilterApplied));
         LoadState.UpdateVisibleCount(ItemsView.Cast<object>().Count());
-        OnPropertyChanged(nameof(CountText));
     }
 
     public void Dispose() => _settings.Changed -= OnSettingsChanged;
