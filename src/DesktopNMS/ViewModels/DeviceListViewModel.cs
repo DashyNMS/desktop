@@ -848,6 +848,20 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         OnFilterChanged();
     }
 
+    /// <summary>
+    /// Jumped to from a Dashboard Device status count (#212): resets every
+    /// other filter, as <see cref="FilterByLocationOnly"/> does, and shows only
+    /// devices in this state.
+    /// </summary>
+    public void FilterByStateOnly(DeviceState state)
+    {
+        SearchText = string.Empty;
+        TypeFilter.SetAllChecked(true, notify: false);
+        LocationFilter.SetAllChecked(true, notify: false);
+        GroupFilter.SetAllChecked(true, notify: false);
+        IsolateState(state);
+    }
+
     /// <summary>Shift-click on a status badge: show only that status, hiding the rest.</summary>
     public void IsolateState(DeviceState state)
     {

@@ -75,6 +75,12 @@ public interface IWindowService
     /// <summary>Same as <see cref="ShowDevicesFilteredByLocation"/>, but isolating the Group facet instead - used by the device view's Device Groups section.</summary>
     void ShowDevicesFilteredByGroup(string groupName);
 
+    /// <summary>The Devices tab showing only devices in <paramref name="state"/> - from the Dashboard's Device status counts.</summary>
+    void ShowDevicesWithState(DesktopNMS.Core.Models.DeviceState state);
+
+    /// <summary>The Alerts tab showing one severity's unacknowledged alerts, or every alert for null - from the Dashboard's Alerts gauge.</summary>
+    void ShowAlertsWithSeverity(DesktopNMS.Core.Models.AlertSeverity? severity);
+
     /// <summary>Shows the settings dialog. Returns true if the user saved.</summary>
     bool ShowSettingsDialog();
 

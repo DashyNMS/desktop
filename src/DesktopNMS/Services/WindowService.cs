@@ -323,6 +323,18 @@ public sealed class WindowService : IWindowService
         ShowDevicesTab();
     }
 
+    public void ShowDevicesWithState(DesktopNMS.Core.Models.DeviceState state)
+    {
+        _services.GetRequiredService<DeviceListViewModel>().FilterByStateOnly(state);
+        ShowDevicesTab();
+    }
+
+    public void ShowAlertsWithSeverity(DesktopNMS.Core.Models.AlertSeverity? severity)
+    {
+        _services.GetRequiredService<MainViewModel>().ShowAlertsWithSeverity(severity);
+        ShowMain();
+    }
+
     public bool ShowSettingsDialog()
     {
         var viewModel = _services.GetRequiredService<SettingsViewModel>();

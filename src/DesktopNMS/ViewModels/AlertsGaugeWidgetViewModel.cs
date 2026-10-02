@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows.Threading;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 
 namespace DesktopNMS.ViewModels;
@@ -25,10 +26,15 @@ public sealed class AlertsGaugeWidgetViewModel : DashboardWidgetViewModel, IDisp
     private int _acknowledgedCount;
     private int _totalActive;
 
-    public AlertsGaugeWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model, AlertMonitor monitor)
+    public AlertsGaugeWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model, AlertMonitor monitor, IWindowService windows)
         : base(layout, model)
     {
         _monitor = monitor;
+
+        // Each count opens that list on the Alerts tab (#212).
+        OpenCriticalCommand = new RelayCommand(() => windows.ShowAlertsWithSeverity(AlertSeverity.Critical));
+        OpenWarningCommand = new RelayCommand(() => windows.ShowAlertsWithSeverity(AlertSeverity.Warning));
+        OpenAllCommand = new RelayCommand(() => windows.ShowAlertsWithSeverity(null));
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         _monitor.Polled += OnPolled;
@@ -49,6 +55,16 @@ public sealed class AlertsGaugeWidgetViewModel : DashboardWidgetViewModel, IDisp
     public int AcknowledgedCount => _acknowledgedCount;
 
     public int TotalActive => _totalActive;
+
+    /// <summary>"1 active alert", "12 active alerts".</summary>
+    public string TotalActiveText => _totalActive == 1 ? "1 active alert" : _totalActive.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) + " active alerts";
+
+    public RelayCommand OpenCriticalCommand { get; }
+
+    public RelayCommand OpenWarningCommand { get; }
+
+    /// <summary>The Acknowledged count: every alert, acknowledged included - the Alerts tab has no "acknowledged only".</summary>
+    public RelayCommand OpenAllCommand { get; }
 
     /// <summary>Unacknowledged critical's share of all active alerts, for the ring gauge's arc.</summary>
     public double CriticalFraction => _totalActive > 0 ? (double)_criticalCount / _totalActive : 0;
@@ -84,6 +100,7 @@ public sealed class AlertsGaugeWidgetViewModel : DashboardWidgetViewModel, IDisp
         OnPropertyChanged(nameof(WarningCount));
         OnPropertyChanged(nameof(AcknowledgedCount));
         OnPropertyChanged(nameof(TotalActive));
+        OnPropertyChanged(nameof(TotalActiveText));
         OnPropertyChanged(nameof(CriticalFraction));
         OnPropertyChanged(nameof(WarningFraction));
         OnPropertyChanged(nameof(AcknowledgedFraction));
