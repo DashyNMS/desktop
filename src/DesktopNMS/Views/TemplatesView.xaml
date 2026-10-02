@@ -53,7 +53,7 @@
                     <Button Command="{Binding AddTemplateCommand}"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Add alert template">
-                        <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                        <TextBlock Text="+" FontFamily="{StaticResource BodyFont}" FontSize="20" FontWeight="SemiBold" />
                     </Button>
                 </StackPanel>
             </Grid>

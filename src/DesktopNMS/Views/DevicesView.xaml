@@ -133,7 +133,7 @@
                             Command="{Binding AddDeviceCommand}"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Add device">
-                        <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                        <TextBlock Text="+" FontFamily="{StaticResource BodyFont}" FontSize="20" FontWeight="SemiBold" />
                     </Button>
 
                     <!-- A list glyph next to the single "+", for adding many at once. -->

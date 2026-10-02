@@ -55,6 +55,10 @@
 
   <ItemGroup>
     <Resource Include="Assets\app.ico" />
+    <!-- The brand fonts, the same files DashyNMS Mobile ships (#216). -->
+    <Resource Include="Assets\Fonts\*.ttf" />
+    <!-- Their SIL Open Font Licence texts travel with the app, as the licence asks. -->
+    <Content Include="Assets\Fonts\*.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

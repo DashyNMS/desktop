@@ -309,6 +309,8 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
                     ? "9+"
                     : badgeCount.Value.ToString(CultureInfo.InvariantCulture);
 
+                // Segoe UI, not the bundled brand fonts (#216): this is GDI drawing
+                // the tray icon, which only sees installed fonts.
                 using var font = new Font("Segoe UI", badge * (text.Length == 1 ? 0.78f : 0.6f), System.Drawing.FontStyle.Bold, GraphicsUnit.Pixel);
                 using var format = new StringFormat
                 {

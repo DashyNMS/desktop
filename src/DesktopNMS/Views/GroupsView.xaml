@@ -84,7 +84,7 @@
                         Command="{Binding AddGroupCommand}"
                         Style="{StaticResource IconButtonStyle}"
                         ToolTip="Add device group">
-                    <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                    <TextBlock Text="+" FontFamily="{StaticResource BodyFont}" FontSize="20" FontWeight="SemiBold" />
                 </Button>
             </Grid>
         </Border>

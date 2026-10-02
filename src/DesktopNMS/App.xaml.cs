@@ -72,6 +72,8 @@ public partial class App : Application
 
         // Must run before any window (or anything else that applies a style)
         // is constructed - see ApplyTheme's remarks.
+        // The brand fonts (#216), as every element's default - before any window opens.
+        BrandFonts.ApplyAsDefault();
         ApplyTheme(settings.Current.Theme);
         WindowTheming.Register();
 

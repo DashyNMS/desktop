@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.Converters;
 using DesktopNMS.Core.Models;
 using DesktopNMS.ViewModels;
@@ -272,7 +273,7 @@ public sealed class NetworkMapCanvas : FrameworkElement
                 node.Name,
                 CultureInfo.CurrentUICulture,
                 FlowDirection.LeftToRight,
-                new Typeface("Segoe UI"),
+                new Typeface(BrandFonts.Body, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
                 11,
                 Resource("TextPrimaryBrush", Brushes.White),
                 VisualTreeHelper.GetDpi(this).PixelsPerDip);

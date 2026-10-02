@@ -29,7 +29,7 @@
 
                 <TextBlock Grid.Column="1"
                            Text="{Binding Value}"
-                           FontFamily="Consolas, Cascadia Mono, Courier New"
+                           FontFamily="{StaticResource MonoFont}"
                            TextAlignment="Right"
                            VerticalAlignment="Center"
                            Margin="12,0,0,0">

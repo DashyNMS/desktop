@@ -86,7 +86,7 @@
                              AcceptsReturn="True"
                              AcceptsTab="False"
                              TextWrapping="NoWrap"
-                             FontFamily="Consolas"
+                             FontFamily="{StaticResource MonoFont}"
                              Height="140"
                              VerticalContentAlignment="Top"
                              VerticalScrollBarVisibility="Auto"

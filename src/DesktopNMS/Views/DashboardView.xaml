@@ -463,7 +463,8 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding CriticalCount}"
                                            FontSize="26"
-                                           FontWeight="SemiBold"
+                                           FontFamily="{StaticResource DisplayFont}"
+                                           FontWeight="Bold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
@@ -488,7 +489,8 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding WarningCount}"
                                            FontSize="26"
-                                           FontWeight="SemiBold"
+                                           FontFamily="{StaticResource DisplayFont}"
+                                           FontWeight="Bold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
@@ -513,7 +515,8 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding AcknowledgedCount}"
                                            FontSize="26"
-                                           FontWeight="SemiBold"
+                                           FontFamily="{StaticResource DisplayFont}"
+                                           FontWeight="Bold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
@@ -575,7 +578,8 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding UpCount}"
                                            FontSize="22"
-                                           FontWeight="SemiBold"
+                                           FontFamily="{StaticResource DisplayFont}"
+                                           FontWeight="Bold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
@@ -600,7 +604,8 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding DownCount}"
                                            FontSize="22"
-                                           FontWeight="SemiBold"
+                                           FontFamily="{StaticResource DisplayFont}"
+                                           FontWeight="Bold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
@@ -625,7 +630,8 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding MaintenanceCount}"
                                            FontSize="22"
-                                           FontWeight="SemiBold"
+                                           FontFamily="{StaticResource DisplayFont}"
+                                           FontWeight="Bold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
@@ -650,7 +656,8 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding DisabledCount}"
                                            FontSize="22"
-                                           FontWeight="SemiBold"
+                                           FontFamily="{StaticResource DisplayFont}"
+                                           FontWeight="Bold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
@@ -702,7 +709,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="{Binding TotalClientsText}" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Bottom" />
+                    <TextBlock Grid.Column="0" Text="{Binding TotalClientsText}" FontSize="22" FontFamily="{StaticResource DisplayFont}" FontWeight="Bold" VerticalAlignment="Bottom" />
                     <TextBlock Grid.Column="1" VerticalAlignment="Bottom" Margin="6,0,0,3" Style="{StaticResource SubtleTextStyle}">
                         <Run Text="clients ·" /> <Run Text="{Binding ControllersText, Mode=OneWay}" />
                     </TextBlock>

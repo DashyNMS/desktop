@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.Core.CustomMaps;
 using DesktopNMS.Core.Topology;
 using DesktopNMS.Services;
@@ -659,10 +660,10 @@ public sealed class CustomMapCanvas : FrameworkElement
 
         var rows = LinkUtilisation.LegendRows(legend);
         var header = new FormattedText("Legend", CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
-            new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal), fontSize, Brushes.Black, dpi);
+            new Typeface(BrandFonts.Body, FontStyles.Normal, FontWeights.Bold, FontStretches.Normal), fontSize, Brushes.Black, dpi);
 
         var labels = rows.Select(r => new FormattedText(r.Label, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            new Typeface("Consolas"), fontSize, Brushes.Black, dpi)).ToList();
+            new Typeface(BrandFonts.Mono, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.Black, dpi)).ToList();
         var width = Math.Max(header.Width, labels.Count > 0 ? labels.Max(l => l.Width) : 0) + 16;
 
         var bounds = new Rect(origin, new Size(width, rowHeight * (rows.Count + 1)));
@@ -716,7 +717,7 @@ public sealed class CustomMapCanvas : FrameworkElement
         return brush;
     }
 
-    private static FontFamily FontFor(string face) => new(string.IsNullOrWhiteSpace(face) ? "Segoe UI" : face);
+    private static FontFamily FontFor(string face) => string.IsNullOrWhiteSpace(face) ? BrandFonts.Body : new FontFamily(face);
 
     private static string GlyphFor(string? hex) =>
         int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var code) && code is > 0 and < 0x110000

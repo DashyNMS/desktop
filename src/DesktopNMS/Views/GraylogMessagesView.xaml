@@ -258,7 +258,7 @@
                     <TextBox Text="{Binding SelectedMessage.FullText, Mode=OneWay}"
                              IsReadOnly="True"
                              TextWrapping="Wrap"
-                             FontFamily="Consolas"
+                             FontFamily="{StaticResource MonoFont}"
                              VerticalScrollBarVisibility="Auto"
                              Height="170" />
                 </StackPanel>

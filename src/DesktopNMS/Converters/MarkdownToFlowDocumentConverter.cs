@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Media;
+using DesktopNMS.Infrastructure;
 
 namespace DesktopNMS.Converters;
 
@@ -49,7 +50,7 @@ public sealed class MarkdownToFlowDocumentConverter : IValueConverter
 
         var document = new FlowDocument
         {
-            FontFamily = new FontFamily("Segoe UI"),
+            FontFamily = BrandFonts.Body,
             FontSize = 13,
             Foreground = new SolidColorBrush(palette.TextPrimary),
             PagePadding = new System.Windows.Thickness(0),
@@ -171,7 +172,7 @@ public sealed class MarkdownToFlowDocumentConverter : IValueConverter
             {
                 inlines.Add(new Run(code.Groups[1].Value)
                 {
-                    FontFamily = new FontFamily("Consolas"),
+                    FontFamily = BrandFonts.Mono,
                     Background = new SolidColorBrush(palette.SurfaceAlt),
                 });
             }
