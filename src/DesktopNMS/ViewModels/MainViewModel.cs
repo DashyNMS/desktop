@@ -1092,6 +1092,30 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Switches to the Alerts tab with every other filter cleared, showing one
+    /// severity's unacknowledged alerts - or, for <paramref name="severity"/>
+    /// null, every alert including acknowledged ones. Used by the Dashboard's
+    /// Alerts gauge counts (#212).
+    /// </summary>
+    public void ShowAlertsWithSeverity(AlertSeverity? severity)
+    {
+        SelectedTab = MainTab.Alerts;
+        _suppressFilterPersistence = true;
+
+        ShowCritical = severity is null or AlertSeverity.Critical;
+        ShowWarning = severity is null or AlertSeverity.Warning;
+        ShowUnknownSeverity = severity is null;
+        ShowAcknowledged = severity is null;
+        SearchText = string.Empty;
+        FilterRule = null;
+        GroupFilter.SetAllChecked(true, notify: false);
+        SetDeviceFilter(null, null);
+
+        _suppressFilterPersistence = false;
+        OnFilterChanged();
+    }
+
+    /// <summary>
     /// Clears every other filter and shows only this device's alerts via the
     /// Device chip, so every active or acknowledged alert against it is
     /// visible. Used by Device Details' and the Devices tab's "Show alerts".

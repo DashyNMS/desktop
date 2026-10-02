@@ -13,6 +13,77 @@
 
     <UserControl.Resources>
 
+        <!-- ======================== Shared widget row pieces (#212) ======================== -->
+        <!-- Every list widget reads the same way, set by the Top widgets: flat
+             two-line rows that tint on hover and open on click, small headings
+             lined up over right-aligned numbers, and a status dot. -->
+        <Style x:Key="WidgetRowButtonStyle" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="RowBorder" Background="Transparent" CornerRadius="6" Padding="8,5">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource SurfaceAltBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A clickable count (Alerts gauge, Device status): no chrome, a tint on hover. -->
+        <Style x:Key="WidgetCountButtonStyle" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="CountBorder" Background="Transparent" CornerRadius="8" Padding="4,6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CountBorder" Property="Background" Value="{StaticResource SurfaceAltBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="WidgetHeadingStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="WidgetSubtitleStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="14,1,8,0" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="WidgetDotStyle" TargetType="Ellipse">
+            <Setter Property="Width" Value="7" />
+            <Setter Property="Height" Value="7" />
+            <Setter Property="Margin" Value="0,1,7,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- Loading, empty and no-matches messages: centred, subtle, the same everywhere. -->
+        <Style x:Key="WidgetStateTextStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="MaxWidth" Value="260" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+
         <!-- ======================== Sensor widget body ======================== -->
         <!-- Resolved automatically wherever a widget's content is presented via a
              plain ContentControl, based on the bound view model's runtime type. -->
@@ -73,69 +144,76 @@
 
                     <!-- Viewing (not editing): plain, uncluttered sensor readout. -->
                     <Grid Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
-                        <DataGrid x:Name="SensorGrid"
-                                  ItemsSource="{Binding Sensors}"
-                                  Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}"
-                                  IsReadOnly="True"
-                                  HeadersVisibility="Column">
-                            <DataGrid.Columns>
-
-                                <DataGridTemplateColumn Header="Status" Width="90" SortMemberPath="Severity">
-                                    <DataGridTemplateColumn.CellTemplate>
+                        <!-- Two-line rows (#212): device and sensor, with the value
+                             on the right coloured by its severity - no Status column. -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel Margin="-2,0,-2,0">
+                                <Grid Margin="8,0,8,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Device · sensor" Style="{StaticResource WidgetHeadingStyle}" />
+                                    <TextBlock Grid.Column="1" Text="Value" Style="{StaticResource WidgetHeadingStyle}" />
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding Sensors}">
+                                    <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <StackPanel Orientation="Horizontal" Margin="8,0">
-                                                <Ellipse Width="9"
-                                                         Height="9"
-                                                         Margin="0,0,6,0"
-                                                         VerticalAlignment="Center"
-                                                         Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
-                                                <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
-                                            </StackPanel>
+                                            <Button Style="{StaticResource WidgetRowButtonStyle}"
+                                                    Command="{Binding DataContext.OpenDeviceDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    ToolTip="{Binding LastUpdateText}">
+                                                <Button.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Header="Open device in LibreNMS"
+                                                                  Command="{Binding PlacementTarget.Tag.OpenDeviceCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                  CommandParameter="{Binding}" />
+                                                    </ContextMenu>
+                                                </Button.ContextMenu>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+                                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,0">
+                                                        <Ellipse Style="{StaticResource WidgetDotStyle}" Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                        <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding Description}" Style="{StaticResource WidgetSubtitleStyle}" />
+                                                    <TextBlock x:Name="SensorValue" Grid.Column="1" Grid.RowSpan="2" Text="{Binding ValueText}" TextAlignment="Right" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </Button>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding Severity}" Value="Warning">
+                                                    <Setter TargetName="SensorValue" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Severity}" Value="Critical">
+                                                    <Setter TargetName="SensorValue" Property="Foreground" Value="{StaticResource CriticalBrush}" />
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
                                         </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ScrollViewer>
 
-                                <DataGridTextColumn Header="Device" Width="140" Binding="{Binding DeviceName}" />
-                                <DataGridTextColumn Header="Sensor" Width="*" Binding="{Binding Description}" />
-                                <DataGridTextColumn Header="Value" Width="90" Binding="{Binding ValueText}" />
+                        <TextBlock Text="Loading…"
+                                   Style="{StaticResource WidgetStateTextStyle}"
+                                   Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
 
-                            </DataGrid.Columns>
+                        <TextBlock Text="No sensors yet. Click the pencil to add some."
+                                   Style="{StaticResource WidgetStateTextStyle}"
+                                   Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}" />
 
-                            <DataGrid.ContextMenu>
-                                <ContextMenu DataContext="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource Self}}">
-                                    <MenuItem Header="Open device in LibreNMS"
-                                              Command="{Binding ElementName=SensorGrid, Path=DataContext.OpenDeviceCommand}"
-                                              CommandParameter="{Binding}" />
-                                </ContextMenu>
-                            </DataGrid.ContextMenu>
-                        </DataGrid>
-
-                        <TextBlock Text="Loading..."
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   IsHitTestVisible="False"
-                                   Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}"
-                                   Style="{StaticResource SubtleTextStyle}" />
-
-                        <TextBlock Text="Nothing added yet. Click the pencil icon above to add sensors."
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   TextWrapping="Wrap"
-                                   MaxWidth="240"
-                                   TextAlignment="Center"
-                                   IsHitTestVisible="False"
-                                   Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}"
-                                   Style="{StaticResource SubtleTextStyle}" />
-
-                        <TextBlock Text="The sensors added to this widget were not found - they may have been removed."
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   TextWrapping="Wrap"
-                                   MaxWidth="240"
-                                   TextAlignment="Center"
-                                   IsHitTestVisible="False"
-                                   Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}"
-                                   Style="{StaticResource SubtleTextStyle}" />
+                        <TextBlock Text="The sensors on this widget weren't found. They may have been removed."
+                                   Style="{StaticResource WidgetStateTextStyle}"
+                                   Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}" />
                     </Grid>
 
                     <!-- Editing, sensor list: same sensors, each with a Remove button. -->
@@ -230,99 +308,123 @@
 
         <!-- ======================== Alerts widget body ======================== -->
         <!-- A compact feed of alerts fed by the app-wide alert monitor - see
-             AlertsWidgetViewModel. The severity/acknowledged chips are always
-             visible (a viewing preference, not a structural edit), unlike the
-             Sensors widget's "manage" controls which only appear while editing. -->
+             AlertsWidgetViewModel. Its severity and acknowledged toggles are
+             always in the title bar (a viewing preference, not a structural
+             edit), unlike the Sensors widget's "manage" controls which only
+             appear while editing. -->
         <DataTemplate DataType="{x:Type vm:AlertsWidgetViewModel}">
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <Border Grid.Row="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
-                    <StackPanel Orientation="Horizontal">
-                        <ToggleButton Content="Critical"
-                                      Style="{StaticResource ChipToggleStyle}"
-                                      Tag="{StaticResource CriticalBrush}"
-                                      IsChecked="{Binding ShowCritical}"
-                                      PreviewMouseLeftButtonDown="AlertSeverityBadge_PreviewMouseLeftButtonDown"
-                                      ToolTip="Shift-click to show only critical" />
-                        <ToggleButton Content="Warning"
-                                      Style="{StaticResource ChipToggleStyle}"
-                                      Tag="{StaticResource WarningBrush}"
-                                      IsChecked="{Binding ShowWarning}"
-                                      PreviewMouseLeftButtonDown="AlertSeverityBadge_PreviewMouseLeftButtonDown"
-                                      ToolTip="Shift-click to show only warning" />
-                        <ToggleButton Content="Acknowledged"
-                                      Style="{StaticResource ChipToggleStyle}"
-                                      IsChecked="{Binding IncludeAcknowledged}" />
+                <!-- Two-line rows (#212): a severity dot, the device, the alert
+                     underneath and its age on the right. The severity and
+                     acknowledged toggles are in the title bar - see the
+                     AlertsWidgetHeader template below. -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel Margin="-2,0,-2,0">
+                        <Grid Margin="8,0,8,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Device · alert" Style="{StaticResource WidgetHeadingStyle}" />
+                            <TextBlock Grid.Column="1" Text="Age" Style="{StaticResource WidgetHeadingStyle}" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Alerts}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource WidgetRowButtonStyle}"
+                                            Command="{Binding DataContext.OpenDeviceDetailsCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Open alert in LibreNMS"
+                                                          Command="{Binding PlacementTarget.Tag.OpenAlertCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          CommandParameter="{Binding}" />
+                                                <MenuItem Header="Open device in LibreNMS"
+                                                          Command="{Binding PlacementTarget.Tag.OpenDeviceCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          CommandParameter="{Binding}" />
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                        <Grid x:Name="AlertRow">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,0">
+                                                <Ellipse Style="{StaticResource WidgetDotStyle}" Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding RuleName}" Style="{StaticResource WidgetSubtitleStyle}" />
+                                            <TextBlock Grid.Column="1" Grid.RowSpan="2" Text="{Binding AgeText}" TextAlignment="Right" VerticalAlignment="Center" Style="{StaticResource SubtleTextStyle}" />
+                                        </Grid>
+                                    </Button>
+                                    <DataTemplate.Triggers>
+                                        <!-- Acknowledged ones are dimmed, as on the Alerts tab. -->
+                                        <DataTrigger Binding="{Binding IsAcknowledged}" Value="True">
+                                            <Setter TargetName="AlertRow" Property="Opacity" Value="0.6" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
 
-                <Grid Grid.Row="1">
-                    <DataGrid x:Name="AlertsGrid"
-                              ItemsSource="{Binding Alerts}"
-                              Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}"
-                              IsReadOnly="True"
-                              HeadersVisibility="Column">
-                        <DataGrid.Columns>
+                <TextBlock Text="Loading…"
+                           Style="{StaticResource WidgetStateTextStyle}"
+                           Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
 
-                            <DataGridTemplateColumn Header="Status" Width="90" SortMemberPath="Severity">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" Margin="8,0">
-                                            <Ellipse Width="9"
-                                                     Height="9"
-                                                     Margin="0,0,6,0"
-                                                     VerticalAlignment="Center"
-                                                     Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
-                                            <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+                <TextBlock Text="No active alerts."
+                           Style="{StaticResource WidgetStateTextStyle}"
+                           Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}" />
 
-                            <DataGridTextColumn Header="Device" Width="140" Binding="{Binding DeviceName}" />
-                            <DataGridTextColumn Header="Alert" Width="*" Binding="{Binding RuleName}" />
-                            <DataGridTextColumn Header="Age" Width="70" Binding="{Binding AgeText}" />
-
-                        </DataGrid.Columns>
-
-                        <DataGrid.ContextMenu>
-                            <ContextMenu DataContext="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource Self}}">
-                                <MenuItem Header="Open alert in LibreNMS"
-                                          Command="{Binding ElementName=AlertsGrid, Path=DataContext.OpenAlertCommand}"
-                                          CommandParameter="{Binding}" />
-                                <MenuItem Header="Open device in LibreNMS"
-                                          Command="{Binding ElementName=AlertsGrid, Path=DataContext.OpenDeviceCommand}"
-                                          CommandParameter="{Binding}" />
-                            </ContextMenu>
-                        </DataGrid.ContextMenu>
-                    </DataGrid>
-
-                    <TextBlock Text="Loading alerts..."
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}"
-                               Style="{StaticResource SubtleTextStyle}" />
-
-                    <TextBlock Text="No alerts."
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}"
-                               Style="{StaticResource SubtleTextStyle}" />
-
-                    <TextBlock Text="No alerts match the current filters."
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}"
-                               Style="{StaticResource SubtleTextStyle}" />
-                </Grid>
+                <TextBlock Text="No alerts match the toggles above."
+                           Style="{StaticResource WidgetStateTextStyle}"
+                           Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}" />
             </Grid>
+        </DataTemplate>
+
+        <!-- The Alerts widget's title-bar controls (#212): Critical, Warning and
+             Acknowledged toggles, each with its count. Shift-click a severity to
+             show only that one. -->
+        <DataTemplate DataType="{x:Type vm:AlertsWidgetHeader}">
+            <StackPanel Orientation="Horizontal">
+                <ToggleButton Style="{StaticResource ChipToggleStyle}"
+                              Tag="Critical"
+                              Margin="0,0,4,0"
+                              IsChecked="{Binding Widget.ShowCritical}"
+                              PreviewMouseLeftButtonDown="AlertSeverityBadge_PreviewMouseLeftButtonDown"
+                              ToolTip="Critical - shift-click to show only critical">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center" Fill="{StaticResource CriticalBrush}" />
+                        <TextBlock Text="{Binding Widget.CriticalCount}" />
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton Style="{StaticResource ChipToggleStyle}"
+                              Tag="Warning"
+                              Margin="0,0,4,0"
+                              IsChecked="{Binding Widget.ShowWarning}"
+                              PreviewMouseLeftButtonDown="AlertSeverityBadge_PreviewMouseLeftButtonDown"
+                              ToolTip="Warning - shift-click to show only warning">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center" Fill="{StaticResource WarningBrush}" />
+                        <TextBlock Text="{Binding Widget.WarningCount}" />
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton Style="{StaticResource ChipToggleStyle}"
+                              IsChecked="{Binding Widget.IncludeAcknowledged}"
+                              ToolTip="Include acknowledged alerts">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" Margin="0,1,5,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Widget.AcknowledgedCount}" />
+                    </StackPanel>
+                </ToggleButton>
+            </StackPanel>
         </DataTemplate>
 
         <!-- ======================== Alerts gauge widget body ======================== -->
@@ -345,7 +447,8 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Button Grid.Column="0" Style="{StaticResource WidgetCountButtonStyle}" Command="{Binding OpenCriticalCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Viewbox Width="80" Height="80">
                             <Grid Width="100" Height="100">
                                 <Ellipse Width="80"
@@ -360,15 +463,17 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding CriticalCount}"
                                            FontSize="26"
-                                           FontWeight="Bold"
+                                           FontWeight="SemiBold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </Viewbox>
                         <TextBlock Text="Critical" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
                     </StackPanel>
+                    </Button>
 
-                    <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Button Grid.Column="1" Style="{StaticResource WidgetCountButtonStyle}" Command="{Binding OpenWarningCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Viewbox Width="80" Height="80">
                             <Grid Width="100" Height="100">
                                 <Ellipse Width="80"
@@ -383,15 +488,17 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding WarningCount}"
                                            FontSize="26"
-                                           FontWeight="Bold"
+                                           FontWeight="SemiBold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </Viewbox>
                         <TextBlock Text="Warning" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
                     </StackPanel>
+                    </Button>
 
-                    <StackPanel Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Button Grid.Column="2" Style="{StaticResource WidgetCountButtonStyle}" Command="{Binding OpenAllCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Viewbox Width="80" Height="80">
                             <Grid Width="100" Height="100">
                                 <Ellipse Width="80"
@@ -406,13 +513,14 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding AcknowledgedCount}"
                                            FontSize="26"
-                                           FontWeight="Bold"
+                                           FontWeight="SemiBold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </Viewbox>
                         <TextBlock Text="Acknowledged" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
                     </StackPanel>
+                    </Button>
                 </Grid>
 
                 <TextBlock Grid.Row="1"
@@ -427,7 +535,7 @@
                            Margin="0,12,0,0"
                            Style="{StaticResource SubtleTextStyle}"
                            Visibility="{Binding HasNoActiveAlerts, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
-                    <Run Text="{Binding TotalActive, Mode=OneWay}" /><Run Text=" active alert(s)" />
+                    <Run Text="{Binding TotalActiveText, Mode=OneWay}" />
                 </TextBlock>
             </Grid>
         </DataTemplate>
@@ -451,7 +559,8 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Button Grid.Column="0" Style="{StaticResource WidgetCountButtonStyle}" Command="{Binding OpenUpCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Viewbox Width="70" Height="70">
                             <Grid Width="100" Height="100">
                                 <Ellipse Width="80"
@@ -466,15 +575,17 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding UpCount}"
                                            FontSize="22"
-                                           FontWeight="Bold"
+                                           FontWeight="SemiBold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </Viewbox>
                         <TextBlock Text="Up" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
                     </StackPanel>
+                    </Button>
 
-                    <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Button Grid.Column="1" Style="{StaticResource WidgetCountButtonStyle}" Command="{Binding OpenDownCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Viewbox Width="70" Height="70">
                             <Grid Width="100" Height="100">
                                 <Ellipse Width="80"
@@ -489,15 +600,17 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding DownCount}"
                                            FontSize="22"
-                                           FontWeight="Bold"
+                                           FontWeight="SemiBold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </Viewbox>
                         <TextBlock Text="Down" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
                     </StackPanel>
+                    </Button>
 
-                    <StackPanel Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Button Grid.Column="2" Style="{StaticResource WidgetCountButtonStyle}" Command="{Binding OpenMaintenanceCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Viewbox Width="70" Height="70">
                             <Grid Width="100" Height="100">
                                 <Ellipse Width="80"
@@ -512,15 +625,17 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding MaintenanceCount}"
                                            FontSize="22"
-                                           FontWeight="Bold"
+                                           FontWeight="SemiBold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </Viewbox>
                         <TextBlock Text="Maintenance" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
                     </StackPanel>
+                    </Button>
 
-                    <StackPanel Grid.Column="3" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Button Grid.Column="3" Style="{StaticResource WidgetCountButtonStyle}" Command="{Binding OpenDisabledCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Viewbox Width="70" Height="70">
                             <Grid Width="100" Height="100">
                                 <Ellipse Width="80"
@@ -535,17 +650,18 @@
                                       StrokeEndLineCap="Round" />
                                 <TextBlock Text="{Binding DisabledCount}"
                                            FontSize="22"
-                                           FontWeight="Bold"
+                                           FontWeight="SemiBold"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </Viewbox>
                         <TextBlock Text="Disabled" HorizontalAlignment="Center" Margin="0,8,0,0" Style="{StaticResource SubtleTextStyle}" />
                     </StackPanel>
+                    </Button>
                 </Grid>
 
                 <TextBlock Grid.Row="1"
-                           Text="Loading..."
+                           Text="Loading…"
                            HorizontalAlignment="Center"
                            Margin="0,12,0,0"
                            Style="{StaticResource SubtleTextStyle}"
@@ -563,7 +679,7 @@
                            Margin="0,12,0,0"
                            Style="{StaticResource SubtleTextStyle}"
                            Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
-                    <Run Text="{Binding TotalCount, Mode=OneWay}" /><Run Text=" device(s) total" />
+                    <Run Text="{Binding TotalText, Mode=OneWay}" />
                 </TextBlock>
             </Grid>
         </DataTemplate>
@@ -573,73 +689,128 @@
              state dot, name, APs, clients. A line opens the controller's
              Device Details on its Wireless section. -->
         <DataTemplate DataType="{x:Type vm:WirelessWidgetViewModel}">
-            <Grid Margin="8">
+            <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="4,0,4,8" Visibility="{Binding HasControllers, Converter={StaticResource BoolToVisibility}}">
+                <!-- The fleet's clients, then one row per controller in the shared row style (#212). -->
+                <Grid Grid.Row="0" Margin="8,0,8,6" Visibility="{Binding HasControllers, Converter={StaticResource BoolToVisibility}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="{Binding TotalClientsText}" FontSize="26" FontWeight="Bold" VerticalAlignment="Bottom" />
-                    <TextBlock Grid.Column="1" Text="clients" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Bottom" Margin="6,0,0,4" />
-                    <TextBlock Grid.Column="2" Text="{Binding ControllersText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Bottom" Margin="0,0,0,4" />
+                    <TextBlock Grid.Column="0" Text="{Binding TotalClientsText}" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Bottom" />
+                    <TextBlock Grid.Column="1" VerticalAlignment="Bottom" Margin="6,0,0,3" Style="{StaticResource SubtleTextStyle}">
+                        <Run Text="clients ·" /> <Run Text="{Binding ControllersText, Mode=OneWay}" />
+                    </TextBlock>
                 </Grid>
 
-                <Grid Grid.Row="1" Margin="10,0,10,4" Visibility="{Binding HasControllers, Converter={StaticResource BoolToVisibility}}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="60" />
-                        <ColumnDefinition Width="70" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Controller" Style="{StaticResource SubtleTextStyle}" FontSize="11" />
-                    <TextBlock Grid.Column="1" Text="APs" Style="{StaticResource SubtleTextStyle}" FontSize="11" TextAlignment="Right" />
-                    <TextBlock Grid.Column="2" Text="Clients" Style="{StaticResource SubtleTextStyle}" FontSize="11" TextAlignment="Right" />
-                </Grid>
-
-                <ScrollViewer Grid.Row="2"
+                <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Auto"
                               Visibility="{Binding HasControllers, Converter={StaticResource BoolToVisibility}}">
-                    <ItemsControl ItemsSource="{Binding Controllers}">
+                    <StackPanel Margin="-2,0,-2,0">
+                        <Grid Margin="8,0,8,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="56" />
+                                <ColumnDefinition Width="70" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Controller" Style="{StaticResource WidgetHeadingStyle}" />
+                            <TextBlock Grid.Column="1" Text="APs" TextAlignment="Right" Style="{StaticResource WidgetHeadingStyle}" />
+                            <TextBlock Grid.Column="2" Text="Clients" TextAlignment="Right" Style="{StaticResource WidgetHeadingStyle}" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Controllers}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource WidgetRowButtonStyle}"
+                                            Command="{Binding DataContext.OpenDeviceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip="{Binding ToolTip}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="56" />
+                                                <ColumnDefinition Width="70" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                                <Ellipse Style="{StaticResource WidgetDotStyle}" Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="Down"
+                                                       Foreground="{StaticResource CriticalBrush}"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Margin="8,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       Visibility="{Binding IsDown, Converter={StaticResource BoolToVisibility}}" />
+                                            <TextBlock Grid.Column="2" Text="{Binding ApText}" TextAlignment="Right" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="3" Text="{Binding ClientsText}" TextAlignment="Right" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <TextBlock Grid.Row="1"
+                           Text="Loading…"
+                           Style="{StaticResource WidgetStateTextStyle}"
+                           Visibility="{Binding ShowLoading, Converter={StaticResource BoolToVisibility}}" />
+
+                <TextBlock Grid.Row="1"
+                           Text="No devices report wireless data."
+                           Style="{StaticResource WidgetStateTextStyle}"
+                           Visibility="{Binding ShowEmptyMessage, Converter={StaticResource BoolToVisibility}}" />
+
+                <!-- Errors at the foot, as on every widget - the last data stays visible. -->
+                <TextBlock Grid.Row="2"
+                           Text="{Binding ErrorMessage}"
+                           Margin="12,0,12,6"
+                           FontSize="11"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource CriticalBrush}"
+                           Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- ======================== Recently viewed widget body ======================== -->
+        <!-- Same data as the Devices tab's own recently-viewed strip, as rows in
+             the shared style (#212): status dot, name, hardware and location,
+             and when it was opened. -->
+        <DataTemplate DataType="{x:Type vm:RecentlyViewedWidgetViewModel}">
+            <Grid>
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}}">
+                    <ItemsControl ItemsSource="{Binding Devices}" Margin="-2,0,-2,0">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Button Command="{Binding DataContext.OpenDeviceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                        CommandParameter="{Binding}"
-                                        ToolTip="{Binding ToolTip}"
-                                        HorizontalAlignment="Stretch"
-                                        HorizontalContentAlignment="Stretch"
-                                        Padding="10,7"
-                                        Margin="0,0,0,4">
+                                <Button Style="{StaticResource WidgetRowButtonStyle}" Command="{Binding OpenCommand}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="60" />
-                                            <ColumnDefinition Width="70" />
                                         </Grid.ColumnDefinitions>
-                                        <Ellipse Grid.Column="0"
-                                                 Width="9"
-                                                 Height="9"
-                                                 Margin="0,0,8,0"
-                                                 VerticalAlignment="Center"
-                                                 Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="2"
-                                                   Text="Down"
-                                                   Foreground="{StaticResource CriticalBrush}"
-                                                   FontSize="11"
-                                                   FontWeight="SemiBold"
-                                                   Margin="8,0,0,0"
-                                                   VerticalAlignment="Center"
-                                                   Visibility="{Binding IsDown, Converter={StaticResource BoolToVisibility}}" />
-                                        <TextBlock Grid.Column="3" Text="{Binding ApText}" TextAlignment="Right" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="4" Text="{Binding ClientsText}" TextAlignment="Right" VerticalAlignment="Center" />
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,0">
+                                            <Ellipse Style="{StaticResource WidgetDotStyle}"
+                                                     Fill="{Binding State, Converter={StaticResource DeviceStateToBrush}}"
+                                                     Visibility="{Binding HasState, Converter={StaticResource BoolToVisibility}}" />
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Row="1"
+                                                   Text="{Binding Subtitle}"
+                                                   Style="{StaticResource WidgetSubtitleStyle}"
+                                                   Visibility="{Binding HasSubtitle, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Grid.Column="1" Grid.RowSpan="2" Text="{Binding ViewedText}" VerticalAlignment="Center" Style="{StaticResource SubtleTextStyle}" />
                                     </Grid>
                                 </Button>
                             </DataTemplate>
@@ -647,60 +818,8 @@
                     </ItemsControl>
                 </ScrollViewer>
 
-                <TextBlock Grid.Row="2"
-                           Text="Finding wireless controllers..."
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           IsHitTestVisible="False"
-                           Style="{StaticResource SubtleTextStyle}"
-                           Visibility="{Binding ShowLoading, Converter={StaticResource BoolToVisibility}}" />
-
-                <TextBlock Grid.Row="2"
-                           Text="No devices report wireless data."
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           IsHitTestVisible="False"
-                           Style="{StaticResource SubtleTextStyle}"
-                           Visibility="{Binding ShowEmptyMessage, Converter={StaticResource BoolToVisibility}}" />
-
-                <TextBlock Grid.Row="2"
-                           Text="{Binding ErrorMessage}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           TextWrapping="Wrap"
-                           IsHitTestVisible="False"
-                           Foreground="{StaticResource CriticalBrush}"
-                           Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
-            </Grid>
-        </DataTemplate>
-
-        <!-- ======================== Recently viewed widget body ======================== -->
-        <!-- Same data as the Devices tab's own recently-viewed strip, just a
-             vertical list here rather than a horizontal row of chips - reads
-             better in a typically-tall-rather-than-wide widget. -->
-        <DataTemplate DataType="{x:Type vm:RecentlyViewedWidgetViewModel}">
-            <Grid>
-                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}}">
-                    <ItemsControl ItemsSource="{Binding Devices}" Margin="8">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Content="{Binding DisplayName}"
-                                        Command="{Binding OpenCommand}"
-                                        HorizontalAlignment="Stretch"
-                                        HorizontalContentAlignment="Left"
-                                        Padding="10,7"
-                                        Margin="0,0,0,4" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-
-                <TextBlock Text="No devices viewed yet."
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           IsHitTestVisible="False"
-                           Style="{StaticResource SubtleTextStyle}"
+                <TextBlock Text="No devices viewed yet. Devices you open appear here."
+                           Style="{StaticResource WidgetStateTextStyle}"
                            Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
             </Grid>
         </DataTemplate>
@@ -856,7 +975,7 @@
                         </StackPanel>
                     </ScrollViewer>
 
-                    <TextBlock Text="Loading..."
+                    <TextBlock Text="Loading…"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                Style="{StaticResource SubtleTextStyle}"
@@ -960,46 +1079,62 @@
         </DataTemplate>
 
         <!-- ======================== Pinned devices widget body ======================== -->
-        <!-- Same data as the Devices tab's own pinned/starred devices, with its
-             own Unpin button so a device can be un-favourited from here too. -->
+        <!-- Same data as the Devices tab's own pinned/starred devices, as rows in
+             the shared style (#212), with Unpin on hover so a device can be
+             un-favourited from here too. -->
         <DataTemplate DataType="{x:Type vm:PinnedDevicesWidgetViewModel}">
             <Grid>
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}}">
-                    <ItemsControl ItemsSource="{Binding Devices}" Margin="8">
+                    <ItemsControl ItemsSource="{Binding Devices}" Margin="-2,0,-2,0">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Grid Margin="0,0,0,4">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0"
-                                            Content="{Binding DisplayName}"
-                                            Command="{Binding OpenCommand}"
-                                            HorizontalAlignment="Stretch"
-                                            HorizontalContentAlignment="Left"
-                                            Padding="10,7" />
-                                    <Button Grid.Column="1"
+                                <!-- The row, with Unpin over its right-hand end, shown on hover. -->
+                                <Grid x:Name="PinnedRow" Background="Transparent">
+                                    <Button Style="{StaticResource WidgetRowButtonStyle}" Command="{Binding OpenCommand}">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,32,0">
+                                                <Ellipse Style="{StaticResource WidgetDotStyle}"
+                                                         Fill="{Binding State, Converter={StaticResource DeviceStateToBrush}}"
+                                                         Visibility="{Binding HasState, Converter={StaticResource BoolToVisibility}}" />
+                                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Row="1"
+                                                       Text="{Binding Subtitle}"
+                                                       Style="{StaticResource WidgetSubtitleStyle}"
+                                                       Margin="14,1,32,0"
+                                                       Visibility="{Binding HasSubtitle, Converter={StaticResource BoolToVisibility}}" />
+                                        </Grid>
+                                    </Button>
+                                    <Button x:Name="UnpinButton"
                                             Command="{Binding UnpinCommand}"
                                             Style="{StaticResource IconButtonStyle}"
-                                            Width="30"
-                                            Height="30"
-                                            Margin="4,0,0,0"
+                                            Width="28"
+                                            Height="28"
+                                            Margin="0,0,4,0"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Visibility="Hidden"
                                             ToolTip="Unpin this device">
-                                        <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                                        <TextBlock Text="&#xE77A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
                                     </Button>
                                 </Grid>
+                                <DataTemplate.Triggers>
+                                    <Trigger SourceName="PinnedRow" Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="UnpinButton" Property="Visibility" Value="Visible" />
+                                    </Trigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
 
-                <TextBlock Text="No pinned devices yet."
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           IsHitTestVisible="False"
-                           Style="{StaticResource SubtleTextStyle}"
+                <TextBlock Text="No pinned devices yet. Star a device on the Devices tab to pin it."
+                           Style="{StaticResource WidgetStateTextStyle}"
                            Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
             </Grid>
         </DataTemplate>
@@ -1140,7 +1275,7 @@
                                          VerticalAlignment="Stretch" />
                     </Button>
 
-                    <TextBlock Text="Loading..."
+                    <TextBlock Text="Loading…"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                IsHitTestVisible="False"
@@ -1157,7 +1292,7 @@
                                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}"
                                Style="{StaticResource SubtleTextStyle}" />
 
-                    <TextBlock Text="Click the edit icon above to choose a device and graph."
+                    <TextBlock Text="No graph yet. Click the pencil to choose a device and graph."
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                TextWrapping="Wrap"

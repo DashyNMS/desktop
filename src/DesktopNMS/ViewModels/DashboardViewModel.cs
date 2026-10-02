@@ -107,6 +107,22 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
         AddWidgetCommand = new RelayCommand(AddWidget);
 
+        // A widget row (a sensor, an alert) opens Device Details - staying in the app (#212).
+        OpenDeviceDetailsCommand = new RelayCommand(parameter =>
+        {
+            var deviceId = parameter switch
+            {
+                SensorItemViewModel sensor => sensor.DeviceId,
+                AlertItemViewModel alert => alert.DeviceId,
+                _ => 0,
+            };
+
+            if (deviceId > 0)
+            {
+                _windows.ShowDeviceDetail(deviceId);
+            }
+        });
+
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
         SyncWidgets();
@@ -122,6 +138,9 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
     /// <summary>"Add widget": the picker (#204), then the chosen widget is added, scrolled to and briefly highlighted.</summary>
     public RelayCommand AddWidgetCommand { get; }
+
+    /// <summary>Opens Device Details for a widget row's device.</summary>
+    public RelayCommand OpenDeviceDetailsCommand { get; }
 
     /// <summary>Raised with a just-added widget, so the view can scroll it into sight.</summary>
     public event EventHandler<DashboardWidgetViewModel>? WidgetAdded;
@@ -386,10 +405,10 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     private DashboardWidgetViewModel CreateWidgetViewModel(DashboardWidget model) => model.WidgetType switch
     {
         "Alerts" => new AlertsWidgetViewModel(_layout, model, _alertMonitor, _session, _settings, _devices, _windows),
-        "AlertsGauge" => new AlertsGaugeWidgetViewModel(_layout, model, _alertMonitor),
-        "DeviceStatus" => new DeviceStatusWidgetViewModel(_layout, model, _deviceMonitor),
-        "RecentlyViewed" => new RecentlyViewedWidgetViewModel(_layout, model, _settings, deviceId => _windows.ShowDeviceDetail(deviceId)),
-        "PinnedDevices" => new PinnedDevicesWidgetViewModel(_layout, model, _settings, deviceId => _windows.ShowDeviceDetail(deviceId)),
+        "AlertsGauge" => new AlertsGaugeWidgetViewModel(_layout, model, _alertMonitor, _windows),
+        "DeviceStatus" => new DeviceStatusWidgetViewModel(_layout, model, _deviceMonitor, _windows),
+        "RecentlyViewed" => new RecentlyViewedWidgetViewModel(_layout, model, _settings, _devices, _deviceMonitor, deviceId => _windows.ShowDeviceDetail(deviceId)),
+        "PinnedDevices" => new PinnedDevicesWidgetViewModel(_layout, model, _settings, _devices, _deviceMonitor, deviceId => _windows.ShowDeviceDetail(deviceId)),
         "Graph" => new GraphWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger, (deviceId, graphName) => _windows.ShowDeviceGraph(deviceId, graphName)),
         "Wireless" => new WirelessWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger, deviceId => _windows.ShowDeviceWireless(deviceId)),
         DashboardWidgetTypes.TopInterfaces => new TopInterfacesWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),

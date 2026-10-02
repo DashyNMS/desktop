@@ -311,12 +311,13 @@ public partial class DashboardView : UserControl
             return;
         }
 
-        if (((FrameworkElement)sender).DataContext is not AlertsWidgetViewModel widget)
+        // The toggles live in the title bar (#212), with the header as their DataContext.
+        if (((FrameworkElement)sender).DataContext is not AlertsWidgetHeader { Widget: var widget })
         {
             return;
         }
 
-        var severity = ((ToggleButton)sender).Content as string == "Critical"
+        var severity = ((ToggleButton)sender).Tag as string == "Critical"
             ? AlertSeverity.Critical
             : AlertSeverity.Warning;
 
