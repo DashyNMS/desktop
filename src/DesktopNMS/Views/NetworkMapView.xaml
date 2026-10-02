@@ -112,7 +112,8 @@
                                             Nodes="{Binding Nodes}"
                                             Edges="{Binding Edges}"
                                             SelectedNode="{Binding SelectedNode}"
-                                            RenderVersion="{Binding RenderVersion}" />
+                                            RenderVersion="{Binding RenderVersion}"
+                                            JiggleEnabled="{Binding JigglePhysics}" />
 
                     <views:LoadingOverlay Text="{Binding LoadingText}"
                                           Visibility="{Binding ShowLoading, Converter={StaticResource BoolToVisibility}}" />

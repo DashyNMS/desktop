@@ -724,6 +724,19 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16">
+                            <StackPanel>
+                                <CheckBox Content="Jiggle physics on maps" IsChecked="{Binding JigglePhysicsOnMaps}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Nodes wobble like jelly when you drag them on the network map or a custom map, and their links bow and settle. Just for fun: a node is always saved where you drop it. Nothing moves while Windows animations are turned off." />
+                            </StackPanel>
+                        </Border>
+
                         <!-- One aligned table (label / slider / typed value) for
                              Red, Green, Blue and Hex, rather than each channel
                              getting its own full-width header-plus-row - reads
