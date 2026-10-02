@@ -10,153 +10,14 @@
              d:DataContext="{d:DesignInstance Type=vm:NeighboursViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100">
 
-    <!-- The Neighbours tab (#55) - see NeighboursViewModel. Two modes: the
-         table of every view (where clicking the tab lands), and one view
-         open - what the switches see over LLDP/CDP that matches its rules,
-         with the selected neighbour's port graphs underneath. -->
+    <!-- The Neighbours tab (#55, #221) - see NeighboursViewModel. Every
+         neighbour the switches see over LLDP/CDP, narrowed by a neighbourhood
+         chip, search and the state chips, with the selected neighbour's port
+         graphs underneath. -->
     <Grid>
 
-        <!-- ======================== Table of views ======================== -->
-        <Grid Visibility="{Binding IsViewListMode, Converter={StaticResource BoolToVisibility}}">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-
-            <!-- Search + add, right-aligned - the Locations tab's bar. -->
-            <Border Grid.Row="0"
-                    Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="0,0,0,1"
-                    Padding="18,12">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBox x:Name="ViewSearchBox"
-                                 Width="240"
-                                 Style="{StaticResource SearchTextBoxStyle}"
-                                 Tag="Search views"
-                                 Text="{Binding ViewSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                                 ToolTip="Filter by name or rules"
-                                 Margin="0,0,8,0" />
-                        <Button Command="{Binding ClearViewSearchCommand}"
-                                Style="{StaticResource IconButtonStyle}"
-                                ToolTip="Clear search"
-                                Visibility="{Binding HasViewSearch, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
-                        </Button>
-                    </StackPanel>
-
-                    <Rectangle Grid.Column="2" Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
-
-                    <Button Grid.Column="3"
-                            Command="{Binding NewViewCommand}"
-                            Style="{StaticResource IconButtonStyle}"
-                            ToolTip="New view">
-                        <TextBlock Text="+" FontFamily="{StaticResource BodyFont}" FontSize="20" FontWeight="SemiBold" />
-                    </Button>
-                </Grid>
-            </Border>
-
-            <Grid Grid.Row="1">
-                <DataGrid ItemsSource="{Binding ViewRowsView}"
-                          IsReadOnly="True"
-                          Visibility="{Binding HasViews, Converter={StaticResource BoolToVisibility}}">
-                    <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="Name" Width="240" SortMemberPath="Name">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBlock Margin="10,0" VerticalAlignment="Center" Cursor="Hand" TextTrimming="CharacterEllipsis">
-                                        <Hyperlink Command="{Binding DataContext.SelectViewCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                   CommandParameter="{Binding}"
-                                                   ToolTip="Open this view">
-                                            <Run Text="{Binding Name, Mode=OneWay}" />
-                                        </Hyperlink>
-                                    </TextBlock>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-
-                        <DataGridTemplateColumn Header="Rules" Width="*" MinWidth="200" SortMemberPath="RulesText">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding RulesText}" ToolTip="{Binding RulesText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="10,0" />
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-
-                        <DataGridTextColumn Header="Neighbours" Width="100" Binding="{Binding MatchCountText}" SortMemberPath="MatchCount">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="TextAlignment" Value="Right" />
-                                    <Setter Property="Margin" Value="0,0,10,0" />
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-
-                        <DataGridTextColumn Header="On map" Width="80" Binding="{Binding OnMapText}" />
-
-                        <DataGridTemplateColumn Header="" Width="90" CanUserSort="False">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" Margin="6,0">
-                                        <Button Command="{Binding DataContext.EditViewCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"
-                                                Style="{StaticResource IconButtonStyle}"
-                                                Width="28"
-                                                Height="28"
-                                                ToolTip="Edit this view">
-                                            <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
-                                        </Button>
-                                        <Button Command="{Binding DataContext.DeleteViewCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"
-                                                Style="{StaticResource IconButtonStyle}"
-                                                Width="28"
-                                                Height="28"
-                                                ToolTip="Delete this view"
-                                                Foreground="{StaticResource CriticalBrush}">
-                                            <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
-                                        </Button>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                    </DataGrid.Columns>
-                </DataGrid>
-
-                <TextBlock Text="No views match your search."
-                           Style="{StaticResource SubtleTextStyle}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Visibility="{Binding ShowNoViewMatches, Converter={StaticResource BoolToVisibility}}" />
-
-                <!-- No views yet. -->
-                <StackPanel HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            MaxWidth="460"
-                            Visibility="{Binding HasViews, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
-                    <TextBlock Text="No neighbour views yet" Style="{StaticResource HeadingTextStyle}" HorizontalAlignment="Center" />
-                    <TextBlock Style="{StaticResource SubtleTextStyle}"
-                               TextWrapping="Wrap"
-                               TextAlignment="Center"
-                               Margin="0,8,0,16"
-                               Text="Filter what your switches discover over LLDP and CDP into views of your own. A view lists every neighbour whose LLDP details - system name, system description, port ID, or the switch and port it's connected to - match the rules you set." />
-                    <Button Content="New view"
-                            Command="{Binding NewViewCommand}"
-                            Style="{StaticResource PrimaryButtonStyle}"
-                            HorizontalAlignment="Center" />
-                </StackPanel>
-            </Grid>
-        </Grid>
-
-        <!-- ======================== One view ======================== -->
-        <Grid Visibility="{Binding HasSelectedView, Converter={StaticResource BoolToVisibility}}">
+        <!-- ======================== Neighbours and neighbourhoods ======================== -->
+        <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -175,60 +36,91 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
+                    <!-- Neighbourhoods (#221): All, then each one with its count.
+                         Right-click one to edit, delete, move it or show it on
+                         the network map; + on the right makes a new one. -->
+                    <ItemsControl Grid.Row="0" Grid.Column="0" ItemsSource="{Binding Neighbourhoods}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <RadioButton GroupName="Neighbourhoods"
+                                             Style="{StaticResource ChipToggleStyle}"
+                                             IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                             Command="{Binding DataContext.SelectViewCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                             CommandParameter="{Binding}"
+                                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                             ToolTip="{Binding RulesText}"
+                                             Margin="0,0,6,6">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Name}" />
+                                        <TextBlock Text="{Binding CountText}" Margin="6,0,0,0" Opacity="0.7" />
+                                    </StackPanel>
+                                    <RadioButton.ContextMenu>
+                                        <ContextMenu Visibility="{Binding IsNeighbourhood, Converter={StaticResource BoolToVisibility}}">
+                                            <MenuItem Header="Edit…"
+                                                      Command="{Binding PlacementTarget.Tag.EditViewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding}" />
+                                            <MenuItem Header="Show on network map"
+                                                      IsCheckable="False"
+                                                      IsChecked="{Binding ShowsOnMap, Mode=OneWay}"
+                                                      Command="{Binding PlacementTarget.Tag.ToggleShowOnMapCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding}" />
+                                            <Separator />
+                                            <MenuItem Header="Move left"
+                                                      IsEnabled="{Binding CanMoveLeft}"
+                                                      Command="{Binding PlacementTarget.Tag.MoveLeftCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding}" />
+                                            <MenuItem Header="Move right"
+                                                      IsEnabled="{Binding CanMoveRight}"
+                                                      Command="{Binding PlacementTarget.Tag.MoveRightCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding}" />
+                                            <Separator />
+                                            <MenuItem Header="Delete"
+                                                      Foreground="{StaticResource CriticalBrush}"
+                                                      Command="{Binding PlacementTarget.Tag.DeleteViewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      CommandParameter="{Binding}" />
+                                        </ContextMenu>
+                                    </RadioButton.ContextMenu>
+                                </RadioButton>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
                     <Button Grid.Row="0"
-                            Grid.Column="0"
-                            Command="{Binding ShowViewListCommand}"
+                            Grid.Column="1"
+                            Command="{Binding NewViewCommand}"
                             Style="{StaticResource IconButtonStyle}"
-                            ToolTip="All views"
-                            VerticalAlignment="Center"
-                            Margin="0,0,10,0">
-                        <TextBlock Text="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" />
+                            ToolTip="New neighbourhood"
+                            VerticalAlignment="Top"
+                            Margin="12,0,0,0">
+                        <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
                     </Button>
 
-                    <StackPanel Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Text="{Binding SelectedView.Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding ViewRulesText}" Style="{StaticResource SubtleTextStyle}" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
-                    </StackPanel>
-
-                    <!-- Search, then the view's own edit and delete. -->
-                    <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Search, the state chips (shift-click shows only that one) and the count. -->
+                    <WrapPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,6,0,0">
                         <TextBox x:Name="SearchBox"
-                                 Width="240"
+                                 Width="300"
                                  Style="{StaticResource SearchTextBoxStyle}"
-                                 Tag="Search"
+                                 Tag="Search name, description, IP, switch, port or MAC"
                                  Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
                                  ToolTip="Filter by name, description, IP, switch, port or MAC"
                                  Margin="0,0,8,0" />
                         <Button Command="{Binding ClearFiltersCommand}"
                                 Style="{StaticResource IconButtonStyle}"
                                 ToolTip="Clear search and filters"
+                                Margin="0,0,12,0"
                                 Visibility="{Binding HasAnyFilterApplied, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
                         </Button>
 
-                        <Rectangle Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
-
-                        <Button Command="{Binding EditViewCommand}"
-                                Style="{StaticResource IconButtonStyle}"
-                                ToolTip="Edit this view's name and rules"
-                                Margin="0,0,4,0">
-                            <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
-                        </Button>
-                        <Button Command="{Binding DeleteViewCommand}"
-                                Style="{StaticResource IconButtonStyle}"
-                                ToolTip="Delete this view"
-                                Foreground="{StaticResource CriticalBrush}">
-                            <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
-                        </Button>
-                    </StackPanel>
-
-                    <!-- State pills - shift-click shows only that one. -->
-                    <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,12,0,0">
                         <ToggleButton IsChecked="{Binding ShowUp}" Tag="{x:Static vm:NeighbourState.Up}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide those that are up (shift-click to show only these)" Margin="0,0,10,0">
                             <StackPanel Orientation="Horizontal">
                                 <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
@@ -244,6 +136,7 @@
                             </StackPanel>
                         </ToggleButton>
                         <ToggleButton IsChecked="{Binding ShowOther}" Tag="{x:Static vm:NeighbourState.Other}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide shut-down ports, disabled or in-maintenance devices, and ones LibreNMS no longer sees (shift-click to show only these)"
+                                      Margin="0,0,10,0"
                                       Visibility="{Binding HasOther, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Orientation="Horizontal">
                                 <Ellipse Width="9" Height="9" Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
@@ -251,7 +144,9 @@
                                 <TextBlock Text="other" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                             </StackPanel>
                         </ToggleButton>
-                    </StackPanel>
+
+                        <TextBlock Text="{Binding CountText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="4,0,0,0" />
+                    </WrapPanel>
                 </Grid>
             </Border>
 
@@ -368,7 +263,7 @@
                            VerticalAlignment="Center"
                            Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
 
-                <TextBlock Text="Nothing your switches see matches this view's rules."
+                <TextBlock Text="Nothing your switches see matches this neighbourhood's rules."
                            Style="{StaticResource SubtleTextStyle}"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"

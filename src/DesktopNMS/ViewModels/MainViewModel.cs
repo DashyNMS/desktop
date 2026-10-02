@@ -193,7 +193,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectNeighboursTabCommand = new RelayCommand(() =>
         {
             SelectedTab = MainTab.Neighbours;
-            _neighbours.ShowViewList();
+            _neighbours.ShowAll();
         });
         SelectNeighbourViewCommand = new RelayCommand(parameter =>
         {

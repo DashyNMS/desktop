@@ -54,7 +54,7 @@ public interface IWindowService
     /// <summary>Shows the main window on a Neighbours view (#55), with this neighbour selected if one is named and listed - the MAC picks out which of several unnamed ones.</summary>
     void ShowNeighbour(string viewId, string? name, string? mac = null);
 
-    /// <summary>The Neighbours tab's New view (<paramref name="existing"/> null) or Edit view dialog - the saved view, or null if cancelled.</summary>
+    /// <summary>The Neighbours tab's New neighbourhood (<paramref name="existing"/> null) or Edit neighbourhood dialog - the saved neighbourhood, or null if cancelled.</summary>
     NeighbourViewDefinition? ShowNeighbourViewEditor(NeighbourViewDefinition? existing);
 
     /// <summary>Closes a device's detail window if it is currently open - a no-op otherwise.</summary>
