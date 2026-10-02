@@ -11,10 +11,12 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Threading;
+using DesktopNMS.Core;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Core.Topology;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
@@ -43,6 +45,21 @@ public enum DeviceDetailSection
 
     /// <summary>Config backups via Unimus (issue #115) - only meaningful once the integration is set up in Settings.</summary>
     Config,
+
+    /// <summary>This device's Graylog messages (issue #114) - only shown once Graylog is set up in Settings.</summary>
+    Graylog,
+
+    /// <summary>ENTITY-MIB physical inventory (#164) - chassis, slots, power supplies, fans, modules.</summary>
+    Inventory,
+
+    /// <summary>BGP sessions, OSPF neighbours and VRFs (#53).</summary>
+    Routing,
+
+    /// <summary>Wireless readings (#55) - AP and client counts, signal, noise, ...</summary>
+    Wireless,
+
+    /// <summary>What the device is connected to, over LLDP/CDP from either side, matched to LibreNMS devices.</summary>
+    Neighbours,
 }
 
 /// <summary>
@@ -67,6 +84,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private readonly IWindowService _windows;
     private readonly IUnimusApi _unimus;
     private readonly IUnimusDeviceResolver _unimusResolver;
+    private readonly IDeviceCache _deviceCache;
+    private readonly IFleetLinks _fleetLinks;
     private readonly ILogger<DeviceDetailViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, SensorItemViewModel> _sensorIndex = new();
@@ -208,6 +227,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         IWindowService windows,
         IUnimusApi unimus,
         IUnimusDeviceResolver unimusResolver,
+        IGraylogApi graylog,
+        IFleetLinks fleetLinks,
         ILogger<DeviceDetailViewModel> logger)
     {
         _deviceId = deviceId;
@@ -221,6 +242,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _windows = windows;
         _unimus = unimus;
         _unimusResolver = unimusResolver;
+        _deviceCache = deviceCache;
+        _fleetLinks = fleetLinks;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -242,6 +265,22 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         ConfigBackups = new ObservableCollection<UnimusBackupItemViewModel>();
         PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
         Graphs = new GraphsSectionViewModel(deviceId, client, logger);
+        PortGraphs = new PortGraphsPanelViewModel(client, settings, logger);
+        Graylog = GraylogMessagesViewModel.ForDevice(deviceId, () => _device, graylog, client, deviceCache, settings, windows, logger, _loadCts.Token);
+        Graylog.PropertyChanged += OnGraylogPropertyChanged;
+        Inventory = new InventorySectionViewModel(deviceId, client, logger, _loadCts.Token);
+        Inventory.PropertyChanged += OnInventoryPropertyChanged;
+        Routing = new RoutingSectionViewModel(deviceId, client, logger, _loadCts.Token);
+        Routing.PropertyChanged += OnRoutingPropertyChanged;
+        Wireless = new WirelessSectionViewModel(deviceId, client, logger, _loadCts.Token, ShowGraph);
+        Wireless.PropertyChanged += OnWirelessPropertyChanged;
+
+        HealthGroup = new DeviceNavGroup(DeviceNavGroup.Health, settings, () => SelectedSection is DeviceDetailSection.Sensors or DeviceDetailSection.Graphs);
+        HardwareGroup = new DeviceNavGroup(DeviceNavGroup.Hardware, settings, () => SelectedSection is DeviceDetailSection.Resources or DeviceDetailSection.Inventory);
+        NetworkGroup = new DeviceNavGroup(DeviceNavGroup.Network, settings, () => SelectedSection is DeviceDetailSection.Ports or DeviceDetailSection.Neighbours or DeviceDetailSection.Vlans or DeviceDetailSection.Fdb or DeviceDetailSection.Arp or DeviceDetailSection.Routing or DeviceDetailSection.Wireless);
+        LogsGroup = new DeviceNavGroup(DeviceNavGroup.Logs, settings, () => SelectedSection is DeviceDetailSection.Alerts or DeviceDetailSection.EventLog);
+        IntegrationsGroup = new DeviceNavGroup(DeviceNavGroup.Integrations, settings, () => SelectedSection is DeviceDetailSection.Graylog or DeviceDetailSection.Config);
+        LogsGroup.PropertyChanged += (_, _) => OnPropertyChanged(nameof(ShowCollapsedAlertBadge));
 
         // Ping response is the one graph essentially every monitored
         // device has (unlike processor/storage, which only some do), so
@@ -288,6 +327,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectPortsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Ports);
         SelectResourcesCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Resources);
         SelectVlansCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Vlans);
+        SelectNeighboursCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Neighbours);
         SelectFdbCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Fdb);
         SelectArpCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Arp);
         SelectGraphsCommand = new RelayCommand(() =>
@@ -302,6 +342,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SelectAlertsCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Alerts);
         SelectEventLogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.EventLog);
         SelectConfigCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Config);
+        SelectGraylogCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Graylog);
+        SelectInventoryCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Inventory);
+        SelectRoutingCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Routing);
+        SelectWirelessCommand = new RelayCommand(() => SelectedSection = DeviceDetailSection.Wireless);
         BackupNowCommand = new AsyncRelayCommand(BackupNowAsync, () => !IsBackingUpNow && HasUnimusMatch);
         RefreshConfigCommand = new AsyncRelayCommand(LoadConfigAsync, () => !IsLoadingConfig);
         NextChangeCommand = new RelayCommand(() => GoToChange(_currentChangeIndex + 1), CanGoToNextChange);
@@ -348,6 +392,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _ = LoadFdbAsync();
         _ = LoadArpAsync();
         _ = LoadEventLogAsync();
+        _ = Inventory.LoadAsync();
+        _ = Routing.LoadAsync();
+        _ = Wireless.LoadAsync();
 
         // Eager, unlike everything else being conditional on Unimus being
         // configured at all - deliberately so, even though it costs one
@@ -515,6 +562,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectVlansCommand { get; }
 
+    public RelayCommand SelectNeighboursCommand { get; }
+
     public RelayCommand SelectFdbCommand { get; }
 
     public RelayCommand SelectArpCommand { get; }
@@ -524,6 +573,18 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>Device-wide graphs (issues #14/#13/#17/#20) - see <see cref="GraphsSectionViewModel"/>.</summary>
     public GraphsSectionViewModel Graphs { get; }
+
+    /// <summary>The Integrations, Graylog tab (issue #114) - see <see cref="GraylogMessagesViewModel"/>.</summary>
+    public GraylogMessagesViewModel Graylog { get; }
+
+    /// <summary>The Inventory section (#164) - see <see cref="InventorySectionViewModel"/>.</summary>
+    public InventorySectionViewModel Inventory { get; }
+
+    /// <summary>The Routing section (#53) - see <see cref="RoutingSectionViewModel"/>.</summary>
+    public RoutingSectionViewModel Routing { get; }
+
+    /// <summary>The Wireless section (#55) - see <see cref="WirelessSectionViewModel"/>.</summary>
+    public WirelessSectionViewModel Wireless { get; }
 
     /// <summary>Overview's "at a glance" ping-response graph (issue #11) - see <see cref="SingleGraphViewModel"/>.</summary>
     public SingleGraphViewModel OverviewGraph { get; }
@@ -545,6 +606,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public RelayCommand SelectEventLogCommand { get; }
 
     public RelayCommand SelectConfigCommand { get; }
+
+    public RelayCommand SelectGraylogCommand { get; }
+
+    public RelayCommand SelectInventoryCommand { get; }
+
+    public RelayCommand SelectRoutingCommand { get; }
+
+    public RelayCommand SelectWirelessCommand { get; }
 
     /// <summary>Navigates to the Edit section and refreshes its draft fields from the current device - see <see cref="SelectEdit"/>.</summary>
     public RelayCommand SelectEditCommand { get; }
@@ -690,6 +759,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsPortsSelected));
                 OnPropertyChanged(nameof(IsResourcesSelected));
                 OnPropertyChanged(nameof(IsVlansSelected));
+                OnPropertyChanged(nameof(IsNeighboursSelected));
                 OnPropertyChanged(nameof(IsFdbSelected));
                 OnPropertyChanged(nameof(IsArpSelected));
                 OnPropertyChanged(nameof(IsGraphsSelected));
@@ -697,6 +767,16 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsEventLogSelected));
                 OnPropertyChanged(nameof(IsEditSelected));
                 OnPropertyChanged(nameof(IsConfigSelected));
+                OnPropertyChanged(nameof(IsGraylogSelected));
+                OnPropertyChanged(nameof(IsInventorySelected));
+                OnPropertyChanged(nameof(IsRoutingSelected));
+                OnPropertyChanged(nameof(IsWirelessSelected));
+                RefreshNavGroups();
+
+                if (value == DeviceDetailSection.Graylog)
+                {
+                    Graylog.EnsureLoaded();
+                }
             }
         }
     }
@@ -711,6 +791,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public bool IsVlansSelected => SelectedSection == DeviceDetailSection.Vlans;
 
+    public bool IsNeighboursSelected => SelectedSection == DeviceDetailSection.Neighbours;
+
     public bool IsFdbSelected => SelectedSection == DeviceDetailSection.Fdb;
 
     public bool IsArpSelected => SelectedSection == DeviceDetailSection.Arp;
@@ -724,6 +806,42 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool IsEditSelected => SelectedSection == DeviceDetailSection.Edit;
 
     public bool IsConfigSelected => SelectedSection == DeviceDetailSection.Config;
+
+    public bool IsGraylogSelected => SelectedSection == DeviceDetailSection.Graylog;
+
+    public bool IsInventorySelected => SelectedSection == DeviceDetailSection.Inventory;
+
+    public bool IsRoutingSelected => SelectedSection == DeviceDetailSection.Routing;
+
+    public bool IsWirelessSelected => SelectedSection == DeviceDetailSection.Wireless;
+
+    /// <summary>
+    /// The Graylog nav item - whenever Graylog is set up, unlike Unimus's
+    /// match-first gating (see <see cref="ShowUnimusSection"/>): finding
+    /// out whether Graylog has anything for this device means searching it,
+    /// and nothing is searched until the tab is opened.
+    /// </summary>
+    public bool ShowGraylogSection => Graylog.IsConfigured;
+
+    /// <summary>The INTEGRATIONS nav header - shown when any integration's tab is.</summary>
+    public bool ShowIntegrationsGroup => ShowUnimusSection || ShowGraylogSection;
+
+    /// <summary>Graylog switched on or off in Settings while this window is open - show or hide its tab, leaving it first if it's showing.</summary>
+    private void OnGraylogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(GraylogMessagesViewModel.IsConfigured))
+        {
+            return;
+        }
+
+        if (!Graylog.IsConfigured && SelectedSection == DeviceDetailSection.Graylog)
+        {
+            SelectedSection = DeviceDetailSection.Overview;
+        }
+
+        OnPropertyChanged(nameof(ShowGraylogSection));
+        OnPropertyChanged(nameof(ShowIntegrationsGroup));
+    }
 
     /// <summary>
     /// Config loads lazily on first visit, unlike every other section (which
@@ -781,6 +899,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             {
                 OnPropertyChanged(nameof(HasConfigError));
                 OnPropertyChanged(nameof(ShowUnimusSection));
+                OnPropertyChanged(nameof(ShowIntegrationsGroup));
             }
         }
     }
@@ -799,6 +918,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             {
                 BackupNowCommand.RaiseCanExecuteChanged();
                 OnPropertyChanged(nameof(ShowUnimusSection));
+                OnPropertyChanged(nameof(ShowIntegrationsGroup));
             }
         }
     }
@@ -1680,6 +1800,81 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public bool HasEditSuccess => !string.IsNullOrEmpty(_editSuccessMessage);
 
+    // ------------------------------------------------------------------ port graphs (#8)
+
+    /// <summary>The picked port's graphs - traffic, packets and errors - under the Ports table.</summary>
+    public PortGraphsPanelViewModel PortGraphs { get; }
+
+    /// <summary>The port picked in the Ports table - its graphs show underneath.</summary>
+    public PortItemViewModel? SelectedPort
+    {
+        get => _selectedPort;
+        set
+        {
+            if (!SetProperty(ref _selectedPort, value))
+            {
+                return;
+            }
+
+            if (value is null)
+            {
+                PortGraphs.Clear();
+                return;
+            }
+
+            var subtitle = value.SecondaryName is { } alias ? " - " + alias : string.Empty;
+            PortGraphs.Show(_deviceId, value.Model.IfName, value.DisplayName, subtitle);
+        }
+    }
+
+    private PortItemViewModel? _selectedPort;
+
+    /// <summary>A port asked for (from a Top widget) before the ports had loaded - picked once they do.</summary>
+    private int? _portToSelect;
+
+    /// <summary>Shows the Ports section with <paramref name="portId"/> picked, and its graphs underneath - now if the ports have loaded, otherwise as soon as they do.</summary>
+    public void ShowPort(int portId)
+    {
+        SelectedSection = DeviceDetailSection.Ports;
+        if (Ports.FirstOrDefault(p => p.Model.PortId == portId) is { } loaded)
+        {
+            SelectedPort = loaded;
+            return;
+        }
+
+        _portToSelect = portId;
+    }
+
+    // ------------------------------------------------------------------ navigation (#58)
+
+    /// <summary>The window's back/forward history - shared by every device the window shows, set by the window's host.</summary>
+    public DeviceBrowseHistory? History
+    {
+        get => _history;
+        set => SetProperty(ref _history, value);
+    }
+
+    private DeviceBrowseHistory? _history;
+
+    /// <summary>A link here asked to open another device in this same window - the host does it (see <see cref="Services.WindowService"/>).</summary>
+    public event EventHandler<int>? OpenDeviceRequested;
+
+    /// <summary>
+    /// Follows a link to another device (a neighbour on the Ports tab): in
+    /// this window, with the way back, as a browser would - or, Ctrl held,
+    /// in a window of its own.
+    /// </summary>
+    public void OpenRelatedDevice(int deviceId)
+    {
+        if (OpenDeviceRequested is null || (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0)
+        {
+            _windows.ShowDeviceDetail(deviceId);
+            return;
+        }
+
+        OpenDeviceRequested.Invoke(this, deviceId);
+    }
+
     // ------------------------------------------------------------------ device
 
     public int DeviceId => _deviceId;
@@ -1694,6 +1889,49 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public bool HasAlternateName => AlternateName is not null;
 
+    /// <summary>
+    /// The device's names for the Overview identity card (#126) - hostname
+    /// (what LibreNMS polls), sysName (what the device reports over SNMP)
+    /// and display name - one row per distinct value, so names that agree
+    /// share a row ("sysName and display name") rather than repeating it.
+    /// Blank names are left out.
+    /// </summary>
+    public IReadOnlyList<DeviceNameRow> NameDetails
+    {
+        get
+        {
+            if (_device is null)
+            {
+                return Array.Empty<DeviceNameRow>();
+            }
+
+            var names = new (string Label, string? Value)[]
+            {
+                ("Hostname", _device.Hostname),
+                ("sysName", _device.SysName),
+                ("Display name", _device.Display),
+            };
+
+            return names
+                .Where(n => !string.IsNullOrWhiteSpace(n.Value))
+                .GroupBy(n => n.Value!.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => new DeviceNameRow(JoinLabels(g.Select(n => n.Label).ToList()), g.Key))
+                .ToList();
+        }
+    }
+
+    /// <summary>Only when the names don't all agree - when they do, the window title already says everything there is to say.</summary>
+    public bool ShowNameDetails => NameDetails.Count > 1;
+
+    /// <summary>"Hostname", "sysName and display name", "Hostname, sysName and display name" - later labels lower-cased, except sysName, which is its own spelling.</summary>
+    private static string JoinLabels(IReadOnlyList<string> labels)
+    {
+        var parts = labels.Select((label, i) => i == 0 || label == "sysName" ? label : label.ToLowerInvariant()).ToList();
+        return parts.Count == 1
+            ? parts[0]
+            : string.Join(", ", parts.Take(parts.Count - 1)) + " and " + parts[^1];
+    }
+
     /// <summary>The raw SNMP system description, e.g. "Onyx,SN2010M,SWv3.10.4408" - shown under the device name, matching where LibreNMS's own device page puts it.</summary>
     public string? SysDescr => string.IsNullOrWhiteSpace(_device?.SysDescr) ? null : _device.SysDescr;
 
@@ -1702,6 +1940,15 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public DeviceState State => _isUnderMaintenance ? DeviceState.Maintenance : _device?.State ?? DeviceState.Down;
 
     public string StateText => State.ToDisplayString();
+
+    /// <summary>The state as a colour - the Neighbours graph's centre node.</summary>
+    public AlertSeverity StateSeverity => State switch
+    {
+        DeviceState.Up => AlertSeverity.Ok,
+        DeviceState.Down => AlertSeverity.Critical,
+        DeviceState.Maintenance => AlertSeverity.Warning,
+        _ => AlertSeverity.Unknown,
+    };
 
     public string Ip => Blank(_device?.Ip);
 
@@ -1731,6 +1978,103 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public string Type => TitleCase(_device?.Type);
 
     public string UptimeText => _device is { State: DeviceState.Up } d ? FormatUptime(d.Uptime) : "-";
+
+    // ------------------------------------------------------- overview cards
+
+    /// <summary>The header tile's icon, by device type (Segoe Fluent glyph).</summary>
+    public string TypeGlyph => (_device?.Type ?? string.Empty).ToLowerInvariant() switch
+    {
+        "server" => "",
+        "wireless" => "",
+        "firewall" => "",
+        "power" => "",
+        "storage" => "",
+        "printer" => "",
+        "appliance" or "workstation" => "",
+        _ => "",
+    };
+
+    /// <summary>Under the device's name: "C9300-48P · iosxe · 192.0.2.10", leaving out whatever isn't known.</summary>
+    public string HeroSubtitle => string.Join(" · ", new[] { _device?.Hardware, _device?.Os, _device?.Ip }
+        .Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    /// <summary>The Ports up tile: "46 / 52".</summary>
+    public string PortsUpText => $"{PortsUpCount} / {Ports.Count}";
+
+    /// <summary>The Availability donut's filled share, 0-1.</summary>
+    public double Availability30DayFraction => Math.Clamp((_availability30Day ?? 0) / 100.0, 0, 1);
+
+    /// <summary>The availability tile and donut's colour: green from 99.9%, amber from 99%, red below.</summary>
+    public AlertSeverity AvailabilityTileSeverity => _availability30Day switch
+    {
+        null => AlertSeverity.Unknown,
+        >= 99.9 => AlertSeverity.Ok,
+        >= 99 => AlertSeverity.Warning,
+        _ => AlertSeverity.Critical,
+    };
+
+    /// <summary>The Ports up tile: green with every port up, amber with any down.</summary>
+    public AlertSeverity PortsTileSeverity => PortsDownCount > 0 ? AlertSeverity.Warning : AlertSeverity.Ok;
+
+    /// <summary>The Active alerts tile: red with any critical, amber with warnings, green with none.</summary>
+    public AlertSeverity AlertsTileSeverity => ActiveCriticalCount > 0
+        ? AlertSeverity.Critical
+        : ActiveAlerts.Count > 0 ? AlertSeverity.Warning : AlertSeverity.Ok;
+
+    public bool HasOverviewResources => OverviewResources.Count > 0;
+
+    public bool HasOverviewPorts => Ports.Any(p => p.TotalRate > 0);
+
+    /// <summary>The Sensors card's note: "14 · 1 warning".</summary>
+    public string SensorsCardNote => string.IsNullOrWhiteSpace(SensorAlertSummaryText)
+        ? Sensors.Count.ToString(CultureInfo.CurrentCulture)
+        : $"{Sensors.Count} · {SensorAlertSummaryText}";
+
+    /// <summary>The five ports moving the most traffic, in and out together.</summary>
+    public IReadOnlyList<PortItemViewModel> OverviewPorts => Ports
+        .Where(p => p.TotalRate > 0)
+        .OrderByDescending(p => p.TotalRate)
+        .Take(5)
+        .ToList();
+
+    /// <summary>The device's sensors worth a look first: the worst state, then the order they're listed in.</summary>
+    public IReadOnlyList<SensorItemViewModel> OverviewSensors => Sensors
+        .Select((sensor, index) => (sensor, index))
+        .OrderByDescending(x => x.sensor.Severity)
+        .ThenBy(x => x.index)
+        .Select(x => x.sensor)
+        .Take(4)
+        .ToList();
+
+    /// <summary>CPU, memory, the fullest disk and the PoE budget, as bars.</summary>
+    public IReadOnlyList<OverviewResourceRow> OverviewResources
+    {
+        get
+        {
+            var rows = new List<OverviewResourceRow>();
+            if (CpuUsagePercent is { } cpu)
+            {
+                rows.Add(OverviewResourceRow.Percent("CPU", cpu));
+            }
+
+            if (MemoryUsagePercent is { } memory)
+            {
+                rows.Add(OverviewResourceRow.Percent("Memory", memory));
+            }
+
+            if (DiskUsagePercent is { } disk)
+            {
+                rows.Add(OverviewResourceRow.Percent("Storage", disk));
+            }
+
+            foreach (var poe in PoeBudgets.Take(2))
+            {
+                rows.Add(new OverviewResourceRow(PoeBudgets.Count > 1 ? $"PoE · {poe.Label}" : "PoE budget", poe.UsageText, poe.UsagePercent / 100.0, poe.Severity));
+            }
+
+            return rows;
+        }
+    }
 
     // ------------------------------------------------------- additional details
 
@@ -1762,18 +2106,26 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// Elapsed time since LibreNMS added this device, e.g. "36d 4h ago" -
     /// same compact style as <see cref="UptimeText"/>/alert ages elsewhere in
     /// this app, not LibreNMS's own spelled-out "1 month ago" wording.
-    /// Not converted from server time, matching how the event log and alert
-    /// history timestamps in this same file are already treated - both are
-    /// the same ambiguous MySQL datetime format this field also uses.
+    /// Converted from server time per Settings' "server stores timestamps in
+    /// UTC" (<see cref="ServerTime"/>, #150), like every other LibreNMS
+    /// datetime shown in this window.
     /// </summary>
-    public string? InsertedText => _device?.Inserted is { } t ? DurationFormat.Format(DateTime.Now - t) + " ago" : null;
+    public string? InsertedText => _device?.Inserted is { } t ? DurationFormat.Format(ServerTime.Age(t, _settings.Current.ServerTimestampsAreUtc)) + " ago" : null;
 
     public bool HasInserted => InsertedText is not null;
 
     /// <summary>When LibreNMS last ran full discovery (not just a poll) against this device - see <see cref="InsertedText"/>'s remarks on formatting and timezone.</summary>
-    public string? LastDiscoveredText => _device?.LastDiscovered is { } t ? DurationFormat.Format(DateTime.Now - t) + " ago" : null;
+    public string? LastDiscoveredText => _device?.LastDiscovered is { } t ? DurationFormat.Format(ServerTime.Age(t, _settings.Current.ServerTimestampsAreUtc)) + " ago" : null;
 
     public bool HasLastDiscovered => LastDiscoveredText is not null;
+
+    /// <summary>"2 min ago · took 1.7 s" - when LibreNMS last polled this device and how long it took (#190).</summary>
+    public string? LastPolledText => _device?.LastPolled is { } t
+        ? DurationFormat.Format(ServerTime.Age(t, _settings.Current.ServerTimestampsAreUtc)) + " ago"
+            + (_device.LastPolledTimeTaken is { } taken ? " · took " + taken.ToString("0.0", CultureInfo.CurrentCulture) + " s" : string.Empty)
+        : null;
+
+    public bool HasLastPolled => LastPolledText is not null;
 
     /// <summary>Whether the Overview's "Technical" card has anything to show at all - it should not appear as an empty card for a device with none of Object ID/Serial/Depends-on. Location/Contact and Uptime/Device-added/Last-discovered have their own cards, but never hide entirely, since Location and Uptime always show something (even just "-").</summary>
     public bool HasTechnicalDetails => HasSysObjectId || HasSerial || HasDependencyParent;
@@ -1915,7 +2267,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool ShowVlansNoMatchesMessage => !IsLoadingVlans && HasVlans && !HasVisibleVlans;
 
     /// <summary>Whether the sidebar's "Network" group has anything to show at all - it should not appear as an empty header for a device with none of these, but also should not disappear and reappear as each loads independently.</summary>
-    public bool HasNetworkSection => ShowPortsNav || ShowVlansNav || ShowFdbNav || ShowArpNav;
+    public bool HasNetworkSection => ShowPortsNav || ShowNeighboursNav || ShowVlansNav || ShowFdbNav || ShowArpNav || Routing.ShowNav || Wireless.ShowNav;
 
     public int PortsUpCount => Ports.Count(p => p.IsUp);
 
@@ -1926,13 +2278,93 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// reports at least one of them - like <see cref="HasPorts"/>, plenty of
     /// devices (switches, PDUs, sensors-only appliances) expose none of these.
     /// </summary>
-    public bool HasResources => Processors.Count > 0 || Mempools.Count > 0 || Storage.Count > 0;
+    public bool HasResources => Processors.Count > 0 || Mempools.Count > 0 || Storage.Count > 0 || HasPoe;
 
     /// <summary>True until CPU/memory/disk have actually been fetched at least once - distinguishes "still loading" from "confirmed none of these" below.</summary>
     public bool IsLoadingResources => !_hasLoadedResources;
 
     /// <summary>Whether the sidebar's Resources item (and Overview's Resources card) should show - see <see cref="ShowPortsNav"/>'s remarks, which apply equally here.</summary>
     public bool ShowResourcesNav => IsLoadingResources || HasResources;
+
+    /// <summary>The HARDWARE nav heading - shown while either of its items (Resources, Inventory) is.</summary>
+    public bool ShowHardwareGroup => ShowResourcesNav || Inventory.ShowNav;
+
+    // The sidebar's foldable groups - see DeviceNavGroup.
+    public DeviceNavGroup HealthGroup { get; }
+
+    public DeviceNavGroup HardwareGroup { get; }
+
+    public DeviceNavGroup NetworkGroup { get; }
+
+    public DeviceNavGroup LogsGroup { get; }
+
+    public DeviceNavGroup IntegrationsGroup { get; }
+
+    /// <summary>
+    /// The sidebar shows labels and section headings; off, it's icons only,
+    /// with a line between groups. Remembered, shared by every device window.
+    /// </summary>
+    public bool IsDeviceNavExpanded
+    {
+        get => _settings.Current.DeviceNavExpanded;
+        set
+        {
+            if (_settings.Current.DeviceNavExpanded == value)
+            {
+                return;
+            }
+
+            _settings.Current.DeviceNavExpanded = value;
+            _settings.SaveQuietly();
+            OnPropertyChanged();
+            RefreshNavGroups();
+            OnPropertyChanged(nameof(ShowCollapsedAlertBadge));
+            OnPropertyChanged(nameof(ShowRailAlertBadge));
+        }
+    }
+
+    public RelayCommand ToggleDeviceNavCommand => _toggleDeviceNavCommand ??= new RelayCommand(() => IsDeviceNavExpanded = !IsDeviceNavExpanded);
+
+    private RelayCommand? _toggleDeviceNavCommand;
+
+    /// <summary>With Alerts &amp; logs folded away, its heading carries the active-alert badge instead, so alerts are never hidden.</summary>
+    public bool ShowCollapsedAlertBadge => !LogsGroup.IsExpanded && HasActiveAlerts;
+
+    /// <summary>Icons only, the Alerts icon carries the count.</summary>
+    public bool ShowRailAlertBadge => !IsDeviceNavExpanded && HasActiveAlerts;
+
+    private void RefreshNavGroups()
+    {
+        HealthGroup.Refresh();
+        HardwareGroup.Refresh();
+        NetworkGroup.Refresh();
+        LogsGroup.Refresh();
+        IntegrationsGroup.Refresh();
+    }
+
+    private void OnRoutingPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(RoutingSectionViewModel.ShowNav))
+        {
+            OnPropertyChanged(nameof(HasNetworkSection));
+        }
+    }
+
+    private void OnWirelessPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(WirelessSectionViewModel.ShowNav))
+        {
+            OnPropertyChanged(nameof(HasNetworkSection));
+        }
+    }
+
+    private void OnInventoryPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(InventorySectionViewModel.ShowNav))
+        {
+            OnPropertyChanged(nameof(ShowHardwareGroup));
+        }
+    }
 
     /// <summary>Shown once loading has finished and the device genuinely reports none of CPU/memory/disk.</summary>
     public bool ShowResourcesEmptyMessage => !IsLoadingResources && !HasResources;
@@ -2185,10 +2617,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         }
 
         OnPropertyChanged(nameof(HasActiveAlerts));
+        OnPropertyChanged(nameof(ShowCollapsedAlertBadge));
+        OnPropertyChanged(nameof(ShowRailAlertBadge));
         OnPropertyChanged(nameof(ShowNoActiveAlertsMessage));
         OnPropertyChanged(nameof(ActiveCriticalCount));
         OnPropertyChanged(nameof(ActiveWarningCount));
         OnPropertyChanged(nameof(ActiveAlertSummaryText));
+        OnPropertyChanged(nameof(AlertsTileSeverity));
     }
 
     private void ApplySensors(IReadOnlyList<Sensor> fleet)
@@ -2253,6 +2688,55 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SensorWarningCount));
         OnPropertyChanged(nameof(SensorCriticalCount));
         OnPropertyChanged(nameof(SensorAlertSummaryText));
+        ApplyPoe(mine);
+        OnPropertyChanged(nameof(OverviewSensors));
+        OnPropertyChanged(nameof(SensorsCardNote));
+        OnPropertyChanged(nameof(OverviewResources));
+        OnPropertyChanged(nameof(HasOverviewResources));
+    }
+
+    // ------------------------------------------------------------------ PoE (#54)
+
+    /// <summary>
+    /// The device's PoE budgets - used against total power, per switch or
+    /// stack unit - from its PoE power sensors (see <see cref="PoeBudget"/>).
+    /// LibreNMS has no per-port PoE data for most switches, so the budget is
+    /// what there is. Shown as its own card in Resources.
+    /// </summary>
+    public ObservableCollection<PoeBudgetItemViewModel> PoeBudgets { get; } = new();
+
+    public bool HasPoe => PoeBudgets.Count > 0 || PoeDevicesConnected is not null;
+
+    /// <summary>How many powered devices the switch reports (IOS-XE does), or null.</summary>
+    public int? PoeDevicesConnected { get; private set; }
+
+    public string? PoeDevicesConnectedText => PoeDevicesConnected is { } n
+        ? (n == 1 ? "1 powered device connected" : $"{n} powered devices connected")
+        : null;
+
+    private void ApplyPoe(IReadOnlyList<Sensor> mine)
+    {
+        var summary = PoeBudget.FromSensors(mine);
+        var hadPoe = HasPoe;
+
+        PoeBudgets.Clear();
+        foreach (var row in summary.Budgets)
+        {
+            PoeBudgets.Add(new PoeBudgetItemViewModel(row));
+        }
+
+        PoeDevicesConnected = summary.DevicesConnected;
+        OnPropertyChanged(nameof(PoeDevicesConnected));
+        OnPropertyChanged(nameof(PoeDevicesConnectedText));
+        OnPropertyChanged(nameof(HasPoe));
+
+        if (hadPoe != HasPoe)
+        {
+            OnPropertyChanged(nameof(HasResources));
+            OnPropertyChanged(nameof(ShowResourcesNav));
+            OnPropertyChanged(nameof(ShowResourcesEmptyMessage));
+            OnPropertyChanged(nameof(ShowHardwareGroup));
+        }
     }
 
     /// <summary>Rebuilds <see cref="SensorGroups"/> only when the grouping actually differs from what is already on screen - see <see cref="RebuildSensorGroups"/>.</summary>
@@ -2387,7 +2871,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 rulesByRule.TryGetValue(entry.RuleId, out var rule);
                 fieldsByRule.TryGetValue(entry.RuleId, out var fields);
                 var detail = AlertFaultParser.Parse(entry, fields);
-                AlertHistory.Add(new AlertLogItemViewModel(entry, rule, detail));
+                AlertHistory.Add(new AlertLogItemViewModel(entry, rule, detail, _settings.Current.ServerTimestampsAreUtc));
             }
 
             OnPropertyChanged(nameof(HasAlertHistory));
@@ -2424,6 +2908,93 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// - many devices genuinely have no SNMP interfaces at all, and treating
     /// that the same as an error would raise a false alarm on every one of them.
     /// </summary>
+    /// <summary>Most MAC lookups one Ports load will make - a big switch with many unmonitored neighbours shouldn't turn into a burst of requests.</summary>
+    private const int MaxNeighbourMacLookups = 32;
+
+    /// <summary>
+    /// For each neighbour LibreNMS didn't match to a device (no
+    /// remote_device_id), the monitored device it is when that can be told
+    /// reliably, keyed as the links passed in: by its announced name, ignoring case
+    /// and punctuation (see <see cref="NeighbourMatcher"/>), or - for one
+    /// announcing its MAC as its port, as some antennas do - by that MAC's
+    /// ARP entry leading to a device's IP. Only a single, unambiguous device
+    /// counts. Never throws: a failed lookup just leaves that neighbour
+    /// unlinked, as it was.
+    /// </summary>
+    private async Task<Dictionary<int, NeighbourMatch>> MatchUnlinkedNeighboursAsync(IReadOnlyDictionary<int, NetworkLink> links)
+    {
+        var matches = new Dictionary<int, NeighbourMatch>();
+        var unlinked = links.Where(kv => kv.Value.RemoteDeviceId is not > 0).ToList();
+        if (unlinked.Count == 0)
+        {
+            return matches;
+        }
+
+        try
+        {
+            await _deviceCache.EnsureCurrentAsync(new[] { _deviceId }, _loadCts.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return matches;
+        }
+
+        var devices = _deviceCache.All.Where(d => d.DeviceId != _deviceId).ToList();
+        var byMac = new List<(int Key, string Mac)>();
+
+        foreach (var (key, link) in unlinked)
+        {
+            if (NeighbourMatcher.MatchByName(link.RemoteHostname, devices) is { } byName)
+            {
+                matches[key] = new NeighbourMatch(byName, $"Matched to a monitored device by its name, \"{link.RemoteHostname}\" - LibreNMS itself didn't link it.");
+            }
+            else if (NeighbourMatcher.MacFromPortId(link.RemotePort) is { } mac)
+            {
+                byMac.Add((key, mac));
+            }
+        }
+
+        using var gate = new SemaphoreSlim(4);
+        var lookups = byMac.Take(MaxNeighbourMacLookups).Select(async item =>
+        {
+            await gate.WaitAsync(_loadCts.Token).ConfigureAwait(true);
+            try
+            {
+                var entries = await _client.Arp.FindByMacAsync(item.Mac, _loadCts.Token).ConfigureAwait(true);
+                var ids = entries
+                    .Select(e => _deviceCache.FindByAddress(e.Ipv4Address))
+                    .Where(d => d is not null && d.DeviceId != _deviceId)
+                    .Select(d => d!.DeviceId)
+                    .Distinct()
+                    .ToList();
+
+                if (ids.Count == 1)
+                {
+                    matches[item.Key] = new NeighbourMatch(ids[0], "Matched to a monitored device by its MAC address, through an ARP entry for its IP - LibreNMS itself didn't link it.", DesktopNMS.Core.Topology.NeighbourMatchKind.Mac);
+                }
+            }
+            catch (LibreNmsApiException ex)
+            {
+                _logger.LogDebug(ex, "ARP lookup for neighbour MAC {Mac} failed", item.Mac);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        try
+        {
+            await Task.WhenAll(lookups).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // Window closed - whatever matched so far is fine to drop.
+        }
+
+        return matches;
+    }
+
     private async Task LoadPortsAsync()
     {
         try
@@ -2435,8 +3006,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             // (possibly unsupported on an older LibreNMS version) should not
             // take the ports list down with it.
             var linksTask = TryLoadLinksAsync();
+            var fleetLinksTask = TryLoadFleetLinksAsync();
             var addressesTask = TryLoadIpAddressesAsync();
-            await Task.WhenAll(linksTask, addressesTask).ConfigureAwait(true);
+            await Task.WhenAll(linksTask, fleetLinksTask, addressesTask).ConfigureAwait(true);
 
             var linksByPort = linksTask.Result
                 .Where(l => l.LocalPortId > 0)
@@ -2447,17 +3019,38 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 .GroupBy(a => a.PortId)
                 .ToDictionary(g => g.Key, g => (IReadOnlyList<DeviceIpAddress>)g.ToList());
 
+            // Matched per link, not per port: a port with two neighbours (a
+            // phone and the PC behind it) has both on the Neighbours tab.
+            var linksById = linksTask.Result
+                .Where(l => l.Id > 0)
+                .GroupBy(l => l.Id)
+                .ToDictionary(g => g.Key, g => g.First());
+            var linkMatches = await MatchUnlinkedNeighboursAsync(linksById).ConfigureAwait(true);
+            var neighbourMatches = linksByPort
+                .Where(kv => linkMatches.ContainsKey(kv.Value.Id))
+                .ToDictionary(kv => kv.Key, kv => linkMatches[kv.Value.Id]);
+
             _portNamesByPortId.Clear();
             var portItems = new List<PortItemViewModel>();
             foreach (var port in ports.OrderBy(p => p.IfIndex ?? int.MaxValue))
             {
                 linksByPort.TryGetValue(port.PortId, out var link);
                 addressesByPort.TryGetValue(port.PortId, out var addresses);
-                portItems.Add(new PortItemViewModel(port, link, addresses ?? Array.Empty<DeviceIpAddress>(), _windows));
+                neighbourMatches.TryGetValue(port.PortId, out var match);
+                portItems.Add(new PortItemViewModel(port, link, addresses ?? Array.Empty<DeviceIpAddress>(), OpenRelatedDevice, match));
                 _portNamesByPortId[port.PortId] = port.DisplayName;
             }
 
+            var selectedPortId = _portToSelect ?? _selectedPort?.Model.PortId;
+            _portToSelect = null;
             Ports.ReplaceAll(portItems);
+
+            // A refresh keeps the port that was picked, and its graphs.
+            if (selectedPortId is { } keepId)
+            {
+                SelectedPort = Ports.FirstOrDefault(p => p.Model.PortId == keepId);
+            }
+            Routing.OnPortsLoaded(ports);
 
             // FDB/ARP may well have already loaded (this call fetches
             // neighbours and IP addresses too, so it is not reliably the
@@ -2488,7 +3081,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(ShowPortsEmptyMessage));
             OnPropertyChanged(nameof(ShowPortsNoMatchesMessage));
             OnPropertyChanged(nameof(PortsUpCount));
+            OnPropertyChanged(nameof(PortsUpText));
+            OnPropertyChanged(nameof(OverviewPorts));
+            OnPropertyChanged(nameof(HasOverviewPorts));
+            OnPropertyChanged(nameof(PortsTileSeverity));
             OnPropertyChanged(nameof(PortsDownCount));
+
+            BuildNeighbours(linksTask.Result, fleetLinksTask.Result, linkMatches);
         }
         catch (OperationCanceledException)
         {
@@ -2540,6 +3139,201 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             _logger.LogWarning(ex, "Could not load neighbours for device {DeviceId}", _deviceId);
             return Array.Empty<NetworkLink>();
+        }
+    }
+
+    /// <summary>
+    /// Every device's links, for the ones naming this device as their remote -
+    /// how a device with no LLDP of its own (an AP) still shows its switch.
+    /// A failure just leaves those out.
+    /// </summary>
+    private async Task<IReadOnlyList<NetworkLink>> TryLoadFleetLinksAsync()
+    {
+        try
+        {
+            return await _fleetLinks.GetAsync(cancellationToken: _loadCts.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load the fleet's neighbours for device {DeviceId}", _deviceId);
+            return Array.Empty<NetworkLink>();
+        }
+    }
+
+    // ------------------------------------------------------------------ CSV export (#67)
+
+    // Each table's rows as shown - after its search - named after the device.
+    private CsvExport? _portsCsv;
+    private CsvExport? _vlansCsv;
+    private CsvExport? _fdbCsv;
+    private CsvExport? _arpCsv;
+    private CsvExport? _sensorsCsv;
+
+    public CsvExport PortsCsv => _portsCsv ??= new CsvExport(
+        () => $"{Name}-ports",
+        new[] { "Port", "Description", "Status", "Speed", "In", "Out", "Errors", "Media", "Duplex", "MTU", "MAC", "IP addresses", "Neighbour" },
+        () => PortsView.Cast<PortItemViewModel>().Select(p => CsvExport.Row(
+            p.DisplayName, p.SecondaryName, p.StatusText, p.SpeedText, p.InRateText, p.OutRateText, p.ErrorCount,
+            p.MediaText, p.DuplexText, p.MtuText, p.MacAddressText, p.IpAddressesText, p.NeighborText)));
+
+    public CsvExport VlansCsv => _vlansCsv ??= new CsvExport(
+        () => $"{Name}-vlans",
+        new[] { "VLAN", "Name", "Ports" },
+        () => VlansView.Cast<VlanItemViewModel>().Select(v => CsvExport.Row(v.NumberText, v.NameText, v.PortsSummaryText)));
+
+    public CsvExport FdbCsv => _fdbCsv ??= new CsvExport(
+        () => $"{Name}-fdb",
+        new[] { "MAC", "Port", "VLAN", "VLAN name", "Updated" },
+        () => FdbView.Cast<FdbItemViewModel>().Select(f => CsvExport.Row(f.MacAddressText, f.PortText, f.VlanText, f.VlanNameText, f.UpdatedText)));
+
+    public CsvExport ArpCsv => _arpCsv ??= new CsvExport(
+        () => $"{Name}-arp",
+        new[] { "IP address", "MAC", "Port" },
+        () => ArpView.Cast<ArpItemViewModel>().Select(a => CsvExport.Row(a.Ipv4AddressText, a.MacAddressText, a.PortText)));
+
+    public CsvExport SensorsCsv => _sensorsCsv ??= new CsvExport(
+        () => $"{Name}-sensors",
+        new[] { "Group", "Sensor", "State", "Value", "Last updated" },
+        () => SensorGroups.SelectMany(g => g.Sensors.Select(s => CsvExport.Row(g.Name, s.RowLabel, s.SeverityText, s.ValueText, s.LastUpdateText))));
+
+    // ------------------------------------------------------------------ neighbours
+
+    /// <summary>What this device is connected to - see <see cref="DeviceNeighbours"/>.</summary>
+    public ObservableCollection<DeviceNeighbourItemViewModel> Neighbours { get; } = new();
+
+    private bool _hasLoadedNeighbours;
+    private string _neighbourSearchText = string.Empty;
+
+    public bool HasNeighbours => Neighbours.Count > 0;
+
+    public bool IsLoadingNeighbours => !_hasLoadedNeighbours;
+
+    /// <summary>Shown while loading, so the item doesn't pop in and shift the list; hidden once there turn out to be none.</summary>
+    public bool ShowNeighboursNav => IsLoadingNeighbours || HasNeighbours;
+
+    public bool ShowNeighboursEmptyMessage => !IsLoadingNeighbours && !HasNeighbours;
+
+    /// <summary>The Neighbours tab's search - name, description, either port, or how it matched.</summary>
+    public string NeighbourSearchText
+    {
+        get => _neighbourSearchText;
+        set
+        {
+            if (SetProperty(ref _neighbourSearchText, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(VisibleNeighbours));
+            }
+        }
+    }
+
+    // A new list each time, so the graph sees a change and redraws.
+    public IReadOnlyList<DeviceNeighbourItemViewModel> VisibleNeighbours => string.IsNullOrWhiteSpace(_neighbourSearchText)
+        ? Neighbours.ToList()
+        : Neighbours.Where(n => n.Matches(_neighbourSearchText.Trim())).ToList();
+
+    /// <summary>"12 neighbours · 9 in LibreNMS".</summary>
+    public string NeighboursSummaryText
+    {
+        get
+        {
+            var known = Neighbours.Count(n => n.IsKnownDevice);
+            var total = Neighbours.Count == 1 ? "1 neighbour" : $"{Neighbours.Count} neighbours";
+            return $"{total} · {known} in LibreNMS";
+        }
+    }
+
+    /// <summary>The Overview's Connected to card: live, known devices first.</summary>
+    public IReadOnlyList<DeviceNeighbourItemViewModel> ConnectedTo => Neighbours.Take(5).ToList();
+
+    public bool HasMoreNeighbours => Neighbours.Count > 5;
+
+    public string MoreNeighboursText => $"View all {Neighbours.Count}";
+
+    private void BuildNeighbours(IReadOnlyList<NetworkLink> ownLinks, IReadOnlyList<NetworkLink> fleetLinks, IReadOnlyDictionary<int, NeighbourMatch> linkMatches)
+    {
+        var portNames = Ports.ToDictionary(p => p.Model.PortId, p => p.DisplayName);
+        var matches = linkMatches.ToDictionary(kv => kv.Key, kv => (kv.Value.DeviceId, kv.Value.Kind));
+        var built = DeviceNeighbours.Build(_deviceId, ownLinks, fleetLinks, portNames, matches);
+
+        var portsById = Ports.ToDictionary(p => p.Model.PortId);
+        var style = _settings.Current.DeviceNameStyle;
+        var thisName = Name;
+
+        var items = built
+            .Select(n =>
+            {
+                var device = n.RemoteDeviceId is { } id ? _deviceCache.Get(id) : null;
+                var name = device is null ? null : style.Resolve(device, device.Hostname);
+                PortItemViewModel? localPort = n.LocalPortId is { } portId && portsById.TryGetValue(portId, out var port) ? port : null;
+                return new DeviceNeighbourItemViewModel(n, device, name, localPort, thisName, OpenRelatedDevice);
+            })
+            .OrderBy(n => n.SortRank)
+            .ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        Neighbours.Clear();
+        foreach (var item in items)
+        {
+            Neighbours.Add(item);
+        }
+
+        _hasLoadedNeighbours = true;
+        OnPropertyChanged(nameof(HasNeighbours));
+        OnPropertyChanged(nameof(IsLoadingNeighbours));
+        OnPropertyChanged(nameof(ShowNeighboursNav));
+        OnPropertyChanged(nameof(ShowNeighboursEmptyMessage));
+        OnPropertyChanged(nameof(VisibleNeighbours));
+        OnPropertyChanged(nameof(NeighboursSummaryText));
+        OnPropertyChanged(nameof(ConnectedTo));
+        OnPropertyChanged(nameof(HasMoreNeighbours));
+        OnPropertyChanged(nameof(MoreNeighboursText));
+        OnPropertyChanged(nameof(HasNetworkSection));
+
+        _ = NameNeighbourPortsAsync(items);
+    }
+
+    /// <summary>Most neighbours whose port lists are fetched to name their end of a connection only they report.</summary>
+    private const int MaxNeighbourPortLookups = 4;
+
+    /// <summary>
+    /// A connection only the neighbour reports names this device's port but
+    /// not the neighbour's own - that comes from the neighbour's port list.
+    /// Best effort: a failure leaves "Unknown port".
+    /// </summary>
+    private async Task NameNeighbourPortsAsync(IReadOnlyList<DeviceNeighbourItemViewModel> items)
+    {
+        var wanted = items
+            .Where(i => i.Model.Source == NeighbourSource.Neighbour && i.Model.RemoteDeviceId is > 0 && i.Model.RemotePortId is > 0)
+            .GroupBy(i => i.Model.RemoteDeviceId!.Value)
+            .Take(MaxNeighbourPortLookups)
+            .ToList();
+
+        foreach (var group in wanted)
+        {
+            try
+            {
+                var ports = await _client.Ports.ListForDeviceAsync(group.Key, _loadCts.Token).ConfigureAwait(true);
+                var names = ports.ToDictionary(p => p.PortId, p => p.DisplayName);
+                foreach (var item in group)
+                {
+                    if (names.TryGetValue(item.Model.RemotePortId!.Value, out var name))
+                    {
+                        item.SetRemotePortName(name);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not name the ports of neighbour {DeviceId}", group.Key);
+            }
         }
     }
 
@@ -2647,7 +3441,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
             FdbEntries.ReplaceAll(entries
                 .OrderBy(e => e.MacAddress, StringComparer.OrdinalIgnoreCase)
-                .Select(entry => new FdbItemViewModel(entry, _portNamesByPortId, _vlansById)));
+                .Select(entry => new FdbItemViewModel(entry, _portNamesByPortId, _vlansById, _settings.Current.ServerTimestampsAreUtc)));
 
             OnPropertyChanged(nameof(HasFdbEntries));
             OnPropertyChanged(nameof(HasVisibleFdbEntries));
@@ -2755,6 +3549,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(MemoryUsagePercent));
             OnPropertyChanged(nameof(DiskUsagePercent));
             OnPropertyChanged(nameof(ResourceSummaryText));
+            OnPropertyChanged(nameof(OverviewResources));
+            OnPropertyChanged(nameof(HasOverviewResources));
         }
         catch (OperationCanceledException)
         {
@@ -2773,6 +3569,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             _hasLoadedResources = true;
             OnPropertyChanged(nameof(IsLoadingResources));
             OnPropertyChanged(nameof(ShowResourcesNav));
+            OnPropertyChanged(nameof(ShowHardwareGroup));
             OnPropertyChanged(nameof(ShowResourcesEmptyMessage));
         }
     }
@@ -2819,6 +3616,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(Availability1DayText));
             OnPropertyChanged(nameof(Availability7DayText));
             OnPropertyChanged(nameof(Availability30DayText));
+            OnPropertyChanged(nameof(Availability30DayFraction));
+            OnPropertyChanged(nameof(AvailabilityTileSeverity));
             OnPropertyChanged(nameof(Availability1YearText));
             OnPropertyChanged(nameof(HasOutages));
         }
@@ -2948,7 +3747,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             var eventLogItems = new List<EventLogItemViewModel>();
             foreach (var entry in entries)
             {
-                eventLogItems.Add(new EventLogItemViewModel(entry));
+                eventLogItems.Add(new EventLogItemViewModel(entry, _settings.Current.ServerTimestampsAreUtc));
                 _loadedEventLogIds.Add(entry.Id);
             }
 
@@ -3006,7 +3805,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             {
                 if (_loadedEventLogIds.Add(entry.Id))
                 {
-                    EventLog.Add(new EventLogItemViewModel(entry));
+                    EventLog.Add(new EventLogItemViewModel(entry, _settings.Current.ServerTimestampsAreUtc));
                     added++;
                 }
             }
@@ -3117,7 +3916,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         var tasks = new List<Task>
         {
             LoadAlertHistoryAsync(), LoadPortsAsync(), LoadResourcesAsync(), LoadAvailabilityAsync(),
-            LoadDeviceGroupsAsync(), LoadVlansAsync(), LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync(),
+            LoadDeviceGroupsAsync(), LoadVlansAsync(), LoadFdbAsync(), LoadArpAsync(), LoadEventLogAsync(), Inventory.LoadAsync(), Routing.LoadAsync(),
+            Wireless.LoadAsync(),
         };
 
         // Unlike every other section here, only actually calls out to
@@ -3127,6 +3927,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             tasks.Add(LoadConfigAsync());
         }
+
+        // Only once its tab has been opened - see GraylogMessagesViewModel.
+        tasks.Add(Graylog.RefreshIfLoadedAsync());
 
         return Task.WhenAll(tasks);
     }
@@ -3562,13 +4365,18 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(AlternateName));
         OnPropertyChanged(nameof(HasAlternateName));
+        OnPropertyChanged(nameof(NameDetails));
+        OnPropertyChanged(nameof(ShowNameDetails));
         OnPropertyChanged(nameof(State));
         OnPropertyChanged(nameof(StateText));
+        OnPropertyChanged(nameof(StateSeverity));
         OnPropertyChanged(nameof(Ip));
         OnPropertyChanged(nameof(Os));
         OnPropertyChanged(nameof(Hardware));
         OnPropertyChanged(nameof(Location));
         OnPropertyChanged(nameof(Type));
+        OnPropertyChanged(nameof(TypeGlyph));
+        OnPropertyChanged(nameof(HeroSubtitle));
         OnPropertyChanged(nameof(UptimeText));
         OnPropertyChanged(nameof(HasLoaded));
         OnPropertyChanged(nameof(IsLoadingDevice));
@@ -3586,6 +4394,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasInserted));
         OnPropertyChanged(nameof(LastDiscoveredText));
         OnPropertyChanged(nameof(HasLastDiscovered));
+        OnPropertyChanged(nameof(LastPolledText));
+        OnPropertyChanged(nameof(HasLastPolled));
         OnPropertyChanged(nameof(HasTechnicalDetails));
         OnPropertyChanged(nameof(HasLocation));
         ShowDevicesForLocationCommand.RaiseCanExecuteChanged();
@@ -3626,6 +4436,11 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        Graylog.PropertyChanged -= OnGraylogPropertyChanged;
+        Inventory.PropertyChanged -= OnInventoryPropertyChanged;
+        Routing.PropertyChanged -= OnRoutingPropertyChanged;
+        Wireless.PropertyChanged -= OnWirelessPropertyChanged;
+        Graylog.Dispose();
         _loadCts.Cancel();
         _loadCts.Dispose();
         _deviceMonitor.Polled -= OnDevicePolled;
@@ -3763,8 +4578,13 @@ public sealed class SensorGraphLinkViewModel
 public sealed class EventLogItemViewModel
 {
     private readonly EventLogEntry _entry;
+    private readonly bool _serverTimestampsAreUtc;
 
-    public EventLogItemViewModel(EventLogEntry entry) => _entry = entry;
+    public EventLogItemViewModel(EventLogEntry entry, bool serverTimestampsAreUtc)
+    {
+        _entry = entry;
+        _serverTimestampsAreUtc = serverTimestampsAreUtc;
+    }
 
     public string Message => string.IsNullOrWhiteSpace(_entry.Message) ? "-" : _entry.Message!;
 
@@ -3773,7 +4593,7 @@ public sealed class EventLogItemViewModel
     public string Username => string.IsNullOrWhiteSpace(_entry.Username) ? "-" : _entry.Username!;
 
     public string TimeText => _entry.Timestamp is { } t
-        ? t.ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
+        ? ServerTime.ToLocal(t, _serverTimestampsAreUtc).ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
         : "-";
 }
 
@@ -3783,19 +4603,31 @@ public sealed class PortItemViewModel
     private readonly Port _port;
     private readonly NetworkLink? _link;
     private readonly IReadOnlyList<DeviceIpAddress> _addresses;
-    private readonly IWindowService _windows;
+    private readonly Action<int> _openDevice;
 
-    public PortItemViewModel(Port port, NetworkLink? link, IReadOnlyList<DeviceIpAddress> addresses, IWindowService windows)
+    private readonly NeighbourMatch? _match;
+
+    /// <param name="openDevice">Opens a neighbour's Device Details - in this window, with the way back (#58); see DeviceDetailViewModel.OpenRelatedDevice.</param>
+    public PortItemViewModel(Port port, NetworkLink? link, IReadOnlyList<DeviceIpAddress> addresses, Action<int> openDevice, NeighbourMatch? match = null)
     {
         _port = port;
         _link = link;
         _addresses = addresses;
-        _windows = windows;
+        _openDevice = openDevice;
+        _match = match;
 
         OpenNeighborCommand = new RelayCommand(
-            () => _windows.ShowDeviceDetail(_link!.RemoteDeviceId!.Value),
-            () => _link?.RemoteDeviceId is > 0);
+            () => _openDevice(NeighborDeviceId!.Value),
+            () => NeighborDeviceId is > 0);
     }
+
+    /// <summary>The monitored device the neighbour is - LibreNMS's own match, or failing that one this app made (see DeviceDetailViewModel.MatchUnlinkedNeighboursAsync).</summary>
+    private int? NeighborDeviceId => _link?.RemoteDeviceId is > 0 ? _link.RemoteDeviceId : _match?.DeviceId;
+
+    /// <summary>How an app-made neighbour match was made, for its tooltip - null for LibreNMS's own.</summary>
+    public string NeighborToolTip => _link?.RemoteDeviceId is > 0 || _match is null
+        ? "Open this device"
+        : _match.How;
 
     public Port Model => _port;
 
@@ -3832,6 +4664,9 @@ public sealed class PortItemViewModel
 
     public string SpeedText => FormatBitsPerSecond(_port.IfSpeed);
 
+    /// <summary>In and out together, in octets a second - ranks the Overview's busiest ports.</summary>
+    public double TotalRate => (_port.IfInOctetsRate ?? 0) + (_port.IfOutOctetsRate ?? 0);
+
     public string InRateText => _port.IfInOctetsRate is { } rate ? FormatBitsPerSecond((long)(rate * 8)) : "-";
 
     public string OutRateText => _port.IfOutOctetsRate is { } rate ? FormatBitsPerSecond((long)(rate * 8)) : "-";
@@ -3858,13 +4693,13 @@ public sealed class PortItemViewModel
 
     public bool HasNeighbor => _link is not null;
 
-    /// <summary>e.g. "r-sw-pit-10 (Gi0/1)" - the device and port this one is physically connected to, if LibreNMS has discovered one.</summary>
+    /// <summary>e.g. "sw-edge-10 (Gi0/1)" - the device and port this one is physically connected to, if LibreNMS has discovered one.</summary>
     public string? NeighborText => _link is null
         ? null
-        : string.IsNullOrWhiteSpace(_link.RemotePort) ? _link.DisplayRemoteName : $"{_link.DisplayRemoteName} ({_link.RemotePort})";
+        : PortLabels.FromNeighbourPort(_link.RemotePort) is { } port ? $"{_link.DisplayRemoteName} ({port})" : _link.DisplayRemoteName;
 
     /// <summary>True only when the neighbour is itself a device this LibreNMS instance monitors, so there is somewhere to jump to.</summary>
-    public bool CanOpenNeighbor => _link?.RemoteDeviceId is > 0;
+    public bool CanOpenNeighbor => NeighborDeviceId is > 0;
 
     public bool Matches(string term) =>
         DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase)
@@ -3905,12 +4740,14 @@ public sealed class FdbItemViewModel : ObservableObject
     private readonly FdbEntry _entry;
     private readonly Dictionary<int, string> _portNamesByPortId;
     private readonly Dictionary<int, Vlan> _vlansById;
+    private readonly bool _serverTimestampsAreUtc;
 
-    public FdbItemViewModel(FdbEntry entry, Dictionary<int, string> portNamesByPortId, Dictionary<int, Vlan> vlansById)
+    public FdbItemViewModel(FdbEntry entry, Dictionary<int, string> portNamesByPortId, Dictionary<int, Vlan> vlansById, bool serverTimestampsAreUtc)
     {
         _entry = entry;
         _portNamesByPortId = portNamesByPortId;
         _vlansById = vlansById;
+        _serverTimestampsAreUtc = serverTimestampsAreUtc;
     }
 
     public string MacAddressText => MacAddressFormat.Format(_entry.MacAddress);
@@ -3962,7 +4799,7 @@ public sealed class FdbItemViewModel : ObservableObject
     public bool HasVlanName => VlanNameText is not null;
 
     public string UpdatedText => _entry.UpdatedAt is { } t
-        ? t.ToLocalTime().ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
+        ? ServerTime.ToLocal(t, _serverTimestampsAreUtc).ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
         : "-";
 
     public bool Matches(string term) =>
@@ -4000,51 +4837,60 @@ public sealed class VlanItemViewModel : ObservableObject
     public string NameText => string.IsNullOrWhiteSpace(_vlan.VlanName) ? "-" : _vlan.VlanName!;
 
     /// <summary>
-    /// Every port whose own untagged/native VLAN (Port.IfVlan) matches this
-    /// one - NOT full trunk membership. LibreNMS's per-VLAN trunk-membership
-    /// endpoint (/devices/{id}/ports/vlan/{vlan}) would cover a trunk port
-    /// carrying this VLAN tagged too, but it 500s unconditionally on every
-    /// server tried this was built against (confirmed with several id/format
-    /// variations, and with no working alternative route found) - a bug in
-    /// that LibreNMS build, not something fixable from here. This is the
-    /// reliable subset the API actually gives back. Queried live against the
-    /// shared Ports collection rather than cached, so a Ports refresh is
-    /// reflected without this row needing to rebuild.
+    /// This VLAN's ports, split into untagged (access/native) and tagged
+    /// (trunk) - see <see cref="VlanMembership"/> for how, including the
+    /// fallback to each port's own VLAN for a device that reports no
+    /// memberships. Worked out live against the shared Ports collection
+    /// rather than cached, so a Ports refresh is reflected without this row
+    /// needing to rebuild.
     /// </summary>
-    public IReadOnlyList<PortItemViewModel> AccessPorts =>
-        _allPorts.Where(p => p.Model.IfVlan == _vlan.VlanNumber).ToList();
+    private (IReadOnlyList<PortItemViewModel> Untagged, IReadOnlyList<PortItemViewModel> Tagged) Members()
+    {
+        var byModel = _allPorts.ToDictionary(p => p.Model);
+        var ports = VlanMembership.For(_vlan.VlanNumber, byModel.Keys.ToList());
+        return (ports.Untagged.Select(p => byModel[p]).ToList(), ports.Tagged.Select(p => byModel[p]).ToList());
+    }
 
     /// <summary>
-    /// "12 ports: Gi1/1, Gi1/2, ..." or "-" for none - one string doing
-    /// double duty as the DataGrid cell (ellipsis-trimmed) and its tooltip
-    /// (shown in full), rather than a separate count column plus a
-    /// truncated-with-"+N more" string to keep in sync with it. Deliberately
-    /// labelled "access ports" (see the column header in DeviceView.xaml),
-    /// not just "ports", so it doesn't imply full trunk membership - see
-    /// AccessPorts' remarks.
+    /// "12 ports: 1 (U), 2 (U), ..., A1, A2" or "-" - every port carrying
+    /// this VLAN in port order, untagged ones marked "(U)" and tagged ones
+    /// not, as LibreNMS's own VLAN page lists them. One string doing double
+    /// duty as the cell (ellipsis-trimmed) and its tooltip (in full).
     /// </summary>
-    public string AccessPortsSummaryText
+    public string PortsSummaryText
     {
         get
         {
-            var ports = AccessPorts;
-            if (ports.Count == 0)
+            var (untagged, tagged) = Members();
+            var members = untagged.Concat(tagged).ToHashSet();
+            if (members.Count == 0)
             {
                 return "-";
             }
 
-            var countLabel = ports.Count == 1 ? "1 port: " : $"{ports.Count} ports: ";
-            return countLabel + string.Join(", ", ports.Select(p => p.DisplayName));
+            var untaggedSet = untagged.ToHashSet();
+            var names = _allPorts
+                .Where(members.Contains)
+                .Select(p => untaggedSet.Contains(p) ? p.DisplayName + " (U)" : p.DisplayName);
+
+            var countLabel = members.Count == 1 ? "1 port: " : $"{members.Count} ports: ";
+            return countLabel + string.Join(", ", names);
         }
     }
 
-    public bool Matches(string term) =>
-        NumberText.Contains(term, StringComparison.OrdinalIgnoreCase)
-        || NameText.Contains(term, StringComparison.OrdinalIgnoreCase)
-        || AccessPorts.Any(p => p.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
+    public bool Matches(string term)
+    {
+        if (NumberText.Contains(term, StringComparison.OrdinalIgnoreCase) || NameText.Contains(term, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
 
-    /// <summary>Called once Ports finishes loading (or reloads), in case it resolved after or changed since this row was already created - see <see cref="AccessPorts"/>'s remarks.</summary>
-    public void RefreshPorts() => OnPropertyChanged(nameof(AccessPortsSummaryText));
+        var (untagged, tagged) = Members();
+        return untagged.Concat(tagged).Any(p => p.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Called once Ports finishes loading (or reloads), in case it resolved after or changed since this row was already created - see <see cref="Members"/>.</summary>
+    public void RefreshPorts() => OnPropertyChanged(nameof(PortsSummaryText));
 }
 
 /// <summary>
@@ -4139,15 +4985,18 @@ public sealed class AlertLogItemViewModel
     private readonly AlertRule? _rule;
     private readonly AlertDetail _detail;
 
-    public AlertLogItemViewModel(AlertLogEntry entry, AlertRule? rule, AlertDetail detail)
+    public AlertLogItemViewModel(AlertLogEntry entry, AlertRule? rule, AlertDetail detail, bool serverTimestampsAreUtc)
     {
         _entry = entry;
         _rule = rule;
         _detail = detail;
+        _serverTimestampsAreUtc = serverTimestampsAreUtc;
     }
 
+    private readonly bool _serverTimestampsAreUtc;
+
     public string TimeText => _entry.TimeLogged is { } t
-        ? t.ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
+        ? ServerTime.ToLocal(t, _serverTimestampsAreUtc).ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)
         : "-";
 
     public string RuleName => _rule?.Name ?? $"Rule {_entry.RuleId}";
@@ -4185,6 +5034,16 @@ public sealed class AlertLogItemViewModel
     }
 
     public bool HasDetail => DetailText.Length > 0;
+}
+
+/// <summary>One bar on the Overview's Resources card.</summary>
+public sealed record OverviewResourceRow(string Label, string ValueText, double Fraction, AlertSeverity Severity)
+{
+    /// <summary>The bar, as a percentage for PercentToStarWidth.</summary>
+    public double PercentValue => Fraction * 100;
+
+    public static OverviewResourceRow Percent(string label, double percent) =>
+        new(label, $"{percent:0}%", Math.Clamp(percent / 100.0, 0, 1), ResourceSeverity.Evaluate(percent, null));
 }
 
 /// <summary>One row in a device's Resources tab - one CPU/core.</summary>
@@ -4414,4 +5273,40 @@ file static class ResourceByteFormat
 
         return value.ToString(unit == 0 ? "0" : "0.#", CultureInfo.InvariantCulture) + " " + Units[unit];
     }
+}
+
+/// <summary>One row of the Overview identity card's names (#126) - see <see cref="DeviceDetailViewModel.NameDetails"/>.</summary>
+public sealed record DeviceNameRow(string Label, string Value);
+
+/// <summary>A neighbour LibreNMS didn't link, matched to a monitored device by this app - which device, and how (for the tooltip).</summary>
+public sealed record NeighbourMatch(int DeviceId, string How, DesktopNMS.Core.Topology.NeighbourMatchKind Kind = DesktopNMS.Core.Topology.NeighbourMatchKind.Name);
+
+/// <summary>One PoE budget row in the Resources section's PoE card (#54).</summary>
+public sealed class PoeBudgetItemViewModel
+{
+    private readonly PoeBudgetRow _row;
+
+    public PoeBudgetItemViewModel(PoeBudgetRow row) => _row = row;
+
+    /// <summary>The stack unit or power supply, or "Budget" for a switch with just one.</summary>
+    public string Label => _row.Label ?? "Budget";
+
+    public double UsagePercent => _row.Percent ?? 0;
+
+    public string PercentText => _row.Percent is { } p ? p.ToString("0", CultureInfo.CurrentCulture) + "%" : "-";
+
+    /// <summary>"17 W of 1,440 W" - or whichever of the two is known.</summary>
+    public string UsageText => (_row.UsedWatts, _row.TotalWatts) switch
+    {
+        ({ } used, { } total) => $"{Watts(used)} of {Watts(total)}",
+        ({ } used, null) => $"{Watts(used)} used",
+        (null, { } total) => $"{Watts(total)} available",
+        _ => "-",
+    };
+
+    public string? RemainingText => _row.RemainingWatts is { } remaining ? $"{Watts(remaining)} spare" : null;
+
+    public AlertSeverity Severity => ResourceSeverity.Evaluate(_row.Percent, null);
+
+    private static string Watts(double watts) => watts.ToString(watts >= 100 ? "N0" : "0.#", CultureInfo.CurrentCulture) + " W";
 }

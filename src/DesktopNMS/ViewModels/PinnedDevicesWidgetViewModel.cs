@@ -14,22 +14,35 @@ namespace DesktopNMS.ViewModels;
 public sealed class PinnedDevicesWidgetViewModel : DashboardWidgetViewModel, IDisposable
 {
     private readonly ISettingsStore _settings;
+    private readonly IDeviceCache _devices;
+    private readonly DeviceMonitor _deviceMonitor;
+    private readonly System.Windows.Threading.Dispatcher _dispatcher;
     private readonly Action<int> _openDevice;
 
     public PinnedDevicesWidgetViewModel(
         IDashboardLayoutService layout,
         DashboardWidget model,
         ISettingsStore settings,
+        IDeviceCache devices,
+        DeviceMonitor deviceMonitor,
         Action<int> openDevice)
         : base(layout, model)
     {
         _settings = settings;
+        _devices = devices;
+        _deviceMonitor = deviceMonitor;
+        _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
         _openDevice = openDevice;
 
         Devices = new ObservableCollection<PinnedDeviceItemViewModel>();
         Rebuild();
 
         _settings.Changed += OnSettingsChanged;
+
+        // Each row's status dot and "hardware 00B7 location" come from the
+        // device list, so refresh with it (#212).
+        _deviceMonitor.Polled += OnDevicesPolled;
+        _deviceMonitor.Start();
     }
 
     public ObservableCollection<PinnedDeviceItemViewModel> Devices { get; }
@@ -38,13 +51,21 @@ public sealed class PinnedDevicesWidgetViewModel : DashboardWidgetViewModel, IDi
 
     private void OnSettingsChanged(object? sender, AppSettings settings) => Rebuild();
 
+    private void OnDevicesPolled(object? sender, DevicePollResult result)
+    {
+        if (result.Succeeded)
+        {
+            _dispatcher.InvokeAsync(Rebuild);
+        }
+    }
+
     private void Rebuild()
     {
         Devices.Clear();
 
         foreach (var entry in _settings.Current.PinnedDevices)
         {
-            Devices.Add(new PinnedDeviceItemViewModel(entry, _openDevice, Unpin));
+            Devices.Add(new PinnedDeviceItemViewModel(entry, _openDevice, Unpin, _devices.Get(entry.DeviceId)));
         }
 
         OnPropertyChanged(nameof(HasDevices));
@@ -60,5 +81,9 @@ public sealed class PinnedDevicesWidgetViewModel : DashboardWidgetViewModel, IDi
         }
     }
 
-    public void Dispose() => _settings.Changed -= OnSettingsChanged;
+    public void Dispose()
+    {
+        _settings.Changed -= OnSettingsChanged;
+        _deviceMonitor.Polled -= OnDevicesPolled;
+    }
 }

@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:views="clr-namespace:DesktopNMS.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:TemplatesViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100">
@@ -47,12 +48,14 @@
 
                 <Rectangle Grid.Column="2" Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
 
-                <Button Grid.Column="3"
-                        Command="{Binding AddTemplateCommand}"
-                        Style="{StaticResource IconButtonStyle}"
-                        ToolTip="Add alert template">
-                    <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
-                </Button>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <views:CsvExportButton Export="{Binding Csv}" Margin="0,0,8,0" />
+                    <Button Command="{Binding AddTemplateCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Add alert template">
+                        <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                    </Button>
+                </StackPanel>
             </Grid>
         </Border>
 

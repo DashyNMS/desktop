@@ -14,6 +14,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Topology;
+using DesktopNMS.Infrastructure;
 using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.Services;
@@ -77,7 +78,7 @@ public sealed class MapTileService : IMapTileService
     {
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
-        _dark = settings.Current.Theme == AppTheme.Dark;
+        _dark = ThemeState.IsDark;
 
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1";

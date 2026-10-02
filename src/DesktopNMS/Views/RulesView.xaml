@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:views="clr-namespace:DesktopNMS.Views"
              xmlns:models="clr-namespace:DesktopNMS.Core.Models;assembly=DesktopNMS.Core"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:RulesViewModel}"
@@ -81,12 +82,35 @@
 
                 <Rectangle Grid.Column="2" Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
 
-                <Button Grid.Column="3"
-                        Command="{Binding AddRuleCommand}"
-                        Style="{StaticResource IconButtonStyle}"
-                        ToolTip="Add rule">
-                    <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
-                </Button>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Several rows selected (#144): enable or disable them together. -->
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding HasMultipleSelection, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding SelectionText}"
+                                   Style="{StaticResource SubtleTextStyle}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <Button Content="Enable"
+                                Command="{Binding EnableSelectedCommand}"
+                                Style="{StaticResource ChipButtonStyle}"
+                                Margin="0,0,6,0"
+                                ToolTip="Enable every selected rule" />
+                        <Button Content="Disable"
+                                Command="{Binding DisableSelectedCommand}"
+                                Style="{StaticResource ChipButtonStyle}"
+                                ToolTip="Disable every selected rule" />
+                        <Rectangle Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
+                    </StackPanel>
+
+                    <views:CsvExportButton Export="{Binding Csv}" Margin="0,0,8,0" />
+
+                    <Button Command="{Binding AddRuleCommand}"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Add rule">
+                        <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                    </Button>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -105,6 +129,8 @@
             <DataGrid x:Name="RulesGrid"
                       ItemsSource="{Binding Filtered.View}"
                       IsReadOnly="True"
+                      SelectionMode="Extended"
+                      SelectionChanged="OnRulesSelectionChanged"
                       Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
                 <DataGrid.Columns>
 
@@ -169,11 +195,14 @@
 
                     <DataGridTextColumn Header="Target" Width="150" Binding="{Binding TargetSummary}" ElementStyle="{StaticResource GridTextCellStyle}" />
 
+                    <!-- The template each rule uses (#140). -->
+                    <DataGridTextColumn Header="Template" Width="170" Binding="{Binding TemplateName}" ElementStyle="{StaticResource GridTextCellStyle}" />
+
                     <!-- Status toggle sits with the row actions: a green tick
                          for enabled, a red cross for disabled, one click to
                          flip it (a full edit_rule write - LibreNMS has no
                          toggle route). -->
-                    <DataGridTemplateColumn Header="" Width="120" CanUserSort="True" SortMemberPath="IsDisabled">
+                    <DataGridTemplateColumn Header="" Width="150" CanUserSort="True" SortMemberPath="IsDisabled">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" Margin="6,0">
@@ -203,6 +232,14 @@
                                             FontSize="13"
                                             ToolTip="Edit this rule">
                                         <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                                    </Button>
+                                    <Button Command="{Binding DuplicateCommand}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Width="28"
+                                            Height="28"
+                                            FontSize="13"
+                                            ToolTip="Duplicate this rule">
+                                        <TextBlock Text="&#xE8C8;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
                                     </Button>
                                     <Button Command="{Binding DeleteCommand}"
                                             Style="{StaticResource IconButtonStyle}"

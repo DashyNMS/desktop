@@ -1,0 +1,101 @@
+<UserControl x:Class="DesktopNMS.Views.WirelessView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:DesktopNMS.Views">
+
+    <!-- Device Details' Wireless section (#55) - see WirelessSectionViewModel.
+         One card per wireless sensor class the device reports (APs, clients,
+         SNR, ...), each reading with its state against its LibreNMS limits. -->
+    <UserControl.Resources>
+        <Style x:Key="WirelessCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="Margin" Value="0,0,0,14" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Wireless" Style="{StaticResource HeadingTextStyle}" />
+                <TextBlock Text="{Binding SummaryText}" Style="{StaticResource SubtleTextStyle}" Margin="0,4,0,14" />
+
+                <Border Background="#33DB9A04"
+                        BorderBrush="{StaticResource WarningBrush}"
+                        BorderThickness="1"
+                        CornerRadius="5"
+                        Padding="12,10"
+                        Margin="0,0,0,14"
+                        Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Text="Wireless data couldn't be loaded" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <ItemsControl ItemsSource="{Binding Classes}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource WirelessCardStyle}">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding HeaderText}" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding TotalText}"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,0"
+                                                   Visibility="{Binding TotalText, Converter={StaticResource NullToVisibility}}" />
+                                        <TextBlock Grid.Column="2" Cursor="Hand" VerticalAlignment="Center">
+                                            <Hyperlink Command="{Binding DataContext.ShowGraphCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                       CommandParameter="{Binding}"
+                                                       ToolTip="View this reading's graph">View graph</Hyperlink>
+                                        </TextBlock>
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding Readings}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="110" />
+                                                        <ColumnDefinition Width="200" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Ellipse Grid.Column="0"
+                                                             Width="9"
+                                                             Height="9"
+                                                             Margin="0,0,10,0"
+                                                             VerticalAlignment="Center"
+                                                             Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Description}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,10,0" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding ValueText}" FontWeight="SemiBold" VerticalAlignment="Center" TextAlignment="Right" />
+                                                    <TextBlock Grid.Column="3" Text="{Binding LimitsText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="LibreNMS has no wireless data for this device."
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding ShowEmptyMessage, Converter={StaticResource BoolToVisibility}}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <views:LoadingOverlay Text="Loading wireless data..."
+                              Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
+    </Grid>
+</UserControl>

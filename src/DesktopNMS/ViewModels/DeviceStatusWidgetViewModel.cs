@@ -26,10 +26,16 @@ public sealed class DeviceStatusWidgetViewModel : DashboardWidgetViewModel, IDis
     private int _disabledCount;
     private int _totalCount;
 
-    public DeviceStatusWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model, DeviceMonitor monitor)
+    public DeviceStatusWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model, DeviceMonitor monitor, IWindowService windows)
         : base(layout, model)
     {
         _monitor = monitor;
+
+        // Each count opens the Devices tab showing just those devices (#212).
+        OpenUpCommand = new RelayCommand(() => windows.ShowDevicesWithState(DeviceState.Up));
+        OpenDownCommand = new RelayCommand(() => windows.ShowDevicesWithState(DeviceState.Down));
+        OpenMaintenanceCommand = new RelayCommand(() => windows.ShowDevicesWithState(DeviceState.Maintenance));
+        OpenDisabledCommand = new RelayCommand(() => windows.ShowDevicesWithState(DeviceState.Disabled));
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         _monitor.Polled += OnPolled;
@@ -53,6 +59,17 @@ public sealed class DeviceStatusWidgetViewModel : DashboardWidgetViewModel, IDis
     public int DisabledCount => _disabledCount;
 
     public int TotalCount => _totalCount;
+
+    /// <summary>"1 device", "154 devices".</summary>
+    public string TotalText => _totalCount == 1 ? "1 device" : _totalCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) + " devices";
+
+    public RelayCommand OpenUpCommand { get; }
+
+    public RelayCommand OpenDownCommand { get; }
+
+    public RelayCommand OpenMaintenanceCommand { get; }
+
+    public RelayCommand OpenDisabledCommand { get; }
 
     public double UpFraction => _totalCount > 0 ? (double)_upCount / _totalCount : 0;
 
@@ -114,6 +131,7 @@ public sealed class DeviceStatusWidgetViewModel : DashboardWidgetViewModel, IDis
         OnPropertyChanged(nameof(MaintenanceCount));
         OnPropertyChanged(nameof(DisabledCount));
         OnPropertyChanged(nameof(TotalCount));
+        OnPropertyChanged(nameof(TotalText));
         OnPropertyChanged(nameof(UpFraction));
         OnPropertyChanged(nameof(DownFraction));
         OnPropertyChanged(nameof(MaintenanceFraction));

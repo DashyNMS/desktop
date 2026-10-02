@@ -5,8 +5,9 @@ public sealed class UnimusConnection
 {
     public const string ApiPathSegment = "api/v2";
 
-    public UnimusConnection(Uri webRoot, string apiToken, bool allowUntrustedCertificate = false, int timeoutSeconds = 30)
+    public UnimusConnection(Uri webRoot, string apiToken, bool allowUntrustedCertificate = false, int timeoutSeconds = 30, IReadOnlyCollection<string>? trustedCertificates = null)
     {
+        TrustedCertificates = trustedCertificates?.ToArray() ?? Array.Empty<string>();
         WebRoot = webRoot ?? throw new ArgumentNullException(nameof(webRoot));
         ApiToken = apiToken ?? throw new ArgumentNullException(nameof(apiToken));
         AllowUntrustedCertificate = allowUntrustedCertificate;
@@ -23,6 +24,9 @@ public sealed class UnimusConnection
 
     /// <summary>Accept self-signed / internally-issued certificates - common for an internal-only tool like Unimus. Off by default.</summary>
     public bool AllowUntrustedCertificate { get; }
+
+    /// <summary>SHA-256 fingerprints of the certificates the user has accepted for this server - see <see cref="Security.CertificateTrust"/>.</summary>
+    public IReadOnlyCollection<string> TrustedCertificates { get; }
 
     public int TimeoutSeconds { get; }
 

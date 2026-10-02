@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -28,5 +29,14 @@ public partial class RulesView : UserControl
 
         vm.IsolateSeverity(severity);
         e.Handled = true;
+    }
+
+    // The selection drives the toolbar's Enable / Disable for several rules (#144).
+    private void OnRulesSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is RulesViewModel vm)
+        {
+            vm.SetSelection(RulesGrid.SelectedItems.OfType<RuleItemViewModel>());
+        }
     }
 }

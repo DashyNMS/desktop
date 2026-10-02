@@ -44,6 +44,9 @@ public interface IDashboardLayoutService
     void SetGraph(string widgetId, int? deviceId, string? graphName);
 
     void SetGraphTimeRange(string widgetId, GraphTimeRangePreset preset, DateTime? customFrom, DateTime? customTo);
+
+    /// <summary>Sets a Top interfaces, Top errors or Top devices widget's row count, ranking and (for errors) whether quiet ports are hidden (#199-#201).</summary>
+    void SetTopOptions(string widgetId, int count, DesktopNMS.Core.Devices.RankBy rankBy, bool hideQuiet);
 }
 
 public sealed class DashboardLayoutService : IDashboardLayoutService
@@ -234,6 +237,21 @@ public sealed class DashboardLayoutService : IDashboardLayoutService
         widget.AlertsShowCritical = showCritical;
         widget.AlertsShowWarning = showWarning;
         widget.AlertsIncludeAcknowledged = includeAcknowledged;
+        _settings.Save();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetTopOptions(string widgetId, int count, DesktopNMS.Core.Devices.RankBy rankBy, bool hideQuiet)
+    {
+        var widget = Find(widgetId);
+        if (widget is null || (widget.TopCount == count && widget.TopRankBy == rankBy && widget.TopHideQuiet == hideQuiet))
+        {
+            return;
+        }
+
+        widget.TopCount = count;
+        widget.TopRankBy = rankBy;
+        widget.TopHideQuiet = hideQuiet;
         _settings.Save();
         Changed?.Invoke(this, EventArgs.Empty);
     }

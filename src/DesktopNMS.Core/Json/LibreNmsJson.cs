@@ -220,6 +220,18 @@ public sealed class LibreNmsDateTimeConverter : JsonConverter<DateTime?>
             return null;
         }
 
+        // An ISO string with its own zone ("2026-10-01T09:00:00.000000Z", as a
+        // Laravel datetime cast sends, or "+01:00") is an exact instant: keep
+        // it as UTC so ServerTime.ToLocal converts it whatever the "server
+        // stores timestamps in UTC" setting says. Parsing it as a plain
+        // DateTime turned it into this PC's local time, and marking that
+        // Unspecified then let ToLocal shift it a second time.
+        if (HasZone(text)
+            && DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var zoned))
+        {
+            return zoned.UtcDateTime;
+        }
+
         if (DateTime.TryParseExact(text, Formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var exact))
         {
             return DateTime.SpecifyKind(exact, DateTimeKind.Unspecified);
@@ -231,6 +243,26 @@ public sealed class LibreNmsDateTimeConverter : JsonConverter<DateTime?>
         }
 
         return null;
+    }
+
+    /// <summary>True when the text ends in a zone of its own: "Z", or an offset like "+01:00" or "-0500" after the time.</summary>
+    private static bool HasZone(string text)
+    {
+        var trimmed = text.TrimEnd();
+        if (trimmed.EndsWith('Z') || trimmed.EndsWith('z'))
+        {
+            return true;
+        }
+
+        // Only look past the date, so the dashes in "2026-10-01" never count as an offset.
+        var timeStart = trimmed.IndexOfAny(new[] { 'T', ' ' });
+        if (timeStart < 0)
+        {
+            return false;
+        }
+
+        var sign = trimmed.LastIndexOfAny(new[] { '+', '-' });
+        return sign > timeStart && (trimmed.Length - sign) is 5 or 6 && trimmed[(sign + 1)..].Replace(":", string.Empty).All(char.IsDigit);
     }
 
     public override void Write(Utf8JsonWriter writer, DateTime? value, JsonSerializerOptions options)

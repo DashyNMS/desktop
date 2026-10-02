@@ -90,7 +90,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         DevicesView.SortDescriptions.Add(new SortDescription(nameof(DeviceItemViewModel.IsPinned), ListSortDirection.Descending));
         DevicesView.SortDescriptions.Add(new SortDescription(nameof(DeviceItemViewModel.Name), ListSortDirection.Ascending));
 
-        _pinnedIds = _settings.Current.PinnedDevices.Select(p => p.DeviceId).ToHashSet();
+        _pinnedIds = EffectivePinnedIds(_settings.Current);
 
         RecentlyViewedDevices = new ObservableCollection<RecentlyViewedDeviceItemViewModel>();
         RebuildRecentlyViewed(_settings.Current.RecentlyViewedDevices);
@@ -131,6 +131,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         // AddDevice has nothing to gate: a failed add while disconnected
         // surfaces as an inline error in the dialog itself.
         AddDeviceCommand = new RelayCommand(AddDevice);
+        BulkAddDevicesCommand = new RelayCommand(BulkAddDevices);
 
         // Bulk actions (issue #39) - mirror MainViewModel's Acknowledge/
         // Unacknowledge pair for the Alerts grid: both always available for
@@ -210,6 +211,9 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     /// <summary>Opens the "Add device" dialog - see <see cref="AddDevice"/>.</summary>
     public RelayCommand AddDeviceCommand { get; }
+
+    /// <summary>Opens "Bulk add devices" - see <see cref="BulkAddDevices"/>.</summary>
+    public RelayCommand BulkAddDevicesCommand { get; }
 
     /// <summary>Pins every currently-selected device - see <see cref="SetSelectedPinned"/>.</summary>
     public RelayCommand PinSelectedCommand { get; }
@@ -304,10 +308,10 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// action that would be a no-op for every device in it. A mixed
     /// selection shows both, since either one still does something.
     /// </summary>
-    public bool ShowPinSelectedAction => _selectedDevices.Any(d => !d.IsPinned);
+    public bool ShowPinSelectedAction => PinningEnabled && _selectedDevices.Any(d => !d.IsPinned);
 
     /// <summary>True when unpinning would do something - see <see cref="ShowPinSelectedAction"/>.</summary>
-    public bool ShowUnpinSelectedAction => _selectedDevices.Any(d => d.IsPinned);
+    public bool ShowUnpinSelectedAction => PinningEnabled && _selectedDevices.Any(d => d.IsPinned);
 
     /// <summary>
     /// Forwards the grid's multi-selection from code-behind - DataGrid.SelectedItems
@@ -337,6 +341,12 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// <see cref="RefreshPinnedState"/> in case a still-selected device's
     /// own pin state changed elsewhere (e.g. the Dashboard's Unpin button).
     /// </summary>
+    /// <summary>Settings' pinned devices option (#98) - off, nothing counts as pinned here, so nothing sorts first and the pin column/actions hide.</summary>
+    public bool PinningEnabled => _settings.Current.EnablePinnedDevices;
+
+    private static HashSet<int> EffectivePinnedIds(AppSettings settings) =>
+        settings.EnablePinnedDevices ? settings.PinnedDevices.Select(p => p.DeviceId).ToHashSet() : new HashSet<int>();
+
     private void RaiseSelectedPinStateChanged()
     {
         OnPropertyChanged(nameof(PinSelectedLabel));
@@ -344,6 +354,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(RediscoverSelectedLabel));
         OnPropertyChanged(nameof(ShowPinSelectedAction));
         OnPropertyChanged(nameof(ShowUnpinSelectedAction));
+        OnPropertyChanged(nameof(PinningEnabled));
     }
 
     public string StatusMessage
@@ -475,15 +486,23 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
             }
         }
 
+        var visibilityChanged = false;
+
         for (var target = 0; target < ordered.Count; target++)
         {
             var device = ordered[target];
 
             if (_index.TryGetValue(device.DeviceId, out var existing))
             {
+                // The view only filters an item when it's added, so a device
+                // updated in place - e.g. gone down while only up devices are
+                // showing - would otherwise stay until a filter next changes.
+                var wasShown = FilterDevice(existing);
                 existing.Update(device, nameStyle);
                 existing.IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId);
                 existing.IsPinned = _pinnedIds.Contains(device.DeviceId);
+                existing.ServerTimestampsAreUtc = _settings.Current.ServerTimestampsAreUtc;
+                visibilityChanged |= FilterDevice(existing) != wasShown;
 
                 var currentIndex = Devices.IndexOf(existing);
                 if (currentIndex >= 0 && currentIndex != target && target < Devices.Count)
@@ -497,10 +516,17 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
                 {
                     IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId),
                     IsPinned = _pinnedIds.Contains(device.DeviceId),
+                    ServerTimestampsAreUtc = _settings.Current.ServerTimestampsAreUtc,
                 };
                 _index[device.DeviceId] = item;
                 Devices.Insert(Math.Min(target, Devices.Count), item);
             }
+        }
+
+        // Only when something's shown/hidden state actually changed.
+        if (visibilityChanged)
+        {
+            DevicesView.Refresh();
         }
 
         _lastOrderedDevices = ordered;
@@ -712,7 +738,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     private void RefreshPinnedState(IReadOnlyList<PinnedDevice> pinned)
     {
-        _pinnedIds = pinned.Select(p => p.DeviceId).ToHashSet();
+        _pinnedIds = PinningEnabled ? pinned.Select(p => p.DeviceId).ToHashSet() : new HashSet<int>();
 
         foreach (var device in Devices)
         {
@@ -731,6 +757,15 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     private void AddDevice()
     {
         if (_windows.ShowAddDeviceDialog())
+        {
+            _deviceMonitor.RequestRefresh();
+        }
+    }
+
+    /// <summary>The same as <see cref="AddDevice"/>, for many devices at once - refreshes once when it closes if anything was added.</summary>
+    private void BulkAddDevices()
+    {
+        if (_windows.ShowBulkAddDevicesDialog())
         {
             _deviceMonitor.RequestRefresh();
         }
@@ -811,6 +846,20 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         GroupFilter.IsolateOne(groupName, notify: false);
 
         OnFilterChanged();
+    }
+
+    /// <summary>
+    /// Jumped to from a Dashboard Device status count (#212): resets every
+    /// other filter, as <see cref="FilterByLocationOnly"/> does, and shows only
+    /// devices in this state.
+    /// </summary>
+    public void FilterByStateOnly(DeviceState state)
+    {
+        SearchText = string.Empty;
+        TypeFilter.SetAllChecked(true, notify: false);
+        LocationFilter.SetAllChecked(true, notify: false);
+        GroupFilter.SetAllChecked(true, notify: false);
+        IsolateState(state);
     }
 
     /// <summary>Shift-click on a status badge: show only that status, hiding the rest.</summary>

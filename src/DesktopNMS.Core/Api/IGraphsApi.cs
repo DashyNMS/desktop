@@ -26,6 +26,15 @@ public interface IGraphsApi
     Task<IReadOnlyList<GraphType>> ListHealthAsync(int deviceId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// GET /api/v0/devices/{id}/wireless - one graph per wireless sensor
+    /// class the device has ("device_wireless_clients", ...), a third listing
+    /// neither of the others includes (confirmed live). They render through
+    /// the same /devices/{id}/{graphName} route as the rest. Descriptions
+    /// are rewritten from LibreNMS's bare "Ap-count" to "Wireless: APs".
+    /// </summary>
+    Task<IReadOnlyList<GraphType>> ListWirelessAsync(int deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// GET /api/v0/devices/{id}/{graphName} - the rendered graph, as the raw
     /// SVG LibreNMS returns (confirmed live: image/svg+xml, no cookie
     /// session needed, honours "from"/"width"/"height"). Callers apply their
@@ -35,6 +44,20 @@ public interface IGraphsApi
     Task<string> GetSvgAsync(
         int deviceId,
         string graphName,
+        GraphTimeRange range,
+        int width,
+        int height,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/devices/{id}/ports/{ifName}/{graphType} - one port's graph
+    /// ("port_bits" for traffic), as SVG. An ifName with a slash ("1/1/5",
+    /// "Gi0/5") goes as %2F, which LibreNMS decodes (checked live).
+    /// </summary>
+    Task<string> GetPortSvgAsync(
+        int deviceId,
+        string ifName,
+        string graphType,
         GraphTimeRange range,
         int width,
         int height,

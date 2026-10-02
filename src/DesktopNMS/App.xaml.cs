@@ -12,6 +12,7 @@ using DesktopNMS.Core.CustomMaps;
 using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Topology;
 using DesktopNMS.Infrastructure;
+using DesktopNMS.Security;
 using DesktopNMS.Services;
 using DesktopNMS.ViewModels;
 using DesktopNMS.Views;
@@ -72,12 +73,22 @@ public partial class App : Application
         // Must run before any window (or anything else that applies a style)
         // is constructed - see ApplyTheme's remarks.
         ApplyTheme(settings.Current.Theme);
+        WindowTheming.Register();
+
+        // Before the main window exists, so the Logs tab (only shown when
+        // Graylog is set up) is right from the first frame. Graylog doesn't
+        // depend on the LibreNMS session, so there's no need to wait for it.
+        ConfigureGraylogIfEnabled();
 
         AccentTheme.Apply(settings.Current.AccentColor);
         settings.Changed += (_, s) => AccentTheme.Apply(s.AccentColor);
 
         SetUpTray();
         SetUpNotifications();
+        SetUpUpdates();
+
+        // Slows the device and sensor pollers while nothing is on screen (#52).
+        _services.GetRequiredService<AppActivity>().Start(Dispatcher);
 
         _monitor = _services.GetRequiredService<AlertMonitor>();
         _mainViewModel = _services.GetRequiredService<MainViewModel>();
@@ -113,6 +124,20 @@ public partial class App : Application
 
         var restored = await session.TryRestoreAsync().ConfigureAwait(true);
 
+        // The saved session's certificate isn't trusted yet - typically the
+        // first run after "Allow untrusted certificate" stopped meaning "accept
+        // anything" (#189), or the certificate changed. Ask here, rather than
+        // dropping to sign-in and asking for the token again.
+        if (restored?.UntrustedCertificate is { } certificate)
+        {
+            windows.ShowMain();
+            if (windows.ConfirmTrustCertificate("LibreNMS", certificate))
+            {
+                session.TrustCertificate(certificate);
+                restored = await session.TryRestoreAsync().ConfigureAwait(true);
+            }
+        }
+
         if (restored is null || !restored.Succeeded)
         {
             if (restored is { Succeeded: false })
@@ -142,6 +167,31 @@ public partial class App : Application
         ConfigureUnimusIfEnabled();
     }
 
+    /// <summary>The same shape as <see cref="ConfigureUnimusIfEnabled"/> - Graylog is independent of LibreNMS sign-in too.</summary>
+    private void ConfigureGraylogIfEnabled()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        var settings = _services.GetRequiredService<ISettingsStore>().Current.Graylog;
+        if (!settings.Enabled || string.IsNullOrWhiteSpace(settings.Server))
+        {
+            return;
+        }
+
+        var password = _services.GetRequiredService<IGraylogPasswordProtector>().Load();
+        var connection = GraylogConnection.FromSettings(settings, password, out var error);
+        if (connection is null)
+        {
+            _logger?.LogWarning("Graylog is enabled but can't be connected to: {Error}", error);
+            return;
+        }
+
+        _services.GetRequiredService<IGraylogApi>().Configure(connection);
+    }
+
     private void ConfigureUnimusIfEnabled()
     {
         if (_services is null)
@@ -168,8 +218,29 @@ public partial class App : Application
             return;
         }
 
-        var connection = new UnimusConnection(webRoot, token, settings.AllowUntrustedCertificate);
+        var connection = new UnimusConnection(webRoot, token, settings.AllowUntrustedCertificate, trustedCertificates: settings.TrustedCertificates);
         _services.GetRequiredService<IUnimusApi>().Configure(connection);
+    }
+
+    private void SetUpUpdates()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        var updates = _services.GetRequiredService<IUpdateCheckService>();
+
+        // The installer replaces DashyNMS.exe, so get out of its way; it
+        // reopens the app on the new version once it's done.
+        updates.InstallStarted += (_, _) => Dispatcher.InvokeAsync(ShutdownApplication);
+        updates.OnStartup();
+
+        // Beyond the check at start-up, for an app left running for days in
+        // the tray. Each release is only ever toasted about once.
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromHours(6) };
+        timer.Tick += (_, _) => _ = CheckForUpdatesAsync();
+        timer.Start();
     }
 
     private async Task CheckForUpdatesAsync()
@@ -212,7 +283,10 @@ public partial class App : Application
     /// </remarks>
     private void ApplyTheme(AppTheme theme)
     {
-        var paletteFile = theme == AppTheme.Light ? "Palette.Light.xaml" : "Palette.Dark.xaml";
+        // "Match Windows" (#81) is resolved here, once - see ThemeState.
+        ThemeState.Effective = theme.Resolve(ThemeState.WindowsUsesLightTheme());
+
+        var paletteFile = ThemeState.Effective == AppTheme.Light ? "Palette.Light.xaml" : "Palette.Dark.xaml";
 
         Resources.MergedDictionaries.Add(new ResourceDictionary
         {
@@ -240,6 +314,11 @@ public partial class App : Application
 
         services.AddDesktopNmsCore();
 
+        // Secret storage is per platform - DPAPI here (#152).
+        services.AddSingleton<ITokenProtector, DpapiTokenProtector>();
+        services.AddSingleton<IUnimusTokenProtector, DpapiUnimusTokenProtector>();
+        services.AddSingleton<IGraylogPasswordProtector, DpapiGraylogPasswordProtector>();
+
         services.AddSingleton<ISessionService, SessionService>();
         services.AddSingleton<IDeviceCache, DeviceCache>();
         services.AddSingleton<IAlertRuleCache, AlertRuleCache>();
@@ -248,6 +327,8 @@ public partial class App : Application
         services.AddSingleton<IMapTileService, MapTileService>();
         services.AddSingleton<ICustomMapStore, CustomMapStore>();
         services.AddSingleton<IUnimusDeviceResolver, UnimusDeviceResolver>();
+        services.AddSingleton<AppActivity>();
+        services.AddSingleton<IAppActivity>(sp => sp.GetRequiredService<AppActivity>());
         services.AddSingleton<AlertMonitor>();
         services.AddSingleton<SensorMonitor>();
         services.AddSingleton<DeviceMonitor>();
@@ -261,7 +342,6 @@ public partial class App : Application
         services.AddSingleton<IWindowService>(sp => sp.GetRequiredService<WindowService>());
         services.AddSingleton<ISelfActionTracker, SelfActionTracker>();
         services.AddSingleton<IDashboardLayoutService, DashboardLayoutService>();
-        services.AddSingleton<IServerBrandingService, ServerBrandingService>();
 
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<DeviceListViewModel>();
@@ -269,14 +349,21 @@ public partial class App : Application
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<GroupsViewModel>();
         services.AddSingleton<LocationsViewModel>();
+        services.AddSingleton<IFleetLinks, FleetLinks>();
+        services.AddSingleton<IFleetPorts, FleetPorts>();
+        services.AddSingleton<INeighbourDirectory, NeighbourDirectory>();
+        services.AddSingleton<NeighboursViewModel>();
+        services.AddTransient<NeighbourViewEditorViewModel>();
         services.AddSingleton<RulesViewModel>();
         services.AddSingleton<TemplatesViewModel>();
         services.AddSingleton<NetworkMapViewModel>();
         services.AddSingleton<GeoMapViewModel>();
         services.AddSingleton<CustomMapsViewModel>();
+        services.AddSingleton<LogsViewModel>();
         services.AddTransient<ConnectionViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AddDeviceViewModel>();
+        services.AddTransient<BulkAddDevicesViewModel>();
         services.AddTransient<DeviceGroupEditorViewModel>();
         services.AddTransient<AddDevicesToGroupViewModel>();
         services.AddTransient<LocationEditorViewModel>();
@@ -378,6 +465,10 @@ public partial class App : Application
             {
                 case ToastAction.Acknowledge when request.AlertId is { } ackId:
                     await _mainViewModel.AcknowledgeAsync(ackId).ConfigureAwait(true);
+                    break;
+
+                case ToastAction.InstallUpdate:
+                    await _mainViewModel.InstallUpdateAsync().ConfigureAwait(true);
                     break;
 
                 default:

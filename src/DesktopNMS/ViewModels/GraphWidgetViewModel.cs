@@ -39,6 +39,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
     private int? _selectedDeviceId;
     private string _selectedDeviceName = string.Empty;
     private GraphType? _selectedGraph;
+    private string? _wantedGraphName;
     private bool _isDevicePickerOpen;
     private string _devicePickerSearchText = string.Empty;
     private bool _isLoading;
@@ -57,6 +58,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         _openGraph = openGraph;
 
         _selectedDeviceId = model.GraphDeviceId;
+        _wantedGraphName = model.GraphName;
         TimeRange = new GraphTimeRangeViewModel(model.GraphTimeRangePreset, model.GraphCustomFrom, model.GraphCustomTo);
         TimeRange.Changed += OnTimeRangeChanged;
 
@@ -154,6 +156,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         {
             if (SetProperty(ref _selectedGraph, value))
             {
+                _wantedGraphName = value?.Name ?? _wantedGraphName;
                 OnPropertyChanged(nameof(IsConfigured));
                 Layout.SetGraph(Id, _selectedDeviceId, value?.Name);
                 _ = LoadGraphAsync();
@@ -211,6 +214,12 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         {
             _ = LoadGraphAsync();
         }
+        else if (_selectedDeviceId is { } deviceId && AvailableGraphs.Count == 0)
+        {
+            // Its graph list never loaded (the server wasn't answering at the
+            // time) - try again, and pick up the graph it was set to.
+            _ = LoadGraphTypesAsync(deviceId, _wantedGraphName);
+        }
     }
 
     private void SelectDevice(int deviceId, string displayName)
@@ -240,10 +249,11 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         {
             var deviceWideTask = _client.Graphs.ListAsync(deviceId);
             var healthTask = _client.Graphs.ListHealthAsync(deviceId);
-            await Task.WhenAll(deviceWideTask, healthTask).ConfigureAwait(true);
+            var wirelessTask = GraphsSectionViewModel.ListWirelessGraphsAsync(_client, deviceId, _logger);
+            await Task.WhenAll(deviceWideTask, healthTask, wirelessTask).ConfigureAwait(true);
 
             AvailableGraphs.Clear();
-            foreach (var type in deviceWideTask.Result.Concat(healthTask.Result).OrderBy(t => t.Description, StringComparer.OrdinalIgnoreCase))
+            foreach (var type in deviceWideTask.Result.Concat(healthTask.Result).Concat(wirelessTask.Result).OrderBy(t => t.Description, StringComparer.OrdinalIgnoreCase))
             {
                 AvailableGraphs.Add(type);
             }

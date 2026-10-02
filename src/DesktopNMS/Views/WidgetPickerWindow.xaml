@@ -1,0 +1,251 @@
+<Window x:Class="DesktopNMS.Views.WidgetPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:WidgetPickerViewModel}"
+        Title="Add widget"
+        Width="720"
+        Height="520"
+        MinWidth="560"
+        MinHeight="380"
+        ShowInTaskbar="False"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Background="{StaticResource BackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+
+    <Window.Resources>
+        <!-- The side list of categories: a plain, flat list with the
+             picked one tinted in the accent, like the app's nav. -->
+        <Style x:Key="CategoryItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Back" Background="Transparent" CornerRadius="6" Padding="10,7" Margin="0,0,0,2">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="Name" Text="{Binding Name}" />
+                                <TextBlock x:Name="Count" Grid.Column="1" Text="{Binding CountText}" Margin="8,0,0,0" Style="{StaticResource SubtleTextStyle}" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Back" Property="Background" Value="{StaticResource SurfaceAltBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Back" Property="Background" Value="{StaticResource AccentSubtleBrush}" />
+                                <Setter TargetName="Name" Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="Name" Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A widget card: preview, name, and description (or why it can't
+             be added yet). Picked = accent border; unavailable = dimmed. -->
+        <Style x:Key="WidgetCardStyle" TargetType="ListBoxItem">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="IsEnabled" Value="{Binding IsAvailable}" />
+            <Setter Property="ToolTip" Value="{Binding UnavailableReason}" />
+            <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Card"
+                                Width="196"
+                                Margin="0,0,10,10"
+                                Padding="10"
+                                CornerRadius="8"
+                                Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="Card" Property="BorderThickness" Value="2" />
+                                <Setter TargetName="Card" Property="Padding" Value="9" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Card" Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PreviewLine" TargetType="Border">
+            <Setter Property="Height" Value="5" />
+            <Setter Property="CornerRadius" Value="2.5" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Background" Value="{StaticResource BorderBrush}" />
+        </Style>
+
+        <!-- A hint of each widget's shape - not a live rendering. -->
+        <DataTemplate x:Key="WidgetCardTemplate" DataType="{x:Type vm:WidgetCatalogEntry}">
+            <StackPanel>
+                <Border Height="64" CornerRadius="5" Background="{StaticResource SurfaceAltBrush}" Padding="10,9" Margin="0,0,0,8" ClipToBounds="True">
+                    <Grid>
+                        <!-- List: rows with a dot -->
+                        <StackPanel x:Name="PreviewList" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal"><Ellipse Width="6" Height="6" Fill="{StaticResource CriticalBrush}" Margin="0,0,6,6" /><Border Style="{StaticResource PreviewLine}" Width="110" /></StackPanel>
+                            <StackPanel Orientation="Horizontal"><Ellipse Width="6" Height="6" Fill="{StaticResource WarningBrush}" Margin="0,0,6,6" /><Border Style="{StaticResource PreviewLine}" Width="86" /></StackPanel>
+                            <StackPanel Orientation="Horizontal"><Ellipse Width="6" Height="6" Fill="{StaticResource OkBrush}" Margin="0,0,6,6" /><Border Style="{StaticResource PreviewLine}" Width="98" /></StackPanel>
+                        </StackPanel>
+
+                        <!-- Gauges: three rings -->
+                        <StackPanel x:Name="PreviewGauges" Orientation="Horizontal" HorizontalAlignment="Center" Visibility="Collapsed">
+                            <Ellipse Width="40" Height="40" Stroke="{StaticResource CriticalBrush}" StrokeThickness="4" Margin="6,0" />
+                            <Ellipse Width="40" Height="40" Stroke="{StaticResource WarningBrush}" StrokeThickness="4" Margin="6,0" />
+                            <Ellipse Width="40" Height="40" Stroke="{StaticResource BorderBrush}" StrokeThickness="4" Margin="6,0" />
+                        </StackPanel>
+
+                        <!-- Tiles: four count tiles -->
+                        <UniformGrid x:Name="PreviewTiles" Columns="4" Visibility="Collapsed">
+                            <Border CornerRadius="4" Margin="2" Background="{StaticResource OkBrush}" Opacity="0.75" />
+                            <Border CornerRadius="4" Margin="2" Background="{StaticResource CriticalBrush}" Opacity="0.75" />
+                            <Border CornerRadius="4" Margin="2" Background="{StaticResource MaintenanceBrush}" Opacity="0.75" />
+                            <Border CornerRadius="4" Margin="2" Background="{StaticResource BorderBrush}" />
+                        </UniformGrid>
+
+                        <!-- Graph: a line over a baseline -->
+                        <Grid x:Name="PreviewGraph" Visibility="Collapsed">
+                            <Polyline Points="0,38 18,30 34,34 52,18 70,24 88,10 106,20 124,14 150,22"
+                                      Stroke="{StaticResource AccentBrush}"
+                                      StrokeThickness="2"
+                                      StrokeLineJoin="Round" />
+                            <Border Height="1" VerticalAlignment="Bottom" Background="{StaticResource BorderBrush}" />
+                        </Grid>
+
+                        <!-- Ranked: rows with bars of falling length -->
+                        <StackPanel x:Name="PreviewRanked" Visibility="Collapsed">
+                            <Border x:Name="Bar1" Style="{StaticResource PreviewLine}" Width="150" Background="{StaticResource AccentBrush}" />
+                            <Border x:Name="Bar2" Style="{StaticResource PreviewLine}" Width="104" Background="{StaticResource AccentBrush}" Opacity="0.75" />
+                            <Border x:Name="Bar3" Style="{StaticResource PreviewLine}" Width="66" Background="{StaticResource AccentBrush}" Opacity="0.5" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                <TextBlock x:Name="Subtitle"
+                           Text="{Binding Subtitle}"
+                           TextWrapping="Wrap"
+                           FontSize="11.5"
+                           Margin="0,2,0,0"
+                           Style="{StaticResource SubtleTextStyle}" />
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Preview}" Value="List">
+                    <Setter TargetName="PreviewList" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Preview}" Value="Gauges">
+                    <Setter TargetName="PreviewGauges" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Preview}" Value="Tiles">
+                    <Setter TargetName="PreviewTiles" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Preview}" Value="Graph">
+                    <Setter TargetName="PreviewGraph" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Preview}" Value="Ranked">
+                    <Setter TargetName="PreviewRanked" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Preview}" Value="RankedWarning">
+                    <Setter TargetName="PreviewRanked" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="Bar1" Property="Background" Value="{StaticResource CriticalBrush}" />
+                    <Setter TargetName="Bar2" Property="Background" Value="{StaticResource WarningBrush}" />
+                    <Setter TargetName="Bar3" Property="Background" Value="{StaticResource WarningBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsAvailable}" Value="False">
+                    <Setter TargetName="Subtitle" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBox x:Name="SearchBox"
+                 Grid.Row="0"
+                 Margin="16,16,16,12"
+                 Style="{StaticResource SearchTextBoxStyle}"
+                 Tag="Search widgets"
+                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                 PreviewKeyDown="OnSearchKeyDown" />
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="170" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <ListBox Grid.Column="0"
+                     Margin="12,0,8,0"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     ItemsSource="{Binding Categories}"
+                     SelectedItem="{Binding SelectedCategory}"
+                     ItemContainerStyle="{StaticResource CategoryItemStyle}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+
+            <Grid Grid.Column="1">
+                <ListBox x:Name="WidgetList"
+                         Margin="0,0,6,0"
+                         Padding="0"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         ItemsSource="{Binding Widgets}"
+                         SelectedItem="{Binding SelectedWidget}"
+                         ItemContainerStyle="{StaticResource WidgetCardStyle}"
+                         ItemTemplate="{StaticResource WidgetCardTemplate}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         MouseDoubleClick="OnWidgetDoubleClick"
+                         KeyDown="OnWidgetKeyDown">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                </ListBox>
+
+                <TextBlock Text="No widgets match."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding HasNoMatches, Converter={StaticResource BoolToVisibility}}" />
+            </Grid>
+        </Grid>
+
+        <Border Grid.Row="2"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,12">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Cancel" IsCancel="True" Margin="0,0,8,0" />
+                <Button Content="Add widget"
+                        Command="{Binding AddCommand}"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        IsDefault="True" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

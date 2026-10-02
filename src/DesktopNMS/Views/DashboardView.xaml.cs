@@ -45,6 +45,8 @@ public partial class DashboardView : UserControl
         {
             viewModel.Widgets.CollectionChanged -= OnWidgetsCollectionChanged;
             viewModel.Widgets.CollectionChanged += OnWidgetsCollectionChanged;
+            viewModel.WidgetAdded -= OnWidgetAdded;
+            viewModel.WidgetAdded += OnWidgetAdded;
         }
 
         UpdateCanvasExtent();
@@ -117,15 +119,18 @@ public partial class DashboardView : UserControl
         return null;
     }
 
-    /// <summary>"Add widget" opens its picker menu on a left click, not just the usual right click.</summary>
-    private void OnAddWidgetClick(object sender, RoutedEventArgs e)
+    /// <summary>Scrolls a widget just added from the picker into sight - once it has been laid out, which is why this waits for the Loaded priority.</summary>
+    private void OnWidgetAdded(object? sender, DashboardWidgetViewModel widget)
     {
-        var button = (Button)sender;
-        if (button.ContextMenu is { } menu)
-        {
-            menu.PlacementTarget = button;
-            menu.IsOpen = true;
-        }
+        Dispatcher.InvokeAsync(
+            () =>
+            {
+                if (WidgetsHost.ItemContainerGenerator.ContainerFromItem(widget) is FrameworkElement container)
+                {
+                    container.BringIntoView();
+                }
+            },
+            System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private void OnHeaderDragStarted(object sender, DragStartedEventArgs e)
@@ -306,12 +311,13 @@ public partial class DashboardView : UserControl
             return;
         }
 
-        if (((FrameworkElement)sender).DataContext is not AlertsWidgetViewModel widget)
+        // The toggles live in the title bar (#212), with the header as their DataContext.
+        if (((FrameworkElement)sender).DataContext is not AlertsWidgetHeader { Widget: var widget })
         {
             return;
         }
 
-        var severity = ((ToggleButton)sender).Content as string == "Critical"
+        var severity = ((ToggleButton)sender).Tag as string == "Critical"
             ? AlertSeverity.Critical
             : AlertSeverity.Warning;
 
