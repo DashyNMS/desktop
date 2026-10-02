@@ -84,16 +84,16 @@ public sealed class AppSettings
     public bool RememberToken { get; set; } = true;
 
     /// <summary>
-    /// True if the LibreNMS server stores alert timestamps in UTC. Most installs
-    /// use server-local time, which is the default here.
+    /// True if the LibreNMS server stores alert timestamps in UTC - the default
+    /// (#222). Turn it off for a server that stores them in its local time.
     /// </summary>
-    public bool ServerTimestampsAreUtc { get; set; }
+    public bool ServerTimestampsAreUtc { get; set; } = true;
 
     /// <summary>Also fetch alerts in state 0 (recovered) so they can be shown and can raise recovery toasts.</summary>
     public bool IncludeRecoveredAlerts { get; set; }
 
     /// <summary>Which device name to show in the alert list.</summary>
-    public DeviceNameStyle DeviceNameStyle { get; set; } = DeviceNameStyle.Hostname;
+    public DeviceNameStyle DeviceNameStyle { get; set; } = DeviceNameStyle.SysName;
 
     /// <summary>
     /// Fetch the faults (the rows the rule matched) for the selected alert.
@@ -205,7 +205,7 @@ public sealed class AppSettings
     public bool EnablePinnedDevices { get; set; } = true;
 
     /// <summary>How many devices <see cref="RecentlyViewedDevices"/> remembers - the same number is shown everywhere it appears.</summary>
-    public int RecentlyViewedDeviceCount { get; set; } = 10;
+    public int RecentlyViewedDeviceCount { get; set; } = 5;
 
     /// <summary>
     /// Devices pinned to the top of the Devices tab's grid (see
@@ -224,8 +224,8 @@ public sealed class AppSettings
     /// <summary>The port graphs panel (Device Details' Ports, the Neighbours tab) is folded down, leaving the table the full height.</summary>
     public bool PortGraphsCollapsed { get; set; }
 
-    /// <summary>Map nodes wobble like jelly when dragged, and their links bow and settle (#207). Purely visual - the saved layout is always where a node is dropped. Off by default, and does nothing while Windows animations are off.</summary>
-    public bool JigglePhysicsOnMaps { get; set; }
+    /// <summary>Map nodes wobble like jelly when dragged, and their links bow and settle (#207). Purely visual - the saved layout is always where a node is dropped. On by default (#222), and does nothing while Windows animations are off.</summary>
+    public bool JigglePhysicsOnMaps { get; set; } = true;
 
     /// <summary>
     /// The accent colour used for buttons, selection highlights and links
@@ -235,7 +235,7 @@ public sealed class AppSettings
     public string AccentColor { get; set; } = "#3B82F6";
 
     /// <summary>The base colour palette - see <see cref="AppTheme"/>.</summary>
-    public AppTheme Theme { get; set; } = AppTheme.Dark;
+    public AppTheme Theme { get; set; } = AppTheme.System;
 
     /// <summary>
     /// Which map the Maps tab opens on: "Network", "Geographical", or (once

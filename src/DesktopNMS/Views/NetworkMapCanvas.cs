@@ -44,7 +44,7 @@ public sealed class NetworkMapCanvas : FrameworkElement
         nameof(RenderVersion), typeof(int), typeof(NetworkMapCanvas),
         new FrameworkPropertyMetadata(0, FrameworkPropertyMetadataOptions.AffectsRender, (d, _) => ((NetworkMapCanvas)d)._labels.Clear()));
 
-    /// <summary>Settings, Appearance, "Jiggle physics on maps" (#207).</summary>
+    /// <summary>Settings, Maps, "Jiggle physics" (#207, #220).</summary>
     public static readonly DependencyProperty JiggleEnabledProperty = DependencyProperty.Register(
         nameof(JiggleEnabled), typeof(bool), typeof(NetworkMapCanvas),
         new FrameworkPropertyMetadata(false, (d, e) => ((NetworkMapCanvas)d)._jiggle.IsEnabled = (bool)e.NewValue));

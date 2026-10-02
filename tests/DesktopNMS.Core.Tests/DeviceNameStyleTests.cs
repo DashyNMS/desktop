@@ -65,4 +65,36 @@ public class DeviceNameStyleTests
         Assert.Null(DeviceNameStyle.Hostname.ResolveSecondary(device, "sw-01", "sw-01"));
         Assert.Null(DeviceNameStyle.SysName.ResolveSecondary(null, "sw-01", "sw-01"));
     }
+
+    [Fact]
+    public void AlsoKnownAs_lists_the_names_that_differ_from_the_one_shown()
+        => Assert.Equal(new[] { "192.0.2.10", "Core switch 9" }, DeviceNameStyleExtensions.AlsoKnownAs(Sample, "sw-core-09"));
+
+    [Fact]
+    public void AlsoKnownAs_treats_a_domain_suffix_or_case_as_the_same_name()
+    {
+        var device = new Device { DeviceId = 12, Hostname = "SW-CORE-09.example.net", SysName = "sw-core-09" };
+
+        Assert.Empty(DeviceNameStyleExtensions.AlsoKnownAs(device, "sw-core-09"));
+    }
+
+    [Fact]
+    public void AlsoKnownAs_lists_a_repeated_name_once()
+    {
+        var device = new Device { DeviceId = 12, Hostname = "192.0.2.10", SysName = "sw-core-09", Display = "sw-core-09.example.net" };
+
+        Assert.Equal(new[] { "sw-core-09" }, DeviceNameStyleExtensions.AlsoKnownAs(device, "192.0.2.10"));
+    }
+
+    [Fact]
+    public void AlsoKnownAs_compares_IP_addresses_whole()
+    {
+        var device = new Device { DeviceId = 12, Hostname = "192.0.2.10", SysName = "192.0.2.11" };
+
+        Assert.Equal(new[] { "192.0.2.11" }, DeviceNameStyleExtensions.AlsoKnownAs(device, "192.0.2.10"));
+    }
+
+    [Fact]
+    public void AlsoKnownAs_is_empty_without_a_device()
+        => Assert.Empty(DeviceNameStyleExtensions.AlsoKnownAs(null, "sw-core-09"));
 }

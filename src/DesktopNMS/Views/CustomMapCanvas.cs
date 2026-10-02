@@ -62,7 +62,7 @@ public sealed class CustomMapCanvas : FrameworkElement
         nameof(TileTemplate), typeof(string), typeof(CustomMapCanvas),
         new FrameworkPropertyMetadata(TileUrlTemplate.Default, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    /// <summary>Settings, Appearance, "Jiggle physics on maps" (#207).</summary>
+    /// <summary>Settings, Maps, "Jiggle physics" (#207, #220).</summary>
     public static readonly DependencyProperty JiggleEnabledProperty = DependencyProperty.Register(
         nameof(JiggleEnabled), typeof(bool), typeof(CustomMapCanvas),
         new FrameworkPropertyMetadata(false, (d, e) => ((CustomMapCanvas)d)._jiggle.IsEnabled = (bool)e.NewValue));
