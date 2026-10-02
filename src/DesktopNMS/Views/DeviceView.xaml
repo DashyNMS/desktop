@@ -998,20 +998,16 @@
                             <StackPanel>
                                 <TextBlock Text="DEVICE" Style="{StaticResource CardTitleStyle}" />
 
-                                <!-- Only when hostname, sysName and display name
-                                     don't all agree (#126), one row per distinct
-                                     value - names that match share a row. -->
-                                <ItemsControl ItemsSource="{Binding NameDetails}"
-                                              Visibility="{Binding ShowNameDetails, Converter={StaticResource BoolToVisibility}}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <DockPanel Style="{StaticResource KeyRowStyle}">
-                                                <TextBlock Text="{Binding Label}" Style="{StaticResource KeyTextStyle}" />
-                                                <TextBlock Text="{Binding Value}" TextWrapping="Wrap" />
-                                            </DockPanel>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                <!-- Only the names that really differ from the
+                                     one shown (#219); the tooltip says which
+                                     field is which. -->
+                                <DockPanel Style="{StaticResource KeyRowStyle}"
+                                           Background="Transparent"
+                                           ToolTip="{Binding AlsoKnownAsToolTip}"
+                                           Visibility="{Binding HasAlsoKnownAs, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Also known as" Style="{StaticResource KeyTextStyle}" />
+                                    <TextBlock Text="{Binding AlsoKnownAs}" TextWrapping="Wrap" />
+                                </DockPanel>
 
                                 <DockPanel Style="{StaticResource KeyRowStyle}">
                                     <TextBlock Text="IP address" Style="{StaticResource KeyTextStyle}" />

@@ -144,7 +144,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
     public IMapTileService Tiles { get; }
 
     /// <summary>The tile server for a "geographic map" background - the same one the Geographical map uses (Settings → Maps).</summary>
-    /// <summary>Settings, Appearance, "Jiggle physics on maps" (#207).</summary>
+    /// <summary>Settings, Maps, "Jiggle physics" (#207, #220).</summary>
     public bool JigglePhysics => _settings.Current.JigglePhysicsOnMaps;
 
     private void OnSettingsChanged(object? sender, AppSettings settings)

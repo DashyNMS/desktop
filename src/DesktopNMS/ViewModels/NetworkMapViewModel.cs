@@ -535,7 +535,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             .Where(v => v.ShowOnMap)
             .Select(v => v.Id + "|" + v.Name + "|" + v.MatchAll + "|" + string.Join(";", v.Rules.Select(r => $"{r.Field}:{r.Operator}:{r.Value}"))));
 
-    /// <summary>Settings, Appearance, "Jiggle physics on maps" (#207).</summary>
+    /// <summary>Settings, Maps, "Jiggle physics" (#207, #220).</summary>
     public bool JigglePhysics => _settings.Current.JigglePhysicsOnMaps;
 
     private void OnSettingsChanged(object? sender, AppSettings settings) => _dispatcher.InvokeAsync(() =>

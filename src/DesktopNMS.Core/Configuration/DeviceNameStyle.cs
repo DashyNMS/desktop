@@ -64,6 +64,47 @@ public static class DeviceNameStyleExtensions
             : secondary;
     }
 
+    /// <summary>
+    /// The device's other names, for Device Details' "Also known as" line
+    /// (#219): hostname, sysName and display name, leaving out blanks and
+    /// any that are really the same name as <paramref name="shown"/> or each
+    /// other - names that differ only by case or by a domain suffix
+    /// ("core-sw-01" and "core-sw-01.example.net") count as the same. IP
+    /// addresses are compared whole. Empty when there's nothing to add.
+    /// </summary>
+    public static IReadOnlyList<string> AlsoKnownAs(Device? device, string shown)
+    {
+        if (device is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { NameKey(shown) };
+        var names = new List<string>();
+        foreach (var name in new[] { device.Hostname, device.SysName, device.Display })
+        {
+            if (!string.IsNullOrWhiteSpace(name) && seen.Add(NameKey(name)))
+            {
+                names.Add(name.Trim());
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>"core-sw-01.example.net" → "core-sw-01"; an IP address, or anything with a space (a display name), stays whole.</summary>
+    private static string NameKey(string name)
+    {
+        var trimmed = name.Trim();
+        if (System.Net.IPAddress.TryParse(trimmed, out _) || trimmed.Contains(' '))
+        {
+            return trimmed;
+        }
+
+        var dot = trimmed.IndexOf('.');
+        return dot > 0 ? trimmed[..dot] : trimmed;
+    }
+
     public static string ToDisplayString(this DeviceNameStyle style) => style switch
     {
         DeviceNameStyle.SysName => "sysName",

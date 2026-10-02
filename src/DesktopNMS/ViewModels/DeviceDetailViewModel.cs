@@ -1890,47 +1890,33 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool HasAlternateName => AlternateName is not null;
 
     /// <summary>
-    /// The device's names for the Overview identity card (#126) - hostname
-    /// (what LibreNMS polls), sysName (what the device reports over SNMP)
-    /// and display name - one row per distinct value, so names that agree
-    /// share a row ("sysName and display name") rather than repeating it.
-    /// Blank names are left out.
+    /// The Overview's "Also known as" line (#219): the device's other names,
+    /// only those that differ from <see cref="Name"/> by more than case or a
+    /// domain suffix, without saying which field each came from. Null when
+    /// there's nothing to add.
     /// </summary>
-    public IReadOnlyList<DeviceNameRow> NameDetails
+    public string? AlsoKnownAs
     {
         get
         {
-            if (_device is null)
-            {
-                return Array.Empty<DeviceNameRow>();
-            }
+            var names = DeviceNameStyleExtensions.AlsoKnownAs(_device, Name);
+            return names.Count == 0 ? null : string.Join(", ", names);
+        }
+    }
 
-            var names = new (string Label, string? Value)[]
+    public bool HasAlsoKnownAs => AlsoKnownAs is not null;
+
+    /// <summary>Which name is which, for anyone who needs it: "Hostname: …", "sysName: …", "Display name: …", one per line.</summary>
+    public string? AlsoKnownAsToolTip => _device is null
+        ? null
+        : string.Join(Environment.NewLine, new (string Label, string? Value)[]
             {
                 ("Hostname", _device.Hostname),
                 ("sysName", _device.SysName),
                 ("Display name", _device.Display),
-            };
-
-            return names
-                .Where(n => !string.IsNullOrWhiteSpace(n.Value))
-                .GroupBy(n => n.Value!.Trim(), StringComparer.OrdinalIgnoreCase)
-                .Select(g => new DeviceNameRow(JoinLabels(g.Select(n => n.Label).ToList()), g.Key))
-                .ToList();
-        }
-    }
-
-    /// <summary>Only when the names don't all agree - when they do, the window title already says everything there is to say.</summary>
-    public bool ShowNameDetails => NameDetails.Count > 1;
-
-    /// <summary>"Hostname", "sysName and display name", "Hostname, sysName and display name" - later labels lower-cased, except sysName, which is its own spelling.</summary>
-    private static string JoinLabels(IReadOnlyList<string> labels)
-    {
-        var parts = labels.Select((label, i) => i == 0 || label == "sysName" ? label : label.ToLowerInvariant()).ToList();
-        return parts.Count == 1
-            ? parts[0]
-            : string.Join(", ", parts.Take(parts.Count - 1)) + " and " + parts[^1];
-    }
+            }
+            .Where(n => !string.IsNullOrWhiteSpace(n.Value))
+            .Select(n => $"{n.Label}: {n.Value!.Trim()}"));
 
     /// <summary>The raw SNMP system description, e.g. "Onyx,SN2010M,SWv3.10.4408" - shown under the device name, matching where LibreNMS's own device page puts it.</summary>
     public string? SysDescr => string.IsNullOrWhiteSpace(_device?.SysDescr) ? null : _device.SysDescr;
@@ -4365,8 +4351,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(AlternateName));
         OnPropertyChanged(nameof(HasAlternateName));
-        OnPropertyChanged(nameof(NameDetails));
-        OnPropertyChanged(nameof(ShowNameDetails));
+        OnPropertyChanged(nameof(AlsoKnownAs));
+        OnPropertyChanged(nameof(HasAlsoKnownAs));
+        OnPropertyChanged(nameof(AlsoKnownAsToolTip));
         OnPropertyChanged(nameof(State));
         OnPropertyChanged(nameof(StateText));
         OnPropertyChanged(nameof(StateSeverity));
@@ -5275,8 +5262,6 @@ file static class ResourceByteFormat
     }
 }
 
-/// <summary>One row of the Overview identity card's names (#126) - see <see cref="DeviceDetailViewModel.NameDetails"/>.</summary>
-public sealed record DeviceNameRow(string Label, string Value);
 
 /// <summary>A neighbour LibreNMS didn't link, matched to a monitored device by this app - which device, and how (for the tooltip).</summary>
 public sealed record NeighbourMatch(int DeviceId, string How, DesktopNMS.Core.Topology.NeighbourMatchKind Kind = DesktopNMS.Core.Topology.NeighbourMatchKind.Name);

@@ -153,13 +153,8 @@
                                FontWeight="Bold"
                                Foreground="{StaticResource TextPrimaryBrush}"
                                VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding ServerDescription}"
-                               FontSize="12"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               Margin="12,0,0,0"
-                               VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis"
-                               MaxWidth="360" />
+                    <!-- No server address or version here (#218): Settings,
+                         Server and About have them, and the tray tooltip. -->
                 </StackPanel>
 
                 <!-- Status and actions, before the window buttons. -->
