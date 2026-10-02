@@ -833,7 +833,7 @@ public sealed class DashboardWidget
     public DateTime? GraphCustomTo { get; set; }
 
     /// <summary>For a Top interfaces, Top errors or Top devices widget: how many rows to show.</summary>
-    public int TopCount { get; set; } = 10;
+    public int TopCount { get; set; } = 3;
 
     /// <summary>For a Top widget: rank by traffic (or errors) in, out, or both together.</summary>
     [JsonIgnore]

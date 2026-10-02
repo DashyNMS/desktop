@@ -25,7 +25,9 @@ namespace DesktopNMS.ViewModels;
 /// </summary>
 public abstract class TopWidgetViewModel : DashboardWidgetViewModel, IDisposable
 {
-    public static readonly IReadOnlyList<int> CountChoices = new[] { 5, 10, 20 };
+    public static readonly IReadOnlyList<int> CountChoices = new[] { 3, 5, 10 };
+
+    public const int DefaultCount = 3;
 
     private readonly IDashboardLayoutService _layout;
     private readonly IFleetPorts _ports;
@@ -63,11 +65,14 @@ public abstract class TopWidgetViewModel : DashboardWidgetViewModel, IDisposable
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
-        _count = CountChoices.Contains(model.TopCount) ? model.TopCount : 10;
+        _count = CountChoices.Contains(model.TopCount) ? model.TopCount : DefaultCount;
         _rankBy = model.TopRankBy;
         _hideQuiet = model.TopHideQuiet;
 
         Rows = new ObservableCollection<TopRowViewModel>();
+        Header = new TopWidgetHeader(this);
+        RankByInCommand = new RelayCommand(() => SetRankBy(_rankBy == RankBy.In ? RankBy.Total : RankBy.In));
+        RankByOutCommand = new RelayCommand(() => SetRankBy(_rankBy == RankBy.Out ? RankBy.Total : RankBy.Out));
         OpenCommand = new RelayCommand(parameter =>
         {
             if (parameter is TopRowViewModel row)
@@ -98,41 +103,45 @@ public abstract class TopWidgetViewModel : DashboardWidgetViewModel, IDisposable
 
     public bool HasFootnote => FootnoteText is not null;
 
-    public bool IsCount5
+    /// <summary>The title bar's "Top 3 ▾" dropdown and, for errors, its eye - see <see cref="TopWidgetHeader"/>.</summary>
+    public override object? HeaderOptions => Header;
+
+    public TopWidgetHeader Header { get; }
+
+    /// <summary>How many rows - the title bar's dropdown.</summary>
+    public int SelectedCount
     {
-        get => _count == 5;
-        set => SetCount(value, 5);
+        get => _count;
+        set
+        {
+            if (CountChoices.Contains(value) && SetProperty(ref _count, value))
+            {
+                SaveOptions();
+            }
+        }
     }
 
-    public bool IsCount10
-    {
-        get => _count == 10;
-        set => SetCount(value, 10);
-    }
+    /// <summary>The first column's heading: "Device · interface", or just "Device".</summary>
+    public virtual string NameHeading => "Device · interface";
 
-    public bool IsCount20
-    {
-        get => _count == 20;
-        set => SetCount(value, 20);
-    }
+    /// <summary>Clicking the In heading: rank by In, or - if it already is - by Total.</summary>
+    public RelayCommand RankByInCommand { get; }
 
-    public bool IsRankByIn
-    {
-        get => _rankBy == RankBy.In;
-        set => SetRankBy(value, RankBy.In);
-    }
+    /// <summary>Clicking the Out heading: rank by Out, or - if it already is - by Total.</summary>
+    public RelayCommand RankByOutCommand { get; }
 
-    public bool IsRankByOut
-    {
-        get => _rankBy == RankBy.Out;
-        set => SetRankBy(value, RankBy.Out);
-    }
+    /// <summary>The In heading is highlighted with its arrow: ranking by In, or by Total (both).</summary>
+    public bool IsInRanked => _rankBy is RankBy.In or RankBy.Total;
 
-    public bool IsRankByTotal
+    public bool IsOutRanked => _rankBy is RankBy.Out or RankBy.Total;
+
+    /// <summary>"Ranked by in", "... out", "... total - click In or Out to rank by one" - the headings' tooltip.</summary>
+    public string RankText => _rankBy switch
     {
-        get => _rankBy == RankBy.Total;
-        set => SetRankBy(value, RankBy.Total);
-    }
+        RankBy.In => "Ranked by in. Click In again to rank by total.",
+        RankBy.Out => "Ranked by out. Click Out again to rank by total.",
+        _ => "Ranked by total. Click In or Out to rank by one.",
+    };
 
     public bool HideQuiet
     {
@@ -277,39 +286,18 @@ public abstract class TopWidgetViewModel : DashboardWidgetViewModel, IDisposable
         RaiseStateChanged();
     }
 
-    /// <remarks>Clicking the chip that's already on would untick it; re-raising puts the tick back, so one is always on.</remarks>
-    private void SetCount(bool selected, int count)
+    private void SetRankBy(RankBy rankBy)
     {
-        var changed = selected && _count != count;
-        if (changed)
+        if (_rankBy == rankBy)
         {
-            _count = count;
+            return;
         }
 
-        OnPropertyChanged(nameof(IsCount5));
-        OnPropertyChanged(nameof(IsCount10));
-        OnPropertyChanged(nameof(IsCount20));
-        if (changed)
-        {
-            SaveOptions();
-        }
-    }
-
-    private void SetRankBy(bool selected, RankBy rankBy)
-    {
-        var changed = selected && _rankBy != rankBy;
-        if (changed)
-        {
-            _rankBy = rankBy;
-        }
-
-        OnPropertyChanged(nameof(IsRankByIn));
-        OnPropertyChanged(nameof(IsRankByOut));
-        OnPropertyChanged(nameof(IsRankByTotal));
-        if (changed)
-        {
-            SaveOptions();
-        }
+        _rankBy = rankBy;
+        OnPropertyChanged(nameof(IsInRanked));
+        OnPropertyChanged(nameof(IsOutRanked));
+        OnPropertyChanged(nameof(RankText));
+        SaveOptions();
     }
 
     private void SaveOptions()
@@ -326,6 +314,20 @@ public abstract class TopWidgetViewModel : DashboardWidgetViewModel, IDisposable
     }
 
     public void Dispose() => _deviceMonitor.Polled -= OnDevicesPolled;
+}
+
+/// <summary>
+/// What a Top widget puts in its title bar (#199-#201): the "Top 3 ▾" count
+/// and, for errors, the eye that hides quiet ports. Its own type so the
+/// title bar can template it without re-drawing the whole widget.
+/// </summary>
+public sealed class TopWidgetHeader
+{
+    public TopWidgetHeader(TopWidgetViewModel widget) => Widget = widget;
+
+    public TopWidgetViewModel Widget { get; }
+
+    public IReadOnlyList<int> CountChoices => TopWidgetViewModel.CountChoices;
 }
 
 /// <summary>One row in a Top widget: a device, perhaps one of its ports, and the two numbers - with a bar for how much of the port (or the list's top row) it is.</summary>
@@ -457,6 +459,8 @@ public sealed class TopDevicesWidgetViewModel : TopWidgetViewModel
     }
 
     public override string EmptyText => "No traffic on any device.";
+
+    public override string NameHeading => "Device";
 
     /// <summary>Traffic passing through a device shows on two of its ports, so the sum isn't throughput - say so.</summary>
     public override string? FootnoteText => "Total port traffic: traffic passing through a device counts on both ports.";

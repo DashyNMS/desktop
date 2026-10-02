@@ -706,9 +706,10 @@
         </DataTemplate>
 
         <!-- ======================== Top interfaces / errors / devices body ======================== -->
-        <!-- One template for all three (#199-#201): an options strip (In /
-             Out / Total, how many rows, and for errors whether to hide quiet
-             ports), then the rows - device, port, the two numbers and a bar. -->
+        <!-- One template for all three (#199-#201): the rows - device, port, the
+             two numbers and a bar - under headings that double as the ranking
+             control. The count and (errors) the eye are in the title bar - see
+             the TopWidgetHeader template below. -->
         <DataTemplate DataType="{x:Type vm:TopWidgetViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
@@ -717,43 +718,50 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
-                    <WrapPanel>
-                        <Border Style="{StaticResource NavTabTrackStyle}" Margin="0,0,8,0">
-                            <StackPanel Orientation="Horizontal">
-                                <ToggleButton Content="In" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsRankByIn}" />
-                                <ToggleButton Content="Out" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsRankByOut}" />
-                                <ToggleButton Content="Total" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsRankByTotal}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Style="{StaticResource NavTabTrackStyle}" Margin="0,0,8,0" ToolTip="How many to show">
-                            <StackPanel Orientation="Horizontal">
-                                <ToggleButton Content="5" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsCount5}" />
-                                <ToggleButton Content="10" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsCount10}" />
-                                <ToggleButton Content="20" Style="{StaticResource NavTabButtonStyle}" IsChecked="{Binding IsCount20}" />
-                            </StackPanel>
-                        </Border>
-                        <ToggleButton Content="Hide quiet ports"
-                                      Style="{StaticResource ChipToggleStyle}"
-                                      IsChecked="{Binding HideQuiet}"
-                                      ToolTip="Leave out ports with no errors"
-                                      Visibility="{Binding OffersHideQuiet, Converter={StaticResource BoolToVisibility}}" />
-                    </WrapPanel>
-                </Border>
-
                 <Grid Grid.Row="1">
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   Visibility="{Binding HasRows, Converter={StaticResource BoolToVisibility}}">
-                        <StackPanel Margin="6,4,6,6">
-                            <!-- Column headings, lined up with the rows' numbers. -->
+                        <StackPanel Margin="6,0,6,6">
+                            <!-- Column headings, lined up with the rows' numbers. In
+                                 and Out are the ranking control: click one to rank by
+                                 it, click it again for Total (both lit). -->
                             <Grid Margin="8,0,8,2">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="78" />
                                     <ColumnDefinition Width="78" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="1" Text="In" TextAlignment="Right" FontSize="11" Style="{StaticResource SubtleTextStyle}" />
-                                <TextBlock Grid.Column="2" Text="Out" TextAlignment="Right" FontSize="11" Style="{StaticResource SubtleTextStyle}" />
+                                <Grid.Resources>
+                                    <Style x:Key="TopHeadingButton" TargetType="Button">
+                                        <Setter Property="Cursor" Value="Hand" />
+                                        <Setter Property="HorizontalAlignment" Value="Right" />
+                                        <Setter Property="ToolTip" Value="{Binding RankText}" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="Transparent" Padding="4,2,0,2">
+                                                        <ContentPresenter />
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </Grid.Resources>
+
+                                <TextBlock Grid.Column="0" Text="{Binding NameHeading}" FontSize="11" VerticalAlignment="Center" Style="{StaticResource SubtleTextStyle}" />
+
+                                <Button Grid.Column="1" Style="{StaticResource TopHeadingButton}" Command="{Binding RankByInCommand}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="InHeading" Text="In" FontSize="11" Style="{StaticResource SubtleTextStyle}" />
+                                        <TextBlock x:Name="InArrow" Text="&#xE74B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9" Margin="3,1,0,0" VerticalAlignment="Center" Visibility="Collapsed" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="2" Style="{StaticResource TopHeadingButton}" Command="{Binding RankByOutCommand}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="OutHeading" Text="Out" FontSize="11" Style="{StaticResource SubtleTextStyle}" />
+                                        <TextBlock x:Name="OutArrow" Text="&#xE74B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9" Margin="3,1,0,0" VerticalAlignment="Center" Visibility="Collapsed" />
+                                    </StackPanel>
+                                </Button>
                             </Grid>
 
                             <ItemsControl x:Name="TopRows" ItemsSource="{Binding Rows}">
@@ -873,6 +881,65 @@
                                Visibility="{Binding HasFootnote, Converter={StaticResource BoolToVisibility}}" />
                 </StackPanel>
             </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsInRanked}" Value="True">
+                    <Setter TargetName="InHeading" Property="Foreground" Value="{StaticResource AccentBrush}" />
+                    <Setter TargetName="InArrow" Property="Foreground" Value="{StaticResource AccentBrush}" />
+                    <Setter TargetName="InArrow" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsOutRanked}" Value="True">
+                    <Setter TargetName="OutHeading" Property="Foreground" Value="{StaticResource AccentBrush}" />
+                    <Setter TargetName="OutArrow" Property="Foreground" Value="{StaticResource AccentBrush}" />
+                    <Setter TargetName="OutArrow" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- A Top widget's title-bar controls: "Top 3 ▾" and, for errors, the
+             eye that hides ports with no errors. -->
+        <DataTemplate DataType="{x:Type vm:TopWidgetHeader}">
+            <StackPanel Orientation="Horizontal">
+                <ComboBox ItemsSource="{Binding CountChoices}"
+                          SelectedItem="{Binding Widget.SelectedCount}"
+                          ItemStringFormat="Top {0}"
+                          FontSize="12"
+                          MinWidth="72"
+                          Height="28"
+                          VerticalContentAlignment="Center"
+                          ToolTip="How many to show" />
+                <ToggleButton x:Name="QuietToggle"
+                              IsChecked="{Binding Widget.HideQuiet}"
+                              Width="28"
+                              Height="28"
+                              Margin="4,0,0,0"
+                              Cursor="Hand"
+                              ToolTip="Hiding ports with no errors - click to show them"
+                              Visibility="{Binding Widget.OffersHideQuiet, Converter={StaticResource BoolToVisibility}}">
+                    <ToggleButton.Template>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border x:Name="Back" Background="Transparent" CornerRadius="6">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Back" Property="Background" Value="{StaticResource SurfaceAltBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </ToggleButton.Template>
+                    <TextBlock x:Name="QuietGlyph"
+                               Text="&#xED1A;"
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="13"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                </ToggleButton>
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Widget.HideQuiet}" Value="False">
+                    <Setter TargetName="QuietGlyph" Property="Text" Value="&#xE7B3;" />
+                    <Setter TargetName="QuietToggle" Property="ToolTip" Value="Showing every port - click to hide ports with no errors" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
         </DataTemplate>
 
         <!-- ======================== Unsupported widget body ======================== -->
@@ -1153,6 +1220,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0"
@@ -1169,12 +1237,21 @@
                                      Margin="0,0,8,0"
                                      Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}}" />
 
+                            <!-- Widget-specific controls (a Top widget's count and eye),
+                                 templated by type; hidden while renaming. -->
+                            <ContentControl Grid.Column="1"
+                                            Content="{Binding HeaderOptions}"
+                                            Focusable="False"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,4,0"
+                                            Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+
                             <!-- Per-widget edit toggle: always available, independent of
                                  "Edit layout". Renaming and removing this widget only
                                  become possible once it is switched on; the icon and
                                  tooltip swap to Save once it is, so clicking it again
                                  reads as "done", not "undo the edit". -->
-                            <Button Grid.Column="1"
+                            <Button Grid.Column="2"
                                     Command="{Binding ToggleEditCommand}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
@@ -1200,7 +1277,7 @@
                                 </TextBlock>
                             </Button>
 
-                            <Button Grid.Column="2"
+                            <Button Grid.Column="3"
                                     ToolTip="Delete widget"
                                     Style="{StaticResource IconButtonStyle}"
                                     Command="{Binding RemoveCommand}"
