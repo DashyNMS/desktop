@@ -26,7 +26,12 @@ public sealed class CustomMapCanvas : FrameworkElement
 {
     public static readonly DependencyProperty MapProperty = DependencyProperty.Register(
         nameof(Map), typeof(CustomMapDocument), typeof(CustomMapCanvas),
-        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, (d, _) => ((CustomMapCanvas)d)._images.Clear()));
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, (d, _) =>
+        {
+            var canvas = (CustomMapCanvas)d;
+            canvas._images.Clear();
+            canvas._jiggle.Clear();
+        }));
 
     public static readonly DependencyProperty VisualsProperty = DependencyProperty.Register(
         nameof(Visuals), typeof(CustomMapVisuals), typeof(CustomMapCanvas),
@@ -56,6 +61,11 @@ public sealed class CustomMapCanvas : FrameworkElement
         nameof(TileTemplate), typeof(string), typeof(CustomMapCanvas),
         new FrameworkPropertyMetadata(TileUrlTemplate.Default, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    /// <summary>Settings, Appearance, "Jiggle physics on maps" (#207).</summary>
+    public static readonly DependencyProperty JiggleEnabledProperty = DependencyProperty.Register(
+        nameof(JiggleEnabled), typeof(bool), typeof(CustomMapCanvas),
+        new FrameworkPropertyMetadata(false, (d, e) => ((CustomMapCanvas)d)._jiggle.IsEnabled = (bool)e.NewValue));
+
     /// <summary>The Segoe Fluent Icons glyph the device-image styles use - the app has no copy of LibreNMS's per-OS images.</summary>
     private const string DeviceGlyph = "\uE839";
 
@@ -75,6 +85,7 @@ public sealed class CustomMapCanvas : FrameworkElement
     private bool _moved;
     private DragKind _drag;
     private CustomMapNode? _dragNode;
+    private readonly JiggleSimulation<CustomMapNode> _jiggle;
     private CustomMapEdge? _dragEdge;
     private Vector _grabOffset;
 
@@ -91,6 +102,14 @@ public sealed class CustomMapCanvas : FrameworkElement
     {
         ClipToBounds = true;
         Focusable = true;
+        _jiggle = new JiggleSimulation<CustomMapNode>(InvalidateVisual);
+        Unloaded += (_, _) => _jiggle.Clear();
+    }
+
+    public bool JiggleEnabled
+    {
+        get => (bool)GetValue(JiggleEnabledProperty);
+        set => SetValue(JiggleEnabledProperty, value);
     }
 
     public CustomMapDocument? Map
@@ -388,7 +407,13 @@ public sealed class CustomMapCanvas : FrameworkElement
         var visual = Visuals.Nodes.GetValueOrDefault(node.Id) ?? new CustomMapNodeVisual(node.BackgroundColour, node.BorderColour, node.TextColour);
         var fill = BrushFor(visual.Background);
         var pen = node.BorderWidth > 0 ? new Pen(BrushFor(visual.Border), node.BorderWidth) : null;
-        var centre = new Point(node.X, node.Y);
+        var centre = new Point(node.X, node.Y) + _jiggle.Offset(node);
+        var stretch = _jiggle.Stretch(node, centre, _scale);
+        if (stretch is not null)
+        {
+            dc.PushTransform(stretch);
+        }
+
         var body = new Rect(centre.X - shape.Body.Width / 2, centre.Y - shape.Body.Height / 2, shape.Body.Width, shape.Body.Height);
         var r = Math.Min(body.Width, body.Height) / 2;
 
@@ -470,6 +495,11 @@ public sealed class CustomMapCanvas : FrameworkElement
             highlight.Inflate(5, 5);
             dc.DrawRoundedRectangle(null, ring, highlight, 6, 6);
         }
+
+        if (stretch is not null)
+        {
+            dc.Pop();
+        }
     }
 
     private static void DrawDatabase(DrawingContext dc, Brush fill, Pen? pen, Rect body)
@@ -535,9 +565,13 @@ public sealed class CustomMapCanvas : FrameworkElement
     private void DrawEdge(DrawingContext dc, CustomMapDocument map, CustomMapEdge edge, CustomMapNode a, CustomMapNode b, double dpi)
     {
         var visual = Visuals.Edges.GetValueOrDefault(edge.Id) ?? new CustomMapEdgeVisual("#7D8590", "#7D8590", 1.5, 1.5, edge.Label, string.Empty);
-        var mid = new Point(edge.MidX, edge.MidY);
-        var from = new Point(a.X, a.Y);
-        var to = new Point(b.X, b.Y);
+        // While either end is still jiggling (#207) the midpoint lags further
+        // than the ends, so the link bows like a rubber band.
+        var offsetA = _jiggle.Offset(a);
+        var offsetB = _jiggle.Offset(b);
+        var mid = new Point(edge.MidX, edge.MidY) + (offsetA + offsetB) * 0.85;
+        var from = new Point(a.X, a.Y) + offsetA;
+        var to = new Point(b.X, b.Y) + offsetB;
         var gap = map.EdgeSeparation / 2.0;
 
         if (edge.Id == SelectedEdgeId)
@@ -723,6 +757,16 @@ public sealed class CustomMapCanvas : FrameworkElement
         return image;
     }
 
+    /// <summary>The nodes linked to <paramref name="node"/>, which wobble a little in sympathy when it's dragged.</summary>
+    private static IEnumerable<CustomMapNode> LinkedTo(CustomMapDocument map, CustomMapNode node)
+    {
+        var ids = map.Edges
+            .Where(e => e.Node1Id == node.Id || e.Node2Id == node.Id)
+            .Select(e => e.Node1Id == node.Id ? e.Node2Id : e.Node1Id)
+            .ToHashSet();
+        return map.Nodes.Where(n => ids.Contains(n.Id));
+    }
+
     private Point ToMap(Point screen) => new((screen.X - _offset.X) / _scale, (screen.Y - _offset.Y) / _scale);
 
     private CustomMapNode? HitNode(Point map)
@@ -888,6 +932,8 @@ public sealed class CustomMapCanvas : FrameworkElement
                     edge.MidX += delta.X / 2;
                     edge.MidY += delta.Y / 2;
                 }
+
+                _jiggle.Moved(_dragNode, delta, LinkedTo(Map, _dragNode));
 
                 break;
 

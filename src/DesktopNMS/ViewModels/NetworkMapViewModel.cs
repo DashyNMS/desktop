@@ -535,8 +535,13 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             .Where(v => v.ShowOnMap)
             .Select(v => v.Id + "|" + v.Name + "|" + v.MatchAll + "|" + string.Join(";", v.Rules.Select(r => $"{r.Field}:{r.Operator}:{r.Value}"))));
 
+    /// <summary>Settings, Appearance, "Jiggle physics on maps" (#207).</summary>
+    public bool JigglePhysics => _settings.Current.JigglePhysicsOnMaps;
+
     private void OnSettingsChanged(object? sender, AppSettings settings) => _dispatcher.InvokeAsync(() =>
     {
+        OnPropertyChanged(nameof(JigglePhysics));
+
         var signature = MapViewsSignature(settings);
         if (signature == _mapViewsSignature)
         {

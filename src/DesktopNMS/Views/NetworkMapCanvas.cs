@@ -23,7 +23,12 @@ public sealed class NetworkMapCanvas : FrameworkElement
 {
     public static readonly DependencyProperty NodesProperty = DependencyProperty.Register(
         nameof(Nodes), typeof(IReadOnlyList<MapNode>), typeof(NetworkMapCanvas),
-        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, (d, _) => ((NetworkMapCanvas)d)._labels.Clear()));
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, (d, _) =>
+        {
+            var canvas = (NetworkMapCanvas)d;
+            canvas._labels.Clear();
+            canvas._jiggle.Clear();
+        }));
 
     public static readonly DependencyProperty EdgesProperty = DependencyProperty.Register(
         nameof(Edges), typeof(IReadOnlyList<MapEdge>), typeof(NetworkMapCanvas),
@@ -38,6 +43,11 @@ public sealed class NetworkMapCanvas : FrameworkElement
         nameof(RenderVersion), typeof(int), typeof(NetworkMapCanvas),
         new FrameworkPropertyMetadata(0, FrameworkPropertyMetadataOptions.AffectsRender, (d, _) => ((NetworkMapCanvas)d)._labels.Clear()));
 
+    /// <summary>Settings, Appearance, "Jiggle physics on maps" (#207).</summary>
+    public static readonly DependencyProperty JiggleEnabledProperty = DependencyProperty.Register(
+        nameof(JiggleEnabled), typeof(bool), typeof(NetworkMapCanvas),
+        new FrameworkPropertyMetadata(false, (d, e) => ((NetworkMapCanvas)d)._jiggle.IsEnabled = (bool)e.NewValue));
+
     private const double MinScale = 0.05;
     private const double MaxScale = 4;
 
@@ -48,6 +58,7 @@ public sealed class NetworkMapCanvas : FrameworkElement
     private const double DragThreshold = 3;
 
     private readonly Dictionary<MapNode, FormattedText> _labels = new();
+    private readonly JiggleSimulation<MapNode> _jiggle;
 
     private double _scale = 1;
     private Vector _offset;
@@ -62,6 +73,8 @@ public sealed class NetworkMapCanvas : FrameworkElement
     {
         ClipToBounds = true;
         Focusable = true;
+        _jiggle = new JiggleSimulation<MapNode>(InvalidateVisual);
+        Unloaded += (_, _) => _jiggle.Clear();
     }
 
     public IReadOnlyList<MapNode>? Nodes
@@ -86,6 +99,12 @@ public sealed class NetworkMapCanvas : FrameworkElement
     {
         get => (int)GetValue(RenderVersionProperty);
         set => SetValue(RenderVersionProperty, value);
+    }
+
+    public bool JiggleEnabled
+    {
+        get => (bool)GetValue(JiggleEnabledProperty);
+        set => SetValue(JiggleEnabledProperty, value);
     }
 
     /// <summary>Raised when the user drops a node they dragged - the view model saves the layout.</summary>
@@ -179,7 +198,7 @@ public sealed class NetworkMapCanvas : FrameworkElement
             }
 
             dc.PushOpacity(highlighted ? 1 : dimOthers ? 0.15 : 0.5);
-            dc.DrawLine(pen, ToScreen(edge.A), ToScreen(edge.B));
+            DrawEdgeLine(dc, pen, edge);
             dc.Pop();
         }
 
@@ -189,10 +208,16 @@ public sealed class NetworkMapCanvas : FrameworkElement
 
         foreach (var node in nodes)
         {
-            var centre = ToScreen(node);
+            var centre = Shown(node);
             var faded = dimOthers && !ReferenceEquals(node, selected) && !neighbours.Contains(node);
 
             dc.PushOpacity(faded ? 0.3 : 1);
+            var stretch = _jiggle.Stretch(node, centre, _scale);
+            if (stretch is not null)
+            {
+                dc.PushTransform(stretch);
+            }
+
             if (node.IsNeighbour)
             {
                 // A neighbour isn't a LibreNMS device - smaller, and square.
@@ -210,6 +235,11 @@ public sealed class NetworkMapCanvas : FrameworkElement
                 {
                     dc.DrawEllipse(null, selectedRing, centre, radius + 4, radius + 4);
                 }
+            }
+
+            if (stretch is not null)
+            {
+                dc.Pop();
             }
 
             dc.Pop();
@@ -249,7 +279,7 @@ public sealed class NetworkMapCanvas : FrameworkElement
             _labels[node] = text;
         }
 
-        var centre = ToScreen(node);
+        var centre = Shown(node);
         var origin = new Point(centre.X - text.Width / 2, centre.Y + radius + 3);
 
         if (emphasise)
@@ -279,6 +309,40 @@ public sealed class NetworkMapCanvas : FrameworkElement
 
     private Point ToScreen(MapNode node) => new(node.X * _scale + _offset.X, node.Y * _scale + _offset.Y);
 
+    /// <summary>The nodes linked to <paramref name="node"/>, which wobble a little in sympathy when it's dragged.</summary>
+    private IEnumerable<MapNode> LinkedTo(MapNode node)
+        => (Edges ?? Array.Empty<MapEdge>()).Where(e => e.Touches(node)).Select(e => ReferenceEquals(e.A, node) ? e.B : e.A);
+
+    /// <summary>Where <paramref name="node"/> is drawn: its real position plus any jiggle still settling.</summary>
+    private Point Shown(MapNode node) => ToScreen(node) + _jiggle.Offset(node) * _scale;
+
+    /// <summary>
+    /// A link, straight - or, while either end is still jiggling, bowed back
+    /// towards where its ends are coming from, like a rubber band dragged
+    /// through jelly.
+    /// </summary>
+    private void DrawEdgeLine(DrawingContext dc, Pen pen, MapEdge edge)
+    {
+        var a = Shown(edge.A);
+        var b = Shown(edge.B);
+        var bow = (_jiggle.Offset(edge.A) + _jiggle.Offset(edge.B)) * (_scale * 0.6);
+        if (bow.LengthSquared < 0.25)
+        {
+            dc.DrawLine(pen, a, b);
+            return;
+        }
+
+        var geometry = new StreamGeometry();
+        using (var context = geometry.Open())
+        {
+            context.BeginFigure(a, isFilled: false, isClosed: false);
+            context.QuadraticBezierTo(new Point((a.X + b.X) / 2, (a.Y + b.Y) / 2) + bow, b, isStroked: true, isSmoothJoin: false);
+        }
+
+        geometry.Freeze();
+        dc.DrawGeometry(null, pen, geometry);
+    }
+
     private Point ToMap(Point screen) => new((screen.X - _offset.X) / _scale, (screen.Y - _offset.Y) / _scale);
 
     private MapNode? HitTest(Point screen)
@@ -294,7 +358,7 @@ public sealed class NetworkMapCanvas : FrameworkElement
 
         foreach (var node in nodes)
         {
-            var distance = (ToScreen(node) - screen).Length;
+            var distance = (Shown(node) - screen).Length;
             if (distance <= reach && distance < bestDistance)
             {
                 best = node;
@@ -355,8 +419,10 @@ public sealed class NetworkMapCanvas : FrameworkElement
             if (_dragNode is not null)
             {
                 var map = ToMap(point);
+                var delta = new Vector(map.X - _dragNode.X, map.Y - _dragNode.Y);
                 _dragNode.X = map.X;
                 _dragNode.Y = map.Y;
+                _jiggle.Moved(_dragNode, delta, LinkedTo(_dragNode));
             }
             else
             {

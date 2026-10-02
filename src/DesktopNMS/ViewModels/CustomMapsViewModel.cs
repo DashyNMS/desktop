@@ -108,6 +108,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
         _windows = windows;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
+        _settings.Changed += OnSettingsChanged;
 
         Maps = new ObservableCollection<CustomMapSummary>();
         MapsView = CollectionViewSource.GetDefaultView(Maps);
@@ -143,6 +144,12 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
     public IMapTileService Tiles { get; }
 
     /// <summary>The tile server for a "geographic map" background - the same one the Geographical map uses (Settings → Maps).</summary>
+    /// <summary>Settings, Appearance, "Jiggle physics on maps" (#207).</summary>
+    public bool JigglePhysics => _settings.Current.JigglePhysicsOnMaps;
+
+    private void OnSettingsChanged(object? sender, AppSettings settings)
+        => _dispatcher.InvokeAsync(() => OnPropertyChanged(nameof(JigglePhysics)));
+
     public string TileTemplate => Core.Topology.TileUrlTemplate.Normalise(_settings.Current.MapTileUrl) ?? Core.Topology.TileUrlTemplate.Default;
 
     public ObservableCollection<CustomMapSummary> Maps { get; }
@@ -1189,6 +1196,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _store.Changed -= OnStoreChanged;
+        _settings.Changed -= OnSettingsChanged;
         _deviceMonitor.Polled -= OnDevicesPolled;
         _session.StateChanged -= OnSessionStateChanged;
     }

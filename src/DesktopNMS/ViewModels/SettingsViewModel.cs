@@ -1597,6 +1597,22 @@ public sealed class SettingsViewModel : ObservableObject
     }
 
     /// <summary>See <see cref="AppSettings.ShowAlertTabBadge"/>.</summary>
+    /// <summary>Settings, Appearance: map nodes wobble when dragged (#207).</summary>
+    public bool JigglePhysicsOnMaps
+    {
+        get => _draft.JigglePhysicsOnMaps;
+        set
+        {
+            if (_draft.JigglePhysicsOnMaps == value)
+            {
+                return;
+            }
+
+            _draft.JigglePhysicsOnMaps = value;
+            OnPropertyChanged();
+        }
+    }
+
     public bool ShowAlertTabBadge
     {
         get => _draft.ShowAlertTabBadge;
