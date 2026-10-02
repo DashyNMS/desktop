@@ -1829,6 +1829,22 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     private PortItemViewModel? _selectedPort;
 
+    /// <summary>A port asked for (from a Top widget) before the ports had loaded - picked once they do.</summary>
+    private int? _portToSelect;
+
+    /// <summary>Shows the Ports section with <paramref name="portId"/> picked, and its graphs underneath - now if the ports have loaded, otherwise as soon as they do.</summary>
+    public void ShowPort(int portId)
+    {
+        SelectedSection = DeviceDetailSection.Ports;
+        if (Ports.FirstOrDefault(p => p.Model.PortId == portId) is { } loaded)
+        {
+            SelectedPort = loaded;
+            return;
+        }
+
+        _portToSelect = portId;
+    }
+
     // ------------------------------------------------------------------ navigation (#58)
 
     /// <summary>The window's back/forward history - shared by every device the window shows, set by the window's host.</summary>
@@ -3025,7 +3041,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 _portNamesByPortId[port.PortId] = port.DisplayName;
             }
 
-            var selectedPortId = _selectedPort?.Model.PortId;
+            var selectedPortId = _portToSelect ?? _selectedPort?.Model.PortId;
+            _portToSelect = null;
             Ports.ReplaceAll(portItems);
 
             // A refresh keeps the port that was picked, and its graphs.

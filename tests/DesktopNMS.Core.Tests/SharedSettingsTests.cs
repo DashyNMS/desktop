@@ -51,6 +51,22 @@ public sealed class SharedSettingsTests : IDisposable
     }
 
     [Fact]
+    public void A_Top_widget_ranking_this_version_does_not_know_reads_as_total_and_is_kept()
+    {
+        const string json = """
+            {"theme":"Light","dashboardWidgets":[{"id":"t","widgetType":"TopInterfaces","topRankBy":"Peak","topCount":5}]}
+            """;
+
+        var store = Load(json);
+        var widget = Assert.Single(store.Current.DashboardWidgets);
+        Assert.Equal(AppTheme.Light, store.Current.Theme);
+        Assert.Equal(Core.Devices.RankBy.Total, widget.TopRankBy);
+        Assert.Equal(5, widget.TopCount);
+
+        Assert.Equal("Peak", (string?)Save(store)["dashboardWidgets"]![0]!["topRankBy"]);
+    }
+
+    [Fact]
     public void Several_widgets_of_one_type_each_keep_their_own_title_and_settings()
     {
         const string json = """

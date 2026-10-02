@@ -43,6 +43,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     private readonly AlertMonitor _alertMonitor;
     private readonly DeviceMonitor _deviceMonitor;
     private readonly ILibreNmsClient _client;
+    private readonly IFleetPorts _fleetPorts;
     private readonly ILogger<DashboardViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<string, DashboardWidgetViewModel> _widgetIndex = new();
@@ -71,8 +72,10 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         AlertMonitor alertMonitor,
         DeviceMonitor deviceMonitor,
         ILibreNmsClient client,
+        IFleetPorts fleetPorts,
         ILogger<DashboardViewModel> logger)
     {
+        _fleetPorts = fleetPorts;
         _sensorMonitor = sensorMonitor;
         _session = session;
         _settings = settings;
@@ -110,6 +113,9 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         AddPinnedDevicesWidgetCommand = new RelayCommand(() => _layout.AddWidget("PinnedDevices", "Pinned devices"));
         AddGraphWidgetCommand = new RelayCommand(() => _layout.AddWidget("Graph", "Graph"));
         AddWirelessWidgetCommand = new RelayCommand(() => _layout.AddWidget("Wireless", "Wireless"));
+        AddTopInterfacesWidgetCommand = new RelayCommand(() => _layout.AddWidget(DashboardWidgetTypes.TopInterfaces, "Top interfaces"));
+        AddTopErrorsWidgetCommand = new RelayCommand(() => _layout.AddWidget(DashboardWidgetTypes.TopErrors, "Top errors"));
+        AddTopDevicesWidgetCommand = new RelayCommand(() => _layout.AddWidget(DashboardWidgetTypes.TopDevices, "Top devices"));
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
@@ -142,6 +148,12 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     public RelayCommand AddGraphWidgetCommand { get; }
 
     public RelayCommand AddWirelessWidgetCommand { get; }
+
+    public RelayCommand AddTopInterfacesWidgetCommand { get; }
+
+    public RelayCommand AddTopErrorsWidgetCommand { get; }
+
+    public RelayCommand AddTopDevicesWidgetCommand { get; }
 
     /// <summary>True while the user is arranging the dashboard: widgets show drag/resize/remove handles.</summary>
     public bool IsEditMode
@@ -231,6 +243,12 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         }
 
         foreach (var widget in Widgets.OfType<WirelessWidgetViewModel>())
+        {
+            widget.Reload();
+        }
+
+        // The three share one fetch (IFleetPorts), so this is one request, not three.
+        foreach (var widget in Widgets.OfType<TopWidgetViewModel>())
         {
             widget.Reload();
         }
@@ -346,6 +364,9 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
             {
                 _widgetIndex.Remove(widget.Id);
                 Widgets.RemoveAt(i);
+
+                // Unhooks a removed widget from the monitors it listens to.
+                (widget as IDisposable)?.Dispose();
             }
         }
 
@@ -364,6 +385,19 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>A Top widget row: a port opens its device on the Ports section with that port picked; a device opens Device Details.</summary>
+    private void OpenTopRow(TopRowViewModel row)
+    {
+        if (row.PortId is { } portId)
+        {
+            _windows.ShowDevicePort(row.DeviceId, portId);
+        }
+        else
+        {
+            _windows.ShowDeviceDetail(row.DeviceId);
+        }
+    }
+
     private DashboardWidgetViewModel CreateWidgetViewModel(DashboardWidget model) => model.WidgetType switch
     {
         "Alerts" => new AlertsWidgetViewModel(_layout, model, _alertMonitor, _session, _settings, _devices, _windows),
@@ -373,6 +407,9 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         "PinnedDevices" => new PinnedDevicesWidgetViewModel(_layout, model, _settings, deviceId => _windows.ShowDeviceDetail(deviceId)),
         "Graph" => new GraphWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger, (deviceId, graphName) => _windows.ShowDeviceGraph(deviceId, graphName)),
         "Wireless" => new WirelessWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger, deviceId => _windows.ShowDeviceWireless(deviceId)),
+        DashboardWidgetTypes.TopInterfaces => new TopInterfacesWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
+        DashboardWidgetTypes.TopErrors => new TopErrorsWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
+        DashboardWidgetTypes.TopDevices => new TopDevicesWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
         "Sensors" => new SensorWidgetViewModel(_layout, model, OpenDeviceCommand),
 
         // A type from DashyNMS Mobile or a newer version: say so, rather than

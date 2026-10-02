@@ -832,6 +832,28 @@ public sealed class DashboardWidget
 
     public DateTime? GraphCustomTo { get; set; }
 
+    /// <summary>For a Top interfaces, Top errors or Top devices widget: how many rows to show.</summary>
+    public int TopCount { get; set; } = 10;
+
+    /// <summary>For a Top widget: rank by traffic (or errors) in, out, or both together.</summary>
+    [JsonIgnore]
+    public Devices.RankBy TopRankBy
+    {
+        get => Enum.TryParse<Devices.RankBy>(TopRankByName, ignoreCase: true, out var by) && Enum.IsDefined(by) ? by : Devices.RankBy.Total;
+        set => TopRankByName = value.ToString();
+    }
+
+    /// <summary>
+    /// <see cref="TopRankBy"/> as stored. Text rather than the enum so a value
+    /// this version doesn't know (from DashyNMS Mobile or a newer desktop) reads
+    /// as Total instead of failing the whole settings file (see #197).
+    /// </summary>
+    [JsonPropertyName("topRankBy")]
+    public string TopRankByName { get; set; } = nameof(Devices.RankBy.Total);
+
+    /// <summary>For a Top errors widget: leave out ports with no errors, so a healthy network shows "No interface errors" rather than a list of zeros.</summary>
+    public bool TopHideQuiet { get; set; } = true;
+
     /// <summary>
     /// Anything in the stored widget this version doesn't model - another
     /// widget type's settings, written by DashyNMS Mobile or a newer desktop -
@@ -858,6 +880,9 @@ public sealed class DashboardWidget
         GraphTimeRangePreset = GraphTimeRangePreset,
         GraphCustomFrom = GraphCustomFrom,
         GraphCustomTo = GraphCustomTo,
+        TopCount = TopCount,
+        TopRankByName = TopRankByName,
+        TopHideQuiet = TopHideQuiet,
         Extra = Extra is null ? null : new Dictionary<string, JsonElement>(Extra),
     };
 
@@ -871,6 +896,8 @@ public sealed class DashboardWidget
         if (Row < 0) Row = 0;
         if (ColumnSpan < MinColumnSpan) ColumnSpan = MinColumnSpan;
         if (RowSpan < MinRowSpan) RowSpan = MinRowSpan;
+        if (TopCount < 1) TopCount = 1;
+        if (TopCount > 50) TopCount = 50;
         Sensors ??= new List<PinnedSensor>();
     }
 }
