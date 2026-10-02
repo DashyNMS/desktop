@@ -22,7 +22,7 @@
         <TextBlock Style="{StaticResource SubtleTextStyle}"
                    TextWrapping="Wrap"
                    Margin="0,4,0,0"
-                   Text="Filters your switches' LLDP and CDP results: a neighbour is listed when its LLDP details match the rules below." />
+                   Text="Narrows the Neighbours tab down to the neighbours whose LLDP or CDP details match the rules below." />
 
         <TextBlock Text="Name" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
         <TextBox x:Name="NameBox" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
@@ -95,7 +95,7 @@
 
         <CheckBox Content="Show on the network map"
                   IsChecked="{Binding ShowOnMap}"
-                  ToolTip="Draw this view's neighbours on the network map, joined to their switches - those LibreNMS doesn't already monitor as devices"
+                  ToolTip="Draw this neighbourhood's neighbours on the network map, joined to their switches - those LibreNMS doesn't already monitor as devices"
                   Margin="0,14,0,0" />
 
         <!-- Rules made in DashyNMS Mobile or a newer version (#197): kept, not shown. -->

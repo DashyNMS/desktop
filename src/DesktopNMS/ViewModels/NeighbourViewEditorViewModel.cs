@@ -20,7 +20,7 @@ public sealed record EditorChoice<T>(T Value, string Name)
 }
 
 /// <summary>
-/// The "New view" / "Edit view" dialog for the Neighbours tab: a name, rules
+/// The "New neighbourhood" / "Edit neighbourhood" dialog for the Neighbours tab (#221): a name, rules
 /// and whether all or any must match, and whether the view's neighbours go
 /// on the network map - with a live count of what the rules match right
 /// now, so a view can be tuned before it's saved.
@@ -68,8 +68,8 @@ public sealed class NeighbourViewEditorViewModel : ObservableObject
     public bool HasUnsupportedRules => _unsupportedRules.Count > 0;
 
     public string UnsupportedRulesText => _unsupportedRules.Count == 1
-        ? "This view also has 1 rule from a newer version of DashyNMS. It's kept as it is, but this version can't show or check it."
-        : $"This view also has {_unsupportedRules.Count} rules from a newer version of DashyNMS. They're kept as they are, but this version can't show or check them.";
+        ? "This neighbourhood also has 1 rule from a newer version of DashyNMS. It's kept as it is, but this version can't show or check it."
+        : $"This neighbourhood also has {_unsupportedRules.Count} rules from a newer version of DashyNMS. They're kept as they are, but this version can't show or check them.";
 
     /// <summary>True to save, false to cancel.</summary>
     public event EventHandler<bool>? RequestClose;
@@ -80,7 +80,7 @@ public sealed class NeighbourViewEditorViewModel : ObservableObject
     public static IReadOnlyList<EditorChoice<NeighbourRuleOperator>> OperatorChoices { get; } =
         Enum.GetValues<NeighbourRuleOperator>().Select(o => new EditorChoice<NeighbourRuleOperator>(o, NeighbourViewText.OperatorName(o))).ToList();
 
-    public string Title => _isEditMode ? "Edit neighbour view" : "New neighbour view";
+    public string Title => _isEditMode ? "Edit neighbourhood" : "New neighbourhood";
 
     public string Name
     {
@@ -213,7 +213,7 @@ public sealed class NeighbourViewEditorViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
-            ErrorMessage = "Give the view a name.";
+            ErrorMessage = "Give the neighbourhood a name.";
             return;
         }
 

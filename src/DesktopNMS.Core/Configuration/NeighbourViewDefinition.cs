@@ -147,7 +147,7 @@ public sealed class NeighbourViewDefinition
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
-    public string Name { get; set; } = "New view";
+    public string Name { get; set; } = "New neighbourhood";
 
     /// <summary>True: every rule has to match. False: any one will do.</summary>
     public bool MatchAll { get; set; } = true;
@@ -180,7 +180,7 @@ public sealed class NeighbourViewDefinition
 
         if (string.IsNullOrWhiteSpace(Name))
         {
-            Name = "Untitled view";
+            Name = "Untitled neighbourhood";
         }
 
         Rules ??= new List<NeighbourRule>();

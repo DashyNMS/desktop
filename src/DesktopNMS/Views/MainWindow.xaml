@@ -333,8 +333,8 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!-- Neighbours (#55): its own click opens the
-                                 table of every view; its sub-pages are the views. -->
+                            <!-- Neighbours (#55): its own click shows every neighbour;
+                                 its sub-pages are the neighbourhoods (#221). -->
                             <ToggleButton x:Name="NeighboursTabButton"
                                           Content="Neighbours"
                                           Tag="&#xE71B;"
@@ -492,7 +492,7 @@
                         MouseLeave="NeighboursFlyoutContent_MouseLeave">
                     <StackPanel MinWidth="170">
                         <TextBlock Text="NEIGHBOURS" Style="{StaticResource FlyoutHeaderStyle}" />
-                        <Button Content="All views" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectNeighboursTabCommand}" Click="NeighboursFlyoutItem_Click" />
+                        <Button Content="All neighbours" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectNeighboursTabCommand}" Click="NeighboursFlyoutItem_Click" />
                         <ItemsControl ItemsSource="{Binding Neighbours.Views}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
