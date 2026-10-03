@@ -39,7 +39,7 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
     private readonly ILogger _logger;
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _newTimer;
-    private readonly HashSet<string> _seenKeys = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _shownKeys = new(StringComparer.Ordinal);
 
     private int _count;
     private string? _searchText;
@@ -214,7 +214,7 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
         _layout.SetLogOptions(Id, _count, LogType, _searchText, GraylogStreamId, GraylogRangeSeconds);
 
         // A different filter is a different list: nothing in it is "new".
-        _seenKeys.Clear();
+        _shownKeys.Clear();
         _ = LoadAsync();
     }
 
@@ -269,18 +269,23 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
 
     private void Apply(IReadOnlyList<LogFeedRowViewModel> rows)
     {
-        // Tint what wasn't there last time - but not on the first load, when
-        // everything is "new".
-        var highlight = _seenKeys.Count > 0;
+        // Tint what wasn't there last time - but only when some of last time's
+        // rows are still showing. On the first load, or when a busy Graylog
+        // has replaced the whole list since the last refresh, everything is
+        // "new" and tinting it all would say nothing.
+        var highlight = rows.Any(r => _shownKeys.Contains(r.Key));
         var anyNew = false;
         foreach (var row in rows)
         {
-            if (_seenKeys.Add(row.Key) && highlight)
+            if (highlight && !_shownKeys.Contains(row.Key))
             {
                 row.IsNew = true;
                 anyNew = true;
             }
         }
+
+        _shownKeys.Clear();
+        _shownKeys.UnionWith(rows.Select(r => r.Key));
 
         Rows.Clear();
         foreach (var row in rows)
