@@ -20,6 +20,9 @@ public interface IDashboardLayoutService
 
     DashboardWidget AddWidget(string widgetType, string title);
 
+    /// <summary>Adds several widgets at the positions they already have, in one save - the welcome card's starter dashboard (#233).</summary>
+    void AddWidgets(IEnumerable<DashboardWidget> widgets);
+
     void RemoveWidget(string id);
 
     void Rename(string id, string title);
@@ -64,6 +67,13 @@ public sealed class DashboardLayoutService : IDashboardLayoutService
     public event EventHandler? Changed;
 
     public IReadOnlyList<DashboardWidget> Widgets => _settings.Current.DashboardWidgets;
+
+    public void AddWidgets(IEnumerable<DashboardWidget> widgets)
+    {
+        _settings.Current.DashboardWidgets.AddRange(widgets);
+        _settings.Save();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     public DashboardWidget AddWidget(string widgetType, string title)
     {

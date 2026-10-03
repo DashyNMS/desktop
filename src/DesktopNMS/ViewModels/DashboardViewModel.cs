@@ -75,6 +75,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         ILibreNmsClient client,
         IFleetPorts fleetPorts,
         IGraylogApi graylog,
+        IUnimusApi unimus,
         ILogger<DashboardViewModel> logger)
     {
         _fleetPorts = fleetPorts;
@@ -109,6 +110,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         });
 
         AddWidgetCommand = new RelayCommand(AddWidget);
+        Welcome = new WelcomeViewModel(settings, layout, windows, devices, deviceMonitor, alertMonitor, graylog, unimus, AddWidgetCommand);
+        Widgets.CollectionChanged += (_, _) => OnPropertyChanged(nameof(ShowWelcome));
 
         // A widget row (a sensor, an alert) opens Device Details - staying in the app (#212).
         OpenDeviceDetailsCommand = new RelayCommand(parameter =>
@@ -139,6 +142,12 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
     /// <summary>The widgets on the canvas, in the order they were created.</summary>
     public ObservableCollection<DashboardWidgetViewModel> Widgets { get; }
+
+    /// <summary>The empty Dashboard's welcome card (#233).</summary>
+    public WelcomeViewModel Welcome { get; }
+
+    /// <summary>Signed in, no widgets yet, and not turned off with "Don't show again".</summary>
+    public bool ShowWelcome => _session.IsConnected && Widgets.Count == 0 && !_settings.Current.WelcomeDismissed;
 
     /// <summary>"Add widget": the picker (#204), then the chosen widget is added, scrolled to and briefly highlighted.</summary>
     public RelayCommand AddWidgetCommand { get; }
@@ -321,6 +330,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
     private void OnSettingsChanged(object? sender, AppSettings settings)
     {
+        OnPropertyChanged(nameof(ShowWelcome));
+
         foreach (var widget in Widgets.OfType<SensorWidgetViewModel>())
         {
             widget.ApplyThresholds(settings);
@@ -331,7 +342,11 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
     /// <summary>Signed in: make the widgets now (see <see cref="SyncWidgets"/>).</summary>
     private void OnSessionStateChanged(object? sender, EventArgs e)
-        => _dispatcher.InvokeAsync(SyncWidgets);
+        => _dispatcher.InvokeAsync(() =>
+        {
+            SyncWidgets();
+            OnPropertyChanged(nameof(ShowWelcome));
+        });
 
     private void OnLayoutChanged(object? sender, EventArgs e)
     {
@@ -447,6 +462,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _autoRefresh.Dispose();
+        Welcome.Dispose();
         _settings.Changed -= OnSettingsChanged;
         _layout.Changed -= OnLayoutChanged;
         _session.StateChanged -= OnSessionStateChanged;

@@ -91,7 +91,13 @@ public interface IWindowService
     void ShowAlertsWithSeverity(DesktopNMS.Core.Models.AlertSeverity? severity);
 
     /// <summary>Shows the settings dialog. Returns true if the user saved.</summary>
-    bool ShowSettingsDialog();
+    bool ShowSettingsDialog(DesktopNMS.ViewModels.SettingsSection? section = null);
+
+    /// <summary>Shows the main window on a tab - the welcome card's shortcuts (#233).</summary>
+    void ShowMainTab(DesktopNMS.ViewModels.MainTab tab);
+
+    /// <summary>Opens Settings on a section, with everything Settings normally refreshes on close - the welcome card's setup links (#233).</summary>
+    void ShowSettingsSection(DesktopNMS.ViewModels.SettingsSection section);
 
     /// <summary>
     /// Shows the Devices tab's Type/Location/Group filter dialog, modal to

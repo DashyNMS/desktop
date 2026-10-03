@@ -1918,9 +1918,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         OnFilterChanged();
     }
 
-    private void OpenSettings()
+    private void OpenSettings() => OpenSettingsAt(null);
+
+    /// <summary>Settings, opened on <paramref name="section"/> (or where it was) - and everything that needs refreshing once it closes.</summary>
+    public void OpenSettingsAt(SettingsSection? section)
     {
-        if (!_windows.ShowSettingsDialog())
+        if (!_windows.ShowSettingsDialog(section))
         {
             return;
         }
