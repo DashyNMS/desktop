@@ -31,8 +31,9 @@ public partial class App : Application
     private Mutex? _singleInstanceMutex;
     private bool _signInOpen;
 
-    /// <summary>Passed to the fresh copy after Sign out: wipe everything saved before loading anything (#231).</summary>
-    private const string ResetArgument = "--signed-out-reset";
+
+    /// <summary>Set by Sign out (#231): on the way out, wipe everything saved and start a fresh copy.</summary>
+    private bool _resetOnExit;
     private EventWaitHandle? _showWindowSignal;
     private CancellationTokenSource? _showWindowListener;
     private ServiceProvider? _services;
@@ -64,34 +65,9 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
         AsyncRelayCommand.UnhandledError += OnCommandError;
 
-        // Straight after Sign out (#231): forget everything saved on this
-        // computer before any of it is loaded, so this start is the same as a
-        // fresh install. Here rather than in the old copy - but only once the
-        // old copy has gone, as it saves settings on its way out.
-        IReadOnlyList<string>? resetFailures = null;
-        var reset = Array.FindIndex(e.Args, a => a.Equals(ResetArgument, StringComparison.OrdinalIgnoreCase));
-        if (reset >= 0)
-        {
-            if (reset + 1 < e.Args.Length && int.TryParse(e.Args[reset + 1], out var oldProcessId))
-            {
-                WaitForExit(oldProcessId);
-            }
-
-            resetFailures = LocalDataReset.Wipe(AppPaths.DataDirectory, System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DashyNMS"));
-        }
-
         _services = BuildServices();
         _logger = _services.GetRequiredService<ILogger<App>>();
         _logger.LogInformation("DashyNMS starting");
-
-        if (resetFailures is not null)
-        {
-            _logger.LogInformation("Signed out: everything saved on this computer was removed{Failures}",
-                resetFailures.Count == 0 ? string.Empty : " except " + resetFailures.Count + " item(s) that were in use");
-
-            // "Start with Windows" is a setting too.
-            _services.GetRequiredService<IStartupRegistration>().SetEnabled(false);
-        }
 
         // Must happen before the first toast is sent, and costs nothing on the
         // runs where the shortcut already matches.
@@ -526,58 +502,20 @@ public partial class App : Application
         }
     }
 
-    /// <summary>Waits (up to 20 s) for the copy that just signed out to finish closing, so its last save can't undo the reset.</summary>
-    private static void WaitForExit(int processId)
-    {
-        try
-        {
-            using var old = System.Diagnostics.Process.GetProcessById(processId);
-            old.WaitForExit(TimeSpan.FromSeconds(20));
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
-        {
-            // Already gone.
-        }
-    }
-
     /// <summary>
-    /// After Sign out: start a fresh copy and close this one, so nothing
-    /// from the server - tabs, caches, monitors, Device Details windows -
-    /// can still be browsed (#231). The fresh copy has no token, so it opens
-    /// on the sign-in window alone.
+    /// After Sign out (#231): close, wipe everything saved on this computer
+    /// once closed (see <see cref="OnExit"/>), and start a fresh copy - so
+    /// nothing from the server, nor any setting, is left. The fresh copy has
+    /// nothing to sign in with, so it opens on the sign-in window alone.
     /// </summary>
     private void RestartSignedOut()
     {
-        var path = Environment.ProcessPath;
-        if (string.IsNullOrEmpty(path))
-        {
-            // Can't relaunch: at least don't leave anything on screen.
-            _mainWindow?.Hide();
-            UpdateTrayStatus();
-            ShowMainOrSignIn();
-            return;
-        }
+        _logger?.LogInformation("Signed out: clearing everything saved and restarting to the sign-in window");
 
-        _logger?.LogInformation("Signed out: restarting to the sign-in window");
+        // "Start with Windows" lives in the registry, not the data folder.
+        _services?.GetService<IStartupRegistration>()?.SetEnabled(false);
 
-        // Let go of the single-instance claim first, or the new copy would
-        // find this one still running and just ask it to show itself.
-        _singleInstanceMutex?.ReleaseMutex();
-        _singleInstanceMutex?.Dispose();
-        _singleInstanceMutex = null;
-
-        try
-        {
-            var start = new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = false };
-            start.ArgumentList.Add(ResetArgument);
-            start.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            System.Diagnostics.Process.Start(start);
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Could not restart after signing out");
-        }
-
+        _resetOnExit = true;
         ShutdownApplication();
     }
 
@@ -706,6 +644,23 @@ public partial class App : Application
 
         _singleInstanceMutex?.ReleaseMutex();
         _singleInstanceMutex?.Dispose();
+
+        // Sign out (#231): only now - with every window closed, every service
+        // disposed and every last save written - is it safe to wipe, then
+        // start the fresh copy, which finds nothing and opens on sign-in.
+        if (_resetOnExit && Environment.ProcessPath is { Length: > 0 } path)
+        {
+            LocalDataReset.Wipe(AppPaths.DataDirectory, System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DashyNMS"));
+
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = false });
+            }
+            catch (Exception)
+            {
+                // Nothing to log to any more; starting DashyNMS again by hand works the same.
+            }
+        }
 
         base.OnExit(e);
     }
