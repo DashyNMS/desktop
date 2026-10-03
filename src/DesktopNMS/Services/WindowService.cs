@@ -363,9 +363,26 @@ public sealed class WindowService : IWindowService
         ShowMain();
     }
 
-    public bool ShowSettingsDialog()
+    public void ShowMainTab(MainTab tab)
+    {
+        _services.GetRequiredService<MainViewModel>().SelectedTab = tab;
+        ShowMain();
+    }
+
+    public void ShowSettingsSection(SettingsSection section)
+    {
+        ShowMain();
+        _services.GetRequiredService<MainViewModel>().OpenSettingsAt(section);
+    }
+
+    public bool ShowSettingsDialog(SettingsSection? section = null)
     {
         var viewModel = _services.GetRequiredService<SettingsViewModel>();
+        if (section is { } open)
+        {
+            viewModel.SelectedSection = open;
+        }
+
         var window = new SettingsWindow(viewModel);
         RememberPlacement(window);
 

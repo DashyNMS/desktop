@@ -185,6 +185,9 @@ public sealed class AppSettings
     /// <summary>Widgets laid out on the Dashboard tab (grid position/span, title, type, and - for a Sensors widget - which sensors it shows).</summary>
     public List<DashboardWidget> DashboardWidgets { get; set; } = new();
 
+    /// <summary>The empty Dashboard's welcome card (#233) was turned off with "Don't show again".</summary>
+    public bool WelcomeDismissed { get; set; }
+
     /// <summary>
     /// Devices opened in a Device View recently, most-recent first, capped at
     /// <see cref="RecentlyViewedDeviceCount"/>. Shown on the Devices tab (if
@@ -301,6 +304,7 @@ public sealed class AppSettings
         FanSpeedThresholds = FanSpeedThresholds.Clone(),
         OverrideSensorLimitsWithAppThresholds = OverrideSensorLimitsWithAppThresholds,
         DashboardWidgets = DashboardWidgets.Select(w => w.Clone()).ToList(),
+        WelcomeDismissed = WelcomeDismissed,
         RecentlyViewedDevices = RecentlyViewedDevices.Select(d => d.Clone()).ToList(),
         ShowRecentlyViewedDevices = ShowRecentlyViewedDevices,
         EnablePinnedDevices = EnablePinnedDevices,

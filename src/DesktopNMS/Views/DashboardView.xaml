@@ -1699,7 +1699,8 @@
                 </ItemsControl>
             </ScrollViewer>
 
-            <TextBlock Text="Nothing here yet. Turn on &quot;Edit layout&quot; and add a sensor widget to get started."
+            <!-- Turned off with "Don't show again": just say how to start. -->
+            <TextBlock Text="Your dashboard is empty. Use + to add a widget."
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        IsHitTestVisible="False">
@@ -1707,13 +1708,130 @@
                     <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding Widgets.Count}" Value="0">
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Widgets.Count}" Value="0" />
+                                    <Condition Binding="{Binding ShowWelcome}" Value="False" />
+                                </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
+                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
+
+            <!-- Welcome (#233): a new user's first view, until the first
+                 widget is added or "Don't show again". -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          Visibility="{Binding ShowWelcome, Converter={StaticResource BoolToVisibility}}">
+                <Border DataContext="{Binding Welcome}"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="26,22"
+                        Margin="0,24"
+                        MaxWidth="520"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                    <StackPanel>
+                        <DockPanel>
+                            <views:HeartbeatLogo Width="48" Height="48" Margin="0,0,16,0" />
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Welcome to DashyNMS" Style="{StaticResource HeadingTextStyle}" FontSize="20" />
+                                <TextBlock Text="{Binding ServerSummary}" Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <TextBlock Text="Your dashboard is empty. Start with a ready-made one, or pick the widgets you want."
+                                   Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,16,0,12" />
+
+                        <WrapPanel>
+                            <Button Command="{Binding UseStarterCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="12,6" Margin="0,0,8,6">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xF0E2;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock Text="Use the starter dashboard" />
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding ChooseWidgetsCommand}" Padding="12,6" Margin="0,0,8,6">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock Text="Choose widgets…" />
+                                </StackPanel>
+                            </Button>
+                        </WrapPanel>
+                        <TextBlock Style="{StaticResource SubtleTextStyle}" FontSize="11.5" TextWrapping="Wrap">
+                            <Run Text="Starter:" />
+                            <Run Text="{Binding StarterContents, Mode=OneWay}" />
+                        </TextBlock>
+
+                        <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,16,0,12" />
+                        <TextBlock Text="Jump in" Style="{StaticResource SubtleTextStyle}" Margin="0,0,0,8" />
+                        <WrapPanel>
+                            <Button Content="Devices" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static vm:MainTab.Devices}" Padding="10,4" Margin="0,0,6,6" />
+                            <Button Content="Alerts" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static vm:MainTab.Alerts}" Padding="10,4" Margin="0,0,6,6" />
+                            <Button Content="Network map" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static vm:MainTab.MapsNetwork}" Padding="10,4" Margin="0,0,6,6" />
+                            <Button Content="Neighbours" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static vm:MainTab.Neighbours}" Padding="10,4" Margin="0,0,6,6" />
+                        </WrapPanel>
+
+                        <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,10,0,10" />
+                        <DockPanel Margin="0,0,0,4">
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding StepsText}" Style="{StaticResource SubtleTextStyle}" />
+                            <TextBlock Text="Get set up" Style="{StaticResource SubtleTextStyle}" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding Steps}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,4">
+                                        <Border x:Name="Tick"
+                                                Width="16"
+                                                Height="16"
+                                                CornerRadius="8"
+                                                BorderThickness="1.5"
+                                                BorderBrush="{StaticResource TextSecondaryBrush}"
+                                                Margin="0,0,10,0"
+                                                VerticalAlignment="Center">
+                                            <TextBlock x:Name="TickGlyph"
+                                                       Text="&#xE73E;"
+                                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                       FontSize="9"
+                                                       Foreground="White"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Visibility="Collapsed" />
+                                        </Border>
+                                        <TextBlock DockPanel.Dock="Right"
+                                                   VerticalAlignment="Center"
+                                                   Visibility="{Binding ShowAction, Converter={StaticResource BoolToVisibility}}">
+                                            <Hyperlink Command="{Binding Action}">
+                                                <Run Text="{Binding ActionText, Mode=OneWay}" />
+                                            </Hyperlink>
+                                        </TextBlock>
+                                        <TextBlock x:Name="StepText" Text="{Binding Text}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    </DockPanel>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsDone}" Value="True">
+                                            <Setter TargetName="Tick" Property="Background" Value="{StaticResource OkBrush}" />
+                                            <Setter TargetName="Tick" Property="BorderBrush" Value="{StaticResource OkBrush}" />
+                                            <Setter TargetName="TickGlyph" Property="Visibility" Value="Visible" />
+                                            <Setter TargetName="StepText" Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                                            <Setter TargetName="StepText" Property="TextDecorations" Value="Strikethrough" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock HorizontalAlignment="Right" Margin="0,12,0,0" FontSize="11.5">
+                            <Hyperlink Command="{Binding DismissCommand}" Foreground="{StaticResource TextSecondaryBrush}">
+                                <Run Text="Don't show again" />
+                            </Hyperlink>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </ScrollViewer>
         </Grid>
 
         <!-- ======================== Status bar ======================== -->
