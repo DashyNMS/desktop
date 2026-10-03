@@ -111,13 +111,53 @@ public class ApiPermissionsTests
         Assert.False(transport.Permissions.IsRefused(ApiPermission.DeleteRules));
     }
 
-    /// <summary>A loopback LibreNMS that refuses everything with Laravel's 403.</summary>
+    private static readonly LibreNmsApiException CrashedCheck = new("crashed", HttpStatusCode.InternalServerError, "Server Error");
+
+    [Theory]
+    [InlineData("PUT", "alerts/12")]
+    [InlineData("PUT", "alerts/unmute/12")]
+    [InlineData("PATCH", "devicegroups/Core")]
+    [InlineData("DELETE", "devicegroups/Core")]
+    [InlineData("PATCH", "locations/4")]
+    [InlineData("DELETE", "locations/4")]
+    public void A_bare_server_error_where_LibreNMS_check_crashes_is_a_refusal(string method, string url)
+        => Assert.True(ApiPermissions.IsCrashedPermissionCheck(new HttpMethod(method), url, CrashedCheck));
+
+    [Fact]
+    public void Other_server_errors_stay_server_errors()
+    {
+        // Rules' check works (a real 403), so a 500 there is a real failure.
+        Assert.False(ApiPermissions.IsCrashedPermissionCheck(HttpMethod.Delete, "rules/7", CrashedCheck));
+        // A 500 with LibreNMS's own message is the write failing, not the check.
+        Assert.False(ApiPermissions.IsCrashedPermissionCheck(HttpMethod.Put, "alerts/12", new LibreNmsApiException("x", HttpStatusCode.InternalServerError, "Database error")));
+        Assert.False(ApiPermissions.IsCrashedPermissionCheck(HttpMethod.Get, "alerts", CrashedCheck));
+    }
+
+    [Fact]
+    public async Task The_transport_reports_a_crashed_check_as_refused()
+    {
+        using var server = new RefusingLibreNms(500, "Internal Server Error", """{"message":"Server Error"}""");
+        using var transport = new LibreNmsTransport(NullLogger<LibreNmsTransport>.Instance) { RetryTransientFailures = false };
+        transport.Configure(new LibreNmsConnection(new Uri($"http://127.0.0.1:{server.Port}/"), "token", timeoutSeconds: 5));
+
+        var ex = await Assert.ThrowsAsync<LibreNmsApiException>(() => transport.SendAsync(HttpMethod.Put, "alerts/12", new { note = "x" }));
+
+        Assert.True(ex.IsPermissionDenied);
+        Assert.Equal(LibreNmsApiException.PermissionDeniedMessage, ex.ToUserMessage());
+        Assert.True(transport.Permissions.IsRefused(ApiPermission.AcknowledgeAlerts));
+    }
+
+    /// <summary>A loopback LibreNMS that answers every request the same way - Laravel's 403 by default.</summary>
     private sealed class RefusingLibreNms : IDisposable
     {
         private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+        private readonly string _statusLine;
+        private readonly string _body;
 
-        public RefusingLibreNms()
+        public RefusingLibreNms(int status = 403, string reason = "Forbidden", string body = """{"message":"This action is unauthorized."}""")
         {
+            _statusLine = $"HTTP/1.1 {status} {reason}";
+            _body = body;
             _listener.Start();
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
             _ = Task.Run(ServeAsync);
@@ -137,8 +177,7 @@ public class ApiPermissionsTests
                     var stream = client.GetStream();
                     await stream.ReadAsync(new byte[4096]);
 
-                    const string body = """{"message":"This action is unauthorized."}""";
-                    var response = $"HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n{body}";
+                    var response = $"{_statusLine}\r\nContent-Type: application/json\r\nContent-Length: {_body.Length}\r\nConnection: close\r\n\r\n{_body}";
                     await stream.WriteAsync(Encoding.ASCII.GetBytes(response));
                 }
             }

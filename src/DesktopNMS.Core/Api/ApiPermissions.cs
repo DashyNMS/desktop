@@ -75,6 +75,23 @@ public sealed class ApiPermissions
         (HttpMethod.Delete, Route("locations/[^/]+"), ApiPermission.DeleteLocations),
     };
 
+    /// <summary>
+    /// Permissions whose LibreNMS policy method wants the item itself
+    /// (AlertPolicy.update(User, Alert), and the same for device groups and
+    /// locations) while the route checks only the type
+    /// ("can:update,App\Models\Alert"). For an admin the check is skipped; for
+    /// anyone else it crashes, so LibreNMS answers a bare 500 "Server Error"
+    /// before the write runs, instead of a 403 (#51).
+    /// </summary>
+    private static readonly HashSet<ApiPermission> CheckCrashesForNonAdmins = new()
+    {
+        ApiPermission.AcknowledgeAlerts,
+        ApiPermission.EditGroups,
+        ApiPermission.DeleteGroups,
+        ApiPermission.EditLocations,
+        ApiPermission.DeleteLocations,
+    };
+
     private readonly object _sync = new();
     private readonly HashSet<ApiPermission> _refused = new();
 
@@ -128,6 +145,20 @@ public sealed class ApiPermissions
 
         Changed?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>
+    /// True for LibreNMS's crashed permission check (see
+    /// <see cref="CheckCrashesForNonAdmins"/>): a bare 500 "Server Error" on
+    /// one of those routes. A crash further into the write would look the
+    /// same, but those handlers are plain database updates, so this is far
+    /// likelier the check - which fails before anything changes. The
+    /// transport turns it into the 403 it should have been.
+    /// </summary>
+    public static bool IsCrashedPermissionCheck(HttpMethod method, string relativeUrl, LibreNmsApiException exception)
+        => exception.StatusCode == System.Net.HttpStatusCode.InternalServerError
+           && string.Equals(exception.ServerMessage?.Trim(), "Server Error", StringComparison.Ordinal)
+           && For(method, relativeUrl) is { } permission
+           && CheckCrashesForNonAdmins.Contains(permission);
 
     /// <summary>The permission a write request needs, or null for a read or a route not listed.</summary>
     public static ApiPermission? For(HttpMethod method, string relativeUrl)
