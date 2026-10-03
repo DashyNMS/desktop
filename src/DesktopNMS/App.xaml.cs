@@ -13,6 +13,7 @@ using DesktopNMS.Core.CustomMaps;
 using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Topology;
 using DesktopNMS.Core.Updates;
+using DesktopNMS.Demo;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Security;
 using DesktopNMS.Services;
@@ -39,6 +40,19 @@ public partial class App : Application
     /// <summary>Passed to the fresh copy after Sign out, with the closing copy's process id (#231).</summary>
     private const string FreshStartArgument = "--fresh-start";
 
+    /// <summary>Passed, with the closing copy's process id, to a copy started into or out of demo mode: wait for that one to go first.</summary>
+    private const string AfterArgument = "--after";
+
+    private DemoMode _demo = new(isActive: false);
+    private DemoServer? _demoServer;
+    private DemoFleet? _demoFleet;
+
+    /// <summary>Set by "Try the demo": on the way out, start a copy in demo mode.</summary>
+    private bool _startDemoOnExit;
+
+    /// <summary>Set by Sign out in demo mode: on the way out, start the normal app again.</summary>
+    private bool _leaveDemoOnExit;
+
     /// <summary>Passed by the uninstaller (#64): remove the notification registration, then exit.</summary>
     private const string UninstallArgument = "--uninstall";
     private EventWaitHandle? _showWindowSignal;
@@ -64,7 +78,20 @@ public partial class App : Application
             return;
         }
 
-        if (!ClaimSingleInstance())
+        var isDemo = e.Args.Any(a => a.Equals(DemoMode.Argument, StringComparison.OrdinalIgnoreCase));
+        var shots = Array.FindIndex(e.Args, a => a.Equals(DemoMode.ScreenshotsArgument, StringComparison.OrdinalIgnoreCase));
+        _demo = new DemoMode(isDemo, isDemo && shots >= 0 && shots + 1 < e.Args.Length ? System.IO.Path.GetFullPath(e.Args[shots + 1]) : null);
+
+        // Into or out of demo mode: the copy that asked has to be gone first,
+        // or it still holds the single-instance claim.
+        var after = Array.FindIndex(e.Args, a => a.Equals(AfterArgument, StringComparison.OrdinalIgnoreCase));
+        if (after >= 0 && after + 1 < e.Args.Length && int.TryParse(e.Args[after + 1], out var earlierProcessId))
+        {
+            WaitForExit(earlierProcessId);
+        }
+
+        // Rendering screenshots runs alongside a copy that's already open.
+        if (!_demo.IsRenderingScreenshots && !ClaimSingleInstance())
         {
             // Another copy already owns the tray icon. Bring its window up
             // rather than vanishing: launching the app and having nothing
@@ -75,7 +102,18 @@ public partial class App : Application
             return;
         }
 
-        StartShowWindowListener();
+        if (!_demo.IsRenderingScreenshots)
+        {
+            StartShowWindowListener();
+        }
+
+        // Before anything reads the data folder: the demo keeps to its own,
+        // started empty each time.
+        if (_demo.IsActive)
+        {
+            DemoMode.Reset();
+            AppPaths.UseDataDirectory(DemoMode.DataDirectory);
+        }
 
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
@@ -92,9 +130,9 @@ public partial class App : Application
             RecordReset(exited ? "fresh copy" : "fresh copy (closing copy still running after 20 s)", WipeSavedData());
         }
 
-        _services = BuildServices();
+        _services = BuildServices(_demo);
         _logger = _services.GetRequiredService<ILogger<App>>();
-        _logger.LogInformation("DashyNMS starting");
+        _logger.LogInformation(_demo.IsActive ? "DashyNMS starting in demo mode" : "DashyNMS starting");
 
         // Must happen before the first toast is sent, and costs nothing on the
         // runs where the shortcut already matches.
@@ -102,6 +140,20 @@ public partial class App : Application
 
         var settings = _services.GetRequiredService<ISettingsStore>();
         settings.Load();
+
+        if (_demo.IsActive)
+        {
+            _demoFleet = new DemoFleet();
+            _demoServer = new DemoServer(_demoFleet, _logger);
+            _demoServer.Start();
+            DemoMode.Seed(settings, _services.GetRequiredService<ITokenProtector>(), _demoServer.Address, _demoFleet, _demo.IsRenderingScreenshots);
+        }
+
+        _demo.StartRequested += (_, _) => Dispatcher.InvokeAsync(() =>
+        {
+            _startDemoOnExit = true;
+            ShutdownApplication();
+        });
 
         // Must run before any window (or anything else that applies a style)
         // is constructed - see ApplyTheme's remarks.
@@ -236,6 +288,26 @@ public partial class App : Application
         ScheduleWhatsNew();
         UpdateTrayStatus();
 
+        if (_demo.IsActive)
+        {
+            if (_demo.ScreenshotFolder is { } folder && _mainWindow is not null && _demoFleet is not null && _logger is not null)
+            {
+                try
+                {
+                    await new ScreenshotTour(folder, _mainViewModel, windows, _demoFleet, _logger).RunAsync(_mainWindow).ConfigureAwait(true);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Rendering the screenshots failed");
+                }
+
+                ShutdownApplication();
+            }
+
+            // No update checks or other services in the demo.
+            return;
+        }
+
         // Independent of the LibreNMS connection, so it still runs when
         // sign-in is dismissed. Fire-and-forget: a failed or slow GitHub
         // request must never delay or affect anything else at startup.
@@ -305,6 +377,12 @@ public partial class App : Application
     private void SetUpUpdates()
     {
         if (_services is null)
+        {
+            return;
+        }
+
+        // The demo never downloads or offers an update.
+        if (_demo.IsActive)
         {
             return;
         }
@@ -429,9 +507,10 @@ public partial class App : Application
 
     // ------------------------------------------------------------------- DI
 
-    private static ServiceProvider BuildServices()
+    private static ServiceProvider BuildServices(DemoMode demo)
     {
         var services = new ServiceCollection();
+        services.AddSingleton(demo);
 
         services.AddLogging(builder =>
         {
@@ -639,6 +718,15 @@ public partial class App : Application
     /// </summary>
     private void RestartSignedOut()
     {
+        // Leaving the demo: nothing real to wipe, just the normal app again.
+        if (_demo.IsActive)
+        {
+            _logger?.LogInformation("Leaving demo mode");
+            _leaveDemoOnExit = true;
+            ShutdownApplication();
+            return;
+        }
+
         _logger?.LogInformation("Signed out: clearing everything saved and restarting to the sign-in window");
 
         // "Start with Windows" lives in the registry, not the data folder.
@@ -913,6 +1001,17 @@ public partial class App : Application
         _singleInstanceMutex?.ReleaseMutex();
         _singleInstanceMutex?.Dispose();
 
+        _demoServer?.Dispose();
+        if (_leaveDemoOnExit)
+        {
+            DemoMode.Reset();
+        }
+
+        if (_startDemoOnExit || _leaveDemoOnExit)
+        {
+            StartAnotherCopy(_startDemoOnExit ? DemoMode.Argument : null);
+        }
+
         // Sign out (#231): only now - with every window closed, every service
         // disposed and every last save written - is it safe to wipe, then
         // start the fresh copy, which finds nothing and opens on sign-in.
@@ -937,6 +1036,32 @@ public partial class App : Application
         }
 
         base.OnExit(e);
+    }
+
+    /// <summary>Into or out of demo mode: a new copy, which waits for this one to exit.</summary>
+    private static void StartAnotherCopy(string? argument)
+    {
+        if (Environment.ProcessPath is not { Length: > 0 } path)
+        {
+            return;
+        }
+
+        try
+        {
+            var start = new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = false };
+            if (argument is not null)
+            {
+                start.ArgumentList.Add(argument);
+            }
+
+            start.ArgumentList.Add(AfterArgument);
+            start.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            System.Diagnostics.Process.Start(start);
+        }
+        catch (Exception)
+        {
+            // Nothing left to report it in; starting DashyNMS again works.
+        }
     }
 
     // ------------------------------------------------------------ resilience
