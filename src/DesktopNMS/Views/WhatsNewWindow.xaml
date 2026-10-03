@@ -1,0 +1,215 @@
+<Window x:Class="DesktopNMS.Views.WhatsNewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:WhatsNewViewModel}"
+        Title="What's new in DashyNMS"
+        Width="760"
+        Height="680"
+        MinWidth="560"
+        MinHeight="440"
+        ShowInTaskbar="False"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Background="{StaticResource BackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="OkSubtleBrush" Color="{StaticResource OkColor}" Opacity="0.16" />
+        <SolidColorBrush x:Key="WarningSubtleBrush" Color="{StaticResource WarningColor}" Opacity="0.16" />
+
+        <!-- A section tab: an underline and a count, the picked one in the accent. -->
+        <Style x:Key="SectionTabStyle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Root" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,0,0,2" Padding="14,0" Height="36" Margin="0,0,4,-1">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock x:Name="Label" Text="{Binding Name}" VerticalAlignment="Center" />
+                                <Border x:Name="Pill" MinWidth="20" Height="18" Padding="6,0" Margin="8,0,0,0" CornerRadius="9" Background="{StaticResource SurfaceAltBrush}">
+                                    <TextBlock x:Name="Count" Text="{Binding Count}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                <Setter TargetName="Label" Property="FontWeight" Value="SemiBold" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsSelected}" Value="True" />
+                                    <Condition Binding="{Binding Tone}" Value="New" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="Pill" Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+                                <Setter TargetName="Count" Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsSelected}" Value="True" />
+                                    <Condition Binding="{Binding Tone}" Value="Improved" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="Pill" Property="Background" Value="{StaticResource OkSubtleBrush}" />
+                                <Setter TargetName="Count" Property="Foreground" Value="{StaticResource OkBrush}" />
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsSelected}" Value="True" />
+                                    <Condition Binding="{Binding Tone}" Value="Fixed" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="Pill" Property="Background" Value="{StaticResource WarningSubtleBrush}" />
+                                <Setter TargetName="Count" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                            </MultiDataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A change: its icon in the section's colour, its title and what it does. -->
+        <DataTemplate x:Key="ChangeCardTemplate" DataType="{x:Type vm:WhatsNewItemViewModel}">
+            <Border Margin="0,0,10,10"
+                    Padding="14,12"
+                    CornerRadius="8"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="Tile" Width="34" Height="34" CornerRadius="8" VerticalAlignment="Top" Background="{DynamicResource AccentSubtleBrush}">
+                        <TextBlock x:Name="Icon"
+                                   Text="{Binding Glyph}"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="16"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource AccentBrush}" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Text}"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   LineHeight="17"
+                                   Margin="0,3,0,0"
+                                   Style="{StaticResource SubtleTextStyle}"
+                                   Visibility="{Binding HasText, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Tone}" Value="Improved">
+                    <Setter TargetName="Tile" Property="Background" Value="{StaticResource OkSubtleBrush}" />
+                    <Setter TargetName="Icon" Property="Foreground" Value="{StaticResource OkBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="Fixed">
+                    <Setter TargetName="Tile" Property="Background" Value="{StaticResource WarningSubtleBrush}" />
+                    <Setter TargetName="Icon" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- The DashyNMS mark, the version and when it was released. -->
+        <Grid Grid.Row="0" Margin="28,24,28,18">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Viewbox Width="52" Height="52" Margin="0,0,16,0" VerticalAlignment="Center">
+                <Canvas Width="100" Height="100">
+                    <Ellipse Width="92" Height="92" Canvas.Left="4" Canvas.Top="4" Fill="{StaticResource SurfaceAltBrush}" />
+                    <Ellipse Width="84.5" Height="84.5" Canvas.Left="7.75" Canvas.Top="7.75"
+                             Stroke="{DynamicResource AccentBrush}" StrokeThickness="7.5" />
+                    <Polyline Points="24,55 38,55 45.5,33 56.5,71 64,50 77,50"
+                              Stroke="{StaticResource TextPrimaryBrush}"
+                              StrokeThickness="8.5"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round" />
+                </Canvas>
+            </Viewbox>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Title}"
+                           FontFamily="{StaticResource DisplayFont}"
+                           FontSize="24"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <TextBlock Text="{Binding Released}"
+                           Margin="0,3,0,0"
+                           Style="{StaticResource SubtleTextStyle}"
+                           Visibility="{Binding HasReleased, Converter={StaticResource BoolToVisibility}}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- New / Improved / Fixed, with how many of each. -->
+        <Border Grid.Row="1" Margin="28,0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <ItemsControl ItemsSource="{Binding Tabs}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:WhatsNewTabViewModel}">
+                        <ToggleButton Style="{StaticResource SectionTabStyle}"
+                                      IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                      Command="{Binding SelectCommand}"
+                                      AutomationProperties.Name="{Binding Name}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
+        <ScrollViewer Grid.Row="2" Margin="28,16,18,8" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding SelectedTab.Items}" ItemTemplate="{StaticResource ChangeCardTemplate}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="2" VerticalAlignment="Top" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <Border Grid.Row="3"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,12">
+            <DockPanel LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center">
+                    <Hyperlink Command="{Binding OpenReleaseNotesCommand}">
+                        <Run Text="Full release notes" />
+                        <Run Text="&#xE8A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" />
+                    </Hyperlink>
+                </TextBlock>
+                <!-- Got it, Esc and the close button all count as seen. -->
+                <Button DockPanel.Dock="Right"
+                        Content="Got it"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        IsDefault="True"
+                        IsCancel="True" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

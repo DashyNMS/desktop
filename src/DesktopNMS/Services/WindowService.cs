@@ -160,6 +160,39 @@ public sealed class WindowService : IWindowService
         return window.ShowDialog() == true ? viewModel.Chosen : null;
     }
 
+    public bool ShowWhatsNew()
+    {
+        if (BundledWhatsNew.Current is not { } notes)
+        {
+            return false;
+        }
+
+        var viewModel = new WhatsNewViewModel(notes, new Uri(UpdateCheckService.ReleasePageUrl(notes.Version)), OpenUrl);
+        var window = new WhatsNewWindow(viewModel);
+
+        // Over Settings when asked for from About; otherwise over the main window.
+        if (Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive && !ReferenceEquals(w, _mainWindow)) is { } active)
+        {
+            window.Owner = active;
+        }
+        else if (_mainWindow is { IsVisible: true })
+        {
+            OwnByMain(window);
+        }
+        else
+        {
+            window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        }
+
+        window.ShowDialog();
+
+        // However it was closed, these notes have been seen.
+        var settings = _services.GetRequiredService<ISettingsStore>();
+        settings.Current.WhatsNewShownVersion = notes.Version;
+        settings.SaveQuietly();
+        return true;
+    }
+
     public void ShowDeviceEventLog(int deviceId)
     {
         ShowDeviceDetail(deviceId);
