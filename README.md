@@ -21,6 +21,10 @@ Keep an eye on your network without living in a browser tab. Sign in once and Da
 
 It works with any [LibreNMS](https://www.librenms.org/) server, and has a companion app for your phone, [DashyNMS Mobile](https://github.com/DashyNMS/mobile).
 
+![The DashyNMS dashboard: live alerts, alert and device counts, pinned sensors, a traffic graph, pinned and recently viewed devices, top interfaces and the event log](docs/screenshots/dashboard.png)
+
+No server to hand? Choose **Try the demo** on the sign-in window to look around an example network first.
+
 ## What you can do
 
 **Know when something's wrong**
@@ -49,6 +53,23 @@ Connect Graylog to search your logs alongside your devices, and Unimus to see ea
 
 **Made for Windows**
 Dark or light, with your choice of accent colour. It updates itself when a new version is ready.
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/alerts.png" alt="Alerts: every open alert with its severity, device, rule, state and age"></td>
+    <td><img src="docs/screenshots/devices.png" alt="Devices: the whole network in one list, with pinned devices at the top"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/device-overview.png" alt="A device's overview: availability, uptime, ping graph, resources, sensors, neighbours and busiest ports"></td>
+    <td><img src="docs/screenshots/device-graphs.png" alt="A device's traffic graph over the last day"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/network-map.png" alt="The network map, drawn from each device's neighbours"></td>
+    <td><img src="docs/screenshots/alert-rules.png" alt="Alert rules, with how many alerts each has raised and its condition"></td>
+  </tr>
+</table>
+
+<sub>Screenshots are of demo mode's example network, rendered with <code>tools/Render-Screenshots.ps1</code>.</sub>
 
 ## Private by design
 

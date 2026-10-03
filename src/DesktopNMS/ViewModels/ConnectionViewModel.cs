@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using DesktopNMS.Core.Configuration;
+using DesktopNMS.Demo;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 
@@ -16,6 +17,7 @@ public sealed class ConnectionViewModel : ObservableObject
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
+    private readonly DemoMode _demo;
 
     private string _serverUrl = string.Empty;
     private string _apiToken = string.Empty;
@@ -25,11 +27,12 @@ public sealed class ConnectionViewModel : ObservableObject
     private string? _errorMessage;
     private string? _successMessage;
 
-    public ConnectionViewModel(ISessionService session, ISettingsStore settings, IWindowService windows)
+    public ConnectionViewModel(ISessionService session, ISettingsStore settings, IWindowService windows, DemoMode demo)
     {
         _session = session;
         _settings = settings;
         _windows = windows;
+        _demo = demo;
 
         var current = settings.Current;
         _serverUrl = current.ServerUrl ?? string.Empty;
@@ -38,12 +41,24 @@ public sealed class ConnectionViewModel : ObservableObject
         _rememberToken = current.RememberToken;
 
         ConnectCommand = new AsyncRelayCommand(ConnectAsync, () => !IsBusy);
+        TryDemoCommand = new RelayCommand(TryDemo, () => !IsBusy);
     }
 
     /// <summary>Raised with true once a session has been established. Cancelling is handled by the dialog itself.</summary>
     public event EventHandler<bool>? RequestClose;
 
     public AsyncRelayCommand ConnectCommand { get; }
+
+    /// <summary>Restarts DashyNMS on an example network - see DemoMode. Not offered from inside the demo.</summary>
+    public RelayCommand TryDemoCommand { get; }
+
+    public bool CanTryDemo => !_demo.IsActive;
+
+    private void TryDemo()
+    {
+        RequestClose?.Invoke(this, false);
+        _demo.RequestStart();
+    }
 
     public string ServerUrl
     {

@@ -155,6 +155,23 @@
                                VerticalAlignment="Center" />
                     <!-- No server address or version here (#218): Settings,
                          Server and About have them, and the tray tooltip. -->
+                    <!-- Demo mode (DemoMode): what's shown isn't a real
+                         network, and the way back out. -->
+                    <Button Command="{Binding SignOutCommand}"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            ToolTip="This is the demo's example network. Click to leave the demo and sign in to your own LibreNMS."
+                            Margin="12,0,0,0"
+                            Padding="10,2"
+                            Cursor="Hand"
+                            Visibility="{Binding IsDemo, Converter={StaticResource BoolToVisibility}}">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{DynamicResource AccentSubtleBrush}" CornerRadius="9" Padding="{TemplateBinding Padding}">
+                                    <TextBlock Text="Demo · Leave" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" />
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
                 </StackPanel>
 
                 <!-- Status and actions, before the window buttons. -->
