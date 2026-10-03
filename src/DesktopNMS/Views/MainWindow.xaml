@@ -590,5 +590,20 @@
                 </Grid>
             </Grid>
         </Grid>
+
+        <!-- Launch (#228): while the saved session signs back in, the beating
+             mark instead of an empty window - in the theme's own background,
+             so Light doesn't flash dark first. -->
+        <Grid Grid.Row="1"
+              Background="{StaticResource BackgroundBrush}"
+              Visibility="{Binding IsSigningIn, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,40">
+                <views:HeartbeatLogo Width="96" Height="96" IsBeating="{Binding IsSigningIn}" />
+                <TextBlock Text="Signing in…"
+                           Style="{StaticResource SubtleTextStyle}"
+                           HorizontalAlignment="Center"
+                           Margin="0,16,0,0" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>
