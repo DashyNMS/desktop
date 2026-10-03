@@ -2,6 +2,8 @@
 
 DashyNMS desktop doesn't collect, store or share any of your data. There's no DashyNMS account, no analytics, no advertising and no tracking.
 
+The same policy is on the website: **<https://dashynms.pckp.net/privacy/>**.
+
 ## Who it talks to
 
 - **Your LibreNMS server**, the one you sign in to. This is where everything you see comes from.

@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://dashynms.pckp.net/">Website</a> ·
   <a href="https://github.com/DashyNMS/desktop/releases/latest">Download</a> ·
-  <a href="PRIVACY.md">Privacy</a>
+  <a href="https://dashynms.pckp.net/privacy/">Privacy</a>
 </p>
 
 ---
