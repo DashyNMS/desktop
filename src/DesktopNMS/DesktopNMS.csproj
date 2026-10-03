@@ -59,6 +59,8 @@
     <Resource Include="Assets\Fonts\*.ttf" />
     <!-- Their SIL Open Font Licence texts travel with the app, as the licence asks. -->
     <Content Include="Assets\Fonts\*.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The release's "What's new" (#227), written at release time - see BundledWhatsNew. -->
+    <EmbeddedResource Include="WhatsNew.md" LogicalName="DesktopNMS.WhatsNew.md" />
   </ItemGroup>
 
   <ItemGroup>

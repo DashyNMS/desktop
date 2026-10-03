@@ -37,7 +37,7 @@ public sealed class AddDevicesToGroupViewModel : ObservableObject
         _client = client;
         _logger = logger;
 
-        StaticGroups = new ObservableCollection<DeviceGroup>();
+        StaticGroups = new BatchObservableCollection<DeviceGroup>();
 
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => !IsBusy && SelectedGroup is not null);
     }
@@ -61,7 +61,7 @@ public sealed class AddDevicesToGroupViewModel : ObservableObject
 
     public event EventHandler<bool>? RequestClose;
 
-    public ObservableCollection<DeviceGroup> StaticGroups { get; }
+    public BatchObservableCollection<DeviceGroup> StaticGroups { get; }
 
     public DeviceGroup? SelectedGroup
     {
@@ -117,10 +117,13 @@ public sealed class AddDevicesToGroupViewModel : ObservableObject
         {
             var groups = await _client.DeviceGroups.ListAsync().ConfigureAwait(true);
 
-            StaticGroups.Clear();
-            foreach (var group in groups.Where(g => g.IsEditableAsStatic).OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase))
+            using (StaticGroups.BeginBatch())
             {
-                StaticGroups.Add(group);
+                StaticGroups.Clear();
+                foreach (var group in groups.Where(g => g.IsEditableAsStatic).OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    StaticGroups.Add(group);
+                }
             }
         }
         catch (LibreNmsApiException ex)

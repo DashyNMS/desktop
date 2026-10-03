@@ -42,7 +42,7 @@ public sealed class DeviceGroupEditorViewModel : ObservableObject
         _client = client;
         _logger = logger;
 
-        DevicePickerItems = new ObservableCollection<DevicePickerItemViewModel>();
+        DevicePickerItems = new BatchObservableCollection<DevicePickerItemViewModel>();
         DevicePickerView = CollectionViewSource.GetDefaultView(DevicePickerItems);
         DevicePickerView.Filter = FilterDevicePickerItem;
         DevicePickerView.SortDescriptions.Add(new SortDescription(nameof(DevicePickerItemViewModel.Name), ListSortDirection.Ascending));
@@ -70,6 +70,9 @@ public sealed class DeviceGroupEditorViewModel : ObservableObject
     }
 
     public bool IsEditMode => _originalName is not null;
+
+    /// <summary>What Save needs from the token (#51) - see <see cref="Views.PermissionGate"/>.</summary>
+    public ApiPermission SavePermission => IsEditMode ? ApiPermission.EditGroups : ApiPermission.CreateGroups;
 
     public string Title => IsEditMode ? "Edit device group" : "Add device group";
 
@@ -105,7 +108,7 @@ public sealed class DeviceGroupEditorViewModel : ObservableObject
         }
     }
 
-    public ObservableCollection<DevicePickerItemViewModel> DevicePickerItems { get; }
+    public BatchObservableCollection<DevicePickerItemViewModel> DevicePickerItems { get; }
 
     public ICollectionView DevicePickerView { get; }
 
@@ -151,10 +154,13 @@ public sealed class DeviceGroupEditorViewModel : ObservableObject
 
             var memberSet = memberIds.ToHashSet();
 
-            DevicePickerItems.Clear();
-            foreach (var device in devices)
+            using (DevicePickerItems.BeginBatch())
             {
-                DevicePickerItems.Add(new DevicePickerItemViewModel(device, memberSet.Contains(device.DeviceId)));
+                DevicePickerItems.Clear();
+                foreach (var device in devices)
+                {
+                    DevicePickerItems.Add(new DevicePickerItemViewModel(device, memberSet.Contains(device.DeviceId)));
+                }
             }
         }
         catch (LibreNmsApiException ex)

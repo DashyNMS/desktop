@@ -35,7 +35,7 @@ public sealed class TemplatesViewModel : ObservableObject
         _windows = windows;
         _logger = logger;
 
-        Templates = new ObservableCollection<AlertTemplateItemViewModel>();
+        Templates = new BatchObservableCollection<AlertTemplateItemViewModel>();
         Filtered = new FilteredListViewModel(Templates, (item, term) => term.Length == 0 || ((AlertTemplateItemViewModel)item).Matches(term));
         Filtered.PropertyChanged += (_, e) =>
         {
@@ -54,7 +54,7 @@ public sealed class TemplatesViewModel : ObservableObject
         ClearFiltersCommand = new RelayCommand(() => Filtered.SearchText = string.Empty);
     }
 
-    public ObservableCollection<AlertTemplateItemViewModel> Templates { get; }
+    public BatchObservableCollection<AlertTemplateItemViewModel> Templates { get; }
 
     /// <summary>Search box (issue #28's pattern applied here too) - see <see cref="FilteredListViewModel"/>'s own doc comment for why this is a separate class rather than an ICollectionView property declared directly here.</summary>
     public FilteredListViewModel Filtered { get; }
@@ -131,17 +131,20 @@ public sealed class TemplatesViewModel : ObservableObject
             // print-alert-templates.php). Same derivation here.
             var mappedRuleIds = templatesTask.Result.SelectMany(t => t.AlertRules).ToHashSet();
 
-            Templates.Clear();
-            foreach (var template in templatesTask.Result.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
+            using (Templates.BeginBatch())
             {
-                var attached = string.Equals(template.Name, DefaultTemplateName, StringComparison.Ordinal)
-                    ? ruleNames.Where(r => !mappedRuleIds.Contains(r.Key)).Select(r => r.Value).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()
-                    // Names in the order LibreNMS lists the ids; an id with no
-                    // matching rule (deleted since) still shows, as "Rule 123",
-                    // rather than silently vanishing from the count.
-                    : template.AlertRules.Select(id => ruleNames.GetValueOrDefault(id, $"Rule {id}")).ToList();
+                Templates.Clear();
+                foreach (var template in templatesTask.Result.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    var attached = string.Equals(template.Name, DefaultTemplateName, StringComparison.Ordinal)
+                        ? ruleNames.Where(r => !mappedRuleIds.Contains(r.Key)).Select(r => r.Value).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()
+                        // Names in the order LibreNMS lists the ids; an id with no
+                        // matching rule (deleted since) still shows, as "Rule 123",
+                        // rather than silently vanishing from the count.
+                        : template.AlertRules.Select(id => ruleNames.GetValueOrDefault(id, $"Rule {id}")).ToList();
 
-                Templates.Add(new AlertTemplateItemViewModel(template, attached, EditTemplate));
+                    Templates.Add(new AlertTemplateItemViewModel(template, attached, EditTemplate));
+                }
             }
         }
         catch (LibreNmsApiException ex)

@@ -60,6 +60,9 @@ public interface IWindowService
     /// <summary>The Dashboard's "Add widget" picker (#204). Returns the widget chosen, or null if cancelled.</summary>
     DesktopNMS.ViewModels.WidgetCatalogEntry? ShowWidgetPicker(IReadOnlyList<DesktopNMS.ViewModels.WidgetCatalogEntry> catalog);
 
+    /// <summary>This release's "What's new" (#227), which then counts as seen. False when this build has none.</summary>
+    bool ShowWhatsNew();
+
     /// <summary>Shows the main window on a Neighbours view (#55), with this neighbour selected if one is named and listed - the MAC picks out which of several unnamed ones.</summary>
     void ShowNeighbour(string viewId, string? name, string? mac = null);
 
@@ -172,7 +175,14 @@ public interface IWindowService
 
     void ShowInformation(string title, string message);
 
-    bool Confirm(string title, string message);
+    /// <summary>
+    /// Asks before an action goes ahead (#66). <paramref name="confirmLabel"/>
+    /// names the action ("Delete", "Sign out"), never a bare OK/Yes. A
+    /// <paramref name="destructive"/> action - one nothing in DashyNMS can
+    /// undo - gets a red button, and Enter lands on Cancel rather than on it.
+    /// See <see cref="Infrastructure.Confirmations"/> for when to ask at all.
+    /// </summary>
+    bool Confirm(string title, string message, string confirmLabel, bool destructive = false);
 
     /// <summary>
     /// Shows a certificate the normal checks rejected and asks whether to trust
@@ -187,7 +197,7 @@ public interface IWindowService
     /// asking me" declaration, so callers should honour it even when the
     /// user cancels this particular prompt.
     /// </summary>
-    (bool Confirmed, bool DontAskAgain) ConfirmWithOptOut(string title, string message, string dontAskAgainLabel = "Don't ask me again");
+    (bool Confirmed, bool DontAskAgain) ConfirmWithOptOut(string title, string message, string confirmLabel, string dontAskAgainLabel = "Don't ask me again");
 
     /// <summary>Shuts the application down, including the tray icon.</summary>
     void Exit();

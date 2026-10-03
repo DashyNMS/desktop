@@ -52,6 +52,9 @@ public sealed class LocationEditorViewModel : ObservableObject
 
     public bool IsEditMode => _originalId is not null;
 
+    /// <summary>What Save needs from the token (#51) - see <see cref="Views.PermissionGate"/>.</summary>
+    public ApiPermission SavePermission => IsEditMode ? ApiPermission.EditLocations : ApiPermission.CreateLocations;
+
     public string Title => IsEditMode ? "Edit location" : "Add location";
 
     /// <summary>

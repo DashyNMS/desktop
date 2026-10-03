@@ -122,6 +122,9 @@ public sealed class AppSettings
     /// <summary>The version that last ran - a different one at start-up means DashyNMS was just updated, worth saying so.</summary>
     public string? LastRunVersion { get; set; }
 
+    /// <summary>The release whose "What's new" (#227) has been shown, or counted as seen on a fresh install - shown once per release.</summary>
+    public string? WhatsNewShownVersion { get; set; }
+
     /// <summary>The main window's sidebar shows its labels (the hamburger button) rather than icons only.</summary>
     public bool NavExpanded { get; set; }
 
@@ -288,6 +291,7 @@ public sealed class AppSettings
         StartupTab = StartupTab,
         LastNotifiedUpdateVersion = LastNotifiedUpdateVersion,
         LastRunVersion = LastRunVersion,
+        WhatsNewShownVersion = WhatsNewShownVersion,
         NavExpanded = NavExpanded,
         DeviceNavExpanded = DeviceNavExpanded,
         IncludePreviewBuilds = IncludePreviewBuilds,

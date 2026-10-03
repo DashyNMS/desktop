@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using DesktopNMS.Core.Configuration;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 
 namespace DesktopNMS.ViewModels;
@@ -36,7 +37,7 @@ public sealed class RecentlyViewedWidgetViewModel : DashboardWidgetViewModel, ID
         _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
         _openDevice = openDevice;
 
-        Devices = new ObservableCollection<RecentlyViewedDeviceItemViewModel>();
+        Devices = new BatchObservableCollection<RecentlyViewedDeviceItemViewModel>();
         Rebuild();
 
         _settings.Changed += OnSettingsChanged;
@@ -47,7 +48,7 @@ public sealed class RecentlyViewedWidgetViewModel : DashboardWidgetViewModel, ID
         _deviceMonitor.Start();
     }
 
-    public ObservableCollection<RecentlyViewedDeviceItemViewModel> Devices { get; }
+    public BatchObservableCollection<RecentlyViewedDeviceItemViewModel> Devices { get; }
 
     public bool HasDevices => Devices.Count > 0;
 
@@ -63,12 +64,7 @@ public sealed class RecentlyViewedWidgetViewModel : DashboardWidgetViewModel, ID
 
     private void Rebuild()
     {
-        Devices.Clear();
-
-        foreach (var entry in _settings.Current.RecentlyViewedDevices)
-        {
-            Devices.Add(new RecentlyViewedDeviceItemViewModel(entry, _openDevice, _devices.Get(entry.DeviceId)));
-        }
+        Devices.ReplaceAll(_settings.Current.RecentlyViewedDevices.Select(entry => new RecentlyViewedDeviceItemViewModel(entry, _openDevice, _devices.Get(entry.DeviceId))));
 
         OnPropertyChanged(nameof(HasDevices));
     }

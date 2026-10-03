@@ -63,7 +63,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         TimeRange.Changed += OnTimeRangeChanged;
 
         AvailableGraphs = new ObservableCollection<GraphType>();
-        DevicePickerResults = new ObservableCollection<DevicePickerItem>();
+        DevicePickerResults = new BatchObservableCollection<DevicePickerItem>();
 
         ToggleDevicePickerCommand = new RelayCommand(() =>
         {
@@ -118,7 +118,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
     /// <summary>Clicking the rendered graph (issue #161) opens the device's Device Details on this same graph, full size.</summary>
     public RelayCommand OpenGraphCommand { get; }
 
-    public ObservableCollection<DevicePickerItem> DevicePickerResults { get; }
+    public BatchObservableCollection<DevicePickerItem> DevicePickerResults { get; }
 
     public bool HasDevicePickerResults => DevicePickerResults.Count > 0;
 
@@ -368,8 +368,6 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
 
     private void RefreshDevicePicker()
     {
-        DevicePickerResults.Clear();
-
         var term = DevicePickerSearchText?.Trim();
 
         var candidates = _fleet
@@ -378,10 +376,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
             .OrderBy(d => d.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Take(50);
 
-        foreach (var candidate in candidates)
-        {
-            DevicePickerResults.Add(candidate);
-        }
+        DevicePickerResults.ReplaceAll(candidates);
 
         OnPropertyChanged(nameof(HasDevicePickerResults));
     }

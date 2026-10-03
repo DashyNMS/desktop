@@ -38,8 +38,25 @@ public abstract class DashboardWidgetViewModel : ObservableObject
         _columnSpan = model.ColumnSpan;
         _rowSpan = model.RowSpan;
 
-        RemoveCommand = new RelayCommand(() => _layout.RemoveWidget(Id));
+        RemoveCommand = new RelayCommand(Remove);
         ToggleEditCommand = new RelayCommand(() => IsEditingWidget = !IsEditingWidget);
+    }
+
+    /// <summary>
+    /// Asked before the widget is deleted (#66) - set by the dashboard, which
+    /// owns the window service. A widget's settings (its sensors, graph,
+    /// filters) go with it, so it's a destructive confirmation.
+    /// </summary>
+    internal Func<DashboardWidgetViewModel, bool>? ConfirmRemove { get; set; }
+
+    private void Remove()
+    {
+        if (ConfirmRemove is { } confirm && !confirm(this))
+        {
+            return;
+        }
+
+        _layout.RemoveWidget(Id);
     }
 
     /// <summary>For subclasses that need to call other layout operations scoped to this widget's <see cref="Id"/>.</summary>

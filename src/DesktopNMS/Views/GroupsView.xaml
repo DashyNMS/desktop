@@ -83,6 +83,7 @@
 
                 <Button Grid.Column="3"
                         Command="{Binding AddGroupCommand}"
+                        views:PermissionGate.Requires="CreateGroups"
                         Style="{StaticResource IconButtonStyle}"
                         ToolTip="Add device group">
                     <TextBlock Text="+" FontFamily="{StaticResource BodyFont}" FontSize="20" FontWeight="SemiBold" />
@@ -165,7 +166,7 @@
                                             ToolTip="Edit this group">
                                         <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
                                     </Button>
-                                    <Button Command="{Binding DeleteCommand}"
+                                    <Button Command="{Binding DeleteCommand}" views:PermissionGate.Requires="DeleteGroups"
                                             Style="{StaticResource IconButtonStyle}"
                                             Width="28"
                                             Height="28"

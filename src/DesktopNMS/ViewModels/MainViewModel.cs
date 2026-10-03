@@ -16,6 +16,7 @@ using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
+using DesktopNMS.Demo;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
@@ -25,14 +26,6 @@ namespace DesktopNMS.ViewModels;
 /// <summary>View model behind the main alert window.</summary>
 public sealed class MainViewModel : ObservableObject, IDisposable
 {
-    /// <summary>
-    /// Above this many alerts, a bulk acknowledge/unacknowledge asks for
-    /// confirmation first rather than acting immediately - matches the
-    /// "collapse into one summary" toast threshold's default, another place
-    /// a handful is fine but more than that warrants a second look.
-    /// </summary>
-    private const int BulkConfirmThreshold = 5;
-
     private readonly ILibreNmsClient _client;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
@@ -56,6 +49,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly IGraylogApi _graylog;
     private readonly ISelfActionTracker _selfActions;
     private readonly IUpdateCheckService _updates;
+    private readonly DemoMode _demo;
     private readonly ILogger<MainViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, AlertItemViewModel> _index = new();
@@ -124,6 +118,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IGraylogApi graylog,
         ISelfActionTracker selfActions,
         IUpdateCheckService updates,
+        DemoMode demo,
         ILogger<MainViewModel> logger)
     {
         _client = client;
@@ -150,6 +145,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _graylog.ConfigurationChanged += OnGraylogConfigurationChanged;
         _selfActions = selfActions;
         _updates = updates;
+        _demo = demo;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -160,7 +156,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ViewUpdateNotesCommand = new RelayCommand(ViewUpdateNotes);
         _settings.Changed += OnBadgeSettingChanged;
 
-        Alerts = new ObservableCollection<AlertItemViewModel>();
+        Alerts = new BatchObservableCollection<AlertItemViewModel>();
         AlertsView = CollectionViewSource.GetDefaultView(Alerts);
         GroupFilter = new FilterFacet(OnFilterChanged);
         GroupFilter.PropertyChanged += OnGroupFilterPropertyChanged;
@@ -245,7 +241,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         UpdateConnectionState();
     }
 
-    public ObservableCollection<AlertItemViewModel> Alerts { get; }
+    public BatchObservableCollection<AlertItemViewModel> Alerts { get; }
 
     public ICollectionView AlertsView { get; }
 
@@ -1337,45 +1333,51 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var context = CreateDisplayContext();
         var incoming = alerts.Select(a => a.Id).ToHashSet();
 
-        // Drop anything the server no longer reports.
-        for (var i = Alerts.Count - 1; i >= 0; i--)
-        {
-            if (!incoming.Contains(Alerts[i].Id))
-            {
-                _index.Remove(Alerts[i].Id);
-                Alerts.RemoveAt(i);
-            }
-        }
-
-        // Align the collection with the server's ordering, updating in place so
-        // the selection and scroll position survive a refresh.
         var visibilityChanged = false;
 
-        for (var target = 0; target < alerts.Count; target++)
+        // A first fill (sign-in, or this list opened for the first time)
+        // lands as one Reset rather than a notification per row (#70);
+        // after that it's synced in place, keeping selection and scroll.
+        using (Alerts.Count == 0 ? Alerts.BeginBatch() : null)
         {
-            var alert = alerts[target];
-
-            if (_index.TryGetValue(alert.Id, out var existing))
+            // Drop anything the server no longer reports.
+            for (var i = Alerts.Count - 1; i >= 0; i--)
             {
-                // The view only filters an item when it's added, so an alert
-                // updated in place - e.g. now acknowledged, with acknowledged
-                // alerts hidden - would otherwise stay showing until a filter
-                // is next changed.
-                var wasShown = FilterAlert(existing);
-                existing.Update(alert, context);
-                visibilityChanged |= FilterAlert(existing) != wasShown;
-
-                var currentIndex = Alerts.IndexOf(existing);
-                if (currentIndex >= 0 && currentIndex != target && target < Alerts.Count)
+                if (!incoming.Contains(Alerts[i].Id))
                 {
-                    Alerts.Move(currentIndex, target);
+                    _index.Remove(Alerts[i].Id);
+                    Alerts.RemoveAt(i);
                 }
             }
-            else
+
+            // Align the collection with the server's ordering, updating in place so
+            // the selection and scroll position survive a refresh.
+            for (var target = 0; target < alerts.Count; target++)
             {
-                var item = new AlertItemViewModel(alert, context);
-                _index[alert.Id] = item;
-                Alerts.Insert(Math.Min(target, Alerts.Count), item);
+                var alert = alerts[target];
+
+                if (_index.TryGetValue(alert.Id, out var existing))
+                {
+                    // The view only filters an item when it's added, so an alert
+                    // updated in place - e.g. now acknowledged, with acknowledged
+                    // alerts hidden - would otherwise stay showing until a filter
+                    // is next changed.
+                    var wasShown = FilterAlert(existing);
+                    existing.Update(alert, context);
+                    visibilityChanged |= FilterAlert(existing) != wasShown;
+
+                    var currentIndex = Alerts.IndexOf(existing, target);
+                    if (currentIndex >= 0 && currentIndex != target && target < Alerts.Count)
+                    {
+                        Alerts.Move(currentIndex, target);
+                    }
+                }
+                else
+                {
+                    var item = new AlertItemViewModel(alert, context);
+                    _index[alert.Id] = item;
+                    Alerts.Insert(Math.Min(target, Alerts.Count), item);
+                }
             }
         }
 
@@ -1541,10 +1543,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         // collection, and the grid selection itself may change underneath us.
         var items = SelectedAlerts.ToList();
 
-        if (items.Count > BulkConfirmThreshold && !_settings.Current.SuppressBulkAlertActionConfirmation)
+        if (items.Count > Confirmations.BulkThreshold && !_settings.Current.SuppressBulkAlertActionConfirmation)
         {
-            var (title, message) = BulkConfirmText(selfActionKind, items.Count);
-            var (confirmed, dontAskAgain) = _windows.ConfirmWithOptOut(title, message);
+            var (title, message, confirmLabel) = BulkConfirmText(selfActionKind, items.Count);
+            var (confirmed, dontAskAgain) = _windows.ConfirmWithOptOut(title, message, confirmLabel);
 
             if (dontAskAgain)
             {
@@ -1623,12 +1625,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RequestRefresh();
     }
 
-    /// <summary>Confirmation dialog text for a bulk action above <see cref="BulkConfirmThreshold"/>, phrased per action rather than sharing one generic verb.</summary>
-    private static (string Title, string Message) BulkConfirmText(AlertChangeKind kind, int count) => kind switch
+    /// <summary>Confirmation dialog text for a bulk action above <see cref="Confirmations.BulkThreshold"/>, phrased per action rather than sharing one generic verb.</summary>
+    private static (string Title, string Message, string ConfirmLabel) BulkConfirmText(AlertChangeKind kind, int count) => kind switch
     {
-        AlertChangeKind.Acknowledged => ("Acknowledge alerts", $"Acknowledge all {count} selected alerts?"),
-        AlertChangeKind.Unacknowledged => ("Return alerts to active", $"Return all {count} selected alerts to active?"),
-        _ => ("Confirm", $"Apply this to all {count} selected alerts?"),
+        AlertChangeKind.Acknowledged => ("Acknowledge alerts", $"Acknowledge all {count} selected alerts?", "Acknowledge"),
+        AlertChangeKind.Unacknowledged => ("Return alerts to active", $"Return all {count} selected alerts to active?", "Return to active"),
+        _ => ("Confirm", $"Apply this to all {count} selected alerts?", "Apply"),
     };
 
     private void OpenSelectedDevice()
@@ -1933,14 +1935,32 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RequestRefresh();
     }
 
+    /// <summary>Running on the demo's example network (see DemoMode) - the title bar says so.</summary>
+    public bool IsDemo => _demo.IsActive && !_demo.IsRenderingScreenshots;
+
     private void SignOut()
     {
+        if (_demo.IsActive)
+        {
+            if (_windows.Confirm(
+                    "Leave the demo",
+                    "DashyNMS restarts, ready for you to sign in to your own LibreNMS. Nothing from the demo is kept.",
+                    "Leave the demo"))
+            {
+                SignedOut?.Invoke(this, EventArgs.Empty);
+            }
+
+            return;
+        }
+
         // In plain words what goes (#231) - signing out is a fresh start.
         if (!_windows.Confirm(
                 "Sign out",
-                "Signing out removes everything DashyNMS has saved on this computer: your sign-in, settings, dashboards, maps, and Graylog and Unimus connections."
+                "Signing out removes everything DashyNMS has saved on this computer: your sign-in, settings, dashboards, maps, and Graylog and Unimus connections. " + Confirmations.CannotBeUndone
                 + Environment.NewLine + Environment.NewLine
-                + "DashyNMS then restarts, ready for you to sign in again."))
+                + "DashyNMS then restarts, ready for you to sign in again.",
+                "Sign out",
+                destructive: true))
         {
             return;
         }

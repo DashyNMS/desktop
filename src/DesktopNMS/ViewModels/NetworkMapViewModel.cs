@@ -918,7 +918,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (!_windows.Confirm("Reset layout", $"Forget the saved positions for \"{_selectedScope.DisplayName}\" and lay the map out again?"))
+        if (!_windows.Confirm("Reset layout", $"Forget the saved positions for \"{_selectedScope.DisplayName}\" and lay the map out again? {Confirmations.CannotBeUndone}", "Reset layout", destructive: true))
         {
             return;
         }

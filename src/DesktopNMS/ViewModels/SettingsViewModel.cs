@@ -198,6 +198,7 @@ public sealed class SettingsViewModel : ObservableObject
         ViewLatestReleaseCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri(_latestRelease!.HtmlUrl!)),
             () => _latestRelease?.HtmlUrl is not null);
+        ShowWhatsNewCommand = new RelayCommand(() => _windows.ShowWhatsNew());
         ViewReleasesPageCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri("https://github.com/DashyNMS/desktop/releases")));
         ReportBugCommand = new RelayCommand(
@@ -769,6 +770,11 @@ public sealed class SettingsViewModel : ObservableObject
 
     private void ClearUnimusToken()
     {
+        if (!_windows.Confirm("Clear Unimus token", $"Remove the saved Unimus API token from this computer? {Confirmations.CannotBeUndone} You'll need to enter it again to use Unimus.", "Clear", destructive: true))
+        {
+            return;
+        }
+
         UnimusTokenInput = string.Empty;
         HasStoredUnimusToken = false;
         _unimusTokens.Clear();
@@ -1016,6 +1022,11 @@ public sealed class SettingsViewModel : ObservableObject
 
     private void ClearGraylogPassword()
     {
+        if (!_windows.Confirm("Clear Graylog password", $"Remove the saved Graylog password from this computer? {Confirmations.CannotBeUndone} You'll need to enter it again to use Graylog.", "Clear", destructive: true))
+        {
+            return;
+        }
+
         GraylogPasswordInput = string.Empty;
         HasStoredGraylogPassword = false;
         _graylogPasswords.Clear();
@@ -1334,11 +1345,15 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
-    public bool HasLatestRelease => _latestRelease is not null;
+    /// <summary>This build has a "What's new" (#227) to show again.</summary>
+    public bool HasWhatsNew => BundledWhatsNew.Current is not null;
 
-    public string? LatestReleaseNotes => string.IsNullOrWhiteSpace(_latestRelease?.Body)
-        ? "No release notes were provided for this version."
-        : _latestRelease.Body;
+    public string WhatsNewTitle => "DashyNMS " + BundledWhatsNew.Current?.Version;
+
+    /// <summary>e.g. "Maps, Neighbours, Graylog integration and 14 more changes".</summary>
+    public string WhatsNewSummary => BundledWhatsNew.Current?.Summary() ?? string.Empty;
+
+    public RelayCommand ShowWhatsNewCommand { get; }
 
     private async Task CheckForUpdatesAsync(bool notifyIfNewer)
     {
@@ -1354,8 +1369,6 @@ public sealed class SettingsViewModel : ObservableObject
             ? "Could not check for updates. Check your internet connection."
             : DescribeNewerVersion() ?? "You're up to date.";
 
-        OnPropertyChanged(nameof(HasLatestRelease));
-        OnPropertyChanged(nameof(LatestReleaseNotes));
         ViewLatestReleaseCommand.RaiseCanExecuteChanged();
         RaiseUpdateReadyChanged();
 

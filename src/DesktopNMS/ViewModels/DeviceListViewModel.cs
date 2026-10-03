@@ -79,7 +79,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
-        Devices = new ObservableCollection<DeviceItemViewModel>();
+        Devices = new BatchObservableCollection<DeviceItemViewModel>();
         DevicesView = CollectionViewSource.GetDefaultView(Devices);
         DevicesView.Filter = FilterDevice;
 
@@ -92,7 +92,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
         _pinnedIds = EffectivePinnedIds(_settings.Current);
 
-        RecentlyViewedDevices = new ObservableCollection<RecentlyViewedDeviceItemViewModel>();
+        RecentlyViewedDevices = new BatchObservableCollection<RecentlyViewedDeviceItemViewModel>();
         RebuildRecentlyViewed(_settings.Current.RecentlyViewedDevices);
 
         TypeFilter = new FilterFacet(OnFilterChanged);
@@ -150,7 +150,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         _deviceMonitor.Polled += OnPolled;
     }
 
-    public ObservableCollection<DeviceItemViewModel> Devices { get; }
+    public BatchObservableCollection<DeviceItemViewModel> Devices { get; }
 
     public ICollectionView DevicesView { get; }
 
@@ -159,7 +159,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     /// most-recent first - a quick way back into something you were just
     /// looking at, shown as a row of chips above the grid.
     /// </summary>
-    public ObservableCollection<RecentlyViewedDeviceItemViewModel> RecentlyViewedDevices { get; }
+    public BatchObservableCollection<RecentlyViewedDeviceItemViewModel> RecentlyViewedDevices { get; }
 
     public bool HasRecentlyViewedDevices => _settings.Current.ShowRecentlyViewedDevices && RecentlyViewedDevices.Count > 0;
 
@@ -477,49 +477,55 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
         var incoming = ordered.Select(d => d.DeviceId).ToHashSet();
 
-        for (var i = Devices.Count - 1; i >= 0; i--)
-        {
-            if (!incoming.Contains(Devices[i].DeviceId))
-            {
-                _index.Remove(Devices[i].DeviceId);
-                Devices.RemoveAt(i);
-            }
-        }
-
         var visibilityChanged = false;
 
-        for (var target = 0; target < ordered.Count; target++)
+        // A first fill (sign-in, or this list opened for the first time)
+        // lands as one Reset rather than a notification per row (#70);
+        // after that it's synced in place, keeping selection and scroll.
+        using (Devices.Count == 0 ? Devices.BeginBatch() : null)
         {
-            var device = ordered[target];
-
-            if (_index.TryGetValue(device.DeviceId, out var existing))
+            for (var i = Devices.Count - 1; i >= 0; i--)
             {
-                // The view only filters an item when it's added, so a device
-                // updated in place - e.g. gone down while only up devices are
-                // showing - would otherwise stay until a filter next changes.
-                var wasShown = FilterDevice(existing);
-                existing.Update(device, nameStyle);
-                existing.IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId);
-                existing.IsPinned = _pinnedIds.Contains(device.DeviceId);
-                existing.ServerTimestampsAreUtc = _settings.Current.ServerTimestampsAreUtc;
-                visibilityChanged |= FilterDevice(existing) != wasShown;
-
-                var currentIndex = Devices.IndexOf(existing);
-                if (currentIndex >= 0 && currentIndex != target && target < Devices.Count)
+                if (!incoming.Contains(Devices[i].DeviceId))
                 {
-                    Devices.Move(currentIndex, target);
+                    _index.Remove(Devices[i].DeviceId);
+                    Devices.RemoveAt(i);
                 }
             }
-            else
+
+            for (var target = 0; target < ordered.Count; target++)
             {
-                var item = new DeviceItemViewModel(device, nameStyle, TogglePin)
+                var device = ordered[target];
+
+                if (_index.TryGetValue(device.DeviceId, out var existing))
                 {
-                    IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId),
-                    IsPinned = _pinnedIds.Contains(device.DeviceId),
-                    ServerTimestampsAreUtc = _settings.Current.ServerTimestampsAreUtc,
-                };
-                _index[device.DeviceId] = item;
-                Devices.Insert(Math.Min(target, Devices.Count), item);
+                    // The view only filters an item when it's added, so a device
+                    // updated in place - e.g. gone down while only up devices are
+                    // showing - would otherwise stay until a filter next changes.
+                    var wasShown = FilterDevice(existing);
+                    existing.Update(device, nameStyle);
+                    existing.IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId);
+                    existing.IsPinned = _pinnedIds.Contains(device.DeviceId);
+                    existing.ServerTimestampsAreUtc = _settings.Current.ServerTimestampsAreUtc;
+                    visibilityChanged |= FilterDevice(existing) != wasShown;
+
+                    var currentIndex = Devices.IndexOf(existing, target);
+                    if (currentIndex >= 0 && currentIndex != target && target < Devices.Count)
+                    {
+                        Devices.Move(currentIndex, target);
+                    }
+                }
+                else
+                {
+                    var item = new DeviceItemViewModel(device, nameStyle, TogglePin)
+                    {
+                        IsUnderMaintenance = maintenanceIds.Contains(device.DeviceId),
+                        IsPinned = _pinnedIds.Contains(device.DeviceId),
+                        ServerTimestampsAreUtc = _settings.Current.ServerTimestampsAreUtc,
+                    };
+                    _index[device.DeviceId] = item;
+                    Devices.Insert(Math.Min(target, Devices.Count), item);
+                }
             }
         }
 
@@ -706,6 +712,12 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         }
 
         var devices = _selectedDevices.ToList();
+        if (devices.Count > Confirmations.BulkThreshold
+            && !_windows.Confirm("Rediscover devices", $"Ask LibreNMS to rediscover all {devices.Count} selected devices now?", "Rediscover"))
+        {
+            return;
+        }
+
         var failedNames = new List<string>();
 
         await Task.WhenAll(devices.Select(async device =>
@@ -973,12 +985,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     private void RebuildRecentlyViewed(IReadOnlyList<RecentlyViewedDevice> entries)
     {
-        RecentlyViewedDevices.Clear();
-
-        foreach (var entry in entries)
-        {
-            RecentlyViewedDevices.Add(new RecentlyViewedDeviceItemViewModel(entry, OpenRecentlyViewedDevice));
-        }
+        RecentlyViewedDevices.ReplaceAll(entries.Select(entry => new RecentlyViewedDeviceItemViewModel(entry, OpenRecentlyViewedDevice)));
 
         OnPropertyChanged(nameof(HasRecentlyViewedDevices));
     }

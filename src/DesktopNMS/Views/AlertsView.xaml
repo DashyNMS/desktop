@@ -338,8 +338,8 @@
 
                 <DataGrid.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Header="Acknowledge" Command="{Binding AcknowledgeCommand}" />
-                        <MenuItem Header="Return to active" Command="{Binding UnacknowledgeCommand}" />
+                        <MenuItem Header="Acknowledge" Command="{Binding AcknowledgeCommand}" views:PermissionGate.Requires="AcknowledgeAlerts" />
+                        <MenuItem Header="Return to active" Command="{Binding UnacknowledgeCommand}" views:PermissionGate.Requires="AcknowledgeAlerts" />
                         <Separator />
                         <MenuItem Header="Filter by this rule" Command="{Binding FilterBySelectedRuleCommand}" />
                         <MenuItem Header="Filter by this device" Command="{Binding FilterBySelectedDeviceCommand}" />
@@ -608,10 +608,12 @@
                             <UniformGrid Columns="2" Margin="0,0,0,8">
                                 <Button Content="{Binding AcknowledgeButtonLabel}"
                                         Command="{Binding AcknowledgeCommand}"
+                                        views:PermissionGate.Requires="AcknowledgeAlerts"
                                         Style="{StaticResource PrimaryButtonStyle}"
                                         Margin="0,0,4,0" />
                                 <Button Content="{Binding UnacknowledgeButtonLabel}"
                                         Command="{Binding UnacknowledgeCommand}"
+                                        views:PermissionGate.Requires="AcknowledgeAlerts"
                                         Margin="4,0,0,0" />
                             </UniformGrid>
 
