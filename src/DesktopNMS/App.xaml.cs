@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,6 +29,14 @@ public partial class App : Application
     private const string ShowWindowEventName = @"Local\DashyNMS.ShowWindow";
 
     private Mutex? _singleInstanceMutex;
+    private bool _signInOpen;
+
+
+    /// <summary>Set by Sign out (#231): on the way out, wipe everything saved and start a fresh copy.</summary>
+    private bool _resetOnExit;
+
+    /// <summary>Passed to the fresh copy after Sign out, with the closing copy's process id (#231).</summary>
+    private const string FreshStartArgument = "--fresh-start";
     private EventWaitHandle? _showWindowSignal;
     private CancellationTokenSource? _showWindowListener;
     private ServiceProvider? _services;
@@ -58,6 +67,17 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
         AsyncRelayCommand.UnhandledError += OnCommandError;
+
+        // The fresh copy after Sign out (#231): once the closing copy has
+        // really gone, delete again before anything is loaded.
+        var fresh = Array.FindIndex(e.Args, a => a.Equals(FreshStartArgument, StringComparison.OrdinalIgnoreCase));
+        if (fresh >= 0)
+        {
+            var exited = fresh + 1 < e.Args.Length && int.TryParse(e.Args[fresh + 1], out var oldProcessId)
+                ? WaitForExit(oldProcessId)
+                : true;
+            RecordReset(exited ? "fresh copy" : "fresh copy (closing copy still running after 20 s)", WipeSavedData());
+        }
 
         _services = BuildServices();
         _logger = _services.GetRequiredService<ILogger<App>>();
@@ -102,12 +122,19 @@ public partial class App : Application
         var startHidden = settings.Current.StartMinimised
                           || e.Args.Any(arg => arg.Equals("--minimised", StringComparison.OrdinalIgnoreCase)
                                                || arg.Equals("--minimized", StringComparison.OrdinalIgnoreCase))
-                          || ToastNotificationManagerCompat.WasCurrentProcessToastActivated();
+                          || ToastNotificationManagerCompat.WasCurrentProcessToastActivated()
+
+                          // Nothing to sign back in with (a first run, or just
+                          // signed out): the sign-in window alone follows (#231).
+                          || string.IsNullOrWhiteSpace(settings.Current.ServerUrl)
+                          || !_services.GetRequiredService<ITokenProtector>().HasStoredToken;
 
         if (!startHidden)
         {
             _mainWindow.Show();
         }
+
+        _mainViewModel.SignedOut += (_, _) => RestartSignedOut();
 
         // Restoring the session touches the network, so it must not block the
         // window from appearing.
@@ -157,11 +184,11 @@ public partial class App : Application
                 _logger?.LogInformation("Saved session unusable: {Error}", restored.ErrorMessage);
             }
 
-            windows.ShowMain();
-
-            // If the user dismisses sign-in the app still runs; the monitor sits
-            // idle until a session exists, and the tray offers a way back in.
-            windows.ShowSignInDialog();
+            // Just the sign-in window - no main window with nothing in it
+            // behind (#231). If it's dismissed the app still runs in the tray;
+            // the monitor sits idle until a session exists, and the tray
+            // offers a way back in.
+            ShowSignInOnly();
         }
 
         _monitor?.Start();
@@ -398,18 +425,37 @@ public partial class App : Application
         _tray = _services.GetRequiredService<TrayIconService>();
         _tray.Initialise();
 
-        _tray.OpenRequested += (_, _) => _services.GetRequiredService<IWindowService>().ShowMain();
+        _tray.OpenRequested += (_, _) => ShowMainOrSignIn();
         _tray.RefreshRequested += (_, _) => _mainViewModel?.RequestRefresh();
-        _tray.DevicesRequested += (_, _) => _services.GetRequiredService<IWindowService>().ShowDevicesTab();
+        // Signed out, everything but Exit leads to the sign-in window (#231).
+        _tray.DevicesRequested += (_, _) =>
+        {
+            if (_mainViewModel?.IsConnected == true)
+            {
+                _services.GetRequiredService<IWindowService>().ShowDevicesTab();
+            }
+            else
+            {
+                ShowMainOrSignIn();
+            }
+        };
         _tray.SettingsRequested += (_, _) =>
         {
+            if (_mainViewModel?.IsConnected != true)
+            {
+                ShowMainOrSignIn();
+                return;
+            }
+
             _services.GetRequiredService<IWindowService>().ShowMain();
-            _mainViewModel?.SettingsCommand.Execute(null);
+            _mainViewModel.SettingsCommand.Execute(null);
         };
         _tray.SignOutRequested += (_, _) =>
         {
+            // The same item reads "Sign in…" while signed out.
             if (_mainViewModel?.SignOutCommand.CanExecute(null) != true)
             {
+                ShowMainOrSignIn();
                 return;
             }
 
@@ -417,6 +463,110 @@ public partial class App : Application
             _mainViewModel.SignOutCommand.Execute(null);
         };
         _tray.ExitRequested += (_, _) => ShutdownApplication();
+    }
+
+    /// <summary>
+    /// The sign-in window on its own, with the main window out of the way
+    /// (#231). Signing in brings the main window up; dismissing it leaves
+    /// the app in the tray. Returns whether it signed in.
+    /// </summary>
+    private bool ShowSignInOnly()
+    {
+        if (_services is null || _mainWindow is null || _signInOpen)
+        {
+            return false;
+        }
+
+        var windows = _services.GetRequiredService<IWindowService>();
+        _signInOpen = true;
+        try
+        {
+            _mainWindow.Hide();
+            if (!windows.ShowSignInDialog())
+            {
+                return false;
+            }
+        }
+        finally
+        {
+            _signInOpen = false;
+        }
+
+        windows.ShowMain();
+        return true;
+    }
+
+    /// <summary>The tray's Open, and a second launch: the main window when signed in, otherwise the sign-in window (#231).</summary>
+    private void ShowMainOrSignIn()
+    {
+        if (_services is null || _mainViewModel is null)
+        {
+            return;
+        }
+
+        if (_mainViewModel.IsConnected)
+        {
+            _services.GetRequiredService<IWindowService>().ShowMain();
+        }
+        else if (!_mainViewModel.IsSigningIn && ShowSignInOnly())
+        {
+            _monitor?.Start();
+            _mainViewModel.OnConnected();
+            UpdateTrayStatus();
+        }
+    }
+
+    /// <summary>
+    /// After Sign out (#231): close, wipe everything saved on this computer
+    /// once closed (see <see cref="OnExit"/>), and start a fresh copy - so
+    /// nothing from the server, nor any setting, is left. The fresh copy has
+    /// nothing to sign in with, so it opens on the sign-in window alone.
+    /// </summary>
+    private void RestartSignedOut()
+    {
+        _logger?.LogInformation("Signed out: clearing everything saved and restarting to the sign-in window");
+
+        // "Start with Windows" lives in the registry, not the data folder.
+        _services?.GetService<IStartupRegistration>()?.SetEnabled(false);
+
+        _resetOnExit = true;
+        ShutdownApplication();
+    }
+
+    /// <summary>Everything saved on this computer, gone (#231) - see <see cref="LocalDataReset"/>.</summary>
+    private static IReadOnlyList<string> WipeSavedData()
+        => LocalDataReset.Wipe(AppPaths.DataDirectory, System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DashyNMS"));
+
+    /// <summary>
+    /// What a sign-out reset did, in the logs folder (which it keeps) - written
+    /// directly, as the closing copy has no logger left by then.
+    /// </summary>
+    private static void RecordReset(string who, IReadOnlyList<string> failed)
+    {
+        try
+        {
+            var settingsLeft = System.IO.File.Exists(AppPaths.SettingsFile);
+            var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {who}: {(failed.Count == 0 ? "removed everything" : "could not remove " + string.Join("; ", failed))}; settings.json {(settingsLeft ? "STILL THERE" : "gone")}{Environment.NewLine}";
+            System.IO.File.AppendAllText(System.IO.Path.Combine(AppPaths.LogDirectory, "sign-out-reset.log"), line);
+        }
+        catch (Exception)
+        {
+            // Diagnostics only.
+        }
+    }
+
+    /// <summary>Waits (up to 20 s) for the copy that signed out to finish exiting.</summary>
+    private static bool WaitForExit(int processId)
+    {
+        try
+        {
+            using var old = System.Diagnostics.Process.GetProcessById(processId);
+            return old.WaitForExit(TimeSpan.FromSeconds(20));
+        }
+        catch (ArgumentException)
+        {
+            return true; // Already gone.
+        }
     }
 
     private void UpdateTrayStatus()
@@ -545,6 +695,29 @@ public partial class App : Application
         _singleInstanceMutex?.ReleaseMutex();
         _singleInstanceMutex?.Dispose();
 
+        // Sign out (#231): only now - with every window closed, every service
+        // disposed and every last save written - is it safe to wipe, then
+        // start the fresh copy, which finds nothing and opens on sign-in.
+        if (_resetOnExit && Environment.ProcessPath is { Length: > 0 } path)
+        {
+            var failed = WipeSavedData();
+            RecordReset("closing copy", failed);
+
+            try
+            {
+                // The fresh copy deletes again once this one has gone, in case
+                // anything here was still holding a file open.
+                var start = new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = false };
+                start.ArgumentList.Add(FreshStartArgument);
+                start.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                System.Diagnostics.Process.Start(start);
+            }
+            catch (Exception ex)
+            {
+                RecordReset("closing copy could not start the fresh copy: " + ex.Message, Array.Empty<string>());
+            }
+        }
+
         base.OnExit(e);
     }
 
@@ -610,7 +783,7 @@ public partial class App : Application
                             return;
                         }
 
-                        Dispatcher.InvokeAsync(() => _services?.GetService<IWindowService>()?.ShowMain());
+                        Dispatcher.InvokeAsync(ShowMainOrSignIn);
                     }
                 },
                 CancellationToken.None);

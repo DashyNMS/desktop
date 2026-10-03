@@ -42,6 +42,7 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
     private NotifyIcon? _notifyIcon;
     private ToolStripMenuItem? _statusItem;
     private ToolStripMenuItem? _signOutItem;
+    private ToolStripMenuItem? _refreshItem;
     private bool _disposed;
 
     // Icon.FromHandle borrows the HICON rather than owning it, so the handle
@@ -88,7 +89,7 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
         openItem.Click += (_, _) => OpenRequested?.Invoke(this, EventArgs.Empty);
         menu.Items.Add(openItem);
 
-        var refreshItem = new ToolStripMenuItem("Refresh now");
+        var refreshItem = _refreshItem = new ToolStripMenuItem("Refresh now") { Enabled = false };
         refreshItem.Click += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         menu.Items.Add(refreshItem);
 
@@ -102,7 +103,7 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
         settingsItem.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
         menu.Items.Add(settingsItem);
 
-        _signOutItem = new ToolStripMenuItem("Sign out");
+        _signOutItem = new ToolStripMenuItem("Sign in…");
         _signOutItem.Click += (_, _) => SignOutRequested?.Invoke(this, EventArgs.Empty);
         menu.Items.Add(_signOutItem);
 
@@ -200,9 +201,15 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
             _statusItem.Text = statusLine ?? tooltip;
         }
 
+        // Signed out (#231): "Sign in…" in its place, and nothing that needs a server.
         if (_signOutItem is not null)
         {
-            _signOutItem.Enabled = connected;
+            _signOutItem.Text = connected ? "Sign out" : "Sign in…";
+        }
+
+        if (_refreshItem is not null)
+        {
+            _refreshItem.Enabled = connected;
         }
     }
 
