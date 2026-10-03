@@ -260,11 +260,7 @@
                     </DataGrid.Columns>
                 </DataGrid>
 
-                <TextBlock Text="Loading neighbours..."
-                           Style="{StaticResource SubtleTextStyle}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
+                <views:LoadingOverlay Text="Loading neighbours…" Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
 
                 <TextBlock Text="Nothing your switches see matches this neighbourhood's rules."
                            Style="{StaticResource SubtleTextStyle}"

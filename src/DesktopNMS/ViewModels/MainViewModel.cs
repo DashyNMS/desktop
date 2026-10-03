@@ -68,6 +68,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string? _errorMessage;
     private bool _isBusy;
     private bool _isConnected;
+    private bool _isSigningIn;
     private bool _isBulkUpdating;
     private DateTimeOffset? _lastUpdated;
     private string _searchText = string.Empty;
@@ -895,6 +896,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 RaiseCommandStates();
             }
         }
+    }
+
+    /// <summary>At launch, while the saved session signs back in: the main window shows the beating mark instead of empty tabs (#228).</summary>
+    public bool IsSigningIn
+    {
+        get => _isSigningIn;
+        set => SetProperty(ref _isSigningIn, value);
     }
 
     public bool IsConnected

@@ -124,20 +124,30 @@ public partial class App : Application
         var session = _services.GetRequiredService<ISessionService>();
         var windows = _services.GetRequiredService<IWindowService>();
 
-        var restored = await session.TryRestoreAsync().ConfigureAwait(true);
-
-        // The saved session's certificate isn't trusted yet - typically the
-        // first run after "Allow untrusted certificate" stopped meaning "accept
-        // anything" (#189), or the certificate changed. Ask here, rather than
-        // dropping to sign-in and asking for the token again.
-        if (restored?.UntrustedCertificate is { } certificate)
+        // The beating mark over the main window until this settles (#228).
+        _mainViewModel.IsSigningIn = true;
+        ConnectionTestResult? restored;
+        try
         {
-            windows.ShowMain();
-            if (windows.ConfirmTrustCertificate("LibreNMS", certificate))
+            restored = await session.TryRestoreAsync().ConfigureAwait(true);
+
+            // The saved session's certificate isn't trusted yet - typically the
+            // first run after "Allow untrusted certificate" stopped meaning "accept
+            // anything" (#189), or the certificate changed. Ask here, rather than
+            // dropping to sign-in and asking for the token again.
+            if (restored?.UntrustedCertificate is { } certificate)
             {
-                session.TrustCertificate(certificate);
-                restored = await session.TryRestoreAsync().ConfigureAwait(true);
+                windows.ShowMain();
+                if (windows.ConfirmTrustCertificate("LibreNMS", certificate))
+                {
+                    session.TrustCertificate(certificate);
+                    restored = await session.TryRestoreAsync().ConfigureAwait(true);
+                }
             }
+        }
+        finally
+        {
+            _mainViewModel.IsSigningIn = false;
         }
 
         if (restored is null || !restored.Succeeded)

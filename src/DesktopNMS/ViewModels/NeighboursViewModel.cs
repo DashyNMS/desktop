@@ -84,7 +84,12 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         DeleteViewCommand = new RelayCommand(parameter => DeleteView(ViewFrom(parameter)));
         SelectViewCommand = new RelayCommand(parameter =>
         {
-            if (ViewFrom(parameter) is { } view)
+            // The All chip has no definition: back to every neighbour.
+            if (parameter is NeighbourhoodChipViewModel { Definition: null })
+            {
+                ShowAll();
+            }
+            else if (ViewFrom(parameter) is { } view)
             {
                 SelectedView = Views.FirstOrDefault(v => v.Id == view.Id);
             }
