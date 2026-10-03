@@ -1,109 +1,77 @@
-# DashyNMS
+<p align="center">
+  <img src="https://dashynms.pckp.net/assets/img/favicon.svg" alt="" width="96" height="96">
+</p>
 
-A Windows desktop app for keeping an eye on your [LibreNMS](https://www.librenms.org/)
-network from the tray, without living in a browser tab. Sign in once with an
-API token and DashyNMS polls your server in the background, raises Windows
-notifications when something changes, and gives you a full desktop UI for
-devices, alerts, alert rules and graphs.
+<h1 align="center">DashyNMS</h1>
 
-> Building or contributing to DashyNMS instead of using it? See
-> [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+<p align="center">
+  <strong>Your LibreNMS network, right on your desktop.</strong><br>
+  For Windows 10 and 11.
+</p>
 
-## Getting started
+<p align="center">
+  <a href="https://dashynms.pckp.net/">Website</a> ·
+  <a href="https://github.com/DashyNMS/desktop/releases/latest">Download</a> ·
+  <a href="https://dashynms.pckp.net/privacy/">Privacy</a>
+</p>
 
-1. **Install.** Download the latest installer from
-   [Releases](https://github.com/DashyNMS/desktop/releases) and run it - no
-   admin rights needed, it installs just for your Windows account.
-2. **Sign in.** Enter your LibreNMS server address and an API token (LibreNMS:
-   **Settings → API → API Access**, or ask whoever manages your instance for
-   one). The token is encrypted for your Windows account only and never
-   leaves your machine except to talk to your own server.
-3. **Leave it running.** Closing the window sends DashyNMS to the
-   notification area rather than quitting it - it keeps polling and will
-   notify you when something needs attention.
+---
 
-## What you can do with it
+Keep an eye on your network without living in a browser tab. Sign in once and DashyNMS watches your LibreNMS server from the notification area, tells you the moment something changes, and gives you a full desktop app for devices, alerts, rules, maps and graphs when you need to dig in.
 
-### Keep an eye on things
+It works with any [LibreNMS](https://www.librenms.org/) server, and has a companion app for your phone, [DashyNMS Mobile](https://github.com/DashyNMS/mobile).
 
-- **Dashboard.** A drag-and-resize grid of widgets you lay out yourself:
-  live alerts, an alerts-at-a-glance gauge, device status counts, pinned
-  sensor readings, a graph of any device's own metrics, a list of devices
-  you've recently looked at, and your pinned devices.
-- **Health.** dBm, signal strength, temperature and fan speed across every
-  device in one place, colour-coded against whatever limits LibreNMS (or you,
-  in Settings) has configured.
-- **Notifications.** A Windows toast per alert, with independent control per
-  severity over how insistent it is - fade away, stay until dismissed, or
-  stay with a repeating sound. Quiet hours and start-up suppression keep it
-  from being noisy on a machine you actually work on.
-- **Tray icon.** Shows your worst outstanding severity and how many alerts
-  are open, at a glance, without opening the window.
+## What you can do
 
-### Devices
+**Know when something's wrong**
+A Windows notification when an alert fires or clears, with Acknowledge right on it. Choose how insistent each severity is, and set quiet hours. The tray icon turns amber or red with the number of open alerts, and a click on it shows the worst of them without opening the app.
 
-- A sortable, filterable grid of every device - status, IP, OS, hardware,
-  location, uptime, and more columns you can turn on from the column header.
-- **Pin your important devices** to keep them at the top of the list
-  regardless of sort or filter, and a **"Recently viewed" strip** that
-  remembers what you've just been looking at.
-- **Multi-select bulk actions** - pin, unpin, add to a group, or rediscover
-  several devices at once, from the right-click menu.
-- **Add a device** without leaving the app - SNMP v1/v2c/v3 or ping-only,
-  with the same safety options (force-add, ping fallback) LibreNMS's own API
-  offers.
-- Click through to a full **Device View** for anything: status, hardware,
-  active alerts and uptime history; sensors grouped by component; ports with
-  LLDP/CDP neighbour discovery; CPU/memory/disk; VLANs, the MAC and ARP
-  tables; graphs of any of the device's own metrics; and a searchable event
-  log. From there you can also rediscover the device on demand, schedule a
-  maintenance window, open it in your browser/Telnet/SSH client, or edit or
-  delete it.
+**See what matters first**
+Build your own dashboard from widgets: open alerts, device status, sensor readings, graphs, the event log, Graylog messages, pinned and recently viewed devices. Drag and resize them however you like, or start from a ready-made one.
 
-### Alerts and rules
+**Get to the bottom of it**
+Open any alert to see exactly why it fired and what its rule is looking for. Acknowledge it with a note so your team knows you're on it, and filter, search or export the list.
 
-- The **Alerts** list filters by severity and state with one click, searches
-  across host/rule/note, and exports the current view to CSV.
-- **Acknowledge** an alert with an optional note, or put it back to active -
-  both go through LibreNMS's own API.
-- The **Rules** tab is a full alert-rule editor that mirrors LibreNMS's own:
-  build conditions with nested AND/OR groups, import from another rule or a
-  pasted SQL query, target specific devices/groups/locations (or everything),
-  and see at a glance how many alerts each rule currently has raised - click
-  through to see exactly which ones.
-- **Alert templates** - list, create and edit the templates that control what
-  a notification actually says, and see which rules each one drives.
+**Every device, in detail**
+A sortable, filterable list of your whole network. Open a device to see its status, hardware, ports, sensors, neighbours, VLANs, MAC and ARP tables, graphs and event log. Pin the ones you check most so they're always at the top.
 
-### Groups and locations
+**Take action**
+Add devices one at a time or in bulk, put them into maintenance, ask LibreNMS to check them again, or connect straight to them over SSH, Telnet or the web.
 
-Browse and filter by LibreNMS's device groups and locations the same way you
-would on the website, with the same click-through into Device View.
+**Manage your alerting**
+A full alert rule editor, as on the LibreNMS website: build conditions, import from another rule or an SQL query, and choose which devices, groups and locations a rule covers. Edit alert templates and see which rules use each one.
 
-## Settings
+**See how it all connects**
+Network and geographical maps, maps of your own, and a view of each device's neighbours. Health brings temperature, fan, optical power and signal readings from across your network into one place.
 
-Everything is reachable from one Settings window: connection details and
-polling interval, alert display and health thresholds, per-severity
-notification behaviour, device-list defaults, window/start-up behaviour, and
-appearance (dark or light theme, accent colour, and your server's own logo if
-it has one).
+**More when you need it**
+Connect Graylog to search your logs alongside your devices, and Unimus to see each device's configuration backups. If your server has a backup address, DashyNMS switches to it when the main one stops answering.
 
-## Where your data lives
+**Made for Windows**
+Dark or light, with your choice of accent colour. It updates itself when a new version is ready.
 
-Everything DashyNMS stores lives under `%APPDATA%\DashyNMS` on your machine -
-your server address and settings, the encrypted API token, and a rolling log
-file kept for 14 days. Nothing is sent anywhere except to the LibreNMS server
-you signed in to. Signing out, or deleting that folder, removes it all.
+## Private by design
 
-## Requirements
+DashyNMS talks to your own LibreNMS server, and to Graylog and Unimus only if you set them up. There's no account to create, no analytics and no tracking. Your API token is encrypted for your Windows account and never leaves your computer except to go to your server. Signing out removes everything DashyNMS has saved. Read the full [privacy notes](PRIVACY.md).
 
-Windows 10 (build 17763) or later, and a LibreNMS instance with the API
-enabled.
+## Get the app
 
-## Feedback and roadmap
+Download the installer from the [latest release](https://github.com/DashyNMS/desktop/releases/latest) and run it. It installs just for your Windows account, so you don't need admin rights.
 
-Found a bug, or want to see something added? [Open an issue](https://github.com/DashyNMS/desktop/issues).
-Planned work is tracked there too, grouped under the
-[1.1.0](https://github.com/DashyNMS/desktop/milestone/2) and
-[1.2.0](https://github.com/DashyNMS/desktop/milestone/3) milestones.
+## What you need
 
-Want to contribute code? See [CONTRIBUTING.md](CONTRIBUTING.md).
+- Windows 10 (version 1809 or later) or Windows 11.
+- A LibreNMS server you can reach from your computer, with its API turned on.
+- An API token from it. In LibreNMS, open your user menu, then **API → API Settings → Create API access token**. If you don't have access, your LibreNMS administrator can make one for you in a couple of minutes.
+
+Open DashyNMS, enter your server's address and paste the token. That's it. Closing the window keeps DashyNMS running in the notification area, so it can still tell you when something needs attention.
+
+## Help and feedback
+
+- Found a bug or have an idea? [Open an issue](https://github.com/DashyNMS/desktop/issues). Planned work is tracked there too, under the [1.1.0](https://github.com/DashyNMS/desktop/milestone/2) and [1.2.0](https://github.com/DashyNMS/desktop/milestone/3) milestones.
+
+---
+
+<sub>DashyNMS isn't affiliated with LibreNMS. LibreNMS is a trademark of its respective owners.<br>
+The source is published for reference and security review only. All rights reserved; see [LICENSE](LICENSE).<br>
+Found a security problem? See [SECURITY.md](SECURITY.md). Technical notes are in the [developer guide](docs/DEVELOPMENT.md).</sub>
