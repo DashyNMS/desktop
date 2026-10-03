@@ -2,6 +2,8 @@ using System;
 using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Text;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -60,7 +62,7 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
     private IntPtr _currentIconHandle;
 
     /// <summary>What the on-screen icon depicts, so it is only redrawn when it changes.</summary>
-    private TrayIconKind? _renderedIcon;
+    private (TrayIconKind Kind, int Count)? _renderedIcon;
 
     public TrayIconService(ILogger<TrayIconService> logger, TrayViewModel viewModel)
     {
@@ -123,7 +125,7 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (string.IsNullOrEmpty(e.PropertyName)
-            || e.PropertyName is nameof(TrayViewModel.IconKind) or nameof(TrayViewModel.Tooltip))
+            || e.PropertyName is nameof(TrayViewModel.IconKind) or nameof(TrayViewModel.BadgeCount) or nameof(TrayViewModel.Tooltip))
         {
             Repaint();
         }
@@ -202,10 +204,10 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
         {
             // Repainting only when the picture actually changes keeps this off
             // the GDI-handle treadmill: it used to run on every poll.
-            var wanted = _viewModel.IconKind;
+            var wanted = (_viewModel.IconKind, _viewModel.BadgeCount);
             if (_renderedIcon != wanted)
             {
-                var (newIcon, newHandle) = CreateIcon(wanted);
+                var (newIcon, newHandle) = CreateIcon(wanted.IconKind, wanted.BadgeCount);
 
                 var oldIcon = _currentIcon;
                 var oldHandle = _currentIconHandle;
@@ -263,8 +265,8 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
     /// The icon for a state (#232): DashyNMS's mark - a pulse line on a dark
     /// disc inside a blue ring - while all is well, with a small amber dot on
     /// the backup address, and grey while not connected. Active alerts turn
-    /// the whole icon into a solid amber or red dot, as before #183, so it
-    /// stands out in a crowded notification area.
+    /// the whole icon into a solid amber or red dot with the count in it, as
+    /// before #183, so it stands out in a crowded notification area.
     /// </summary>
     /// <returns>
     /// The icon and the HICON backing it. The caller owns the handle and must
@@ -272,7 +274,7 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
     /// <see cref="Icon.FromHandle"/> borrows the handle rather than copying it,
     /// so freeing it early leaves the shell drawing from destroyed memory.
     /// </returns>
-    private static (Icon Icon, IntPtr Handle) CreateIcon(TrayIconKind kind)
+    private static (Icon Icon, IntPtr Handle) CreateIcon(TrayIconKind kind, int count)
     {
         var size = SystemInformation.SmallIconSize.Width;
         if (size < 16)
@@ -288,6 +290,7 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
         using (var graphics = Graphics.FromImage(bitmap))
         {
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
             graphics.Clear(Color.Transparent);
 
             var inset = canvas * 0.04f;
@@ -297,6 +300,28 @@ public sealed partial class TrayIconService : ITrayNotifier, IDisposable
             {
                 using var brush = new SolidBrush(kind == TrayIconKind.Critical ? CriticalColour : WarningColour);
                 graphics.FillEllipse(brush, inset, inset, disc, disc);
+
+                if (count > 0)
+                {
+                    var text = count > 99 ? "99+" : count.ToString(CultureInfo.InvariantCulture);
+                    var fontSize = text.Length switch
+                    {
+                        1 => canvas * 0.62f,
+                        2 => canvas * 0.50f,
+                        _ => canvas * 0.36f,
+                    };
+
+                    // Segoe UI, not the bundled brand fonts (#216): this is
+                    // GDI drawing the tray icon, which only sees installed fonts.
+                    using var font = new Font("Segoe UI", fontSize, System.Drawing.FontStyle.Bold, GraphicsUnit.Pixel);
+                    using var format = new StringFormat
+                    {
+                        Alignment = StringAlignment.Center,
+                        LineAlignment = StringAlignment.Center,
+                    };
+
+                    graphics.DrawString(text, font, Brushes.White, new RectangleF(0, 0, canvas, canvas), format);
+                }
             }
             else
             {

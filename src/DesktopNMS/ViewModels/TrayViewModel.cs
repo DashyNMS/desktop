@@ -15,6 +15,8 @@ public sealed record TraySnapshot(
     int Critical,
     int Warning,
     int Acknowledged,
+    int BadgeCount,
+    bool BadgeIsCritical,
     TimeSpan? LastChecked,
     string? NextCheck,
     IReadOnlyList<AlertItemViewModel> Alerts,
@@ -53,8 +55,8 @@ public sealed class TrayViewModel : ObservableObject
     /// <summary>The quick look's list stops at this many.</summary>
     public const int LatestAlertCount = 3;
 
-    private TraySnapshot _snapshot = new(TrayConnection.SignedOut, false, 0, 0, 0, null, null, Array.Empty<AlertItemViewModel>(), null);
-    private TrayState _state = TrayStatus.Describe(TrayConnection.SignedOut, false, 0, 0);
+    private TraySnapshot _snapshot = new(TrayConnection.SignedOut, false, 0, 0, 0, 0, false, null, null, Array.Empty<AlertItemViewModel>(), null);
+    private TrayState _state = TrayStatus.Describe(TrayConnection.SignedOut, false, 0, 0, 0, false);
     private IReadOnlyList<TrayAlertViewModel> _latestAlerts = Array.Empty<TrayAlertViewModel>();
 
     public TrayViewModel()
@@ -163,10 +165,13 @@ public sealed class TrayViewModel : ObservableObject
 
     public bool ShowAllClearChip => ShowCounts && _snapshot.Critical + _snapshot.Warning == 0;
 
-    /// <summary>The menu's Alerts item: the active count, when there is one.</summary>
-    public string AlertsCountText => ShowCounts && _snapshot.Critical + _snapshot.Warning > 0
-        ? (_snapshot.Critical + _snapshot.Warning).ToString(CultureInfo.CurrentCulture)
+    /// <summary>The menu's Alerts item: the same count as the icon's dot and the Alerts tab's badge.</summary>
+    public string AlertsCountText => ShowCounts && _state.BadgeCount > 0
+        ? _state.BadgeCount.ToString(CultureInfo.CurrentCulture)
         : string.Empty;
+
+    /// <summary>The number in the icon's amber or red dot.</summary>
+    public int BadgeCount => _state.BadgeCount;
 
     public IReadOnlyList<TrayAlertViewModel> LatestAlerts => _latestAlerts;
 
@@ -193,7 +198,7 @@ public sealed class TrayViewModel : ObservableObject
     public void Update(TraySnapshot snapshot)
     {
         _snapshot = snapshot;
-        _state = TrayStatus.Describe(snapshot.Connection, snapshot.OnBackup, snapshot.Critical, snapshot.Warning, snapshot.LastChecked, snapshot.NextCheck);
+        _state = TrayStatus.Describe(snapshot.Connection, snapshot.OnBackup, snapshot.Critical, snapshot.Warning, snapshot.BadgeCount, snapshot.BadgeIsCritical, snapshot.LastChecked, snapshot.NextCheck);
 
         // Active ones only, newest first, worst first on a tie.
         _latestAlerts = snapshot.Alerts

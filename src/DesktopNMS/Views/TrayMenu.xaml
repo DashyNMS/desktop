@@ -7,13 +7,16 @@
              xmlns:views="clr-namespace:DesktopNMS.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:TrayViewModel}"
+             Style="{StaticResource {x:Type ContextMenu}}"
              Background="{StaticResource SurfaceBrush}"
              MinWidth="240"
              Placement="MousePoint">
 
     <!-- The tray's right-click menu (#232), in the app's theme rather than
          WinForms' grey: who it's connected to is gone from here (#218);
-         what's wrong is in the header. -->
+         what's wrong is in the header. The Style is named because a
+         ContextMenu subclass doesn't pick up the implicit ContextMenu one,
+         and falls back to Windows' own with its light icon gutter. -->
     <ContextMenu.Resources>
         <Style x:Key="TrayGlyph" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />

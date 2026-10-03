@@ -23,10 +23,10 @@ public enum TrayIconKind
     /// <summary>The DashyNMS mark: connected, nothing active.</summary>
     AllClear,
 
-    /// <summary>A solid amber dot: active warnings, nothing critical.</summary>
+    /// <summary>A solid amber dot with the count: alerts, nothing critical.</summary>
     Warning,
 
-    /// <summary>A solid red dot: anything critical.</summary>
+    /// <summary>A solid red dot with the count: anything critical.</summary>
     Critical,
 
     /// <summary>The mark with a small amber dot: on the backup address, nothing active.</summary>
@@ -37,7 +37,8 @@ public enum TrayIconKind
 }
 
 /// <summary>The tray icon, tooltip and menu header for a given state.</summary>
-public sealed record TrayState(TrayIconKind Icon, string Title, string Detail, string Tooltip);
+/// <param name="BadgeCount">The number in the amber or red dot; 0 otherwise.</param>
+public sealed record TrayState(TrayIconKind Icon, string Title, string Detail, string Tooltip, int BadgeCount = 0);
 
 /// <summary>
 /// Turns the app's connection and alert counts into what the tray shows
@@ -48,6 +49,11 @@ public static class TrayStatus
     /// <summary>NotifyIcon.Text throws above 63 characters on some Windows builds.</summary>
     public const int MaxTooltipLength = 63;
 
+    /// <param name="badgeCount">
+    /// What the Alerts tab's badge counts - active alerts, and acknowledged
+    /// ones if Settings says so - for the dot and its number.
+    /// </param>
+    /// <param name="badgeIsCritical">Any of those is critical: red rather than amber.</param>
     /// <param name="lastChecked">How long ago the last refresh finished, if one has.</param>
     /// <param name="nextCheck">A short countdown to the next refresh, such as "45s".</param>
     public static TrayState Describe(
@@ -55,6 +61,8 @@ public static class TrayStatus
         bool onBackup,
         int critical,
         int warning,
+        int badgeCount,
+        bool badgeIsCritical,
         TimeSpan? lastChecked = null,
         string? nextCheck = null)
     {
@@ -77,11 +85,9 @@ public static class TrayStatus
                     "DashyNMS - can't reach the server");
         }
 
-        var icon = critical > 0
-            ? TrayIconKind.Critical
-            : warning > 0
-                ? TrayIconKind.Warning
-                : onBackup ? TrayIconKind.Backup : TrayIconKind.AllClear;
+        var icon = badgeCount > 0
+            ? badgeIsCritical ? TrayIconKind.Critical : TrayIconKind.Warning
+            : onBackup ? TrayIconKind.Backup : TrayIconKind.AllClear;
 
         var title = onBackup ? "On the backup address" : "Connected";
         var detail = onBackup
@@ -101,7 +107,7 @@ public static class TrayStatus
             tooltip = tooltip[..MaxTooltipLength];
         }
 
-        return new(icon, title, detail, tooltip);
+        return new(icon, title, detail, tooltip, Math.Max(0, badgeCount));
     }
 
     /// <summary>"just now", "12s ago", "4m ago", "2h ago".</summary>

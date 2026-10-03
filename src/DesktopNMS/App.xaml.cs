@@ -148,6 +148,7 @@ public partial class App : Application
                 or nameof(MainViewModel.HasError)
                 or nameof(MainViewModel.IsTokenRejected)
                 or nameof(MainViewModel.CriticalCount)
+                or nameof(MainViewModel.AlertBadgeCount)
                 or nameof(MainViewModel.LastUpdatedText))
             {
                 ScheduleTrayUpdate();
@@ -636,6 +637,8 @@ public partial class App : Application
             main.CriticalCount,
             main.WarningCount,
             main.AcknowledgedCount,
+            main.AlertBadgeCount,
+            main.AlertBadgeIsCritical,
             main.LastUpdatedAt is { } at ? DateTimeOffset.Now - at : null,
             main.NextRefreshText,
             main.Alerts.ToList(),
