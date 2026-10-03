@@ -1944,27 +1944,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         _session.SignOut(forgetToken: true);
 
-        // The next server may reuse alert ids and rule ids, so the memory from
-        // the old one is worse than useless.
-        _monitor.ResetHistory();
-        _rules.Clear();
-        _devices.Invalidate();
-        _groupMembership.Clear();
-
-        Alerts.Clear();
-        _index.Clear();
-        SelectedAlert = null;
-        SetDeviceFilter(null, null);
-        RaiseCountsChanged();
-        RebuildGroupFilter();
-
-        StatusMessage = "Signed out.";
-
-        if (_windows.ShowSignInDialog())
-        {
-            OnConnected();
-        }
+        // Nothing from the server may stay browsable (#231): the app starts
+        // again from scratch, straight to sign-in - every tab, cache, monitor
+        // and Device Details window goes with the old process.
+        SignedOut?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>Raised once the session and stored token are gone - the app restarts to the sign-in window (#231).</summary>
+    public event EventHandler? SignedOut;
 
     // ---------------------------------------------------------------- helpers
 

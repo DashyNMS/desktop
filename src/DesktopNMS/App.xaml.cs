@@ -28,6 +28,7 @@ public partial class App : Application
     private const string ShowWindowEventName = @"Local\DashyNMS.ShowWindow";
 
     private Mutex? _singleInstanceMutex;
+    private bool _signInOpen;
     private EventWaitHandle? _showWindowSignal;
     private CancellationTokenSource? _showWindowListener;
     private ServiceProvider? _services;
@@ -102,12 +103,19 @@ public partial class App : Application
         var startHidden = settings.Current.StartMinimised
                           || e.Args.Any(arg => arg.Equals("--minimised", StringComparison.OrdinalIgnoreCase)
                                                || arg.Equals("--minimized", StringComparison.OrdinalIgnoreCase))
-                          || ToastNotificationManagerCompat.WasCurrentProcessToastActivated();
+                          || ToastNotificationManagerCompat.WasCurrentProcessToastActivated()
+
+                          // Nothing to sign back in with (a first run, or just
+                          // signed out): the sign-in window alone follows (#231).
+                          || string.IsNullOrWhiteSpace(settings.Current.ServerUrl)
+                          || !_services.GetRequiredService<ITokenProtector>().HasStoredToken;
 
         if (!startHidden)
         {
             _mainWindow.Show();
         }
+
+        _mainViewModel.SignedOut += (_, _) => RestartSignedOut();
 
         // Restoring the session touches the network, so it must not block the
         // window from appearing.
@@ -157,11 +165,11 @@ public partial class App : Application
                 _logger?.LogInformation("Saved session unusable: {Error}", restored.ErrorMessage);
             }
 
-            windows.ShowMain();
-
-            // If the user dismisses sign-in the app still runs; the monitor sits
-            // idle until a session exists, and the tray offers a way back in.
-            windows.ShowSignInDialog();
+            // Just the sign-in window - no main window with nothing in it
+            // behind (#231). If it's dismissed the app still runs in the tray;
+            // the monitor sits idle until a session exists, and the tray
+            // offers a way back in.
+            ShowSignInOnly();
         }
 
         _monitor?.Start();
@@ -398,18 +406,37 @@ public partial class App : Application
         _tray = _services.GetRequiredService<TrayIconService>();
         _tray.Initialise();
 
-        _tray.OpenRequested += (_, _) => _services.GetRequiredService<IWindowService>().ShowMain();
+        _tray.OpenRequested += (_, _) => ShowMainOrSignIn();
         _tray.RefreshRequested += (_, _) => _mainViewModel?.RequestRefresh();
-        _tray.DevicesRequested += (_, _) => _services.GetRequiredService<IWindowService>().ShowDevicesTab();
+        // Signed out, everything but Exit leads to the sign-in window (#231).
+        _tray.DevicesRequested += (_, _) =>
+        {
+            if (_mainViewModel?.IsConnected == true)
+            {
+                _services.GetRequiredService<IWindowService>().ShowDevicesTab();
+            }
+            else
+            {
+                ShowMainOrSignIn();
+            }
+        };
         _tray.SettingsRequested += (_, _) =>
         {
+            if (_mainViewModel?.IsConnected != true)
+            {
+                ShowMainOrSignIn();
+                return;
+            }
+
             _services.GetRequiredService<IWindowService>().ShowMain();
-            _mainViewModel?.SettingsCommand.Execute(null);
+            _mainViewModel.SettingsCommand.Execute(null);
         };
         _tray.SignOutRequested += (_, _) =>
         {
+            // The same item reads "Sign in…" while signed out.
             if (_mainViewModel?.SignOutCommand.CanExecute(null) != true)
             {
+                ShowMainOrSignIn();
                 return;
             }
 
@@ -417,6 +444,95 @@ public partial class App : Application
             _mainViewModel.SignOutCommand.Execute(null);
         };
         _tray.ExitRequested += (_, _) => ShutdownApplication();
+    }
+
+    /// <summary>
+    /// The sign-in window on its own, with the main window out of the way
+    /// (#231). Signing in brings the main window up; dismissing it leaves
+    /// the app in the tray. Returns whether it signed in.
+    /// </summary>
+    private bool ShowSignInOnly()
+    {
+        if (_services is null || _mainWindow is null || _signInOpen)
+        {
+            return false;
+        }
+
+        var windows = _services.GetRequiredService<IWindowService>();
+        _signInOpen = true;
+        try
+        {
+            _mainWindow.Hide();
+            if (!windows.ShowSignInDialog())
+            {
+                return false;
+            }
+        }
+        finally
+        {
+            _signInOpen = false;
+        }
+
+        windows.ShowMain();
+        return true;
+    }
+
+    /// <summary>The tray's Open, and a second launch: the main window when signed in, otherwise the sign-in window (#231).</summary>
+    private void ShowMainOrSignIn()
+    {
+        if (_services is null || _mainViewModel is null)
+        {
+            return;
+        }
+
+        if (_mainViewModel.IsConnected)
+        {
+            _services.GetRequiredService<IWindowService>().ShowMain();
+        }
+        else if (!_mainViewModel.IsSigningIn && ShowSignInOnly())
+        {
+            _monitor?.Start();
+            _mainViewModel.OnConnected();
+            UpdateTrayStatus();
+        }
+    }
+
+    /// <summary>
+    /// After Sign out: start a fresh copy and close this one, so nothing
+    /// from the server - tabs, caches, monitors, Device Details windows -
+    /// can still be browsed (#231). The fresh copy has no token, so it opens
+    /// on the sign-in window alone.
+    /// </summary>
+    private void RestartSignedOut()
+    {
+        var path = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(path))
+        {
+            // Can't relaunch: at least don't leave anything on screen.
+            _mainWindow?.Hide();
+            UpdateTrayStatus();
+            ShowMainOrSignIn();
+            return;
+        }
+
+        _logger?.LogInformation("Signed out: restarting to the sign-in window");
+
+        // Let go of the single-instance claim first, or the new copy would
+        // find this one still running and just ask it to show itself.
+        _singleInstanceMutex?.ReleaseMutex();
+        _singleInstanceMutex?.Dispose();
+        _singleInstanceMutex = null;
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = false });
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Could not restart after signing out");
+        }
+
+        ShutdownApplication();
     }
 
     private void UpdateTrayStatus()
@@ -610,7 +726,7 @@ public partial class App : Application
                             return;
                         }
 
-                        Dispatcher.InvokeAsync(() => _services?.GetService<IWindowService>()?.ShowMain());
+                        Dispatcher.InvokeAsync(ShowMainOrSignIn);
                     }
                 },
                 CancellationToken.None);
