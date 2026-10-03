@@ -34,6 +34,10 @@ public sealed class LibreNmsConnection
     /// <summary>SHA-256 fingerprints of the certificates the user has accepted for this server.</summary>
     public IReadOnlyCollection<string> TrustedCertificates { get; }
 
+    /// <summary>The same connection, also trusting <paramref name="fingerprint"/>.</summary>
+    public LibreNmsConnection WithTrustedCertificate(string fingerprint)
+        => new(WebRoot, ApiToken, AllowUntrustedCertificate, TimeoutSeconds, BackupWebRoot, TrustedCertificates.Append(fingerprint).ToArray());
+
     public int TimeoutSeconds { get; }
 
     /// <summary>
