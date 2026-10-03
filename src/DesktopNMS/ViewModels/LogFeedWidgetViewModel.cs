@@ -64,7 +64,7 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
         GraylogStreamId = model.GraylogStreamId;
         GraylogRangeSeconds = model.GraylogRangeSeconds;
 
-        Rows = new ObservableCollection<LogFeedRowViewModel>();
+        Rows = new BatchObservableCollection<LogFeedRowViewModel>();
         Header = new LogFeedHeader(this);
         ToggleSearchCommand = new RelayCommand(() => IsSearchOpen = !IsSearchOpen);
         OpenCommand = new RelayCommand(parameter =>
@@ -91,7 +91,7 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
         _deviceMonitor.Start();
     }
 
-    public ObservableCollection<LogFeedRowViewModel> Rows { get; }
+    public BatchObservableCollection<LogFeedRowViewModel> Rows { get; }
 
     public RelayCommand OpenCommand { get; }
 
@@ -288,10 +288,13 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
         _shownKeys.Clear();
         _shownKeys.UnionWith(rows.Select(r => r.Key));
 
-        Rows.Clear();
-        foreach (var row in rows)
+        using (Rows.BeginBatch())
         {
-            Rows.Add(row);
+            Rows.Clear();
+            foreach (var row in rows)
+            {
+                Rows.Add(row);
+            }
         }
 
         if (anyNew)

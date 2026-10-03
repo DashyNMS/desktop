@@ -45,7 +45,7 @@ public sealed class RulesViewModel : ObservableObject
         _monitor = monitor;
         _logger = logger;
 
-        Rules = new ObservableCollection<RuleItemViewModel>();
+        Rules = new BatchObservableCollection<RuleItemViewModel>();
         Filtered = new FilteredListViewModel(Rules, (item, term) => MatchesFilter((RuleItemViewModel)item, term));
         Filtered.PropertyChanged += (_, e) =>
         {
@@ -73,7 +73,7 @@ public sealed class RulesViewModel : ObservableObject
     /// <summary>Raised when a row's alert badge is clicked - the main view model switches to the Alerts tab filtered to that rule.</summary>
     public event EventHandler<AlertRule>? ShowAlertsRequested;
 
-    public ObservableCollection<RuleItemViewModel> Rules { get; }
+    public BatchObservableCollection<RuleItemViewModel> Rules { get; }
 
     /// <summary>Search box (issue #28) + filtered view - see <see cref="FilteredListViewModel"/>'s own doc comment for why this is a separate class rather than an ICollectionView property declared directly here.</summary>
     public FilteredListViewModel Filtered { get; }
@@ -310,15 +310,18 @@ public sealed class RulesViewModel : ObservableObject
                 }
             }
 
-            Rules.Clear();
-            foreach (var rule in rulesTask.Result.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
+            using (Rules.BeginBatch())
             {
-                var item = new RuleItemViewModel(rule, EditRule, DeleteRule, ToggleDisabled, ShowAlerts, DuplicateRule)
+                Rules.Clear();
+                foreach (var rule in rulesTask.Result.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
                 {
-                    ActiveAlertCount = _alertCounts.GetValueOrDefault(rule.Id),
-                    TemplateName = templateByRule.GetValueOrDefault(rule.Id, DefaultTemplateName),
-                };
-                Rules.Add(item);
+                    var item = new RuleItemViewModel(rule, EditRule, DeleteRule, ToggleDisabled, ShowAlerts, DuplicateRule)
+                    {
+                        ActiveAlertCount = _alertCounts.GetValueOrDefault(rule.Id),
+                        TemplateName = templateByRule.GetValueOrDefault(rule.Id, DefaultTemplateName),
+                    };
+                    Rules.Add(item);
+                }
             }
         }
         catch (LibreNmsApiException ex)

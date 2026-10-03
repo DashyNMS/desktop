@@ -41,7 +41,7 @@ public sealed class WirelessSectionViewModel : ObservableObject
         _windowToken = windowToken;
         _showGraph = showGraph;
 
-        Classes = new ObservableCollection<WirelessClassViewModel>();
+        Classes = new BatchObservableCollection<WirelessClassViewModel>();
         ShowGraphCommand = new RelayCommand(parameter =>
         {
             if (parameter is WirelessClassViewModel item)
@@ -51,7 +51,7 @@ public sealed class WirelessSectionViewModel : ObservableObject
         });
     }
 
-    public ObservableCollection<WirelessClassViewModel> Classes { get; }
+    public BatchObservableCollection<WirelessClassViewModel> Classes { get; }
 
     public RelayCommand ShowGraphCommand { get; }
 
@@ -123,14 +123,17 @@ public sealed class WirelessSectionViewModel : ObservableObject
         {
             var sensors = await _client.Devices.GetWirelessSensorsAsync(_deviceId, _windowToken).ConfigureAwait(true);
 
-            Classes.Clear();
-            foreach (var group in sensors
-                .Where(s => !s.Deleted && !string.IsNullOrWhiteSpace(s.SensorClass))
-                .GroupBy(s => s.SensorClass!.Trim().ToLowerInvariant())
-                .OrderBy(g => WirelessSensorClasses.SortRank(g.Key))
-                .ThenBy(g => g.Key, StringComparer.Ordinal))
+            using (Classes.BeginBatch())
             {
-                Classes.Add(new WirelessClassViewModel(group.Key, group.OrderBy(s => s.Description, StringComparer.OrdinalIgnoreCase).ToList()));
+                Classes.Clear();
+                foreach (var group in sensors
+                    .Where(s => !s.Deleted && !string.IsNullOrWhiteSpace(s.SensorClass))
+                    .GroupBy(s => s.SensorClass!.Trim().ToLowerInvariant())
+                    .OrderBy(g => WirelessSensorClasses.SortRank(g.Key))
+                    .ThenBy(g => g.Key, StringComparer.Ordinal))
+                {
+                    Classes.Add(new WirelessClassViewModel(group.Key, group.OrderBy(s => s.Description, StringComparer.OrdinalIgnoreCase).ToList()));
+                }
             }
         }
         catch (OperationCanceledException)

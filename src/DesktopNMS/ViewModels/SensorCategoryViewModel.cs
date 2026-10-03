@@ -45,7 +45,7 @@ public sealed class SensorCategoryViewModel : ObservableObject
         _unitSuffix = unitSuffix;
         NoneFoundMessage = noneFoundMessage;
 
-        Sensors = new ObservableCollection<SensorItemViewModel>();
+        Sensors = new BatchObservableCollection<SensorItemViewModel>();
         SensorsView = CollectionViewSource.GetDefaultView(Sensors);
         SensorsView.Filter = FilterSensor;
 
@@ -56,7 +56,7 @@ public sealed class SensorCategoryViewModel : ObservableObject
     /// <summary>Shown in the status bar when this category has no sensors at all.</summary>
     public string NoneFoundMessage { get; }
 
-    public ObservableCollection<SensorItemViewModel> Sensors { get; }
+    public BatchObservableCollection<SensorItemViewModel> Sensors { get; }
 
     public ICollectionView SensorsView { get; }
 
@@ -142,36 +142,42 @@ public sealed class SensorCategoryViewModel : ObservableObject
 
         var incoming = ordered.Select(s => s.SensorId).ToHashSet();
 
-        for (var i = Sensors.Count - 1; i >= 0; i--)
+        // A first fill (sign-in, or this list opened for the first time)
+        // lands as one Reset rather than a notification per row (#70);
+        // after that it's synced in place, keeping selection and scroll.
+        using (Sensors.Count == 0 ? Sensors.BeginBatch() : null)
         {
-            if (!incoming.Contains(Sensors[i].SensorId))
+            for (var i = Sensors.Count - 1; i >= 0; i--)
             {
-                _index.Remove(Sensors[i].SensorId);
-                Sensors.RemoveAt(i);
-            }
-        }
-
-        for (var target = 0; target < ordered.Count; target++)
-        {
-            var sensor = ordered[target];
-            var deviceName = deviceNameFor(sensor.DeviceId);
-            var thresholds = _thresholdsSelector(settings, sensor);
-
-            if (_index.TryGetValue(sensor.SensorId, out var existing))
-            {
-                existing.Update(sensor, deviceName, connection, thresholds);
-
-                var currentIndex = Sensors.IndexOf(existing);
-                if (currentIndex >= 0 && currentIndex != target && target < Sensors.Count)
+                if (!incoming.Contains(Sensors[i].SensorId))
                 {
-                    Sensors.Move(currentIndex, target);
+                    _index.Remove(Sensors[i].SensorId);
+                    Sensors.RemoveAt(i);
                 }
             }
-            else
+
+            for (var target = 0; target < ordered.Count; target++)
             {
-                var item = new SensorItemViewModel(sensor, deviceName, connection, thresholds, _unitSuffix);
-                _index[sensor.SensorId] = item;
-                Sensors.Insert(Math.Min(target, Sensors.Count), item);
+                var sensor = ordered[target];
+                var deviceName = deviceNameFor(sensor.DeviceId);
+                var thresholds = _thresholdsSelector(settings, sensor);
+
+                if (_index.TryGetValue(sensor.SensorId, out var existing))
+                {
+                    existing.Update(sensor, deviceName, connection, thresholds);
+
+                    var currentIndex = Sensors.IndexOf(existing, target);
+                    if (currentIndex >= 0 && currentIndex != target && target < Sensors.Count)
+                    {
+                        Sensors.Move(currentIndex, target);
+                    }
+                }
+                else
+                {
+                    var item = new SensorItemViewModel(sensor, deviceName, connection, thresholds, _unitSuffix);
+                    _index[sensor.SensorId] = item;
+                    Sensors.Insert(Math.Min(target, Sensors.Count), item);
+                }
             }
         }
 
