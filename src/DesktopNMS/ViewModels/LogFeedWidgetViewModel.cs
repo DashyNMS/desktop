@@ -135,6 +135,7 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
             if (SetProperty(ref _searchText, normalised))
             {
                 OnPropertyChanged(nameof(HasSearch));
+                OnPropertyChanged(nameof(EmptyText));
                 SaveOptionsAndReload();
             }
         }
@@ -561,7 +562,10 @@ public sealed class GraylogWidgetViewModel : LogFeedWidgetViewModel
 
     public override string SearchHint => "Graylog search, e.g. level:<=3";
 
-    public override string EmptyText => "No messages in the last " + _selectedRange.Label + ".";
+    /// <summary>With Graylog switched off, say how to fix it rather than showing an error (or old messages).</summary>
+    public override string EmptyText => _graylog.IsConfigured
+        ? "No messages in the last " + _selectedRange.Label + "."
+        : "Set up Graylog in Settings first.";
 
     /// <summary>"All streams", then each stream the account can read.</summary>
     public ObservableCollection<LogFeedChoice> StreamChoices { get; }
@@ -607,7 +611,7 @@ public sealed class GraylogWidgetViewModel : LogFeedWidgetViewModel
     {
         if (!_graylog.IsConfigured)
         {
-            throw new GraylogNotSetUpException();
+            return Array.Empty<LogFeedRowViewModel>();
         }
 
         if (!_streamsLoaded)
@@ -655,7 +659,6 @@ public sealed class GraylogWidgetViewModel : LogFeedWidgetViewModel
 
     protected override string? DescribeFailure(Exception exception) => exception switch
     {
-        GraylogNotSetUpException => "Set up Graylog in Settings first.",
         GraylogApiException => "Couldn't reach Graylog.",
         _ => null,
     };
@@ -721,6 +724,7 @@ public sealed class GraylogWidgetViewModel : LogFeedWidgetViewModel
     private void OnGraylogConfigurationChanged(object? sender, EventArgs e)
     {
         _streamsLoaded = false;
+        OnPropertyChanged(nameof(EmptyText));
         _ = LoadAsync();
     }
 
@@ -728,9 +732,5 @@ public sealed class GraylogWidgetViewModel : LogFeedWidgetViewModel
     {
         _graylog.ConfigurationChanged -= OnGraylogConfigurationChanged;
         base.Dispose();
-    }
-
-    private sealed class GraylogNotSetUpException : Exception
-    {
     }
 }
