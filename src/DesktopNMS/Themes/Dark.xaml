@@ -1383,6 +1383,14 @@
                                        VerticalAlignment="Center"
                                        Visibility="Collapsed" />
 
+                            <!-- An item's own Icon, if it has one (the tray menu, #232),
+                                 in the same column - a checked item's tick wins. -->
+                            <ContentPresenter x:Name="IconHost"
+                                              Grid.Column="0"
+                                              ContentSource="Icon"
+                                              HorizontalAlignment="Left"
+                                              VerticalAlignment="Center" />
+
                             <ContentPresenter Grid.Column="1"
                                                ContentSource="Header"
                                                RecognizesAccessKey="True"
@@ -1399,6 +1407,7 @@
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="CheckGlyph" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="IconHost" Property="Visibility" Value="Collapsed" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

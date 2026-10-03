@@ -24,9 +24,22 @@ public sealed class HeartbeatLogo : FrameworkElement
         nameof(IsBeating), typeof(bool), typeof(HeartbeatLogo),
         new FrameworkPropertyMetadata(false, (d, _) => ((HeartbeatLogo)d).UpdateAnimation()));
 
+    /// <summary>Greyed out, as the tray icon is while not connected (#232).</summary>
+    public static readonly DependencyProperty IsMutedProperty = DependencyProperty.Register(
+        nameof(IsMuted), typeof(bool), typeof(HeartbeatLogo),
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+
     private static readonly Brush Background = Frozen(new SolidColorBrush(Color.FromRgb(0x17, 0x1B, 0x23)));
     private static readonly Pen Ring = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6))), 7.5));
     private static readonly Pen Line = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0xE8, 0xEE, 0xF6))), 8.5)
+        {
+            StartLineCap = PenLineCap.Round,
+            EndLineCap = PenLineCap.Round,
+            LineJoin = PenLineJoin.Round,
+        });
+
+    private static readonly Pen MutedRing = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0x57, 0x60, 0x6A))), 7.5));
+    private static readonly Pen MutedLine = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0x57, 0x60, 0x6A))), 8.5)
         {
             StartLineCap = PenLineCap.Round,
             EndLineCap = PenLineCap.Round,
@@ -51,6 +64,12 @@ public sealed class HeartbeatLogo : FrameworkElement
         set => SetValue(IsBeatingProperty, value);
     }
 
+    public bool IsMuted
+    {
+        get => (bool)GetValue(IsMutedProperty);
+        set => SetValue(IsMutedProperty, value);
+    }
+
     protected override Size MeasureOverride(Size availableSize) => new(
         double.IsInfinity(availableSize.Width) ? 0 : availableSize.Width,
         double.IsInfinity(availableSize.Height) ? 0 : availableSize.Height);
@@ -68,7 +87,7 @@ public sealed class HeartbeatLogo : FrameworkElement
         drawingContext.PushTransform(new ScaleTransform(scale, scale));
 
         drawingContext.DrawEllipse(Background, null, new Point(50, 50), 46, 46);
-        drawingContext.DrawEllipse(null, Ring, new Point(50, 50), 42.25, 42.25);
+        drawingContext.DrawEllipse(null, IsMuted ? MutedRing : Ring, new Point(50, 50), 42.25, 42.25);
 
         var (from, to) = _phase is { } phase ? HeartbeatTrace.Visible(phase) : (0, HeartbeatTrace.Length);
         var points = HeartbeatTrace.Between(from, to);
@@ -85,7 +104,7 @@ public sealed class HeartbeatLogo : FrameworkElement
             }
 
             geometry.Freeze();
-            drawingContext.DrawGeometry(null, Line, geometry);
+            drawingContext.DrawGeometry(null, IsMuted ? MutedLine : Line, geometry);
         }
 
         drawingContext.Pop();

@@ -67,6 +67,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string _statusMessage = "Starting...";
     private string? _errorMessage;
     private bool _isBusy;
+    private bool _isTokenRejected;
     private bool _isConnected;
     private bool _isSigningIn;
     private bool _isBulkUpdating;
@@ -886,6 +887,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public bool HasError => !string.IsNullOrEmpty(_errorMessage);
 
+    /// <summary>The last refresh failed because the server turned the API token down - the tray says to sign in again (#232).</summary>
+    public bool IsTokenRejected
+    {
+        get => _isTokenRejected;
+        private set => SetProperty(ref _isTokenRejected, value);
+    }
+
     public bool IsBusy
     {
         get => _isBusy;
@@ -919,22 +927,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public string ServerDescription
-    {
-        get
-        {
-            var connection = _session.Connection;
-            if (connection is null)
-            {
-                return "Not connected";
-            }
-
-            var version = _session.ServerInfo?.LocalVersion;
-            return version is null
-                ? connection.WebRoot.Host
-                : $"{connection.WebRoot.Host} - LibreNMS {version}";
-        }
-    }
+    /// <summary>When the last successful refresh finished - the tray's "Checked 12s ago" (#232).</summary>
+    public DateTimeOffset? LastUpdatedAt => _lastUpdated;
 
     public string LastUpdatedText => _lastUpdated is null
         ? "never"
@@ -1310,6 +1304,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         if (!result.Succeeded)
         {
+            IsTokenRejected = result.IsAuthenticationFailure;
             ErrorMessage = result.ErrorMessage;
             StatusMessage = "Last refresh failed.";
 
@@ -1322,6 +1317,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        IsTokenRejected = false;
         ErrorMessage = null;
         _lastUpdated = result.CompletedAt;
 
@@ -1928,7 +1924,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        OnPropertyChanged(nameof(ServerDescription));
 
         // The device name style may have changed, and the device list is what
         // backs it, so pull both through before refreshing.
@@ -2065,7 +2060,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void UpdateConnectionState()
     {
         IsConnected = _session.IsConnected;
-        OnPropertyChanged(nameof(ServerDescription));
 
         if (!IsConnected)
         {
