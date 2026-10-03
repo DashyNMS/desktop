@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -65,11 +66,19 @@ public partial class App : Application
 
         // Straight after Sign out (#231): forget everything saved on this
         // computer before any of it is loaded, so this start is the same as a
-        // fresh install. Here rather than in the old copy, which could still
-        // save settings on its way out.
-        var resetFailures = e.Args.Contains(ResetArgument, StringComparer.OrdinalIgnoreCase)
-            ? LocalDataReset.Wipe(AppPaths.DataDirectory, System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DashyNMS"))
-            : null;
+        // fresh install. Here rather than in the old copy - but only once the
+        // old copy has gone, as it saves settings on its way out.
+        IReadOnlyList<string>? resetFailures = null;
+        var reset = Array.FindIndex(e.Args, a => a.Equals(ResetArgument, StringComparison.OrdinalIgnoreCase));
+        if (reset >= 0)
+        {
+            if (reset + 1 < e.Args.Length && int.TryParse(e.Args[reset + 1], out var oldProcessId))
+            {
+                WaitForExit(oldProcessId);
+            }
+
+            resetFailures = LocalDataReset.Wipe(AppPaths.DataDirectory, System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DashyNMS"));
+        }
 
         _services = BuildServices();
         _logger = _services.GetRequiredService<ILogger<App>>();
@@ -517,6 +526,20 @@ public partial class App : Application
         }
     }
 
+    /// <summary>Waits (up to 20 s) for the copy that just signed out to finish closing, so its last save can't undo the reset.</summary>
+    private static void WaitForExit(int processId)
+    {
+        try
+        {
+            using var old = System.Diagnostics.Process.GetProcessById(processId);
+            old.WaitForExit(TimeSpan.FromSeconds(20));
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            // Already gone.
+        }
+    }
+
     /// <summary>
     /// After Sign out: start a fresh copy and close this one, so nothing
     /// from the server - tabs, caches, monitors, Device Details windows -
@@ -547,6 +570,7 @@ public partial class App : Application
         {
             var start = new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = false };
             start.ArgumentList.Add(ResetArgument);
+            start.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
             System.Diagnostics.Process.Start(start);
         }
         catch (Exception ex)
