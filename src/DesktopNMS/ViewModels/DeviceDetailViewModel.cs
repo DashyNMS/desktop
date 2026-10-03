@@ -3978,7 +3978,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         var name = _device?.BestName ?? _editHostname;
         if (!_windows.Confirm(
                 "Delete device",
-                $"Permanently delete '{name}' from LibreNMS? This cannot be undone."))
+                $"Delete \"{name}\" from LibreNMS? {Confirmations.CannotBeUndone}",
+                "Delete",
+                destructive: true))
         {
             return;
         }

@@ -51,10 +51,21 @@
                         IsCancel="True"
                         Padding="16,7"
                         Margin="0,0,8,0"
-                        Visibility="{Binding ShowCancel, Converter={StaticResource BoolToVisibility}}" />
+                        Visibility="{Binding ShowCancel, Converter={StaticResource BoolToVisibility}}">
+                    <Button.Style>
+                        <!-- Enter cancels a destructive action rather than
+                             confirming it (#66) - deleting takes a click or Tab. -->
+                        <Style TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDestructive}" Value="True">
+                                    <Setter Property="IsDefault" Value="True" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
                 <Button Content="{Binding ConfirmLabel}"
                         Command="{Binding ConfirmCommand}"
-                        IsDefault="True"
                         Padding="16,7">
                     <Button.Style>
                         <!-- No Cancel button to claim Escape when ShowCancel is
@@ -62,9 +73,16 @@
                              Escape target too, so the dialog isn't stuck open
                              without a keyboard way to dismiss it. -->
                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                            <Setter Property="IsDefault" Value="True" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding ShowCancel}" Value="False">
                                     <Setter Property="IsCancel" Value="True" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsDestructive}" Value="True">
+                                    <Setter Property="IsDefault" Value="False" />
+                                    <Setter Property="Background" Value="{StaticResource CriticalBrush}" />
+                                    <Setter Property="BorderBrush" Value="{StaticResource CriticalBrush}" />
+                                    <Setter Property="Foreground" Value="White" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>

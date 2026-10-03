@@ -170,7 +170,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            if (_isEditing && _isDirty && !_windows.Confirm("Discard changes", $"Discard your unsaved changes to \"{_map?.Name}\"?"))
+            if (_isEditing && _isDirty && !_windows.Confirm("Discard changes", $"Discard your unsaved changes to \"{_map?.Name}\"? {Confirmations.CannotBeUndone}", "Discard", destructive: true))
             {
                 // Put the list selection back on the map still being edited.
                 _dispatcher.BeginInvoke(() => OnPropertyChanged(nameof(SelectedSummary)));
@@ -519,7 +519,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
 
     private void NewMap()
     {
-        if (_isEditing && _isDirty && !_windows.Confirm("Discard changes", $"Discard your unsaved changes to \"{_map?.Name}\"?"))
+        if (_isEditing && _isDirty && !_windows.Confirm("Discard changes", $"Discard your unsaved changes to \"{_map?.Name}\"? {Confirmations.CannotBeUndone}", "Discard", destructive: true))
         {
             return;
         }
@@ -612,7 +612,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
 
     private void DeleteMap()
     {
-        if (_map is null || !_windows.Confirm("Delete map", $"Delete \"{_map.Name}\"? This can't be undone - export it first if you might want it back."))
+        if (_map is null || !_windows.Confirm("Delete map", $"Delete the map \"{_map.Name}\"? {Confirmations.CannotBeUndone} Export it first if you might want it back.", "Delete", destructive: true))
         {
             return;
         }
@@ -687,7 +687,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
 
     private void CancelEditing()
     {
-        if (_isDirty && !_windows.Confirm("Discard changes", "Discard your unsaved changes?"))
+        if (_isDirty && !_windows.Confirm("Discard changes", $"Discard your unsaved changes? {Confirmations.CannotBeUndone}", "Discard", destructive: true))
         {
             return;
         }
