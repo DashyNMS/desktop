@@ -137,6 +137,24 @@ public partial class App : Application
 
         _mainViewModel.SignedOut += (_, _) => RestartSignedOut();
 
+        // The tray follows the app's state as it changes, not just on each
+        // poll (#232): signing in, failover, a ready update, an acknowledgement.
+        _mainViewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(MainViewModel.IsConnected)
+                or nameof(MainViewModel.IsSigningIn)
+                or nameof(MainViewModel.IsOnBackupAddress)
+                or nameof(MainViewModel.IsUpdateReady)
+                or nameof(MainViewModel.HasError)
+                or nameof(MainViewModel.IsTokenRejected)
+                or nameof(MainViewModel.CriticalCount)
+                or nameof(MainViewModel.AlertBadgeCount)
+                or nameof(MainViewModel.LastUpdatedText))
+            {
+                ScheduleTrayUpdate();
+            }
+        };
+
         // Restoring the session touches the network, so it must not block the
         // window from appearing.
         _ = Dispatcher.InvokeAsync(RestoreSessionAsync, DispatcherPriority.Background);
@@ -372,6 +390,7 @@ public partial class App : Application
         services.AddSingleton<AlertMonitor>();
         services.AddSingleton<SensorMonitor>();
         services.AddSingleton<DeviceMonitor>();
+        services.AddSingleton<TrayViewModel>();
         services.AddSingleton<TrayIconService>();
         services.AddSingleton<ITrayNotifier>(sp => sp.GetRequiredService<TrayIconService>());
         services.AddSingleton<AlertNotificationService>();
@@ -423,24 +442,30 @@ public partial class App : Application
             return;
         }
 
+        var tray = _services.GetRequiredService<TrayViewModel>();
         _tray = _services.GetRequiredService<TrayIconService>();
         _tray.Initialise();
+        _tray.Opening += (_, _) => UpdateTrayStatus();
 
-        _tray.OpenRequested += (_, _) => ShowMainOrSignIn();
-        _tray.RefreshRequested += (_, _) => _mainViewModel?.RequestRefresh();
         // Signed out, everything but Exit leads to the sign-in window (#231).
-        _tray.DevicesRequested += (_, _) =>
+        tray.OpenRequested += (_, _) => ShowMainOrSignIn();
+        tray.DashboardRequested += (_, _) => ShowTabOrSignIn(MainTab.Dashboard);
+        tray.AlertsRequested += (_, _) => ShowTabOrSignIn(MainTab.Alerts);
+        tray.DevicesRequested += (_, _) => ShowTabOrSignIn(MainTab.Devices);
+        tray.RefreshRequested += (_, _) => _mainViewModel?.RequestRefresh();
+        tray.AlertRequested += (_, alertId) =>
         {
-            if (_mainViewModel?.IsConnected == true)
+            ShowTabOrSignIn(MainTab.Alerts);
+            _mainViewModel?.SelectAlert(alertId);
+        };
+        tray.InstallUpdateRequested += (_, _) =>
+        {
+            if (_mainViewModel?.InstallUpdateCommand.CanExecute(null) == true)
             {
-                _services.GetRequiredService<IWindowService>().ShowDevicesTab();
-            }
-            else
-            {
-                ShowMainOrSignIn();
+                _mainViewModel.InstallUpdateCommand.Execute(null);
             }
         };
-        _tray.SettingsRequested += (_, _) =>
+        tray.SettingsRequested += (_, _) =>
         {
             if (_mainViewModel?.IsConnected != true)
             {
@@ -451,7 +476,7 @@ public partial class App : Application
             _services.GetRequiredService<IWindowService>().ShowMain();
             _mainViewModel.SettingsCommand.Execute(null);
         };
-        _tray.SignOutRequested += (_, _) =>
+        tray.SignInOrOutRequested += (_, _) =>
         {
             // The same item reads "Sign in…" while signed out.
             if (_mainViewModel?.SignOutCommand.CanExecute(null) != true)
@@ -463,7 +488,25 @@ public partial class App : Application
             _services.GetRequiredService<IWindowService>().ShowMain();
             _mainViewModel.SignOutCommand.Execute(null);
         };
-        _tray.ExitRequested += (_, _) => ShutdownApplication();
+        tray.ExitRequested += (_, _) => ShutdownApplication();
+    }
+
+    /// <summary>A tab from the tray: there when signed in, otherwise the sign-in window (#231).</summary>
+    private void ShowTabOrSignIn(MainTab tab)
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        if (_mainViewModel?.IsConnected == true)
+        {
+            _services.GetRequiredService<IWindowService>().ShowMainTab(tab);
+        }
+        else
+        {
+            ShowMainOrSignIn();
+        }
     }
 
     /// <summary>
@@ -577,11 +620,43 @@ public partial class App : Application
             return;
         }
 
-        _tray.UpdateStatus(
-            _mainViewModel.IsConnected,
-            _mainViewModel.CriticalCount,
-            _mainViewModel.WarningCount,
-            _mainViewModel.IsConnected ? _mainViewModel.ServerDescription : "Not connected");
+        _trayUpdatePending = false;
+
+        var main = _mainViewModel;
+        var connection = main.IsSigningIn
+            ? TrayConnection.SigningIn
+            : !main.IsConnected
+                ? TrayConnection.SignedOut
+                : main.IsTokenRejected
+                    ? TrayConnection.TokenRejected
+                    : main.HasError ? TrayConnection.Unreachable : TrayConnection.Connected;
+
+        _services?.GetRequiredService<TrayViewModel>().Update(new TraySnapshot(
+            connection,
+            main.IsOnBackupAddress,
+            main.CriticalCount,
+            main.WarningCount,
+            main.AcknowledgedCount,
+            main.AlertBadgeCount,
+            main.AlertBadgeIsCritical,
+            main.LastUpdatedAt is { } at ? DateTimeOffset.Now - at : null,
+            main.NextRefreshText,
+            main.Alerts.ToList(),
+            main.IsUpdateReady ? main.UpdateReadyText : null));
+    }
+
+    private bool _trayUpdatePending;
+
+    /// <summary>Several properties change together: the tray catches up once, after them.</summary>
+    private void ScheduleTrayUpdate()
+    {
+        if (_trayUpdatePending)
+        {
+            return;
+        }
+
+        _trayUpdatePending = true;
+        Dispatcher.InvokeAsync(UpdateTrayStatus, DispatcherPriority.Background);
     }
 
     // ----------------------------------------------------------- certificates
