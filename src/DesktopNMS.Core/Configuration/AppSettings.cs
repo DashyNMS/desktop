@@ -111,7 +111,7 @@ public sealed class AppSettings
     public bool StartWithWindows { get; set; }
 
     /// <summary>Which tab is showing when the main window first appears.</summary>
-    public StartupTab StartupTab { get; set; } = StartupTab.Alerts;
+    public StartupTab StartupTab { get; set; } = StartupTab.Dashboard;
 
     /// <summary>
     /// The newest release tag DashyNMS has already shown an update toast for,

@@ -63,6 +63,7 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.True(store.Current.ShowRecentlyViewedDevices);
         Assert.Equal(5, store.Current.RecentlyViewedDeviceCount);
         Assert.Equal(DeviceNameStyle.SysName, store.Current.DeviceNameStyle);
+        Assert.Equal(StartupTab.Dashboard, store.Current.StartupTab);
     }
 
     [Fact]
