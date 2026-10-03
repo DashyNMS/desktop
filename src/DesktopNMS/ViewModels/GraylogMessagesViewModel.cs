@@ -180,7 +180,7 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
         PageSizeOptions = new[] { rows, 25, 50, 100, 250 }.Distinct().OrderBy(n => n).ToList();
         _selectedPageSize = rows;
 
-        Messages = new ObservableCollection<GraylogMessageItemViewModel>();
+        Messages = new BatchObservableCollection<GraylogMessageItemViewModel>();
         SelectedMessageFields = Array.Empty<GraylogFieldViewModel>();
 
         RefreshCommand = new AsyncRelayCommand(() => LoadAsync(silent: false), () => !IsLoading);
@@ -245,7 +245,7 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<GraylogIntervalOption> AutoUpdateIntervalOptions => GraylogIntervalOption.All;
 
-    public ObservableCollection<GraylogMessageItemViewModel> Messages { get; }
+    public BatchObservableCollection<GraylogMessageItemViewModel> Messages { get; }
 
     public AsyncRelayCommand RefreshCommand { get; }
 
@@ -893,10 +893,13 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
             var selectedId = SelectedMessage?.Id;
 
             SelectedMessage = null;
-            Messages.Clear();
-            foreach (var envelope in result.Messages)
+            using (Messages.BeginBatch())
             {
-                Messages.Add(new GraylogMessageItemViewModel(envelope, zone, DeviceFor));
+                Messages.Clear();
+                foreach (var envelope in result.Messages)
+                {
+                    Messages.Add(new GraylogMessageItemViewModel(envelope, zone, DeviceFor));
+                }
             }
 
             if (silent && selectedId is not null)

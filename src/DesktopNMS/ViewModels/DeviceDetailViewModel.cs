@@ -248,16 +248,16 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         Sensors = new ObservableCollection<SensorItemViewModel>();
-        SensorGroups = new ObservableCollection<SensorGroupViewModel>();
-        AlertHistory = new ObservableCollection<AlertLogItemViewModel>();
-        ActiveAlerts = new ObservableCollection<ActiveAlertItemViewModel>();
+        SensorGroups = new BatchObservableCollection<SensorGroupViewModel>();
+        AlertHistory = new BatchObservableCollection<AlertLogItemViewModel>();
+        ActiveAlerts = new BatchObservableCollection<ActiveAlertItemViewModel>();
         Ports = new BatchObservableCollection<PortItemViewModel>();
-        Processors = new ObservableCollection<ProcessorItemViewModel>();
-        Mempools = new ObservableCollection<MempoolItemViewModel>();
-        Storage = new ObservableCollection<StorageItemViewModel>();
-        Outages = new ObservableCollection<OutageItemViewModel>();
-        AvailabilityTimeline = new ObservableCollection<OutageDayViewModel>();
-        DeviceGroups = new ObservableCollection<DeviceGroupItemViewModel>();
+        Processors = new BatchObservableCollection<ProcessorItemViewModel>();
+        Mempools = new BatchObservableCollection<MempoolItemViewModel>();
+        Storage = new BatchObservableCollection<StorageItemViewModel>();
+        Outages = new BatchObservableCollection<OutageItemViewModel>();
+        AvailabilityTimeline = new BatchObservableCollection<OutageDayViewModel>();
+        DeviceGroups = new BatchObservableCollection<DeviceGroupItemViewModel>();
         VlanEntries = new BatchObservableCollection<VlanItemViewModel>();
         FdbEntries = new BatchObservableCollection<FdbItemViewModel>();
         ArpEntries = new BatchObservableCollection<ArpItemViewModel>();
@@ -467,14 +467,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// a grouped DataGrid does not lay its rows out at full width without a
     /// fight, and this list needs no sorting or selection to justify one.
     /// </summary>
-    public ObservableCollection<SensorGroupViewModel> SensorGroups { get; }
+    public BatchObservableCollection<SensorGroupViewModel> SensorGroups { get; }
 
     /// <summary>One "View graph" quick link per distinct sensor class this device reports (issue #9) - see <see cref="RebuildSensorGraphLinks"/>.</summary>
     public ObservableCollection<SensorGraphLinkViewModel> SensorGraphLinks { get; } = new();
 
-    public ObservableCollection<AlertLogItemViewModel> AlertHistory { get; }
+    public BatchObservableCollection<AlertLogItemViewModel> AlertHistory { get; }
 
-    public ObservableCollection<ActiveAlertItemViewModel> ActiveAlerts { get; }
+    public BatchObservableCollection<ActiveAlertItemViewModel> ActiveAlerts { get; }
 
     public BatchObservableCollection<PortItemViewModel> Ports { get; }
 
@@ -486,28 +486,28 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// <summary>The VLANs, filtered by <see cref="VlanSearchText"/>. What the VLANs tab actually binds to.</summary>
     public ICollectionView VlansView { get; }
 
-    public ObservableCollection<ProcessorItemViewModel> Processors { get; }
+    public BatchObservableCollection<ProcessorItemViewModel> Processors { get; }
 
-    public ObservableCollection<MempoolItemViewModel> Mempools { get; }
+    public BatchObservableCollection<MempoolItemViewModel> Mempools { get; }
 
-    public ObservableCollection<StorageItemViewModel> Storage { get; }
+    public BatchObservableCollection<StorageItemViewModel> Storage { get; }
 
     /// <summary>
     /// The device's recorded downtime incidents, newest first, capped to
     /// <see cref="MaxOutagesShown"/> - a long-lived device can accumulate a
     /// lot of these, and only the recent ones are actually useful at a glance.
     /// </summary>
-    public ObservableCollection<OutageItemViewModel> Outages { get; }
+    public BatchObservableCollection<OutageItemViewModel> Outages { get; }
 
     /// <summary>
     /// One entry per of the last <see cref="AvailabilityTimelineDays"/> days,
     /// oldest first - a compact status-page-style history bar, built from the
     /// same outage data as <see cref="Outages"/> rather than a second fetch.
     /// </summary>
-    public ObservableCollection<OutageDayViewModel> AvailabilityTimeline { get; }
+    public BatchObservableCollection<OutageDayViewModel> AvailabilityTimeline { get; }
 
     /// <summary>Every LibreNMS device group this device belongs to - most devices are in none.</summary>
-    public ObservableCollection<DeviceGroupItemViewModel> DeviceGroups { get; }
+    public BatchObservableCollection<DeviceGroupItemViewModel> DeviceGroups { get; }
 
     /// <summary>Whether the Overview's Device Groups card has anything to show at all - it should not appear for a device in no groups.</summary>
     public bool HasDeviceGroups => DeviceGroups.Count > 0;
@@ -1890,47 +1890,33 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public bool HasAlternateName => AlternateName is not null;
 
     /// <summary>
-    /// The device's names for the Overview identity card (#126) - hostname
-    /// (what LibreNMS polls), sysName (what the device reports over SNMP)
-    /// and display name - one row per distinct value, so names that agree
-    /// share a row ("sysName and display name") rather than repeating it.
-    /// Blank names are left out.
+    /// The Overview's "Also known as" line (#219): the device's other names,
+    /// only those that differ from <see cref="Name"/> by more than case or a
+    /// domain suffix, without saying which field each came from. Null when
+    /// there's nothing to add.
     /// </summary>
-    public IReadOnlyList<DeviceNameRow> NameDetails
+    public string? AlsoKnownAs
     {
         get
         {
-            if (_device is null)
-            {
-                return Array.Empty<DeviceNameRow>();
-            }
+            var names = DeviceNameStyleExtensions.AlsoKnownAs(_device, Name);
+            return names.Count == 0 ? null : string.Join(", ", names);
+        }
+    }
 
-            var names = new (string Label, string? Value)[]
+    public bool HasAlsoKnownAs => AlsoKnownAs is not null;
+
+    /// <summary>Which name is which, for anyone who needs it: "Hostname: …", "sysName: …", "Display name: …", one per line.</summary>
+    public string? AlsoKnownAsToolTip => _device is null
+        ? null
+        : string.Join(Environment.NewLine, new (string Label, string? Value)[]
             {
                 ("Hostname", _device.Hostname),
                 ("sysName", _device.SysName),
                 ("Display name", _device.Display),
-            };
-
-            return names
-                .Where(n => !string.IsNullOrWhiteSpace(n.Value))
-                .GroupBy(n => n.Value!.Trim(), StringComparer.OrdinalIgnoreCase)
-                .Select(g => new DeviceNameRow(JoinLabels(g.Select(n => n.Label).ToList()), g.Key))
-                .ToList();
-        }
-    }
-
-    /// <summary>Only when the names don't all agree - when they do, the window title already says everything there is to say.</summary>
-    public bool ShowNameDetails => NameDetails.Count > 1;
-
-    /// <summary>"Hostname", "sysName and display name", "Hostname, sysName and display name" - later labels lower-cased, except sysName, which is its own spelling.</summary>
-    private static string JoinLabels(IReadOnlyList<string> labels)
-    {
-        var parts = labels.Select((label, i) => i == 0 || label == "sysName" ? label : label.ToLowerInvariant()).ToList();
-        return parts.Count == 1
-            ? parts[0]
-            : string.Join(", ", parts.Take(parts.Count - 1)) + " and " + parts[^1];
-    }
+            }
+            .Where(n => !string.IsNullOrWhiteSpace(n.Value))
+            .Select(n => $"{n.Label}: {n.Value!.Trim()}"));
 
     /// <summary>The raw SNMP system description, e.g. "Onyx,SN2010M,SWv3.10.4408" - shown under the device name, matching where LibreNMS's own device page puts it.</summary>
     public string? SysDescr => string.IsNullOrWhiteSpace(_device?.SysDescr) ? null : _device.SysDescr;
@@ -2610,10 +2596,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             .Select(a => new ActiveAlertItemViewModel(a, serverTimestampsAreUtc))
             .ToList();
 
-        ActiveAlerts.Clear();
-        foreach (var alert in mine)
+        using (ActiveAlerts.BeginBatch())
         {
-            ActiveAlerts.Add(alert);
+            ActiveAlerts.Clear();
+            foreach (var alert in mine)
+            {
+                ActiveAlerts.Add(alert);
+            }
         }
 
         OnPropertyChanged(nameof(HasActiveAlerts));
@@ -2703,7 +2692,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// LibreNMS has no per-port PoE data for most switches, so the budget is
     /// what there is. Shown as its own card in Resources.
     /// </summary>
-    public ObservableCollection<PoeBudgetItemViewModel> PoeBudgets { get; } = new();
+    public BatchObservableCollection<PoeBudgetItemViewModel> PoeBudgets { get; } = new();
 
     public bool HasPoe => PoeBudgets.Count > 0 || PoeDevicesConnected is not null;
 
@@ -2719,10 +2708,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         var summary = PoeBudget.FromSensors(mine);
         var hadPoe = HasPoe;
 
-        PoeBudgets.Clear();
-        foreach (var row in summary.Budgets)
+        using (PoeBudgets.BeginBatch())
         {
-            PoeBudgets.Add(new PoeBudgetItemViewModel(row));
+            PoeBudgets.Clear();
+            foreach (var row in summary.Budgets)
+            {
+                PoeBudgets.Add(new PoeBudgetItemViewModel(row));
+            }
         }
 
         PoeDevicesConnected = summary.DevicesConnected;
@@ -2774,10 +2766,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             return;
         }
 
-        SensorGroups.Clear();
-        foreach (var group in grouped)
+        using (SensorGroups.BeginBatch())
         {
-            SensorGroups.Add(group);
+            SensorGroups.Clear();
+            foreach (var group in grouped)
+            {
+                SensorGroups.Add(group);
+            }
         }
 
         OnPropertyChanged(nameof(HasVisibleSensorGroups));
@@ -2865,13 +2860,16 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 fieldsByRule[ruleId] = await _ruleFields.GetConditionFieldsAsync(ruleId, _loadCts.Token).ConfigureAwait(true);
             }
 
-            AlertHistory.Clear();
-            foreach (var entry in entries)
+            using (AlertHistory.BeginBatch())
             {
-                rulesByRule.TryGetValue(entry.RuleId, out var rule);
-                fieldsByRule.TryGetValue(entry.RuleId, out var fields);
-                var detail = AlertFaultParser.Parse(entry, fields);
-                AlertHistory.Add(new AlertLogItemViewModel(entry, rule, detail, _settings.Current.ServerTimestampsAreUtc));
+                AlertHistory.Clear();
+                foreach (var entry in entries)
+                {
+                    rulesByRule.TryGetValue(entry.RuleId, out var rule);
+                    fieldsByRule.TryGetValue(entry.RuleId, out var fields);
+                    var detail = AlertFaultParser.Parse(entry, fields);
+                    AlertHistory.Add(new AlertLogItemViewModel(entry, rule, detail, _settings.Current.ServerTimestampsAreUtc));
+                }
             }
 
             OnPropertyChanged(nameof(HasAlertHistory));
@@ -3203,7 +3201,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     // ------------------------------------------------------------------ neighbours
 
     /// <summary>What this device is connected to - see <see cref="DeviceNeighbours"/>.</summary>
-    public ObservableCollection<DeviceNeighbourItemViewModel> Neighbours { get; } = new();
+    public BatchObservableCollection<DeviceNeighbourItemViewModel> Neighbours { get; } = new();
 
     private bool _hasLoadedNeighbours;
     private string _neighbourSearchText = string.Empty;
@@ -3275,10 +3273,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             .ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        Neighbours.Clear();
-        foreach (var item in items)
+        using (Neighbours.BeginBatch())
         {
-            Neighbours.Add(item);
+            Neighbours.Clear();
+            foreach (var item in items)
+            {
+                Neighbours.Add(item);
+            }
         }
 
         _hasLoadedNeighbours = true;
@@ -3523,22 +3524,31 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             var storageTask = _client.Health.ListStorageAsync(_deviceId, _loadCts.Token);
             await Task.WhenAll(processorsTask, mempoolsTask, storageTask).ConfigureAwait(true);
 
-            Processors.Clear();
-            foreach (var processor in processorsTask.Result.OrderBy(p => p.Description, StringComparer.OrdinalIgnoreCase))
+            using (Processors.BeginBatch())
             {
-                Processors.Add(new ProcessorItemViewModel(processor));
+                Processors.Clear();
+                foreach (var processor in processorsTask.Result.OrderBy(p => p.Description, StringComparer.OrdinalIgnoreCase))
+                {
+                    Processors.Add(new ProcessorItemViewModel(processor));
+                }
             }
 
-            Mempools.Clear();
-            foreach (var mempool in mempoolsTask.Result.OrderBy(m => m.Description, StringComparer.OrdinalIgnoreCase))
+            using (Mempools.BeginBatch())
             {
-                Mempools.Add(new MempoolItemViewModel(mempool));
+                Mempools.Clear();
+                foreach (var mempool in mempoolsTask.Result.OrderBy(m => m.Description, StringComparer.OrdinalIgnoreCase))
+                {
+                    Mempools.Add(new MempoolItemViewModel(mempool));
+                }
             }
 
-            Storage.Clear();
-            foreach (var volume in storageTask.Result.OrderBy(s => s.Description, StringComparer.OrdinalIgnoreCase))
+            using (Storage.BeginBatch())
             {
-                Storage.Add(new StorageItemViewModel(volume));
+                Storage.Clear();
+                foreach (var volume in storageTask.Result.OrderBy(s => s.Description, StringComparer.OrdinalIgnoreCase))
+                {
+                    Storage.Add(new StorageItemViewModel(volume));
+                }
             }
 
             OnPropertyChanged(nameof(HasResources));
@@ -3598,18 +3608,24 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             _availability30Day = PercentFor(2_592_000);
             _availability1Year = PercentFor(31_536_000);
 
-            Outages.Clear();
-            foreach (var outage in outagesTask.Result
-                .OrderByDescending(o => o.GoingDown)
-                .Take(MaxOutagesShown))
+            using (Outages.BeginBatch())
             {
-                Outages.Add(new OutageItemViewModel(outage));
+                Outages.Clear();
+                foreach (var outage in outagesTask.Result
+                    .OrderByDescending(o => o.GoingDown)
+                    .Take(MaxOutagesShown))
+                {
+                    Outages.Add(new OutageItemViewModel(outage));
+                }
             }
 
-            AvailabilityTimeline.Clear();
-            foreach (var day in BuildAvailabilityTimeline(outagesTask.Result))
+            using (AvailabilityTimeline.BeginBatch())
             {
-                AvailabilityTimeline.Add(day);
+                AvailabilityTimeline.Clear();
+                foreach (var day in BuildAvailabilityTimeline(outagesTask.Result))
+                {
+                    AvailabilityTimeline.Add(day);
+                }
             }
 
             OnPropertyChanged(nameof(HasAvailability));
@@ -3647,10 +3663,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             var groups = await _client.DeviceGroups.ListForDeviceAsync(_deviceId, _loadCts.Token).ConfigureAwait(true);
 
-            DeviceGroups.Clear();
-            foreach (var group in groups.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase))
+            using (DeviceGroups.BeginBatch())
             {
-                DeviceGroups.Add(new DeviceGroupItemViewModel(group, ShowDevicesForGroup));
+                DeviceGroups.Clear();
+                foreach (var group in groups.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    DeviceGroups.Add(new DeviceGroupItemViewModel(group, ShowDevicesForGroup));
+                }
             }
 
             OnPropertyChanged(nameof(HasDeviceGroups));
@@ -3992,7 +4011,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         var name = _device?.BestName ?? _editHostname;
         if (!_windows.Confirm(
                 "Delete device",
-                $"Permanently delete '{name}' from LibreNMS? This cannot be undone."))
+                $"Delete \"{name}\" from LibreNMS? {Confirmations.CannotBeUndone}",
+                "Delete",
+                destructive: true))
         {
             return;
         }
@@ -4365,8 +4386,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(AlternateName));
         OnPropertyChanged(nameof(HasAlternateName));
-        OnPropertyChanged(nameof(NameDetails));
-        OnPropertyChanged(nameof(ShowNameDetails));
+        OnPropertyChanged(nameof(AlsoKnownAs));
+        OnPropertyChanged(nameof(HasAlsoKnownAs));
+        OnPropertyChanged(nameof(AlsoKnownAsToolTip));
         OnPropertyChanged(nameof(State));
         OnPropertyChanged(nameof(StateText));
         OnPropertyChanged(nameof(StateSeverity));
@@ -5275,8 +5297,6 @@ file static class ResourceByteFormat
     }
 }
 
-/// <summary>One row of the Overview identity card's names (#126) - see <see cref="DeviceDetailViewModel.NameDetails"/>.</summary>
-public sealed record DeviceNameRow(string Label, string Value);
 
 /// <summary>A neighbour LibreNMS didn't link, matched to a monitored device by this app - which device, and how (for the tooltip).</summary>
 public sealed record NeighbourMatch(int DeviceId, string How, DesktopNMS.Core.Topology.NeighbourMatchKind Kind = DesktopNMS.Core.Topology.NeighbourMatchKind.Name);

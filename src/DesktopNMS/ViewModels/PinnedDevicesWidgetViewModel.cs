@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using DesktopNMS.Core.Configuration;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 
 namespace DesktopNMS.ViewModels;
@@ -34,7 +35,7 @@ public sealed class PinnedDevicesWidgetViewModel : DashboardWidgetViewModel, IDi
         _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
         _openDevice = openDevice;
 
-        Devices = new ObservableCollection<PinnedDeviceItemViewModel>();
+        Devices = new BatchObservableCollection<PinnedDeviceItemViewModel>();
         Rebuild();
 
         _settings.Changed += OnSettingsChanged;
@@ -45,7 +46,7 @@ public sealed class PinnedDevicesWidgetViewModel : DashboardWidgetViewModel, IDi
         _deviceMonitor.Start();
     }
 
-    public ObservableCollection<PinnedDeviceItemViewModel> Devices { get; }
+    public BatchObservableCollection<PinnedDeviceItemViewModel> Devices { get; }
 
     public bool HasDevices => Devices.Count > 0;
 
@@ -61,12 +62,7 @@ public sealed class PinnedDevicesWidgetViewModel : DashboardWidgetViewModel, IDi
 
     private void Rebuild()
     {
-        Devices.Clear();
-
-        foreach (var entry in _settings.Current.PinnedDevices)
-        {
-            Devices.Add(new PinnedDeviceItemViewModel(entry, _openDevice, Unpin, _devices.Get(entry.DeviceId)));
-        }
+        Devices.ReplaceAll(_settings.Current.PinnedDevices.Select(entry => new PinnedDeviceItemViewModel(entry, _openDevice, Unpin, _devices.Get(entry.DeviceId))));
 
         OnPropertyChanged(nameof(HasDevices));
     }

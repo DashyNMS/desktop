@@ -535,7 +535,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             .Where(v => v.ShowOnMap)
             .Select(v => v.Id + "|" + v.Name + "|" + v.MatchAll + "|" + string.Join(";", v.Rules.Select(r => $"{r.Field}:{r.Operator}:{r.Value}"))));
 
-    /// <summary>Settings, Appearance, "Jiggle physics on maps" (#207).</summary>
+    /// <summary>Settings, Maps, "Jiggle physics" (#207, #220).</summary>
     public bool JigglePhysics => _settings.Current.JigglePhysicsOnMaps;
 
     private void OnSettingsChanged(object? sender, AppSettings settings) => _dispatcher.InvokeAsync(() =>
@@ -918,7 +918,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (!_windows.Confirm("Reset layout", $"Forget the saved positions for \"{_selectedScope.DisplayName}\" and lay the map out again?"))
+        if (!_windows.Confirm("Reset layout", $"Forget the saved positions for \"{_selectedScope.DisplayName}\" and lay the map out again? {Confirmations.CannotBeUndone}", "Reset layout", destructive: true))
         {
             return;
         }

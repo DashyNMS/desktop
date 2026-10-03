@@ -50,16 +50,16 @@ public sealed class RoutingSectionViewModel : ObservableObject
         _logger = logger;
         _windowToken = windowToken;
 
-        BgpSessions = new ObservableCollection<BgpSessionItemViewModel>();
-        OspfNeighbours = new ObservableCollection<OspfNeighbourItemViewModel>();
-        Vrfs = new ObservableCollection<VrfItemViewModel>();
+        BgpSessions = new BatchObservableCollection<BgpSessionItemViewModel>();
+        OspfNeighbours = new BatchObservableCollection<OspfNeighbourItemViewModel>();
+        Vrfs = new BatchObservableCollection<VrfItemViewModel>();
     }
 
-    public ObservableCollection<BgpSessionItemViewModel> BgpSessions { get; }
+    public BatchObservableCollection<BgpSessionItemViewModel> BgpSessions { get; }
 
-    public ObservableCollection<OspfNeighbourItemViewModel> OspfNeighbours { get; }
+    public BatchObservableCollection<OspfNeighbourItemViewModel> OspfNeighbours { get; }
 
-    public ObservableCollection<VrfItemViewModel> Vrfs { get; }
+    public BatchObservableCollection<VrfItemViewModel> Vrfs { get; }
 
     public bool HasBgp => BgpSessions.Count > 0;
 
@@ -162,13 +162,13 @@ public sealed class RoutingSectionViewModel : ObservableObject
             _vrfs = vrfTask.Result;
             var vrfNames = _vrfs.ToDictionary(v => v.Id, v => v.Name ?? $"VRF {v.Id}");
 
-            Replace(BgpSessions, bgpTask.Result
+            BgpSessions.ReplaceAll(bgpTask.Result
                 .OrderBy(s => s.IsEstablished)
                 .ThenBy(s => s.PeerAddressText, StringComparer.OrdinalIgnoreCase)
                 .Select(s => new BgpSessionItemViewModel(s, s.VrfId is { } id && vrfNames.TryGetValue(id, out var name) ? name : null)));
 
             var portNames = PortNames();
-            Replace(OspfNeighbours, ospfTask.Result.Select(n => OspfNeighbourItemViewModel.From(n, portNames))
+            OspfNeighbours.ReplaceAll(ospfTask.Result.Select(n => OspfNeighbourItemViewModel.From(n, portNames))
                 .Concat(ospfv3Task.Result.Select(n => OspfNeighbourItemViewModel.From(n, portNames)))
                 .OrderBy(n => n.Health == RoutingHealth.Ok)
                 .ThenBy(n => n.Version, StringComparer.Ordinal)
@@ -207,7 +207,7 @@ public sealed class RoutingSectionViewModel : ObservableObject
 
     private void RebuildVrfs()
     {
-        Replace(Vrfs, _vrfs
+        Vrfs.ReplaceAll(_vrfs
             .OrderBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
             .Select(v => new VrfItemViewModel(v, _ports.Where(p => p.IfVrf == v.Id).Select(p => p.DisplayName).ToList())));
 
@@ -217,15 +217,6 @@ public sealed class RoutingSectionViewModel : ObservableObject
     private Dictionary<int, string> PortNames() => _ports
         .GroupBy(p => p.PortId)
         .ToDictionary(g => g.Key, g => g.First().DisplayName);
-
-    private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> items)
-    {
-        target.Clear();
-        foreach (var item in items)
-        {
-            target.Add(item);
-        }
-    }
 
     private static string Count(int count, string noun) =>
         count.ToString(CultureInfo.CurrentCulture) + " " + noun + (count == 1 ? string.Empty : "s");

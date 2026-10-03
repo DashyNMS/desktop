@@ -50,10 +50,10 @@
 
                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                     <views:CsvExportButton Export="{Binding Csv}" Margin="0,0,8,0" />
-                    <Button Command="{Binding AddTemplateCommand}"
+                    <Button Command="{Binding AddTemplateCommand}" views:PermissionGate.Requires="ChangeTemplates"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Add alert template">
-                        <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                        <TextBlock Text="+" FontFamily="{StaticResource BodyFont}" FontSize="20" FontWeight="SemiBold" />
                     </Button>
                 </StackPanel>
             </Grid>

@@ -93,11 +93,13 @@
                                    Margin="0,0,8,0" />
                         <Button Content="Enable"
                                 Command="{Binding EnableSelectedCommand}"
+                                views:PermissionGate.Requires="EditRules"
                                 Style="{StaticResource ChipButtonStyle}"
                                 Margin="0,0,6,0"
                                 ToolTip="Enable every selected rule" />
                         <Button Content="Disable"
                                 Command="{Binding DisableSelectedCommand}"
+                                views:PermissionGate.Requires="EditRules"
                                 Style="{StaticResource ChipButtonStyle}"
                                 ToolTip="Disable every selected rule" />
                         <Rectangle Style="{StaticResource ToolBarSeparatorStyle}" Margin="14,4" />
@@ -105,10 +107,10 @@
 
                     <views:CsvExportButton Export="{Binding Csv}" Margin="0,0,8,0" />
 
-                    <Button Command="{Binding AddRuleCommand}"
+                    <Button Command="{Binding AddRuleCommand}" views:PermissionGate.Requires="CreateRules"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Add rule">
-                        <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                        <TextBlock Text="+" FontFamily="{StaticResource BodyFont}" FontSize="20" FontWeight="SemiBold" />
                     </Button>
                 </StackPanel>
             </Grid>
@@ -206,7 +208,7 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" Margin="6,0">
-                                    <Button Command="{Binding ToggleDisabledCommand}"
+                                    <Button Command="{Binding ToggleDisabledCommand}" views:PermissionGate.Requires="EditRules"
                                             Style="{StaticResource IconButtonStyle}"
                                             Width="28"
                                             Height="28"
@@ -233,7 +235,7 @@
                                             ToolTip="Edit this rule">
                                         <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
                                     </Button>
-                                    <Button Command="{Binding DuplicateCommand}"
+                                    <Button Command="{Binding DuplicateCommand}" views:PermissionGate.Requires="CreateRules"
                                             Style="{StaticResource IconButtonStyle}"
                                             Width="28"
                                             Height="28"
@@ -241,7 +243,7 @@
                                             ToolTip="Duplicate this rule">
                                         <TextBlock Text="&#xE8C8;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
                                     </Button>
-                                    <Button Command="{Binding DeleteCommand}"
+                                    <Button Command="{Binding DeleteCommand}" views:PermissionGate.Requires="DeleteRules"
                                             Style="{StaticResource IconButtonStyle}"
                                             Width="28"
                                             Height="28"
@@ -258,11 +260,7 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <TextBlock Text="Loading rules..."
-                       Style="{StaticResource SubtleTextStyle}"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
+            <views:LoadingOverlay Text="Loading rules…" Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
 
             <TextBlock Text="No alert rules yet - use + to create one."
                        Style="{StaticResource SubtleTextStyle}"

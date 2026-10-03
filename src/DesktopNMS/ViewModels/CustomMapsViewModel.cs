@@ -110,7 +110,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
         _dispatcher = Dispatcher.CurrentDispatcher;
         _settings.Changed += OnSettingsChanged;
 
-        Maps = new ObservableCollection<CustomMapSummary>();
+        Maps = new BatchObservableCollection<CustomMapSummary>();
         MapsView = CollectionViewSource.GetDefaultView(Maps);
         MapsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(CustomMapSummary.MenuGroup)));
 
@@ -144,7 +144,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
     public IMapTileService Tiles { get; }
 
     /// <summary>The tile server for a "geographic map" background - the same one the Geographical map uses (Settings → Maps).</summary>
-    /// <summary>Settings, Appearance, "Jiggle physics on maps" (#207).</summary>
+    /// <summary>Settings, Maps, "Jiggle physics" (#207, #220).</summary>
     public bool JigglePhysics => _settings.Current.JigglePhysicsOnMaps;
 
     private void OnSettingsChanged(object? sender, AppSettings settings)
@@ -152,7 +152,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
 
     public string TileTemplate => Core.Topology.TileUrlTemplate.Normalise(_settings.Current.MapTileUrl) ?? Core.Topology.TileUrlTemplate.Default;
 
-    public ObservableCollection<CustomMapSummary> Maps { get; }
+    public BatchObservableCollection<CustomMapSummary> Maps { get; }
 
     /// <summary>The map list grouped by menu group, like LibreNMS's Custom Maps menu.</summary>
     public ICollectionView MapsView { get; }
@@ -170,7 +170,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            if (_isEditing && _isDirty && !_windows.Confirm("Discard changes", $"Discard your unsaved changes to \"{_map?.Name}\"?"))
+            if (_isEditing && _isDirty && !_windows.Confirm("Discard changes", $"Discard your unsaved changes to \"{_map?.Name}\"? {Confirmations.CannotBeUndone}", "Discard", destructive: true))
             {
                 // Put the list selection back on the map still being edited.
                 _dispatcher.BeginInvoke(() => OnPropertyChanged(nameof(SelectedSummary)));
@@ -484,10 +484,13 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
         var currentId = _selectedSummary?.Id;
 
         _suppressSelectionLoad = true;
-        Maps.Clear();
-        foreach (var summary in _store.List())
+        using (Maps.BeginBatch())
         {
-            Maps.Add(summary);
+            Maps.Clear();
+            foreach (var summary in _store.List())
+            {
+                Maps.Add(summary);
+            }
         }
 
         SelectedSummary = currentId is null ? null : Maps.FirstOrDefault(m => m.Id == currentId);
@@ -519,7 +522,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
 
     private void NewMap()
     {
-        if (_isEditing && _isDirty && !_windows.Confirm("Discard changes", $"Discard your unsaved changes to \"{_map?.Name}\"?"))
+        if (_isEditing && _isDirty && !_windows.Confirm("Discard changes", $"Discard your unsaved changes to \"{_map?.Name}\"? {Confirmations.CannotBeUndone}", "Discard", destructive: true))
         {
             return;
         }
@@ -612,7 +615,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
 
     private void DeleteMap()
     {
-        if (_map is null || !_windows.Confirm("Delete map", $"Delete \"{_map.Name}\"? This can't be undone - export it first if you might want it back."))
+        if (_map is null || !_windows.Confirm("Delete map", $"Delete the map \"{_map.Name}\"? {Confirmations.CannotBeUndone} Export it first if you might want it back.", "Delete", destructive: true))
         {
             return;
         }
@@ -687,7 +690,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
 
     private void CancelEditing()
     {
-        if (_isDirty && !_windows.Confirm("Discard changes", "Discard your unsaved changes?"))
+        if (_isDirty && !_windows.Confirm("Discard changes", $"Discard your unsaved changes? {Confirmations.CannotBeUndone}", "Discard", destructive: true))
         {
             return;
         }

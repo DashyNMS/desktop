@@ -61,8 +61,17 @@ public interface ILibreNmsClient
     /// <summary>The backup address state for the live connection - see <see cref="ServerFailover"/>.</summary>
     ServerFailover Failover { get; }
 
+    /// <summary>Writes the token has been refused this session (#51), so the app can turn their buttons off.</summary>
+    ApiPermissions Permissions { get; }
+
     /// <summary>Forgets the current connection.</summary>
     void Disconnect();
+
+    /// <summary>A request failed on a certificate that isn't trusted yet (see <see cref="LibreNmsTransport.CertificateRejected"/>).</summary>
+    event EventHandler<Security.CertificateDetails>? CertificateRejected;
+
+    /// <summary>Accept this certificate from now on, without signing in again.</summary>
+    void TrustCertificate(string fingerprint);
 
     /// <summary>
     /// Verifies the address and token by calling /api/v0/system.

@@ -160,6 +160,67 @@ public sealed class WindowService : IWindowService
         return window.ShowDialog() == true ? viewModel.Chosen : null;
     }
 
+    public bool ShowWhatsNew()
+    {
+        if (BundledWhatsNew.Current is not { } notes)
+        {
+            return false;
+        }
+
+        var viewModel = new WhatsNewViewModel(notes, new Uri(UpdateCheckService.ReleasePageUrl(notes.Version)), OpenUrl);
+        var window = new WhatsNewWindow(viewModel);
+
+        // Over Settings when asked for from About; otherwise over the main window.
+        if (Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive && !ReferenceEquals(w, _mainWindow)) is { } active)
+        {
+            window.Owner = active;
+        }
+        else if (_mainWindow is { IsVisible: true })
+        {
+            OwnByMain(window);
+        }
+        else
+        {
+            window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        }
+
+        window.ShowDialog();
+
+        // However it was closed, these notes have been seen.
+        var settings = _services.GetRequiredService<ISettingsStore>();
+        settings.Current.WhatsNewShownVersion = notes.Version;
+        settings.SaveQuietly();
+        return true;
+    }
+
+    public void ShowDeviceEventLog(int deviceId)
+    {
+        ShowDeviceDetail(deviceId);
+
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window)
+            && window.DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.SelectEventLogCommand.Execute(null);
+        }
+    }
+
+    public void ShowDeviceGraylog(int deviceId)
+    {
+        ShowDeviceDetail(deviceId);
+
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window)
+            && window.DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.SelectGraylogCommand.Execute(null);
+        }
+    }
+
+    public void ShowLogsTab()
+    {
+        _services.GetRequiredService<MainViewModel>().SelectLogsTabCommand.Execute(null);
+        ShowMain();
+    }
+
     public void ShowDevicePort(int deviceId, int portId)
     {
         ShowDeviceDetail(deviceId);
@@ -335,9 +396,26 @@ public sealed class WindowService : IWindowService
         ShowMain();
     }
 
-    public bool ShowSettingsDialog()
+    public void ShowMainTab(MainTab tab)
+    {
+        _services.GetRequiredService<MainViewModel>().SelectedTab = tab;
+        ShowMain();
+    }
+
+    public void ShowSettingsSection(SettingsSection section)
+    {
+        ShowMain();
+        _services.GetRequiredService<MainViewModel>().OpenSettingsAt(section);
+    }
+
+    public bool ShowSettingsDialog(SettingsSection? section = null)
     {
         var viewModel = _services.GetRequiredService<SettingsViewModel>();
+        if (section is { } open)
+        {
+            viewModel.SelectedSection = open;
+        }
+
         var window = new SettingsWindow(viewModel);
         RememberPlacement(window);
 
@@ -455,11 +533,11 @@ public sealed class WindowService : IWindowService
 
     public void ShowInformation(string title, string message) => ShowNotice(title, message, isError: false);
 
-    public bool Confirm(string title, string message)
-        => ShowConfirmDialog(title, message, showDontAskAgain: false, dontAskAgainLabel: string.Empty).Confirmed;
+    public bool Confirm(string title, string message, string confirmLabel, bool destructive = false)
+        => ShowConfirmDialog(title, message, confirmLabel, destructive, showDontAskAgain: false, dontAskAgainLabel: string.Empty).Confirmed;
 
-    public (bool Confirmed, bool DontAskAgain) ConfirmWithOptOut(string title, string message, string dontAskAgainLabel = "Don't ask me again")
-        => ShowConfirmDialog(title, message, showDontAskAgain: true, dontAskAgainLabel);
+    public (bool Confirmed, bool DontAskAgain) ConfirmWithOptOut(string title, string message, string confirmLabel, string dontAskAgainLabel = "Don't ask me again")
+        => ShowConfirmDialog(title, message, confirmLabel, destructive: false, showDontAskAgain: true, dontAskAgainLabel);
 
     public bool ConfirmTrustCertificate(string service, DesktopNMS.Core.Security.CertificateDetails certificate)
     {
@@ -481,9 +559,9 @@ public sealed class WindowService : IWindowService
     /// a plain Windows message box does not pick up the app's own dark/light
     /// theme and stands out against the rest of the UI.
     /// </summary>
-    private (bool Confirmed, bool DontAskAgain) ShowConfirmDialog(string title, string message, bool showDontAskAgain, string dontAskAgainLabel)
+    private (bool Confirmed, bool DontAskAgain) ShowConfirmDialog(string title, string message, string confirmLabel, bool destructive, bool showDontAskAgain, string dontAskAgainLabel)
     {
-        var viewModel = new ConfirmDialogViewModel(title, message, showDontAskAgain, dontAskAgainLabel);
+        var viewModel = new ConfirmDialogViewModel(title, message, showDontAskAgain, dontAskAgainLabel, confirmLabel: confirmLabel) { IsDestructive = destructive };
         var window = new ConfirmDialog(viewModel);
         RememberPlacement(window);
 

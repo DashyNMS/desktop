@@ -54,7 +54,7 @@ public sealed class GroupsViewModel : ObservableObject
         _deviceList = deviceList;
         _logger = logger;
 
-        Groups = new ObservableCollection<GroupListItemViewModel>();
+        Groups = new BatchObservableCollection<GroupListItemViewModel>();
         GroupsView = CollectionViewSource.GetDefaultView(Groups);
         GroupsView.Filter = FilterGroup;
         GroupsView.SortDescriptions.Add(new SortDescription(nameof(GroupListItemViewModel.Name), ListSortDirection.Ascending));
@@ -64,7 +64,7 @@ public sealed class GroupsViewModel : ObservableObject
         ClearFiltersCommand = new RelayCommand(ClearFilters);
     }
 
-    public ObservableCollection<GroupListItemViewModel> Groups { get; }
+    public BatchObservableCollection<GroupListItemViewModel> Groups { get; }
 
     public ICollectionView GroupsView { get; }
 
@@ -170,10 +170,13 @@ public sealed class GroupsViewModel : ObservableObject
         {
             var groups = await _client.DeviceGroups.ListAsync().ConfigureAwait(true);
 
-            Groups.Clear();
-            foreach (var group in groups.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase))
+            using (Groups.BeginBatch())
             {
-                Groups.Add(new GroupListItemViewModel(group, ViewDevices, EditGroup, DeleteGroup, RediscoverGroup));
+                Groups.Clear();
+                foreach (var group in groups.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    Groups.Add(new GroupListItemViewModel(group, ViewDevices, EditGroup, DeleteGroup, RediscoverGroup));
+                }
             }
 
             OnPropertyChanged(nameof(HasGroups));
@@ -242,10 +245,10 @@ public sealed class GroupsViewModel : ObservableObject
     private async Task DeleteGroupAsync(GroupListItemViewModel item)
     {
         var message = item.IsEditableAsStatic
-            ? $"Permanently delete the group '{item.Name}' from LibreNMS? This cannot be undone."
-            : $"Permanently delete the group '{item.Name}' from LibreNMS? This cannot be undone, and its rules cannot be recreated from DashyNMS - only from LibreNMS's own web UI.";
+            ? $"Delete the group \"{item.Name}\" from LibreNMS? {Confirmations.CannotBeUndone}"
+            : $"Delete the group \"{item.Name}\" from LibreNMS? {Confirmations.CannotBeUndone} Its rules can only be recreated in LibreNMS's own web UI, not in DashyNMS.";
 
-        if (!_windows.Confirm("Delete group", message))
+        if (!_windows.Confirm("Delete group", message, "Delete", destructive: true))
         {
             return;
         }
@@ -291,7 +294,7 @@ public sealed class GroupsViewModel : ObservableObject
             return;
         }
 
-        if (!_windows.Confirm("Rediscover group", $"Ask LibreNMS to rediscover all {deviceIds.Count} device(s) in '{item.Name}' now?"))
+        if (!_windows.Confirm("Rediscover group", $"Ask LibreNMS to rediscover all {deviceIds.Count} device(s) in \"{item.Name}\" now?", "Rediscover"))
         {
             return;
         }

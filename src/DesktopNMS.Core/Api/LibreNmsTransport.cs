@@ -39,6 +39,27 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
     public ServerFailover Failover => _failover;
 
     /// <summary>
+    /// A request failed on a certificate that isn't trusted yet - typically
+    /// the backup address's, the first time the app fails over to it. Raised
+    /// on the thread that made the request, so the app can ask whether to
+    /// trust it there and then rather than only at sign-in.
+    /// </summary>
+    public event EventHandler<CertificateDetails>? CertificateRejected;
+
+    /// <summary>Accept <paramref name="fingerprint"/> from now on, without signing in again - a fresh client with it added to the trusted ones.</summary>
+    public void TrustCertificate(string fingerprint)
+    {
+        var connection = Connection;
+        if (connection is null || connection.TrustedCertificates.Any(f => CertificateTrust.SameFingerprint(f, fingerprint)))
+        {
+            return;
+        }
+
+        Install(connection.WithTrustedCertificate(fingerprint));
+        _logger.LogInformation("Now trusting the certificate {Fingerprint}", fingerprint);
+    }
+
+    /// <summary>
     /// Whether a struggling or unreachable server gets the usual few retries
     /// with growing waits (see <see cref="TransientRetryPolicy"/>). Off for a
     /// connection test, which should answer quickly - one try at the server
@@ -63,9 +84,13 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
     /// the previous client and handler are disposed.
     /// </summary>
     /// <param name="startOnBackup">Dial the backup address from the start - the main one was unreachable when signing in.</param>
+    /// <summary>Writes this token has been refused this session (#51) - forgotten whenever the connection changes.</summary>
+    public ApiPermissions Permissions { get; } = new();
+
     public void Configure(LibreNmsConnection connection, bool startOnBackup = false)
     {
         ArgumentNullException.ThrowIfNull(connection);
+        Permissions.Forget();
 
         // The failover state first, so the client below is built for the right
         // address from the start - no request slips out to the other one.
@@ -163,7 +188,9 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
                 onBackup && !dialBackupHost ? connection.BackupWebRoot!.Host : connection.WebRoot.Host,
                 allowUntrusted: true,
                 connection.TrustedCertificates,
-                details => _rejectedCertificate = details);
+                // On the backup address a certificate the server address's
+                // trusted ones don't cover is just a new one, not a changed one.
+                details => _rejectedCertificate = onBackup ? details with { ReplacesTrustedCertificate = false } : details);
         }
 
         var redirects = new SameServerRedirectHandler(handler);
@@ -199,6 +226,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
     /// <summary>Drops the current connection; subsequent calls fail as "not signed in".</summary>
     public void Clear()
     {
+        Permissions.Forget();
         HttpClient? oldHttp;
         HttpMessageHandler? oldHandler;
 
@@ -220,7 +248,38 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         string relativeUrl,
         object? body = null,
         CancellationToken cancellationToken = default)
-        => TrackReachabilityAsync(() => SendWithRetriesAsync(method, relativeUrl, body, cancellationToken));
+        => LearnPermissionsAsync(method, relativeUrl, TrackReachabilityAsync(() => SendWithRetriesAsync(method, relativeUrl, body, cancellationToken)));
+
+    /// <summary>A write refused with a 403 is remembered (#51), so the app can turn its buttons off instead of letting it fail again.</summary>
+    private async Task<T> LearnPermissionsAsync<T>(HttpMethod method, string relativeUrl, Task<T> request)
+    {
+        try
+        {
+            return await request.ConfigureAwait(false);
+        }
+        catch (LibreNmsApiException ex) when (ex.IsPermissionDenied)
+        {
+            if (Permissions.Learn(method, relativeUrl, ex))
+            {
+                _logger.LogInformation("LibreNMS refused {Method} {Url} with 403 - turning that action off for this session", method, relativeUrl);
+            }
+
+            throw;
+        }
+        catch (LibreNmsApiException ex) when (ApiPermissions.IsCrashedPermissionCheck(method, relativeUrl, ex))
+        {
+            // LibreNMS's own permission check crashed for a user who isn't an
+            // admin - see ApiPermissions.IsCrashedPermissionCheck. Nothing was
+            // written; report it as the refusal it is.
+            var refused = new LibreNmsApiException(LibreNmsApiException.PermissionDeniedMessage, HttpStatusCode.Forbidden, innerException: ex);
+            if (Permissions.Learn(method, relativeUrl, refused))
+            {
+                _logger.LogInformation("LibreNMS's permission check for {Method} {Url} failed with a 500 - treating it as refused and turning that action off for this session", method, relativeUrl);
+            }
+
+            throw refused;
+        }
+    }
 
     public Task<string> SendRawAsync(string relativeUrl, CancellationToken cancellationToken = default)
         => TrackReachabilityAsync(() => SendRawWithRetriesAsync(relativeUrl, cancellationToken));
@@ -552,7 +611,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
     private static string DescribeHttpFailure(HttpStatusCode statusCode, string relativeUrl) => statusCode switch
     {
         HttpStatusCode.Unauthorized => "LibreNMS rejected the API token.",
-        HttpStatusCode.Forbidden => "The API token does not have permission for this action.",
+        HttpStatusCode.Forbidden => LibreNmsApiException.PermissionDeniedMessage,
         HttpStatusCode.NotFound => $"LibreNMS has no endpoint at '{relativeUrl}'. Check the server address and that the API is enabled.",
         HttpStatusCode.BadGateway => "The LibreNMS server is not responding (bad gateway).",
         HttpStatusCode.ServiceUnavailable => "The LibreNMS server is unavailable.",
@@ -565,6 +624,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         var rejected = IsCertificateRejection(ex) ? Interlocked.Exchange(ref _rejectedCertificate, null) : null;
         if (rejected is not null)
         {
+            CertificateRejected?.Invoke(this, rejected);
             return new LibreNmsApiException(CertificateTrust.DescribeRejection(rejected, "LibreNMS"), innerException: ex)
             {
                 UntrustedCertificate = rejected,

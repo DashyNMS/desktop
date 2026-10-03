@@ -20,6 +20,9 @@ public interface IDashboardLayoutService
 
     DashboardWidget AddWidget(string widgetType, string title);
 
+    /// <summary>Adds several widgets at the positions they already have, in one save - the welcome card's starter dashboard (#233).</summary>
+    void AddWidgets(IEnumerable<DashboardWidget> widgets);
+
     void RemoveWidget(string id);
 
     void Rename(string id, string title);
@@ -47,6 +50,9 @@ public interface IDashboardLayoutService
 
     /// <summary>Sets a Top interfaces, Top errors or Top devices widget's row count, ranking and (for errors) whether quiet ports are hidden (#199-#201).</summary>
     void SetTopOptions(string widgetId, int count, DesktopNMS.Core.Devices.RankBy rankBy, bool hideQuiet);
+
+    /// <summary>Sets an Event log or Graylog widget's options (#202, #203): how many entries, the Event log's type filter, the search, and Graylog's stream and time range.</summary>
+    void SetLogOptions(string widgetId, int count, string? type, string? search, string? graylogStreamId, int graylogRangeSeconds);
 }
 
 public sealed class DashboardLayoutService : IDashboardLayoutService
@@ -61,6 +67,13 @@ public sealed class DashboardLayoutService : IDashboardLayoutService
     public event EventHandler? Changed;
 
     public IReadOnlyList<DashboardWidget> Widgets => _settings.Current.DashboardWidgets;
+
+    public void AddWidgets(IEnumerable<DashboardWidget> widgets)
+    {
+        _settings.Current.DashboardWidgets.AddRange(widgets);
+        _settings.Save();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     public DashboardWidget AddWidget(string widgetType, string title)
     {
@@ -252,6 +265,28 @@ public sealed class DashboardLayoutService : IDashboardLayoutService
         widget.TopCount = count;
         widget.TopRankBy = rankBy;
         widget.TopHideQuiet = hideQuiet;
+        _settings.Save();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetLogOptions(string widgetId, int count, string? type, string? search, string? graylogStreamId, int graylogRangeSeconds)
+    {
+        var widget = Find(widgetId);
+        if (widget is null
+            || (widget.LogCount == count
+                && widget.LogType == type
+                && widget.LogSearch == search
+                && widget.GraylogStreamId == graylogStreamId
+                && widget.GraylogRangeSeconds == graylogRangeSeconds))
+        {
+            return;
+        }
+
+        widget.LogCount = count;
+        widget.LogType = type;
+        widget.LogSearch = search;
+        widget.GraylogStreamId = graylogStreamId;
+        widget.GraylogRangeSeconds = graylogRangeSeconds;
         _settings.Save();
         Changed?.Invoke(this, EventArgs.Empty);
     }

@@ -46,7 +46,7 @@ public sealed class InventorySectionViewModel : ObservableObject
         _logger = logger;
         _windowToken = windowToken;
 
-        Rows = new ObservableCollection<InventoryRowViewModel>();
+        Rows = new BatchObservableCollection<InventoryRowViewModel>();
         ToggleCommand = new RelayCommand(p => Toggle(p as InventoryRowViewModel));
         ExpandAllCommand = new RelayCommand(() => SetAllExpanded(true), () => HasInventory);
         CollapseAllCommand = new RelayCommand(() => SetAllExpanded(false), () => HasInventory);
@@ -56,7 +56,7 @@ public sealed class InventorySectionViewModel : ObservableObject
     }
 
     /// <summary>The rows currently showing - expanded branches only, or everything matching a search.</summary>
-    public ObservableCollection<InventoryRowViewModel> Rows { get; }
+    public BatchObservableCollection<InventoryRowViewModel> Rows { get; }
 
     public RelayCommand ToggleCommand { get; }
 
@@ -234,11 +234,14 @@ public sealed class InventorySectionViewModel : ObservableObject
         }
 
         var selected = SelectedRow;
-        Rows.Clear();
-        foreach (var row in visible)
+        using (Rows.BeginBatch())
         {
-            row.HasVisibleChildren = row.Children.Any(c => ShowPorts || !c.IsPort);
-            Rows.Add(row);
+            Rows.Clear();
+            foreach (var row in visible)
+            {
+                row.HasVisibleChildren = row.Children.Any(c => ShowPorts || !c.IsPort);
+                Rows.Add(row);
+            }
         }
 
         SelectedRow = selected is not null && Rows.Contains(selected) ? selected : null;

@@ -22,7 +22,6 @@
             <converters:NullToVisibilityConverter x:Key="NullToVisibility" />
             <converters:AlertStateToOpacityConverter x:Key="StateToOpacity" />
             <converters:DeviceStateToBrushConverter x:Key="DeviceStateToBrush" />
-            <converters:MarkdownToFlowDocumentConverter x:Key="MarkdownToFlowDocument" />
             <converters:GaugeArcConverter x:Key="GaugeArc" />
             <converters:GridUnitToPixelsConverter x:Key="GridUnitToPixels" />
             <converters:PercentToStarWidthConverter x:Key="PercentToStarWidth" />
