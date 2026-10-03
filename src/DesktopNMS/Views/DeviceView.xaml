@@ -998,20 +998,16 @@
                             <StackPanel>
                                 <TextBlock Text="DEVICE" Style="{StaticResource CardTitleStyle}" />
 
-                                <!-- Only when hostname, sysName and display name
-                                     don't all agree (#126), one row per distinct
-                                     value - names that match share a row. -->
-                                <ItemsControl ItemsSource="{Binding NameDetails}"
-                                              Visibility="{Binding ShowNameDetails, Converter={StaticResource BoolToVisibility}}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <DockPanel Style="{StaticResource KeyRowStyle}">
-                                                <TextBlock Text="{Binding Label}" Style="{StaticResource KeyTextStyle}" />
-                                                <TextBlock Text="{Binding Value}" TextWrapping="Wrap" />
-                                            </DockPanel>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                <!-- Only the names that really differ from the
+                                     one shown (#219); the tooltip says which
+                                     field is which. -->
+                                <DockPanel Style="{StaticResource KeyRowStyle}"
+                                           Background="Transparent"
+                                           ToolTip="{Binding AlsoKnownAsToolTip}"
+                                           Visibility="{Binding HasAlsoKnownAs, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Also known as" Style="{StaticResource KeyTextStyle}" />
+                                    <TextBlock Text="{Binding AlsoKnownAs}" TextWrapping="Wrap" />
+                                </DockPanel>
 
                                 <DockPanel Style="{StaticResource KeyRowStyle}">
                                     <TextBlock Text="IP address" Style="{StaticResource KeyTextStyle}" />
@@ -1682,12 +1678,7 @@
                     </ItemsControl>
                 </ScrollViewer>
 
-                <TextBlock Text="Loading sensors..."
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           IsHitTestVisible="False"
-                           Visibility="{Binding IsLoadingSensors, Converter={StaticResource BoolToVisibility}}"
-                           Style="{StaticResource SubtleTextStyle}" />
+                <views:LoadingOverlay Text="Loading sensors…" Visibility="{Binding IsLoadingSensors, Converter={StaticResource BoolToVisibility}}" />
 
                 <TextBlock Text="No sensors reported for this device."
                            HorizontalAlignment="Center"
@@ -1862,12 +1853,7 @@
                     </DataGrid.Columns>
                 </DataGrid>
 
-                <TextBlock Text="Loading ports..."
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           IsHitTestVisible="False"
-                           Visibility="{Binding IsLoadingPorts, Converter={StaticResource BoolToVisibility}}"
-                           Style="{StaticResource SubtleTextStyle}" />
+                <views:LoadingOverlay Text="Loading ports…" Visibility="{Binding IsLoadingPorts, Converter={StaticResource BoolToVisibility}}" />
 
                 <TextBlock Text="No ports reported for this device."
                            HorizontalAlignment="Center"
@@ -1942,12 +1928,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <TextBlock Text="Loading VLANs..."
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Visibility="{Binding IsLoadingVlans, Converter={StaticResource BoolToVisibility}}"
-                               Style="{StaticResource SubtleTextStyle}" />
+                    <views:LoadingOverlay Text="Loading VLANs…" Visibility="{Binding IsLoadingVlans, Converter={StaticResource BoolToVisibility}}" />
 
                     <TextBlock Text="No VLANs reported for this device."
                                HorizontalAlignment="Center"
@@ -2014,12 +1995,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <TextBlock Text="Loading the FDB..."
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Visibility="{Binding IsLoadingFdb, Converter={StaticResource BoolToVisibility}}"
-                               Style="{StaticResource SubtleTextStyle}" />
+                    <views:LoadingOverlay Text="Loading the FDB…" Visibility="{Binding IsLoadingFdb, Converter={StaticResource BoolToVisibility}}" />
 
                     <TextBlock Text="No FDB entries reported for this device."
                                HorizontalAlignment="Center"
@@ -2070,12 +2046,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <TextBlock Text="Loading the ARP table..."
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Visibility="{Binding IsLoadingArp, Converter={StaticResource BoolToVisibility}}"
-                               Style="{StaticResource SubtleTextStyle}" />
+                    <views:LoadingOverlay Text="Loading the ARP table…" Visibility="{Binding IsLoadingArp, Converter={StaticResource BoolToVisibility}}" />
 
                     <TextBlock Text="No ARP entries reported for this device."
                                HorizontalAlignment="Center"
@@ -2131,12 +2102,7 @@
                                      VerticalAlignment="Top"
                                      Visibility="{Binding Graphs.CurrentSvg, Converter={StaticResource NullToVisibility}}" />
 
-                    <TextBlock Text="Loading graph..."
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Visibility="{Binding Graphs.IsLoading, Converter={StaticResource BoolToVisibility}}"
-                               Style="{StaticResource SubtleTextStyle}" />
+                    <views:LoadingOverlay Text="Loading graph…" Visibility="{Binding Graphs.IsLoading, Converter={StaticResource BoolToVisibility}}" />
 
                     <TextBlock Text="{Binding Graphs.ErrorMessage}"
                                HorizontalAlignment="Center"
@@ -2368,12 +2334,7 @@
                 </StackPanel>
             </ScrollViewer>
 
-                <TextBlock Text="Loading resources..."
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           IsHitTestVisible="False"
-                           Visibility="{Binding IsLoadingResources, Converter={StaticResource BoolToVisibility}}"
-                           Style="{StaticResource SubtleTextStyle}" />
+                <views:LoadingOverlay Text="Loading resources…" Visibility="{Binding IsLoadingResources, Converter={StaticResource BoolToVisibility}}" />
 
                 <TextBlock Text="No CPU, memory or disk data reported for this device."
                            HorizontalAlignment="Center"
@@ -2454,10 +2415,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <TextBlock Text="Loading active alerts..."
-                                   Style="{StaticResource SubtleTextStyle}"
-                                   Margin="0,12,0,0"
-                                   Visibility="{Binding IsLoadingActiveAlerts, Converter={StaticResource BoolToVisibility}}" />
+                        <views:LoadingOverlay Text="Loading active alerts…" Margin="0,12,0,0" Visibility="{Binding IsLoadingActiveAlerts, Converter={StaticResource BoolToVisibility}}" />
 
                         <TextBlock Text="No active alerts."
                                    Style="{StaticResource SubtleTextStyle}"
@@ -2512,12 +2470,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <TextBlock Text="Loading alert history..."
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Visibility="{Binding IsLoadingAlertHistory, Converter={StaticResource BoolToVisibility}}"
-                               Style="{StaticResource SubtleTextStyle}" />
+                    <views:LoadingOverlay Text="Loading alert history…" Visibility="{Binding IsLoadingAlertHistory, Converter={StaticResource BoolToVisibility}}" />
 
                     <TextBlock Text="No alert history for this device."
                                HorizontalAlignment="Center"
@@ -2585,12 +2538,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <TextBlock Text="Loading the event log..."
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False"
-                               Visibility="{Binding IsLoadingEventLog, Converter={StaticResource BoolToVisibility}}"
-                               Style="{StaticResource SubtleTextStyle}" />
+                    <views:LoadingOverlay Text="Loading the event log…" Visibility="{Binding IsLoadingEventLog, Converter={StaticResource BoolToVisibility}}" />
 
                     <TextBlock Text="No event log entries for this device."
                                HorizontalAlignment="Center"
@@ -2914,7 +2862,7 @@
                                             <Border x:Name="RowBackground"
                                                     Background="Transparent"
                                                     MouseLeftButtonUp="OnConfigLineClick">
-                                                <Grid TextElement.FontFamily="Consolas" TextElement.FontSize="12">
+                                                <Grid TextElement.FontFamily="{StaticResource MonoFont}" TextElement.FontSize="12">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="46" />
                                                         <ColumnDefinition Width="46" />
@@ -3372,9 +3320,11 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="18,8">
-            <TextBlock Text="Refreshing..."
-                       Style="{StaticResource SubtleTextStyle}"
-                       Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+            <!-- The logo's heartbeat while it refreshes (#228). -->
+            <StackPanel Orientation="Horizontal" Margin="0" VerticalAlignment="Center" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+                <views:HeartbeatLogo Width="14" Height="14" IsBeating="{Binding IsBusy}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                <TextBlock Text="Refreshing" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+            </StackPanel>
         </Border>
     </Grid>
 </Window>

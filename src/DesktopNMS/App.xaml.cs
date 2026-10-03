@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,6 +29,14 @@ public partial class App : Application
     private const string ShowWindowEventName = @"Local\DashyNMS.ShowWindow";
 
     private Mutex? _singleInstanceMutex;
+    private bool _signInOpen;
+
+
+    /// <summary>Set by Sign out (#231): on the way out, wipe everything saved and start a fresh copy.</summary>
+    private bool _resetOnExit;
+
+    /// <summary>Passed to the fresh copy after Sign out, with the closing copy's process id (#231).</summary>
+    private const string FreshStartArgument = "--fresh-start";
     private EventWaitHandle? _showWindowSignal;
     private CancellationTokenSource? _showWindowListener;
     private ServiceProvider? _services;
@@ -59,6 +68,17 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
         AsyncRelayCommand.UnhandledError += OnCommandError;
 
+        // The fresh copy after Sign out (#231): once the closing copy has
+        // really gone, delete again before anything is loaded.
+        var fresh = Array.FindIndex(e.Args, a => a.Equals(FreshStartArgument, StringComparison.OrdinalIgnoreCase));
+        if (fresh >= 0)
+        {
+            var exited = fresh + 1 < e.Args.Length && int.TryParse(e.Args[fresh + 1], out var oldProcessId)
+                ? WaitForExit(oldProcessId)
+                : true;
+            RecordReset(exited ? "fresh copy" : "fresh copy (closing copy still running after 20 s)", WipeSavedData());
+        }
+
         _services = BuildServices();
         _logger = _services.GetRequiredService<ILogger<App>>();
         _logger.LogInformation("DashyNMS starting");
@@ -72,6 +92,8 @@ public partial class App : Application
 
         // Must run before any window (or anything else that applies a style)
         // is constructed - see ApplyTheme's remarks.
+        // The brand fonts (#216), as every element's default - before any window opens.
+        BrandFonts.ApplyAsDefault();
         ApplyTheme(settings.Current.Theme);
         WindowTheming.Register();
 
@@ -84,6 +106,7 @@ public partial class App : Application
         settings.Changed += (_, s) => AccentTheme.Apply(s.AccentColor);
 
         SetUpTray();
+        SetUpCertificatePrompt();
         SetUpNotifications();
         SetUpUpdates();
 
@@ -100,12 +123,37 @@ public partial class App : Application
         var startHidden = settings.Current.StartMinimised
                           || e.Args.Any(arg => arg.Equals("--minimised", StringComparison.OrdinalIgnoreCase)
                                                || arg.Equals("--minimized", StringComparison.OrdinalIgnoreCase))
-                          || ToastNotificationManagerCompat.WasCurrentProcessToastActivated();
+                          || ToastNotificationManagerCompat.WasCurrentProcessToastActivated()
+
+                          // Nothing to sign back in with (a first run, or just
+                          // signed out): the sign-in window alone follows (#231).
+                          || string.IsNullOrWhiteSpace(settings.Current.ServerUrl)
+                          || !_services.GetRequiredService<ITokenProtector>().HasStoredToken;
 
         if (!startHidden)
         {
             _mainWindow.Show();
         }
+
+        _mainViewModel.SignedOut += (_, _) => RestartSignedOut();
+
+        // The tray follows the app's state as it changes, not just on each
+        // poll (#232): signing in, failover, a ready update, an acknowledgement.
+        _mainViewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(MainViewModel.IsConnected)
+                or nameof(MainViewModel.IsSigningIn)
+                or nameof(MainViewModel.IsOnBackupAddress)
+                or nameof(MainViewModel.IsUpdateReady)
+                or nameof(MainViewModel.HasError)
+                or nameof(MainViewModel.IsTokenRejected)
+                or nameof(MainViewModel.CriticalCount)
+                or nameof(MainViewModel.AlertBadgeCount)
+                or nameof(MainViewModel.LastUpdatedText))
+            {
+                ScheduleTrayUpdate();
+            }
+        };
 
         // Restoring the session touches the network, so it must not block the
         // window from appearing.
@@ -122,20 +170,30 @@ public partial class App : Application
         var session = _services.GetRequiredService<ISessionService>();
         var windows = _services.GetRequiredService<IWindowService>();
 
-        var restored = await session.TryRestoreAsync().ConfigureAwait(true);
-
-        // The saved session's certificate isn't trusted yet - typically the
-        // first run after "Allow untrusted certificate" stopped meaning "accept
-        // anything" (#189), or the certificate changed. Ask here, rather than
-        // dropping to sign-in and asking for the token again.
-        if (restored?.UntrustedCertificate is { } certificate)
+        // The beating mark over the main window until this settles (#228).
+        _mainViewModel.IsSigningIn = true;
+        ConnectionTestResult? restored;
+        try
         {
-            windows.ShowMain();
-            if (windows.ConfirmTrustCertificate("LibreNMS", certificate))
+            restored = await session.TryRestoreAsync().ConfigureAwait(true);
+
+            // The saved session's certificate isn't trusted yet - typically the
+            // first run after "Allow untrusted certificate" stopped meaning "accept
+            // anything" (#189), or the certificate changed. Ask here, rather than
+            // dropping to sign-in and asking for the token again.
+            if (restored?.UntrustedCertificate is { } certificate)
             {
-                session.TrustCertificate(certificate);
-                restored = await session.TryRestoreAsync().ConfigureAwait(true);
+                windows.ShowMain();
+                if (windows.ConfirmTrustCertificate("LibreNMS", certificate))
+                {
+                    session.TrustCertificate(certificate);
+                    restored = await session.TryRestoreAsync().ConfigureAwait(true);
+                }
             }
+        }
+        finally
+        {
+            _mainViewModel.IsSigningIn = false;
         }
 
         if (restored is null || !restored.Succeeded)
@@ -145,11 +203,11 @@ public partial class App : Application
                 _logger?.LogInformation("Saved session unusable: {Error}", restored.ErrorMessage);
             }
 
-            windows.ShowMain();
-
-            // If the user dismisses sign-in the app still runs; the monitor sits
-            // idle until a session exists, and the tray offers a way back in.
-            windows.ShowSignInDialog();
+            // Just the sign-in window - no main window with nothing in it
+            // behind (#231). If it's dismissed the app still runs in the tray;
+            // the monitor sits idle until a session exists, and the tray
+            // offers a way back in.
+            ShowSignInOnly();
         }
 
         _monitor?.Start();
@@ -332,6 +390,7 @@ public partial class App : Application
         services.AddSingleton<AlertMonitor>();
         services.AddSingleton<SensorMonitor>();
         services.AddSingleton<DeviceMonitor>();
+        services.AddSingleton<TrayViewModel>();
         services.AddSingleton<TrayIconService>();
         services.AddSingleton<ITrayNotifier>(sp => sp.GetRequiredService<TrayIconService>());
         services.AddSingleton<AlertNotificationService>();
@@ -383,28 +442,175 @@ public partial class App : Application
             return;
         }
 
+        var tray = _services.GetRequiredService<TrayViewModel>();
         _tray = _services.GetRequiredService<TrayIconService>();
         _tray.Initialise();
+        _tray.Opening += (_, _) => UpdateTrayStatus();
 
-        _tray.OpenRequested += (_, _) => _services.GetRequiredService<IWindowService>().ShowMain();
-        _tray.RefreshRequested += (_, _) => _mainViewModel?.RequestRefresh();
-        _tray.DevicesRequested += (_, _) => _services.GetRequiredService<IWindowService>().ShowDevicesTab();
-        _tray.SettingsRequested += (_, _) =>
+        // Signed out, everything but Exit leads to the sign-in window (#231).
+        tray.OpenRequested += (_, _) => ShowMainOrSignIn();
+        tray.DashboardRequested += (_, _) => ShowTabOrSignIn(MainTab.Dashboard);
+        tray.AlertsRequested += (_, _) => ShowTabOrSignIn(MainTab.Alerts);
+        tray.DevicesRequested += (_, _) => ShowTabOrSignIn(MainTab.Devices);
+        tray.RefreshRequested += (_, _) => _mainViewModel?.RequestRefresh();
+        tray.AlertRequested += (_, alertId) =>
         {
-            _services.GetRequiredService<IWindowService>().ShowMain();
-            _mainViewModel?.SettingsCommand.Execute(null);
+            ShowTabOrSignIn(MainTab.Alerts);
+            _mainViewModel?.SelectAlert(alertId);
         };
-        _tray.SignOutRequested += (_, _) =>
+        tray.InstallUpdateRequested += (_, _) =>
         {
+            if (_mainViewModel?.InstallUpdateCommand.CanExecute(null) == true)
+            {
+                _mainViewModel.InstallUpdateCommand.Execute(null);
+            }
+        };
+        tray.SettingsRequested += (_, _) =>
+        {
+            if (_mainViewModel?.IsConnected != true)
+            {
+                ShowMainOrSignIn();
+                return;
+            }
+
+            _services.GetRequiredService<IWindowService>().ShowMain();
+            _mainViewModel.SettingsCommand.Execute(null);
+        };
+        tray.SignInOrOutRequested += (_, _) =>
+        {
+            // The same item reads "Sign in…" while signed out.
             if (_mainViewModel?.SignOutCommand.CanExecute(null) != true)
             {
+                ShowMainOrSignIn();
                 return;
             }
 
             _services.GetRequiredService<IWindowService>().ShowMain();
             _mainViewModel.SignOutCommand.Execute(null);
         };
-        _tray.ExitRequested += (_, _) => ShutdownApplication();
+        tray.ExitRequested += (_, _) => ShutdownApplication();
+    }
+
+    /// <summary>A tab from the tray: there when signed in, otherwise the sign-in window (#231).</summary>
+    private void ShowTabOrSignIn(MainTab tab)
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        if (_mainViewModel?.IsConnected == true)
+        {
+            _services.GetRequiredService<IWindowService>().ShowMainTab(tab);
+        }
+        else
+        {
+            ShowMainOrSignIn();
+        }
+    }
+
+    /// <summary>
+    /// The sign-in window on its own, with the main window out of the way
+    /// (#231). Signing in brings the main window up; dismissing it leaves
+    /// the app in the tray. Returns whether it signed in.
+    /// </summary>
+    private bool ShowSignInOnly()
+    {
+        if (_services is null || _mainWindow is null || _signInOpen)
+        {
+            return false;
+        }
+
+        var windows = _services.GetRequiredService<IWindowService>();
+        _signInOpen = true;
+        try
+        {
+            _mainWindow.Hide();
+            if (!windows.ShowSignInDialog())
+            {
+                return false;
+            }
+        }
+        finally
+        {
+            _signInOpen = false;
+        }
+
+        windows.ShowMain();
+        return true;
+    }
+
+    /// <summary>The tray's Open, and a second launch: the main window when signed in, otherwise the sign-in window (#231).</summary>
+    private void ShowMainOrSignIn()
+    {
+        if (_services is null || _mainViewModel is null)
+        {
+            return;
+        }
+
+        if (_mainViewModel.IsConnected)
+        {
+            _services.GetRequiredService<IWindowService>().ShowMain();
+        }
+        else if (!_mainViewModel.IsSigningIn && ShowSignInOnly())
+        {
+            _monitor?.Start();
+            _mainViewModel.OnConnected();
+            UpdateTrayStatus();
+        }
+    }
+
+    /// <summary>
+    /// After Sign out (#231): close, wipe everything saved on this computer
+    /// once closed (see <see cref="OnExit"/>), and start a fresh copy - so
+    /// nothing from the server, nor any setting, is left. The fresh copy has
+    /// nothing to sign in with, so it opens on the sign-in window alone.
+    /// </summary>
+    private void RestartSignedOut()
+    {
+        _logger?.LogInformation("Signed out: clearing everything saved and restarting to the sign-in window");
+
+        // "Start with Windows" lives in the registry, not the data folder.
+        _services?.GetService<IStartupRegistration>()?.SetEnabled(false);
+
+        _resetOnExit = true;
+        ShutdownApplication();
+    }
+
+    /// <summary>Everything saved on this computer, gone (#231) - see <see cref="LocalDataReset"/>.</summary>
+    private static IReadOnlyList<string> WipeSavedData()
+        => LocalDataReset.Wipe(AppPaths.DataDirectory, System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DashyNMS"));
+
+    /// <summary>
+    /// What a sign-out reset did, in the logs folder (which it keeps) - written
+    /// directly, as the closing copy has no logger left by then.
+    /// </summary>
+    private static void RecordReset(string who, IReadOnlyList<string> failed)
+    {
+        try
+        {
+            var settingsLeft = System.IO.File.Exists(AppPaths.SettingsFile);
+            var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {who}: {(failed.Count == 0 ? "removed everything" : "could not remove " + string.Join("; ", failed))}; settings.json {(settingsLeft ? "STILL THERE" : "gone")}{Environment.NewLine}";
+            System.IO.File.AppendAllText(System.IO.Path.Combine(AppPaths.LogDirectory, "sign-out-reset.log"), line);
+        }
+        catch (Exception)
+        {
+            // Diagnostics only.
+        }
+    }
+
+    /// <summary>Waits (up to 20 s) for the copy that signed out to finish exiting.</summary>
+    private static bool WaitForExit(int processId)
+    {
+        try
+        {
+            using var old = System.Diagnostics.Process.GetProcessById(processId);
+            return old.WaitForExit(TimeSpan.FromSeconds(20));
+        }
+        catch (ArgumentException)
+        {
+            return true; // Already gone.
+        }
     }
 
     private void UpdateTrayStatus()
@@ -414,11 +620,96 @@ public partial class App : Application
             return;
         }
 
-        _tray.UpdateStatus(
-            _mainViewModel.IsConnected,
-            _mainViewModel.CriticalCount,
-            _mainViewModel.WarningCount,
-            _mainViewModel.IsConnected ? _mainViewModel.ServerDescription : "Not connected");
+        _trayUpdatePending = false;
+
+        var main = _mainViewModel;
+        var connection = main.IsSigningIn
+            ? TrayConnection.SigningIn
+            : !main.IsConnected
+                ? TrayConnection.SignedOut
+                : main.IsTokenRejected
+                    ? TrayConnection.TokenRejected
+                    : main.HasError ? TrayConnection.Unreachable : TrayConnection.Connected;
+
+        _services?.GetRequiredService<TrayViewModel>().Update(new TraySnapshot(
+            connection,
+            main.IsOnBackupAddress,
+            main.CriticalCount,
+            main.WarningCount,
+            main.AcknowledgedCount,
+            main.AlertBadgeCount,
+            main.AlertBadgeIsCritical,
+            main.LastUpdatedAt is { } at ? DateTimeOffset.Now - at : null,
+            main.NextRefreshText,
+            main.Alerts.ToList(),
+            main.IsUpdateReady ? main.UpdateReadyText : null));
+    }
+
+    private bool _trayUpdatePending;
+
+    /// <summary>Several properties change together: the tray catches up once, after them.</summary>
+    private void ScheduleTrayUpdate()
+    {
+        if (_trayUpdatePending)
+        {
+            return;
+        }
+
+        _trayUpdatePending = true;
+        Dispatcher.InvokeAsync(UpdateTrayStatus, DispatcherPriority.Background);
+    }
+
+    // ----------------------------------------------------------- certificates
+
+    private bool _certificatePromptOpen;
+    private readonly HashSet<string> _declinedCertificates = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A request failed on a certificate that isn't trusted yet while signed
+    /// in - typically the backup address's, the first time the app fails over
+    /// to it. Ask there and then, with its fingerprint, rather than leaving an
+    /// error with nowhere to check and accept it. Once per certificate a
+    /// session if turned down; the many requests failing on it at once only
+    /// ask once.
+    /// </summary>
+    private void SetUpCertificatePrompt()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        var client = _services.GetRequiredService<ILibreNmsClient>();
+        client.CertificateRejected += (_, certificate) => Dispatcher.InvokeAsync(() =>
+        {
+            if (_certificatePromptOpen
+                || _isShuttingDown
+                || _mainViewModel?.IsConnected != true
+                || _declinedCertificates.Contains(certificate.Fingerprint))
+            {
+                return;
+            }
+
+            _certificatePromptOpen = true;
+            try
+            {
+                var windows = _services.GetRequiredService<IWindowService>();
+                var service = client.Failover.IsOnBackup ? "LibreNMS (backup address)" : "LibreNMS";
+                if (windows.ConfirmTrustCertificate(service, certificate))
+                {
+                    _services.GetRequiredService<ISessionService>().TrustCertificate(certificate);
+                    _mainViewModel?.RequestRefresh();
+                }
+                else
+                {
+                    _declinedCertificates.Add(certificate.Fingerprint);
+                }
+            }
+            finally
+            {
+                _certificatePromptOpen = false;
+            }
+        });
     }
 
     // ---------------------------------------------------------- notifications
@@ -533,6 +824,29 @@ public partial class App : Application
         _singleInstanceMutex?.ReleaseMutex();
         _singleInstanceMutex?.Dispose();
 
+        // Sign out (#231): only now - with every window closed, every service
+        // disposed and every last save written - is it safe to wipe, then
+        // start the fresh copy, which finds nothing and opens on sign-in.
+        if (_resetOnExit && Environment.ProcessPath is { Length: > 0 } path)
+        {
+            var failed = WipeSavedData();
+            RecordReset("closing copy", failed);
+
+            try
+            {
+                // The fresh copy deletes again once this one has gone, in case
+                // anything here was still holding a file open.
+                var start = new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = false };
+                start.ArgumentList.Add(FreshStartArgument);
+                start.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                System.Diagnostics.Process.Start(start);
+            }
+            catch (Exception ex)
+            {
+                RecordReset("closing copy could not start the fresh copy: " + ex.Message, Array.Empty<string>());
+            }
+        }
+
         base.OnExit(e);
     }
 
@@ -598,7 +912,7 @@ public partial class App : Application
                             return;
                         }
 
-                        Dispatcher.InvokeAsync(() => _services?.GetService<IWindowService>()?.ShowMain());
+                        Dispatcher.InvokeAsync(ShowMainOrSignIn);
                     }
                 },
                 CancellationToken.None);

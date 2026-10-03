@@ -659,6 +659,16 @@
                                            Text="Blank uses OpenStreetMap's standard tiles, the same as LibreNMS's own world map by default. To use another tile server, enter its address with {z}/{x}/{y}, or paste LibreNMS's leaflet.tile_url setting as-is. Tiles are cached on this PC for a week." />
                             </StackPanel>
                         </Border>
+
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12" Margin="0,12,0,0">
+                            <StackPanel>
+                                <CheckBox Content="Jiggle physics" IsChecked="{Binding JigglePhysicsOnMaps}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Nodes wobble like jelly when you drag them on the network map or a custom map, and their links bow and settle. Just for fun: a node is always saved where you drop it. Nothing moves while Windows animations are turned off." />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- ==================== Window ==================== -->
@@ -721,19 +731,6 @@
                                            Margin="0,8,0,0"
                                            Text="Needs a restart to fully apply - unlike the accent colour below, changing this while DashyNMS is running does not repaint what's already open."
                                            Visibility="{Binding ThemeChangeRequiresRestart, Converter={StaticResource BoolToVisibility}}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border Background="{StaticResource SurfaceAltBrush}"
-                                CornerRadius="6"
-                                Padding="14,12"
-                                Margin="0,0,0,16">
-                            <StackPanel>
-                                <CheckBox Content="Jiggle physics on maps" IsChecked="{Binding JigglePhysicsOnMaps}" />
-                                <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,6,0,0"
-                                           Text="Nodes wobble like jelly when you drag them on the network map or a custom map, and their links bow and settle. Just for fun: a node is always saved where you drop it. Nothing moves while Windows animations are turned off." />
                             </StackPanel>
                         </Border>
 

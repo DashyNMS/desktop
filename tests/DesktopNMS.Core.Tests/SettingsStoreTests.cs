@@ -51,4 +51,40 @@ public sealed class SettingsStoreTests : IDisposable
 
         Assert.True(fileExistedWhenRaised);
     }
+
+    [Fact]
+    public void A_fresh_install_gets_the_shipped_defaults()
+    {
+        var store = new SettingsStore(NullLogger<SettingsStore>.Instance, SettingsFile);
+
+        Assert.True(store.Current.JigglePhysicsOnMaps);
+        Assert.Equal(AppTheme.System, store.Current.Theme);
+        Assert.True(store.Current.ServerTimestampsAreUtc);
+        Assert.True(store.Current.ShowRecentlyViewedDevices);
+        Assert.Equal(5, store.Current.RecentlyViewedDeviceCount);
+        Assert.Equal(DeviceNameStyle.SysName, store.Current.DeviceNameStyle);
+        Assert.Equal(StartupTab.Dashboard, store.Current.StartupTab);
+    }
+
+    [Fact]
+    public void An_existing_file_keeps_the_values_it_was_saved_with()
+    {
+        File.WriteAllText(SettingsFile, """
+            {
+              "jigglePhysicsOnMaps": false,
+              "theme": "Dark",
+              "serverTimestampsAreUtc": false,
+              "recentlyViewedDeviceCount": 10,
+              "deviceNameStyle": "Hostname"
+            }
+            """);
+
+        var store = new SettingsStore(NullLogger<SettingsStore>.Instance, SettingsFile);
+
+        Assert.False(store.Current.JigglePhysicsOnMaps);
+        Assert.Equal(AppTheme.Dark, store.Current.Theme);
+        Assert.False(store.Current.ServerTimestampsAreUtc);
+        Assert.Equal(10, store.Current.RecentlyViewedDeviceCount);
+        Assert.Equal(DeviceNameStyle.Hostname, store.Current.DeviceNameStyle);
+    }
 }

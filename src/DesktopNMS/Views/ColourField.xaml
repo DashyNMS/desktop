@@ -27,7 +27,7 @@
                 VerticalAlignment="Center" />
         <TextBox Grid.Column="2"
                  x:Name="Input"
-                 FontFamily="Consolas"
+                 FontFamily="{StaticResource MonoFont}"
                  TextChanged="OnTextChanged" />
     </Grid>
 </UserControl>

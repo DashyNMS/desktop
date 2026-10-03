@@ -18,12 +18,11 @@ public partial class NeighboursView : UserControl
         InitializeComponent();
     }
 
-    /// <summary>Focuses whichever search box is showing - the views table's, or the open view's.</summary>
+    /// <summary>Focuses the search box (Ctrl+F).</summary>
     public void FocusSearch()
     {
-        var box = DataContext is NeighboursViewModel { IsViewListMode: true } ? ViewSearchBox : SearchBox;
-        box.Focus();
-        box.SelectAll();
+        SearchBox.Focus();
+        SearchBox.SelectAll();
     }
 
     public void ApplyGridLayout(GridLayout? layout) => DataGridLayoutHelper.Apply(NeighboursGrid, layout);

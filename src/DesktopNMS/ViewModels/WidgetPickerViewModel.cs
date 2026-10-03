@@ -173,10 +173,11 @@ public sealed class WidgetPickerViewModel : ObservableObject
 
     /// <summary>
     /// Every widget the desktop can add, in the order the picker lists them.
-    /// Event log and Graylog (#202, #203) join the Logs category when they're built.
+    /// Graylog is greyed out until it is set up in Settings, Integrations.
     /// </summary>
     /// <param name="pinnedDevicesEnabled">Settings, Devices, pinned devices - Pinned devices is greyed out without it.</param>
-    public static IReadOnlyList<WidgetCatalogEntry> DefaultCatalog(bool pinnedDevicesEnabled) => new[]
+    /// <param name="graylogConfigured">Graylog is set up - the Graylog widget is greyed out without it (#203).</param>
+    public static IReadOnlyList<WidgetCatalogEntry> DefaultCatalog(bool pinnedDevicesEnabled, bool graylogConfigured) => new[]
     {
         new WidgetCatalogEntry(DashboardWidgetTypes.Alerts, "Alerts", "A live feed of active alerts", "Alerts", WidgetPreviewKind.List),
         new WidgetCatalogEntry(DashboardWidgetTypes.AlertsGauge, "Alerts gauge", "Critical and warning counts at a glance", "Alerts", WidgetPreviewKind.Gauges),
@@ -188,6 +189,9 @@ public sealed class WidgetPickerViewModel : ObservableObject
         new WidgetCatalogEntry(DashboardWidgetTypes.TopInterfaces, "Top interfaces", "The busiest ports in the fleet, in and out", "Traffic", WidgetPreviewKind.Ranked),
         new WidgetCatalogEntry(DashboardWidgetTypes.TopErrors, "Top errors", "The ports with the most errors per second", "Traffic", WidgetPreviewKind.RankedWarning),
         new WidgetCatalogEntry(DashboardWidgetTypes.TopDevices, "Top devices", "The devices moving the most traffic", "Traffic", WidgetPreviewKind.Ranked),
+        new WidgetCatalogEntry(DashboardWidgetTypes.EventLog, "Event log", "The newest LibreNMS events across every device", "Logs", WidgetPreviewKind.List),
+        new WidgetCatalogEntry(DashboardWidgetTypes.Graylog, "Graylog", "The newest Graylog messages, by stream or search", "Logs", WidgetPreviewKind.List,
+            graylogConfigured ? null : "Set up Graylog in Settings first"),
         new WidgetCatalogEntry(DashboardWidgetTypes.Sensors, "Sensors", "Track dBm, signal, temperature or fan speed readings", "Sensors and graphs", WidgetPreviewKind.List),
         new WidgetCatalogEntry(DashboardWidgetTypes.Graph, "Graph", "Any device graph, over a time range you pick", "Sensors and graphs", WidgetPreviewKind.Graph),
     };

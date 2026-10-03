@@ -149,16 +149,12 @@
                            RenderOptions.BitmapScalingMode="HighQuality" />
                     <TextBlock Text="DashyNMS"
                                FontSize="13"
-                               FontWeight="SemiBold"
+                               FontFamily="{StaticResource DisplayFont}"
+                               FontWeight="Bold"
                                Foreground="{StaticResource TextPrimaryBrush}"
                                VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding ServerDescription}"
-                               FontSize="12"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               Margin="12,0,0,0"
-                               VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis"
-                               MaxWidth="360" />
+                    <!-- No server address or version here (#218): Settings,
+                         Server and About have them, and the tray tooltip. -->
                 </StackPanel>
 
                 <!-- Status and actions, before the window buttons. -->
@@ -332,8 +328,8 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!-- Neighbours (#55): its own click opens the
-                                 table of every view; its sub-pages are the views. -->
+                            <!-- Neighbours (#55): its own click shows every neighbour;
+                                 its sub-pages are the neighbourhoods (#221). -->
                             <ToggleButton x:Name="NeighboursTabButton"
                                           Content="Neighbours"
                                           Tag="&#xE71B;"
@@ -491,7 +487,7 @@
                         MouseLeave="NeighboursFlyoutContent_MouseLeave">
                     <StackPanel MinWidth="170">
                         <TextBlock Text="NEIGHBOURS" Style="{StaticResource FlyoutHeaderStyle}" />
-                        <Button Content="All views" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectNeighboursTabCommand}" Click="NeighboursFlyoutItem_Click" />
+                        <Button Content="All neighbours" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectNeighboursTabCommand}" Click="NeighboursFlyoutItem_Click" />
                         <ItemsControl ItemsSource="{Binding Neighbours.Views}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -593,6 +589,21 @@
                     <views:TemplatesView x:Name="TemplatesViewControl" DataContext="{Binding Templates}" />
                 </Grid>
             </Grid>
+        </Grid>
+
+        <!-- Launch (#228): while the saved session signs back in, the beating
+             mark instead of an empty window - in the theme's own background,
+             so Light doesn't flash dark first. -->
+        <Grid Grid.Row="1"
+              Background="{StaticResource BackgroundBrush}"
+              Visibility="{Binding IsSigningIn, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,40">
+                <views:HeartbeatLogo Width="96" Height="96" IsBeating="{Binding IsSigningIn}" />
+                <TextBlock Text="Signing in…"
+                           Style="{StaticResource SubtleTextStyle}"
+                           HorizontalAlignment="Center"
+                           Margin="0,16,0,0" />
+            </StackPanel>
         </Grid>
     </Grid>
 </Window>

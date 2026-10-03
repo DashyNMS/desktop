@@ -176,6 +176,10 @@ public sealed class SessionService : ISessionService
             _settings.Save();
         }
 
+        // And straight away for the session that's running - e.g. the backup
+        // address's certificate, met when the app fails over to it.
+        _client.TrustCertificate(certificate.Fingerprint);
+
         _logger.LogInformation("Trusted the certificate {Fingerprint} for {Host}", certificate.Fingerprint, certificate.Host);
     }
 

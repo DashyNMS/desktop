@@ -160,6 +160,34 @@ public sealed class WindowService : IWindowService
         return window.ShowDialog() == true ? viewModel.Chosen : null;
     }
 
+    public void ShowDeviceEventLog(int deviceId)
+    {
+        ShowDeviceDetail(deviceId);
+
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window)
+            && window.DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.SelectEventLogCommand.Execute(null);
+        }
+    }
+
+    public void ShowDeviceGraylog(int deviceId)
+    {
+        ShowDeviceDetail(deviceId);
+
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window)
+            && window.DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.SelectGraylogCommand.Execute(null);
+        }
+    }
+
+    public void ShowLogsTab()
+    {
+        _services.GetRequiredService<MainViewModel>().SelectLogsTabCommand.Execute(null);
+        ShowMain();
+    }
+
     public void ShowDevicePort(int deviceId, int portId)
     {
         ShowDeviceDetail(deviceId);
@@ -335,9 +363,26 @@ public sealed class WindowService : IWindowService
         ShowMain();
     }
 
-    public bool ShowSettingsDialog()
+    public void ShowMainTab(MainTab tab)
+    {
+        _services.GetRequiredService<MainViewModel>().SelectedTab = tab;
+        ShowMain();
+    }
+
+    public void ShowSettingsSection(SettingsSection section)
+    {
+        ShowMain();
+        _services.GetRequiredService<MainViewModel>().OpenSettingsAt(section);
+    }
+
+    public bool ShowSettingsDialog(SettingsSection? section = null)
     {
         var viewModel = _services.GetRequiredService<SettingsViewModel>();
+        if (section is { } open)
+        {
+            viewModel.SelectedSection = open;
+        }
+
         var window = new SettingsWindow(viewModel);
         RememberPlacement(window);
 

@@ -44,6 +44,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     private readonly DeviceMonitor _deviceMonitor;
     private readonly ILibreNmsClient _client;
     private readonly IFleetPorts _fleetPorts;
+    private readonly IGraylogApi _graylog;
     private readonly ILogger<DashboardViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<string, DashboardWidgetViewModel> _widgetIndex = new();
@@ -73,9 +74,12 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         DeviceMonitor deviceMonitor,
         ILibreNmsClient client,
         IFleetPorts fleetPorts,
+        IGraylogApi graylog,
+        IUnimusApi unimus,
         ILogger<DashboardViewModel> logger)
     {
         _fleetPorts = fleetPorts;
+        _graylog = graylog;
         _sensorMonitor = sensorMonitor;
         _session = session;
         _settings = settings;
@@ -106,6 +110,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         });
 
         AddWidgetCommand = new RelayCommand(AddWidget);
+        Welcome = new WelcomeViewModel(settings, layout, windows, devices, deviceMonitor, alertMonitor, graylog, unimus, AddWidgetCommand);
+        Widgets.CollectionChanged += (_, _) => OnPropertyChanged(nameof(ShowWelcome));
 
         // A widget row (a sensor, an alert) opens Device Details - staying in the app (#212).
         OpenDeviceDetailsCommand = new RelayCommand(parameter =>
@@ -129,12 +135,19 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
         _settings.Changed += OnSettingsChanged;
         _layout.Changed += OnLayoutChanged;
+        _session.StateChanged += OnSessionStateChanged;
         _sensorMonitor.PollStarted += OnPollStarted;
         _sensorMonitor.Polled += OnPolled;
     }
 
     /// <summary>The widgets on the canvas, in the order they were created.</summary>
     public ObservableCollection<DashboardWidgetViewModel> Widgets { get; }
+
+    /// <summary>The empty Dashboard's welcome card (#233).</summary>
+    public WelcomeViewModel Welcome { get; }
+
+    /// <summary>Signed in, no widgets yet, and not turned off with "Don't show again".</summary>
+    public bool ShowWelcome => _session.IsConnected && Widgets.Count == 0 && !_settings.Current.WelcomeDismissed;
 
     /// <summary>"Add widget": the picker (#204), then the chosen widget is added, scrolled to and briefly highlighted.</summary>
     public RelayCommand AddWidgetCommand { get; }
@@ -242,6 +255,11 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         {
             widget.Reload();
         }
+
+        foreach (var widget in Widgets.OfType<LogFeedWidgetViewModel>())
+        {
+            widget.Reload();
+        }
     }
 
     /// <summary>
@@ -312,6 +330,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
     private void OnSettingsChanged(object? sender, AppSettings settings)
     {
+        OnPropertyChanged(nameof(ShowWelcome));
+
         foreach (var widget in Widgets.OfType<SensorWidgetViewModel>())
         {
             widget.ApplyThresholds(settings);
@@ -319,6 +339,14 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     }
 
     // ---------------------------------------------------------------- widgets
+
+    /// <summary>Signed in: make the widgets now (see <see cref="SyncWidgets"/>).</summary>
+    private void OnSessionStateChanged(object? sender, EventArgs e)
+        => _dispatcher.InvokeAsync(() =>
+        {
+            SyncWidgets();
+            OnPropertyChanged(nameof(ShowWelcome));
+        });
 
     private void OnLayoutChanged(object? sender, EventArgs e)
     {
@@ -342,6 +370,13 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     /// <summary>Adds/removes/updates <see cref="Widgets"/> to match the persisted layout.</summary>
     private void SyncWidgets()
     {
+        // Nothing to load until signed in (#231): the widgets are made once
+        // there's a session, so none of them asks a server that isn't there.
+        if (!_session.IsConnected)
+        {
+            return;
+        }
+
         var models = _layout.Widgets;
         var incomingIds = models.Select(w => w.Id).ToHashSet();
 
@@ -373,10 +408,10 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>A Top widget row: a port opens its device on the Ports section with that port picked; a device opens Device Details.</summary>
+    /// <summary>The widget picker (#204): add the chosen widget and flash it so it can be found.</summary>
     private void AddWidget()
     {
-        var chosen = _windows.ShowWidgetPicker(WidgetPickerViewModel.DefaultCatalog(_settings.Current.EnablePinnedDevices));
+        var chosen = _windows.ShowWidgetPicker(WidgetPickerViewModel.DefaultCatalog(_settings.Current.EnablePinnedDevices, _graylog.IsConfigured));
         if (chosen is null)
         {
             return;
@@ -390,6 +425,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>A Top widget row: a port opens its device on the Ports section with that port picked; a device opens Device Details.</summary>
     private void OpenTopRow(TopRowViewModel row)
     {
         if (row.PortId is { } portId)
@@ -414,6 +450,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         DashboardWidgetTypes.TopInterfaces => new TopInterfacesWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
         DashboardWidgetTypes.TopErrors => new TopErrorsWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
         DashboardWidgetTypes.TopDevices => new TopDevicesWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
+        DashboardWidgetTypes.EventLog => new EventLogWidgetViewModel(_layout, model, _client, _devices, _settings, _deviceMonitor, _windows, _logger),
+        DashboardWidgetTypes.Graylog => new GraylogWidgetViewModel(_layout, model, _graylog, _devices, _settings, _deviceMonitor, _windows, _logger),
         "Sensors" => new SensorWidgetViewModel(_layout, model, OpenDeviceCommand),
 
         // A type from DashyNMS Mobile or a newer version: say so, rather than
@@ -424,8 +462,10 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _autoRefresh.Dispose();
+        Welcome.Dispose();
         _settings.Changed -= OnSettingsChanged;
         _layout.Changed -= OnLayoutChanged;
+        _session.StateChanged -= OnSessionStateChanged;
         _sensorMonitor.PollStarted -= OnPollStarted;
         _sensorMonitor.Polled -= OnPolled;
 

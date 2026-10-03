@@ -46,7 +46,6 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     private bool _showOther = true;
     private NeighbourItemViewModel? _selected;
     private (string Name, string? Mac)? _pendingSelection;
-    private string _viewSearchText = string.Empty;
 
     public NeighboursViewModel(
         INeighbourDirectory directory,
@@ -85,17 +84,20 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         DeleteViewCommand = new RelayCommand(parameter => DeleteView(ViewFrom(parameter)));
         SelectViewCommand = new RelayCommand(parameter =>
         {
-            if (ViewFrom(parameter) is { } view)
+            // The All chip has no definition: back to every neighbour.
+            if (parameter is NeighbourhoodChipViewModel { Definition: null })
+            {
+                ShowAll();
+            }
+            else if (ViewFrom(parameter) is { } view)
             {
                 SelectedView = Views.FirstOrDefault(v => v.Id == view.Id);
             }
         });
-        ShowViewListCommand = new RelayCommand(ShowViewList);
-        ClearViewSearchCommand = new RelayCommand(() => ViewSearchText = string.Empty);
-
-        ViewRows = new ObservableCollection<NeighbourViewRowViewModel>();
-        ViewRowsView = CollectionViewSource.GetDefaultView(ViewRows);
-        ViewRowsView.Filter = row => row is NeighbourViewRowViewModel r && r.Matches(ViewSearchText);
+        ToggleShowOnMapCommand = new RelayCommand(parameter => ToggleShowOnMap(ViewFrom(parameter)));
+        MoveLeftCommand = new RelayCommand(parameter => Move(ViewFrom(parameter), -1));
+        MoveRightCommand = new RelayCommand(parameter => Move(ViewFrom(parameter), +1));
+        Neighbourhoods = new ObservableCollection<NeighbourhoodChipViewModel>();
         OpenSwitchCommand = new RelayCommand(parameter =>
         {
             if (parameter is NeighbourItemViewModel item)
@@ -128,11 +130,14 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _selectedView, value))
             {
                 OnPropertyChanged(nameof(HasSelectedView));
-                OnPropertyChanged(nameof(IsViewListMode));
                 OnPropertyChanged(nameof(ViewRulesText));
 
                 SelectedItem = null;
                 RebuildItems();
+                foreach (var chip in Neighbourhoods)
+                {
+                    chip.IsSelected = chip.Definition?.Id == value?.Id;
+                }
 
                 if (value is not null && _snapshot is null && _hasLoadedOnce)
                 {
@@ -144,38 +149,20 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
 
     public bool HasSelectedView => _selectedView is not null;
 
-    /// <summary>No view open - the tab shows the table of every view, which is where clicking the tab itself lands.</summary>
-    public bool IsViewListMode => _selectedView is null;
+    /// <summary>
+    /// The chip row (#221): All, then each neighbourhood (a <see cref="NeighbourViewDefinition"/>,
+    /// called a neighbourhood in the UI), each with how many neighbours it holds.
+    /// </summary>
+    public ObservableCollection<NeighbourhoodChipViewModel> Neighbourhoods { get; }
 
-    /// <summary>The table of views: each one's name, rules, how much it matches now, and whether it's on the map.</summary>
-    public ObservableCollection<NeighbourViewRowViewModel> ViewRows { get; }
+    /// <summary>Back to every neighbour - the "All" chip, and clicking the tab itself.</summary>
+    public void ShowAll() => SelectedView = null;
 
-    public ICollectionView ViewRowsView { get; }
+    public RelayCommand ToggleShowOnMapCommand { get; }
 
-    public string ViewSearchText
-    {
-        get => _viewSearchText;
-        set
-        {
-            if (SetProperty(ref _viewSearchText, value))
-            {
-                ViewRowsView.Refresh();
-                OnPropertyChanged(nameof(HasViewSearch));
-                OnPropertyChanged(nameof(ShowNoViewMatches));
-            }
-        }
-    }
+    public RelayCommand MoveLeftCommand { get; }
 
-    public bool HasViewSearch => !string.IsNullOrEmpty(_viewSearchText);
-
-    public bool ShowNoViewMatches => HasViews && !ViewRowsView.Cast<object>().Any();
-
-    public RelayCommand ShowViewListCommand { get; }
-
-    public RelayCommand ClearViewSearchCommand { get; }
-
-    /// <summary>Back to the table of every view.</summary>
-    public void ShowViewList() => SelectedView = null;
+    public RelayCommand MoveRightCommand { get; }
 
     /// <summary>"System description contains X and switch starts with Y" - what the selected view looks for.</summary>
     public string ViewRulesText => _selectedView is { } view ? DescribeRules(view) : string.Empty;
@@ -334,7 +321,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         var rules = view.Rules.Where(r => !string.IsNullOrWhiteSpace(r.Value)).ToList();
         if (rules.Count == 0)
         {
-            return "No rules yet - edit the view to add some.";
+            return "No rules yet - edit the neighbourhood to add some.";
         }
 
         var text = string.Join(view.MatchAll ? " and " : " or ", rules.Select(r => r.IsSupported
@@ -354,7 +341,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         }
 
         OnPropertyChanged(nameof(HasViews));
-        RebuildViewRows();
+        RebuildNeighbourhoods();
 
         // The open view stays open (with its new rules, if edited); if it
         // was deleted, back to the table of views.
@@ -391,7 +378,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         {
             _snapshot = await _directory.GetAsync(refresh).ConfigureAwait(true);
             RebuildItems();
-            RebuildViewRows();
+            RebuildNeighbourhoods();
         }
         catch (LibreNmsApiException ex)
         {
@@ -410,9 +397,15 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         var selectedKey = _selected?.Key;
 
         Items.Clear();
-        if (_snapshot is { } snapshot && _selectedView is { } view)
+        if (_snapshot is { } snapshot)
         {
-            var rows = snapshot.For(view, id => _devices.Get(id)?.BestName)
+            // Every neighbour with "All" picked (#221); a neighbourhood's
+            // rules narrow it down.
+            var neighbours = _selectedView is { } view
+                ? snapshot.For(view, id => _devices.Get(id)?.BestName)
+                : snapshot.Neighbours;
+
+            var rows = neighbours
                 .Select(n => new NeighbourItemViewModel(
                     n,
                     snapshot.PortOf(n),
@@ -421,8 +414,11 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
                     snapshot.IpOf(n)));
 
             // One neighbour seen on several ports shows only its live
-            // link(s) - not the one on a switch that's gone offline.
-            foreach (var row in Neighbours.PreferLiveLinks(rows, r => r.Neighbour, r => r.IsLinkUp, r => !r.IsSwitchDown))
+            // link(s) - not the one on a switch that's gone offline. Down
+            // ones first, as on mobile - what needs a look comes to the top.
+            foreach (var row in Neighbours.PreferLiveLinks(rows, r => r.Neighbour, r => r.IsLinkUp, r => !r.IsSwitchDown)
+                         .OrderBy(r => r.State == NeighbourState.Down ? 0 : r.State == NeighbourState.Up ? 1 : 2)
+                         .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
             {
                 Items.Add(row);
             }
@@ -475,7 +471,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
 
     private NeighbourViewDefinition? ViewFrom(object? parameter) => parameter switch
     {
-        NeighbourViewRowViewModel row => row.Definition,
+        NeighbourhoodChipViewModel chip => chip.Definition,
         NeighbourViewDefinition definition => definition,
         _ => _selectedView,
     };
@@ -499,7 +495,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     private void DeleteView(NeighbourViewDefinition? view)
     {
         if (view is null
-            || !_windows.Confirm("Delete view", $"Delete the \"{view.Name}\" view? This only removes the view - nothing changes in LibreNMS."))
+            || !_windows.Confirm("Delete neighbourhood", $"Delete the \"{view.Name}\" neighbourhood? This only removes the filter - nothing changes in LibreNMS."))
         {
             return;
         }
@@ -508,19 +504,59 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         _settings.Save();
     }
 
-    /// <summary>The views table - with how many neighbours each matches, once the neighbours are in.</summary>
-    private void RebuildViewRows()
+    /// <summary>The chip's "Show on network map" - draw this neighbourhood's neighbours on the map.</summary>
+    private void ToggleShowOnMap(NeighbourViewDefinition? view)
     {
-        ViewRows.Clear();
-        foreach (var view in Views)
+        if (view is null || _settings.Current.NeighbourViews.FirstOrDefault(v => v.Id == view.Id) is not { } stored)
         {
-            int? count = _snapshot is { } snapshot
-                ? snapshot.For(view, id => _devices.Get(id)?.BestName).Select(Neighbours.IdentityKey).Distinct(StringComparer.Ordinal).Count()
-                : null;
-            ViewRows.Add(new NeighbourViewRowViewModel(view, DescribeRules(view), count));
+            return;
         }
 
-        OnPropertyChanged(nameof(ShowNoViewMatches));
+        // A copy, so the settings' list changes and every listener (this
+        // tab, the network map) notices.
+        var updated = stored.Clone();
+        updated.ShowOnMap = !updated.ShowOnMap;
+        var views = _settings.Current.NeighbourViews;
+        views[views.IndexOf(stored)] = updated;
+        _settings.Save();
+    }
+
+    /// <summary>The chip's "Move left" / "Move right" - neighbourhoods keep the order they're given.</summary>
+    private void Move(NeighbourViewDefinition? view, int by)
+    {
+        var views = _settings.Current.NeighbourViews;
+        var index = view is null ? -1 : views.FindIndex(v => v.Id == view.Id);
+        var target = index + by;
+        if (index < 0 || target < 0 || target >= views.Count)
+        {
+            return;
+        }
+
+        (views[index], views[target]) = (views[target], views[index]);
+        _settings.Save();
+    }
+
+    /// <summary>The chip row: All, then each neighbourhood with how many neighbours it holds, once they're in.</summary>
+    private void RebuildNeighbourhoods()
+    {
+        var snapshot = _snapshot;
+        int? CountOf(IEnumerable<Neighbour> neighbours) => snapshot is null
+            ? null
+            : neighbours.Select(Neighbours.IdentityKey).Distinct(StringComparer.Ordinal).Count();
+
+        Neighbourhoods.Clear();
+        Neighbourhoods.Add(new NeighbourhoodChipViewModel(null, "All", CountOf(snapshot?.Neighbours ?? Array.Empty<Neighbour>()), _selectedView is null, isFirst: true, isLast: true));
+        for (var i = 0; i < Views.Count; i++)
+        {
+            var view = Views[i];
+            Neighbourhoods.Add(new NeighbourhoodChipViewModel(
+                view,
+                view.Name,
+                snapshot is null ? null : CountOf(snapshot.For(view, id => _devices.Get(id)?.BestName)),
+                _selectedView?.Id == view.Id,
+                isFirst: i == 0,
+                isLast: i == Views.Count - 1));
+        }
     }
 
     /// <summary>Shift-click on a pill: show only that one.</summary>
@@ -798,31 +834,54 @@ public sealed class NeighbourItemViewModel
         value <= 0 ? "0" : value.ToString(value < 10 ? "0.#" : "N0", CultureInfo.CurrentCulture) + "/s";
 }
 
-/// <summary>One row in the Neighbours tab's table of views.</summary>
-public sealed class NeighbourViewRowViewModel
+/// <summary>
+/// One chip in the Neighbours tab's row (#221): All (no definition), or a
+/// neighbourhood - a <see cref="NeighbourViewDefinition"/>, stored as before
+/// so mobile reads the same ones - with how many neighbours it holds.
+/// </summary>
+public sealed class NeighbourhoodChipViewModel : ObservableObject
 {
-    public NeighbourViewRowViewModel(NeighbourViewDefinition definition, string rulesText, int? matchCount)
+    private bool _isSelected;
+
+    public NeighbourhoodChipViewModel(NeighbourViewDefinition? definition, string name, int? count, bool isSelected, bool isFirst, bool isLast)
     {
         Definition = definition;
-        RulesText = rulesText;
-        MatchCount = matchCount;
+        Name = name;
+        Count = count;
+        _isSelected = isSelected;
+        IsFirst = isFirst;
+        IsLast = isLast;
     }
 
-    public NeighbourViewDefinition Definition { get; }
+    /// <summary>Null for the All chip.</summary>
+    public NeighbourViewDefinition? Definition { get; }
 
-    public string Name => Definition.Name;
+    public bool IsNeighbourhood => Definition is not null;
 
-    public string RulesText { get; }
+    public string Name { get; }
 
-    /// <summary>How many neighbours it lists right now - null until they've loaded.</summary>
-    public int? MatchCount { get; }
+    /// <summary>How many neighbours it holds right now - null until they've loaded.</summary>
+    public int? Count { get; }
 
-    public string MatchCountText => MatchCount?.ToString("N0", CultureInfo.CurrentCulture) ?? "...";
+    public string CountText => Count?.ToString("N0", CultureInfo.CurrentCulture) ?? string.Empty;
 
-    public string OnMapText => Definition.ShowOnMap ? "Yes" : "No";
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
 
-    public bool Matches(string? term) =>
-        string.IsNullOrWhiteSpace(term)
-        || Name.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase)
-        || RulesText.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase);
+    public bool IsFirst { get; }
+
+    public bool IsLast { get; }
+
+    public bool CanMoveLeft => IsNeighbourhood && !IsFirst;
+
+    public bool CanMoveRight => IsNeighbourhood && !IsLast;
+
+    /// <summary>"Show on network map", ticked in the chip's menu.</summary>
+    public bool ShowsOnMap => Definition?.ShowOnMap == true;
+
+    /// <summary>The neighbourhood's rules, as its tooltip.</summary>
+    public string? RulesText => Definition is { } definition ? NeighboursViewModel.DescribeRules(definition) : "Every neighbour your switches see over LLDP or CDP";
 }

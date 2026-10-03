@@ -44,7 +44,7 @@
                          AcceptsTab="True"
                          TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto"
-                         FontFamily="Consolas"
+                         FontFamily="{StaticResource MonoFont}"
                          FontSize="12"
                          Height="380"
                          Margin="0,0,0,14" />

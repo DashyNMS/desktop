@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.Core.Models;
 using DesktopNMS.ViewModels;
 
@@ -185,7 +186,7 @@ public sealed class NeighbourGraph : FrameworkElement
 
     private static void DrawLabel(DrawingContext dc, string value, double centerX, double top, double maxWidth, double size, FontWeight weight, Brush brush, double dpi)
     {
-        var formatted = new FormattedText(value, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, weight, FontStretches.Normal), size, brush, dpi)
+        var formatted = new FormattedText(value, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(BrandFonts.Body, FontStyles.Normal, weight, FontStretches.Normal), size, brush, dpi)
         {
             MaxTextWidth = maxWidth,
             MaxLineCount = 1,
@@ -197,7 +198,7 @@ public sealed class NeighbourGraph : FrameworkElement
 
     private static void DrawPill(DrawingContext dc, string value, Point at, Brush fill, Brush border, Brush brush, double dpi)
     {
-        var formatted = new FormattedText(value, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface("Segoe UI"), 11, brush, dpi)
+        var formatted = new FormattedText(value, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(BrandFonts.Body, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), 11, brush, dpi)
         {
             MaxTextWidth = 160,
             MaxLineCount = 1,

@@ -64,6 +64,12 @@ public interface ILibreNmsClient
     /// <summary>Forgets the current connection.</summary>
     void Disconnect();
 
+    /// <summary>A request failed on a certificate that isn't trusted yet (see <see cref="LibreNmsTransport.CertificateRejected"/>).</summary>
+    event EventHandler<Security.CertificateDetails>? CertificateRejected;
+
+    /// <summary>Accept this certificate from now on, without signing in again.</summary>
+    void TrustCertificate(string fingerprint);
+
     /// <summary>
     /// Verifies the address and token by calling /api/v0/system.
     /// Never throws; inspect the result.

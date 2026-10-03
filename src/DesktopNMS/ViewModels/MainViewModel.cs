@@ -67,7 +67,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string _statusMessage = "Starting...";
     private string? _errorMessage;
     private bool _isBusy;
+    private bool _isTokenRejected;
     private bool _isConnected;
+    private bool _isSigningIn;
     private bool _isBulkUpdating;
     private DateTimeOffset? _lastUpdated;
     private string _searchText = string.Empty;
@@ -193,7 +195,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectNeighboursTabCommand = new RelayCommand(() =>
         {
             SelectedTab = MainTab.Neighbours;
-            _neighbours.ShowViewList();
+            _neighbours.ShowAll();
         });
         SelectNeighbourViewCommand = new RelayCommand(parameter =>
         {
@@ -885,6 +887,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public bool HasError => !string.IsNullOrEmpty(_errorMessage);
 
+    /// <summary>The last refresh failed because the server turned the API token down - the tray says to sign in again (#232).</summary>
+    public bool IsTokenRejected
+    {
+        get => _isTokenRejected;
+        private set => SetProperty(ref _isTokenRejected, value);
+    }
+
     public bool IsBusy
     {
         get => _isBusy;
@@ -895,6 +904,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 RaiseCommandStates();
             }
         }
+    }
+
+    /// <summary>At launch, while the saved session signs back in: the main window shows the beating mark instead of empty tabs (#228).</summary>
+    public bool IsSigningIn
+    {
+        get => _isSigningIn;
+        set => SetProperty(ref _isSigningIn, value);
     }
 
     public bool IsConnected
@@ -911,22 +927,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public string ServerDescription
-    {
-        get
-        {
-            var connection = _session.Connection;
-            if (connection is null)
-            {
-                return "Not connected";
-            }
-
-            var version = _session.ServerInfo?.LocalVersion;
-            return version is null
-                ? connection.WebRoot.Host
-                : $"{connection.WebRoot.Host} - LibreNMS {version}";
-        }
-    }
+    /// <summary>When the last successful refresh finished - the tray's "Checked 12s ago" (#232).</summary>
+    public DateTimeOffset? LastUpdatedAt => _lastUpdated;
 
     public string LastUpdatedText => _lastUpdated is null
         ? "never"
@@ -1302,6 +1304,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         if (!result.Succeeded)
         {
+            IsTokenRejected = result.IsAuthenticationFailure;
             ErrorMessage = result.ErrorMessage;
             StatusMessage = "Last refresh failed.";
 
@@ -1314,6 +1317,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        IsTokenRejected = false;
         ErrorMessage = null;
         _lastUpdated = result.CompletedAt;
 
@@ -1910,14 +1914,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         OnFilterChanged();
     }
 
-    private void OpenSettings()
+    private void OpenSettings() => OpenSettingsAt(null);
+
+    /// <summary>Settings, opened on <paramref name="section"/> (or where it was) - and everything that needs refreshing once it closes.</summary>
+    public void OpenSettingsAt(SettingsSection? section)
     {
-        if (!_windows.ShowSettingsDialog())
+        if (!_windows.ShowSettingsDialog(section))
         {
             return;
         }
 
-        OnPropertyChanged(nameof(ServerDescription));
 
         // The device name style may have changed, and the device list is what
         // backs it, so pull both through before refreshing.
@@ -1929,34 +1935,26 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void SignOut()
     {
-        if (!_windows.Confirm("Sign out", "Sign out and forget the stored API token?"))
+        // In plain words what goes (#231) - signing out is a fresh start.
+        if (!_windows.Confirm(
+                "Sign out",
+                "Signing out removes everything DashyNMS has saved on this computer: your sign-in, settings, dashboards, maps, and Graylog and Unimus connections."
+                + Environment.NewLine + Environment.NewLine
+                + "DashyNMS then restarts, ready for you to sign in again."))
         {
             return;
         }
 
         _session.SignOut(forgetToken: true);
 
-        // The next server may reuse alert ids and rule ids, so the memory from
-        // the old one is worse than useless.
-        _monitor.ResetHistory();
-        _rules.Clear();
-        _devices.Invalidate();
-        _groupMembership.Clear();
-
-        Alerts.Clear();
-        _index.Clear();
-        SelectedAlert = null;
-        SetDeviceFilter(null, null);
-        RaiseCountsChanged();
-        RebuildGroupFilter();
-
-        StatusMessage = "Signed out.";
-
-        if (_windows.ShowSignInDialog())
-        {
-            OnConnected();
-        }
+        // Nothing from the server may stay browsable (#231): the app starts
+        // again from scratch, straight to sign-in - every tab, cache, monitor
+        // and Device Details window goes with the old process.
+        SignedOut?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>Raised once the session and stored token are gone - the app restarts to the sign-in window (#231).</summary>
+    public event EventHandler? SignedOut;
 
     // ---------------------------------------------------------------- helpers
 
@@ -2062,7 +2060,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void UpdateConnectionState()
     {
         IsConnected = _session.IsConnected;
-        OnPropertyChanged(nameof(ServerDescription));
 
         if (!IsConnected)
         {

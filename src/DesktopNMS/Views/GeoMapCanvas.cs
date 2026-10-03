@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.Converters;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Topology;
@@ -291,7 +292,7 @@ public sealed class GeoMapCanvas : FrameworkElement
                 count.ToString(CultureInfo.CurrentCulture),
                 CultureInfo.CurrentUICulture,
                 FlowDirection.LeftToRight,
-                new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal),
+                new Typeface(BrandFonts.Body, FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal),
                 count >= 100 ? 9 : 10,
                 text,
                 dpi);
@@ -313,7 +314,7 @@ public sealed class GeoMapCanvas : FrameworkElement
             name,
             CultureInfo.CurrentUICulture,
             FlowDirection.LeftToRight,
-            new Typeface("Segoe UI"),
+            new Typeface(BrandFonts.Body, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             11,
             Resource("TextPrimaryBrush", Brushes.White),
             dpi);

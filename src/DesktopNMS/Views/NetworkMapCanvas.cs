@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.Converters;
 using DesktopNMS.Core.Models;
 using DesktopNMS.ViewModels;
@@ -43,7 +44,7 @@ public sealed class NetworkMapCanvas : FrameworkElement
         nameof(RenderVersion), typeof(int), typeof(NetworkMapCanvas),
         new FrameworkPropertyMetadata(0, FrameworkPropertyMetadataOptions.AffectsRender, (d, _) => ((NetworkMapCanvas)d)._labels.Clear()));
 
-    /// <summary>Settings, Appearance, "Jiggle physics on maps" (#207).</summary>
+    /// <summary>Settings, Maps, "Jiggle physics" (#207, #220).</summary>
     public static readonly DependencyProperty JiggleEnabledProperty = DependencyProperty.Register(
         nameof(JiggleEnabled), typeof(bool), typeof(NetworkMapCanvas),
         new FrameworkPropertyMetadata(false, (d, e) => ((NetworkMapCanvas)d)._jiggle.IsEnabled = (bool)e.NewValue));
@@ -272,7 +273,7 @@ public sealed class NetworkMapCanvas : FrameworkElement
                 node.Name,
                 CultureInfo.CurrentUICulture,
                 FlowDirection.LeftToRight,
-                new Typeface("Segoe UI"),
+                new Typeface(BrandFonts.Body, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
                 11,
                 Resource("TextPrimaryBrush", Brushes.White),
                 VisualTreeHelper.GetDpi(this).PixelsPerDip);

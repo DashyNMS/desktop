@@ -108,7 +108,7 @@
                     <Button Command="{Binding AddRuleCommand}"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Add rule">
-                        <TextBlock Text="+" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" />
+                        <TextBlock Text="+" FontFamily="{StaticResource BodyFont}" FontSize="20" FontWeight="SemiBold" />
                     </Button>
                 </StackPanel>
             </Grid>
@@ -258,11 +258,7 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <TextBlock Text="Loading rules..."
-                       Style="{StaticResource SubtleTextStyle}"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
+            <views:LoadingOverlay Text="Loading rules…" Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
 
             <TextBlock Text="No alert rules yet - use + to create one."
                        Style="{StaticResource SubtleTextStyle}"
