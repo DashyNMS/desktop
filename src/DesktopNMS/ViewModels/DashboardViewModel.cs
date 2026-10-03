@@ -44,6 +44,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     private readonly DeviceMonitor _deviceMonitor;
     private readonly ILibreNmsClient _client;
     private readonly IFleetPorts _fleetPorts;
+    private readonly IGraylogApi _graylog;
     private readonly ILogger<DashboardViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<string, DashboardWidgetViewModel> _widgetIndex = new();
@@ -73,9 +74,11 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         DeviceMonitor deviceMonitor,
         ILibreNmsClient client,
         IFleetPorts fleetPorts,
+        IGraylogApi graylog,
         ILogger<DashboardViewModel> logger)
     {
         _fleetPorts = fleetPorts;
+        _graylog = graylog;
         _sensorMonitor = sensorMonitor;
         _session = session;
         _settings = settings;
@@ -242,6 +245,11 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         {
             widget.Reload();
         }
+
+        foreach (var widget in Widgets.OfType<LogFeedWidgetViewModel>())
+        {
+            widget.Reload();
+        }
     }
 
     /// <summary>
@@ -373,10 +381,10 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>A Top widget row: a port opens its device on the Ports section with that port picked; a device opens Device Details.</summary>
+    /// <summary>The widget picker (#204): add the chosen widget and flash it so it can be found.</summary>
     private void AddWidget()
     {
-        var chosen = _windows.ShowWidgetPicker(WidgetPickerViewModel.DefaultCatalog(_settings.Current.EnablePinnedDevices));
+        var chosen = _windows.ShowWidgetPicker(WidgetPickerViewModel.DefaultCatalog(_settings.Current.EnablePinnedDevices, _graylog.IsConfigured));
         if (chosen is null)
         {
             return;
@@ -390,6 +398,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>A Top widget row: a port opens its device on the Ports section with that port picked; a device opens Device Details.</summary>
     private void OpenTopRow(TopRowViewModel row)
     {
         if (row.PortId is { } portId)
@@ -414,6 +423,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         DashboardWidgetTypes.TopInterfaces => new TopInterfacesWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
         DashboardWidgetTypes.TopErrors => new TopErrorsWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
         DashboardWidgetTypes.TopDevices => new TopDevicesWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
+        DashboardWidgetTypes.EventLog => new EventLogWidgetViewModel(_layout, model, _client, _devices, _settings, _deviceMonitor, _windows, _logger),
+        DashboardWidgetTypes.Graylog => new GraylogWidgetViewModel(_layout, model, _graylog, _devices, _settings, _deviceMonitor, _windows, _logger),
         "Sensors" => new SensorWidgetViewModel(_layout, model, OpenDeviceCommand),
 
         // A type from DashyNMS Mobile or a newer version: say so, rather than

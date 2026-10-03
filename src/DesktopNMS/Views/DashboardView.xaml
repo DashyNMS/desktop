@@ -1068,6 +1068,168 @@
             </DataTemplate.Triggers>
         </DataTemplate>
 
+        <!-- ======================== Event log and Graylog widget body ======================== -->
+        <!-- Two-line rows (#202, #203): who it's about with a tag (the event
+             type, or Graylog's level with its dot), the message underneath and
+             the time on the right. Entries new since the last refresh are
+             tinted for a few seconds. The filters are in the title bar - see
+             the LogFeedHeader template below. -->
+        <DataTemplate DataType="{x:Type vm:LogFeedWidgetViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBox Grid.Row="0"
+                         Style="{StaticResource SearchTextBoxStyle}"
+                         Tag="{Binding SearchHint}"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=500}"
+                         ToolTip="{Binding SearchHint}"
+                         Margin="12,0,12,6"
+                         Visibility="{Binding IsSearchOpen, Converter={StaticResource BoolToVisibility}}" />
+
+                <Grid Grid.Row="1">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding HasRows, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl ItemsSource="{Binding Rows}" Margin="6,0,6,6">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border x:Name="NewTint" CornerRadius="6" Background="Transparent">
+                                        <Button Style="{StaticResource WidgetRowButtonStyle}"
+                                                Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                ToolTip="{Binding FullTimeText}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,0">
+                                                    <Ellipse Style="{StaticResource WidgetDotStyle}"
+                                                             Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}"
+                                                             Visibility="{Binding HasSeverity, Converter={StaticResource BoolToVisibility}}" />
+                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    <Border Background="{StaticResource SurfaceAltBrush}"
+                                                            CornerRadius="4"
+                                                            Padding="5,0"
+                                                            Margin="6,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            Visibility="{Binding HasTag, Converter={StaticResource BoolToVisibility}}">
+                                                        <TextBlock Text="{Binding Tag}" FontSize="11" Style="{StaticResource SubtleTextStyle}" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding Message}" Style="{StaticResource WidgetSubtitleStyle}" Margin="0,1,8,0" />
+                                                <TextBlock Grid.Column="1" Grid.RowSpan="2" Text="{Binding TimeText}" TextAlignment="Right" VerticalAlignment="Center" Style="{StaticResource SubtleTextStyle}" />
+                                            </Grid>
+                                        </Button>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsNew}" Value="True">
+                                            <Setter TargetName="NewTint" Property="Background" Value="{StaticResource AccentSubtleBrush}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <TextBlock Text="Loading…"
+                               Style="{StaticResource WidgetStateTextStyle}"
+                               Visibility="{Binding ShowLoading, Converter={StaticResource BoolToVisibility}}" />
+
+                    <TextBlock Text="{Binding EmptyText}"
+                               Style="{StaticResource WidgetStateTextStyle}"
+                               Visibility="{Binding ShowEmptyMessage, Converter={StaticResource BoolToVisibility}}" />
+                </Grid>
+
+                <TextBlock Grid.Row="2"
+                           Text="{Binding ErrorMessage}"
+                           TextWrapping="Wrap"
+                           FontSize="11"
+                           Margin="12,0,12,6"
+                           Foreground="{StaticResource CriticalBrush}"
+                           Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- A log feed widget's title-bar controls: the Event log's type, or
+             Graylog's stream and time range; the search magnifier; the count. -->
+        <DataTemplate DataType="{x:Type vm:LogFeedHeader}">
+            <StackPanel Orientation="Horizontal">
+                <ComboBox ItemsSource="{Binding Widget.TypeChoices}"
+                          SelectedItem="{Binding Widget.SelectedType}"
+                          DisplayMemberPath="Label"
+                          FontSize="12"
+                          MinWidth="96"
+                          MaxWidth="150"
+                          Height="28"
+                          Margin="0,0,4,0"
+                          VerticalContentAlignment="Center"
+                          ToolTip="Only this type of event"
+                          Visibility="{Binding Widget.OffersTypeFilter, Converter={StaticResource BoolToVisibility}}" />
+                <ComboBox ItemsSource="{Binding Widget.StreamChoices}"
+                          SelectedItem="{Binding Widget.SelectedStream}"
+                          DisplayMemberPath="Label"
+                          FontSize="12"
+                          MinWidth="96"
+                          MaxWidth="150"
+                          Height="28"
+                          Margin="0,0,4,0"
+                          VerticalContentAlignment="Center"
+                          ToolTip="Graylog stream"
+                          Visibility="{Binding Widget.OffersStream, Converter={StaticResource BoolToVisibility}}" />
+                <ComboBox ItemsSource="{Binding Widget.Ranges}"
+                          SelectedItem="{Binding Widget.SelectedRange}"
+                          DisplayMemberPath="Label"
+                          FontSize="12"
+                          MinWidth="72"
+                          Height="28"
+                          Margin="0,0,4,0"
+                          VerticalContentAlignment="Center"
+                          ToolTip="How far back"
+                          Visibility="{Binding Widget.OffersStream, Converter={StaticResource BoolToVisibility}}" />
+                <ToggleButton IsChecked="{Binding Widget.IsSearchOpen}"
+                              Width="28"
+                              Height="28"
+                              Margin="0,0,4,0"
+                              Cursor="Hand"
+                              ToolTip="Search">
+                    <ToggleButton.Template>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border x:Name="Back" Background="Transparent" CornerRadius="6">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Back" Property="Background" Value="{StaticResource SurfaceAltBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Back" Property="Background" Value="{StaticResource AccentSubtleBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </ToggleButton.Template>
+                    <TextBlock Text="&#xE721;"
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="13"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                </ToggleButton>
+                <ComboBox ItemsSource="{Binding CountChoices}"
+                          SelectedItem="{Binding Widget.SelectedCount}"
+                          FontSize="12"
+                          MinWidth="56"
+                          Height="28"
+                          VerticalContentAlignment="Center"
+                          ToolTip="How many to show" />
+            </StackPanel>
+        </DataTemplate>
+
         <!-- ======================== Unsupported widget body ======================== -->
         <!-- A widget type from DashyNMS Mobile or a newer version (#196): say
              so plainly. Its settings are kept, so it still works where it was made. -->

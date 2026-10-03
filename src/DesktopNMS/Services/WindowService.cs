@@ -160,6 +160,34 @@ public sealed class WindowService : IWindowService
         return window.ShowDialog() == true ? viewModel.Chosen : null;
     }
 
+    public void ShowDeviceEventLog(int deviceId)
+    {
+        ShowDeviceDetail(deviceId);
+
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window)
+            && window.DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.SelectEventLogCommand.Execute(null);
+        }
+    }
+
+    public void ShowDeviceGraylog(int deviceId)
+    {
+        ShowDeviceDetail(deviceId);
+
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window)
+            && window.DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.SelectGraylogCommand.Execute(null);
+        }
+    }
+
+    public void ShowLogsTab()
+    {
+        _services.GetRequiredService<MainViewModel>().SelectLogsTabCommand.Execute(null);
+        ShowMain();
+    }
+
     public void ShowDevicePort(int deviceId, int portId)
     {
         ShowDeviceDetail(deviceId);
