@@ -12,6 +12,7 @@ using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.CustomMaps;
 using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Topology;
+using DesktopNMS.Core.Updates;
 using DesktopNMS.Demo;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Security;
@@ -220,6 +221,11 @@ public partial class App : Application
             {
                 ScheduleTrayUpdate();
             }
+
+            if (args.PropertyName is nameof(MainViewModel.IsConnected) && _mainViewModel.IsConnected)
+            {
+                ScheduleWhatsNew();
+            }
         };
 
         // Restoring the session touches the network, so it must not block the
@@ -279,6 +285,7 @@ public partial class App : Application
 
         _monitor?.Start();
         _mainViewModel.OnConnected();
+        ScheduleWhatsNew();
         UpdateTrayStatus();
 
         if (_demo.IsActive)
@@ -382,6 +389,14 @@ public partial class App : Application
 
         var updates = _services.GetRequiredService<IUpdateCheckService>();
 
+        // A fresh install has nothing new to it (#227). Before OnStartup, so
+        // it's judged on the settings as they were found.
+        var settings = _services.GetRequiredService<ISettingsStore>();
+        if (WhatsNewNotes.MarkSeenIfFreshInstall(settings.Current, updates.CurrentVersion))
+        {
+            settings.SaveQuietly();
+        }
+
         // The installer replaces DashyNMS.exe, so get out of its way; it
         // reopens the app on the new version once it's done.
         updates.InstallStarted += (_, _) => Dispatcher.InvokeAsync(ShutdownApplication);
@@ -392,6 +407,46 @@ public partial class App : Application
         var timer = new DispatcherTimer { Interval = TimeSpan.FromHours(6) };
         timer.Tick += (_, _) => _ = CheckForUpdatesAsync();
         timer.Start();
+    }
+
+    private bool _whatsNewScheduled;
+
+    /// <summary>
+    /// The first launch of a new release, once connected (#227): its "What's
+    /// new", over the main window - never over sign-in, and not while the app
+    /// sits in the tray, where it waits for the window to be opened.
+    /// </summary>
+    private void ScheduleWhatsNew()
+    {
+        if (_whatsNewScheduled || _services is null || _mainViewModel?.IsConnected != true)
+        {
+            return;
+        }
+
+        var settings = _services.GetRequiredService<ISettingsStore>();
+        var version = _services.GetRequiredService<IUpdateCheckService>().CurrentVersion;
+        if (!WhatsNewNotes.IsDue(BundledWhatsNew.Current, version, settings.Current.WhatsNewShownVersion))
+        {
+            return;
+        }
+
+        _whatsNewScheduled = true;
+        _ = ShowWhatsNewWhenReadyAsync();
+    }
+
+    private async Task ShowWhatsNewWhenReadyAsync()
+    {
+        // Let the connection settle and the sign-in window close first.
+        while (!_isShuttingDown && (_signInOpen || _mainViewModel?.IsSigningIn == true || _mainWindow is not { IsVisible: true, WindowState: not WindowState.Minimized }))
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(true);
+        }
+
+        await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(true);
+        if (!_isShuttingDown)
+        {
+            _services?.GetRequiredService<IWindowService>().ShowWhatsNew();
+        }
     }
 
     private async Task CheckForUpdatesAsync()
@@ -650,6 +705,7 @@ public partial class App : Application
         {
             _monitor?.Start();
             _mainViewModel.OnConnected();
+            ScheduleWhatsNew();
             UpdateTrayStatus();
         }
     }
