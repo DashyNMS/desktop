@@ -11,12 +11,23 @@
 #define AppName "DashyNMS"
 #define AppPublisher "DashyNMS"
 #define AppExeName "DashyNMS.exe"
-#define AppSourceDir "..\publish"
+; /DAppSourceDir=... builds from another publish folder.
+#ifndef AppSourceDir
+  #define AppSourceDir "..\publish"
+#endif
 #define AppIcon "..\src\DesktopNMS\Assets\app.ico"
 
 ; Falls back to 0.2.0.0 if not supplied via /DAppVersion=x.y.z on the ISCC command line.
 #ifndef AppVersion
   #define AppVersion "0.2.0.0"
+#endif
+
+; The setup file's own version info must be numbers only, so a preview's
+; "1.1.0-preview.7" becomes 1.1.0 there (the full text is still shown).
+#if Pos("-", AppVersion) > 0
+  #define NumericVersion Copy(AppVersion, 1, Pos("-", AppVersion) - 1)
+#else
+  #define NumericVersion AppVersion
 #endif
 
 [Setup]
@@ -29,6 +40,17 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName}
 AppPublisher={#AppPublisher}
+; Shown in Settings > Apps for DashyNMS (#64).
+AppPublisherURL=https://dashynms.pckp.net/
+AppSupportURL=https://github.com/DashyNMS/desktop/issues
+AppUpdatesURL=https://github.com/DashyNMS/desktop/releases
+VersionInfoVersion={#NumericVersion}
+VersionInfoProductVersion={#NumericVersion}
+VersionInfoProductTextVersion={#AppVersion}
+VersionInfoDescription={#AppName} Setup
+VersionInfoCopyright=Copyright (c) 2026 Thomas Pickup
+; Toast notifications need Windows 10 1809 - see docs/DEVELOPMENT.md.
+MinVersion=10.0.17763
 DefaultDirName={localappdata}\Programs\{#AppName}
 ; No [Icons] entry uses {group}, so there is nothing to name a Start Menu
 ; folder after; this keeps a single loose Start Menu shortcut rather than a
@@ -77,3 +99,55 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: deskto
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
+
+[Registry]
+; "Start with Windows" is the app's own HKCU Run value - gone with the app,
+; rather than left pointing at a deleted exe (#64).
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "{#AppName}"; Flags: uninsdeletevalue dontcreatekey
+
+[UninstallRun]
+; The app removes the notification registration Windows keeps for it (#64) -
+; it made it, so it knows exactly what to remove. Runs before the exe goes.
+Filename: "{app}\{#AppExeName}"; Parameters: "--uninstall"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveNotificationRegistration"
+
+[UninstallDelete]
+; The Start Menu shortcut the app makes for itself when setup's was unticked.
+Type: files; Name: "{userprograms}\{#AppName}.lnk"
+
+[Code]
+const
+  AppRunningMutex = 'Local\DashyNMS.SingleInstance';
+
+// Uninstall can't close a running app the way setup does, and a running
+// DashyNMS keeps its exe locked - so ask for it to be closed first (#64).
+function InitializeUninstall(): Boolean;
+begin
+  Result := True;
+  while CheckForMutexes(AppRunningMutex) and not UninstallSilent() do
+  begin
+    if MsgBox('DashyNMS is still running.' + #13#10#13#10 +
+              'Exit it from its icon by the clock (right-click, Exit), then click OK.',
+              mbInformation, MB_OKCANCEL) = IDCANCEL then
+    begin
+      Result := False;
+      Exit;
+    end;
+  end;
+end;
+
+// Settings, dashboards, maps, the saved sign-in and the map tile cache stay
+// unless asked (#64), so a reinstall picks up where it left off. A silent
+// uninstall always keeps them.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if (CurUninstallStep = usPostUninstall) and not UninstallSilent() then
+  begin
+    if MsgBox('Also remove your DashyNMS settings, dashboards, maps and saved sign-in from this computer?' + #13#10#13#10 +
+              'Keep them if you might install DashyNMS again.',
+              mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+    begin
+      DelTree(ExpandConstant('{userappdata}\{#AppName}'), True, True, True);
+      DelTree(ExpandConstant('{localappdata}\{#AppName}'), True, True, True);
+    end;
+  end;
+end;

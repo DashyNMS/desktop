@@ -71,6 +71,16 @@ app recreates a minimal one for itself the first time it sends a Windows
 notification, since Windows requires an app to have one before it will show
 up in Settings > Notifications (see `ToastIdentity.cs`).
 
+Upgrading is installing a newer setup over the top: the same AppId reuses
+the install folder and the shortcut choices, and setup closes a running copy
+through the Restart Manager. The in-app updater does exactly this, silently.
+
+Uninstalling asks you to exit DashyNMS first if it's running (uninstall can't
+close it the way setup can), removes the "start with Windows" Run value, and
+runs `DashyNMS.exe --uninstall` to remove the notification registration. It
+then asks whether to remove `%APPDATA%\DashyNMS` and `%LOCALAPPDATA%\DashyNMS`
+too, defaulting to keep. A silent uninstall (`/VERYSILENT`) always keeps them.
+
 ## Layout
 
 ```
