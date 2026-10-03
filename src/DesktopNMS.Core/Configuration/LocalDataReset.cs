@@ -15,8 +15,8 @@ public static class LocalDataReset
     /// <summary>
     /// Deletes everything in <paramref name="dataDirectory"/> except
     /// <see cref="Kept"/>, and the whole of <paramref name="cacheDirectory"/>.
-    /// Carries on past anything it can't delete and returns those paths, so
-    /// one locked file doesn't leave the rest behind.
+    /// Carries on past anything it can't delete and returns those paths, each
+    /// with the reason, so one locked file doesn't leave the rest behind.
     /// </summary>
     public static IReadOnlyList<string> Wipe(string dataDirectory, string? cacheDirectory)
     {
@@ -54,7 +54,7 @@ public static class LocalDataReset
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            failed.Add(path);
+            failed.Add(path + " (" + ex.GetType().Name + ": " + ex.Message + ")");
         }
     }
 }

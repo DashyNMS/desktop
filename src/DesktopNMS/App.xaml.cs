@@ -34,6 +34,9 @@ public partial class App : Application
 
     /// <summary>Set by Sign out (#231): on the way out, wipe everything saved and start a fresh copy.</summary>
     private bool _resetOnExit;
+
+    /// <summary>Passed to the fresh copy after Sign out, with the closing copy's process id (#231).</summary>
+    private const string FreshStartArgument = "--fresh-start";
     private EventWaitHandle? _showWindowSignal;
     private CancellationTokenSource? _showWindowListener;
     private ServiceProvider? _services;
@@ -64,6 +67,17 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
         AsyncRelayCommand.UnhandledError += OnCommandError;
+
+        // The fresh copy after Sign out (#231): once the closing copy has
+        // really gone, delete again before anything is loaded.
+        var fresh = Array.FindIndex(e.Args, a => a.Equals(FreshStartArgument, StringComparison.OrdinalIgnoreCase));
+        if (fresh >= 0)
+        {
+            var exited = fresh + 1 < e.Args.Length && int.TryParse(e.Args[fresh + 1], out var oldProcessId)
+                ? WaitForExit(oldProcessId)
+                : true;
+            RecordReset(exited ? "fresh copy" : "fresh copy (closing copy still running after 20 s)", WipeSavedData());
+        }
 
         _services = BuildServices();
         _logger = _services.GetRequiredService<ILogger<App>>();
@@ -519,6 +533,42 @@ public partial class App : Application
         ShutdownApplication();
     }
 
+    /// <summary>Everything saved on this computer, gone (#231) - see <see cref="LocalDataReset"/>.</summary>
+    private static IReadOnlyList<string> WipeSavedData()
+        => LocalDataReset.Wipe(AppPaths.DataDirectory, System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DashyNMS"));
+
+    /// <summary>
+    /// What a sign-out reset did, in the logs folder (which it keeps) - written
+    /// directly, as the closing copy has no logger left by then.
+    /// </summary>
+    private static void RecordReset(string who, IReadOnlyList<string> failed)
+    {
+        try
+        {
+            var settingsLeft = System.IO.File.Exists(AppPaths.SettingsFile);
+            var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {who}: {(failed.Count == 0 ? "removed everything" : "could not remove " + string.Join("; ", failed))}; settings.json {(settingsLeft ? "STILL THERE" : "gone")}{Environment.NewLine}";
+            System.IO.File.AppendAllText(System.IO.Path.Combine(AppPaths.LogDirectory, "sign-out-reset.log"), line);
+        }
+        catch (Exception)
+        {
+            // Diagnostics only.
+        }
+    }
+
+    /// <summary>Waits (up to 20 s) for the copy that signed out to finish exiting.</summary>
+    private static bool WaitForExit(int processId)
+    {
+        try
+        {
+            using var old = System.Diagnostics.Process.GetProcessById(processId);
+            return old.WaitForExit(TimeSpan.FromSeconds(20));
+        }
+        catch (ArgumentException)
+        {
+            return true; // Already gone.
+        }
+    }
+
     private void UpdateTrayStatus()
     {
         if (_tray is null || _mainViewModel is null)
@@ -650,15 +700,21 @@ public partial class App : Application
         // start the fresh copy, which finds nothing and opens on sign-in.
         if (_resetOnExit && Environment.ProcessPath is { Length: > 0 } path)
         {
-            LocalDataReset.Wipe(AppPaths.DataDirectory, System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DashyNMS"));
+            var failed = WipeSavedData();
+            RecordReset("closing copy", failed);
 
             try
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = false });
+                // The fresh copy deletes again once this one has gone, in case
+                // anything here was still holding a file open.
+                var start = new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = false };
+                start.ArgumentList.Add(FreshStartArgument);
+                start.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                System.Diagnostics.Process.Start(start);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Nothing to log to any more; starting DashyNMS again by hand works the same.
+                RecordReset("closing copy could not start the fresh copy: " + ex.Message, Array.Empty<string>());
             }
         }
 

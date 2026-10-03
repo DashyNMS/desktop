@@ -59,7 +59,8 @@ public sealed class LocalDataResetTests : IDisposable
         {
             var failed = LocalDataReset.Wipe(Data, Cache);
 
-            Assert.Equal(new[] { locked }, failed);
+            Assert.Single(failed);
+            Assert.StartsWith(locked + " (IOException", failed[0]);
             Assert.False(File.Exists(Path.Combine(Data, "token.dat")));
             Assert.False(Directory.Exists(Path.Combine(Data, "custom-maps")));
         }
