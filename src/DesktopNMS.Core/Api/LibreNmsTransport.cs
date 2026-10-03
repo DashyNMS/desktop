@@ -39,6 +39,27 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
     public ServerFailover Failover => _failover;
 
     /// <summary>
+    /// A request failed on a certificate that isn't trusted yet - typically
+    /// the backup address's, the first time the app fails over to it. Raised
+    /// on the thread that made the request, so the app can ask whether to
+    /// trust it there and then rather than only at sign-in.
+    /// </summary>
+    public event EventHandler<CertificateDetails>? CertificateRejected;
+
+    /// <summary>Accept <paramref name="fingerprint"/> from now on, without signing in again - a fresh client with it added to the trusted ones.</summary>
+    public void TrustCertificate(string fingerprint)
+    {
+        var connection = Connection;
+        if (connection is null || connection.TrustedCertificates.Any(f => CertificateTrust.SameFingerprint(f, fingerprint)))
+        {
+            return;
+        }
+
+        Install(connection.WithTrustedCertificate(fingerprint));
+        _logger.LogInformation("Now trusting the certificate {Fingerprint}", fingerprint);
+    }
+
+    /// <summary>
     /// Whether a struggling or unreachable server gets the usual few retries
     /// with growing waits (see <see cref="TransientRetryPolicy"/>). Off for a
     /// connection test, which should answer quickly - one try at the server
@@ -163,7 +184,9 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
                 onBackup && !dialBackupHost ? connection.BackupWebRoot!.Host : connection.WebRoot.Host,
                 allowUntrusted: true,
                 connection.TrustedCertificates,
-                details => _rejectedCertificate = details);
+                // On the backup address a certificate the server address's
+                // trusted ones don't cover is just a new one, not a changed one.
+                details => _rejectedCertificate = onBackup ? details with { ReplacesTrustedCertificate = false } : details);
         }
 
         var redirects = new SameServerRedirectHandler(handler);
@@ -565,6 +588,7 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         var rejected = IsCertificateRejection(ex) ? Interlocked.Exchange(ref _rejectedCertificate, null) : null;
         if (rejected is not null)
         {
+            CertificateRejected?.Invoke(this, rejected);
             return new LibreNmsApiException(CertificateTrust.DescribeRejection(rejected, "LibreNMS"), innerException: ex)
             {
                 UntrustedCertificate = rejected,

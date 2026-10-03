@@ -80,6 +80,14 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
 
     public void Disconnect() => _transport.Clear();
 
+    public event EventHandler<Security.CertificateDetails>? CertificateRejected
+    {
+        add => _transport.CertificateRejected += value;
+        remove => _transport.CertificateRejected -= value;
+    }
+
+    public void TrustCertificate(string fingerprint) => _transport.TrustCertificate(fingerprint);
+
     public async Task<ConnectionTestResult> TestAsync(LibreNmsConnection connection, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(connection);

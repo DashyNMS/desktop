@@ -106,6 +106,7 @@ public partial class App : Application
         settings.Changed += (_, s) => AccentTheme.Apply(s.AccentColor);
 
         SetUpTray();
+        SetUpCertificatePrompt();
         SetUpNotifications();
         SetUpUpdates();
 
@@ -581,6 +582,59 @@ public partial class App : Application
             _mainViewModel.CriticalCount,
             _mainViewModel.WarningCount,
             _mainViewModel.IsConnected ? _mainViewModel.ServerDescription : "Not connected");
+    }
+
+    // ----------------------------------------------------------- certificates
+
+    private bool _certificatePromptOpen;
+    private readonly HashSet<string> _declinedCertificates = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A request failed on a certificate that isn't trusted yet while signed
+    /// in - typically the backup address's, the first time the app fails over
+    /// to it. Ask there and then, with its fingerprint, rather than leaving an
+    /// error with nowhere to check and accept it. Once per certificate a
+    /// session if turned down; the many requests failing on it at once only
+    /// ask once.
+    /// </summary>
+    private void SetUpCertificatePrompt()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        var client = _services.GetRequiredService<ILibreNmsClient>();
+        client.CertificateRejected += (_, certificate) => Dispatcher.InvokeAsync(() =>
+        {
+            if (_certificatePromptOpen
+                || _isShuttingDown
+                || _mainViewModel?.IsConnected != true
+                || _declinedCertificates.Contains(certificate.Fingerprint))
+            {
+                return;
+            }
+
+            _certificatePromptOpen = true;
+            try
+            {
+                var windows = _services.GetRequiredService<IWindowService>();
+                var service = client.Failover.IsOnBackup ? "LibreNMS (backup address)" : "LibreNMS";
+                if (windows.ConfirmTrustCertificate(service, certificate))
+                {
+                    _services.GetRequiredService<ISessionService>().TrustCertificate(certificate);
+                    _mainViewModel?.RequestRefresh();
+                }
+                else
+                {
+                    _declinedCertificates.Add(certificate.Fingerprint);
+                }
+            }
+            finally
+            {
+                _certificatePromptOpen = false;
+            }
+        });
     }
 
     // ---------------------------------------------------------- notifications
