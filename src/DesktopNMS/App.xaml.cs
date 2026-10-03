@@ -105,6 +105,9 @@ public partial class App : Application
         AccentTheme.Apply(settings.Current.AccentColor);
         settings.Changed += (_, s) => AccentTheme.Apply(s.AccentColor);
 
+        // Buttons for writes the token has been refused turn off (#51).
+        PermissionGate.Source = _services.GetRequiredService<ILibreNmsClient>().Permissions;
+
         SetUpTray();
         SetUpCertificatePrompt();
         SetUpNotifications();

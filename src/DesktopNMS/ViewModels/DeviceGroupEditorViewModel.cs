@@ -71,6 +71,9 @@ public sealed class DeviceGroupEditorViewModel : ObservableObject
 
     public bool IsEditMode => _originalName is not null;
 
+    /// <summary>What Save needs from the token (#51) - see <see cref="Views.PermissionGate"/>.</summary>
+    public ApiPermission SavePermission => IsEditMode ? ApiPermission.EditGroups : ApiPermission.CreateGroups;
+
     public string Title => IsEditMode ? "Edit device group" : "Add device group";
 
     public event EventHandler<bool>? RequestClose;

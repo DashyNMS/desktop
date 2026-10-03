@@ -53,6 +53,7 @@ public sealed class AlertNotificationService : IAlertNotificationService
     private readonly ISelfActionTracker _selfActions;
     private readonly ILogger<AlertNotificationService> _logger;
     private readonly ITrayNotifier _trayFallback;
+    private readonly ApiPermissions _permissions;
 
     private bool _toastsUnavailable;
 
@@ -62,8 +63,10 @@ public sealed class AlertNotificationService : IAlertNotificationService
         IDeviceCache devices,
         ISelfActionTracker selfActions,
         ITrayNotifier trayFallback,
+        ILibreNmsClient client,
         ILogger<AlertNotificationService> logger)
     {
+        _permissions = client.Permissions;
         _settings = settings;
         _session = session;
         _devices = devices;
@@ -365,7 +368,8 @@ public sealed class AlertNotificationService : IAlertNotificationService
     {
         var alert = change.Alert;
 
-        if (change.IsProblem)
+        // No Acknowledge button once LibreNMS has refused it for this token (#51).
+        if (change.IsProblem && !_permissions.IsRefused(ApiPermission.AcknowledgeAlerts))
         {
             builder.AddButton(new ToastButton()
                 .SetContent("Acknowledge")
