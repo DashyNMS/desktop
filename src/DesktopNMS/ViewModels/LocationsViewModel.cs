@@ -198,7 +198,7 @@ public sealed class LocationsViewModel : ObservableObject
 
     private async Task DeleteLocationAsync(LocationListItemViewModel item)
     {
-        if (!_windows.Confirm("Delete location", $"Permanently delete the location '{item.Name}' from LibreNMS? This cannot be undone."))
+        if (!_windows.Confirm("Delete location", $"Delete the location \"{item.Name}\" from LibreNMS? {Confirmations.CannotBeUndone}", "Delete", destructive: true))
         {
             return;
         }

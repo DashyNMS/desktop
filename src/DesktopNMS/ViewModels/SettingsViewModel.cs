@@ -769,6 +769,11 @@ public sealed class SettingsViewModel : ObservableObject
 
     private void ClearUnimusToken()
     {
+        if (!_windows.Confirm("Clear Unimus token", $"Remove the saved Unimus API token from this computer? {Confirmations.CannotBeUndone} You'll need to enter it again to use Unimus.", "Clear", destructive: true))
+        {
+            return;
+        }
+
         UnimusTokenInput = string.Empty;
         HasStoredUnimusToken = false;
         _unimusTokens.Clear();
@@ -1016,6 +1021,11 @@ public sealed class SettingsViewModel : ObservableObject
 
     private void ClearGraylogPassword()
     {
+        if (!_windows.Confirm("Clear Graylog password", $"Remove the saved Graylog password from this computer? {Confirmations.CannotBeUndone} You'll need to enter it again to use Graylog.", "Clear", destructive: true))
+        {
+            return;
+        }
+
         GraylogPasswordInput = string.Empty;
         HasStoredGraylogPassword = false;
         _graylogPasswords.Clear();

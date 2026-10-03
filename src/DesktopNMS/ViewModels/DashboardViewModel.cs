@@ -402,6 +402,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
             else
             {
                 var created = CreateWidgetViewModel(model);
+                created.ConfirmRemove = ConfirmRemoveWidget;
                 _widgetIndex[model.Id] = created;
                 Widgets.Add(created);
             }
@@ -437,6 +438,13 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
             _windows.ShowDeviceDetail(row.DeviceId);
         }
     }
+
+    private bool ConfirmRemoveWidget(DashboardWidgetViewModel widget)
+        => _windows.Confirm(
+            "Delete widget",
+            $"Delete the widget \"{widget.Title}\" from the dashboard? {Confirmations.CannotBeUndone}",
+            "Delete",
+            destructive: true);
 
     private DashboardWidgetViewModel CreateWidgetViewModel(DashboardWidget model) => model.WidgetType switch
     {

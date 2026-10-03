@@ -116,9 +116,6 @@ public sealed class RulesViewModel : ObservableObject
         DisableSelectedCommand.RaiseCanExecuteChanged();
     }
 
-    /// <summary>More rules than this asks first.</summary>
-    private const int BulkConfirmThreshold = 3;
-
     /// <summary>
     /// Enables or disables the selected rules together (#144). LibreNMS has
     /// no toggle route, so each is a full edit_rule write built from the rule
@@ -134,8 +131,8 @@ public sealed class RulesViewModel : ObservableObject
         }
 
         var verb = disable ? "Disable" : "Enable";
-        if (items.Count > BulkConfirmThreshold
-            && !_windows.Confirm($"{verb} rules", $"{verb} {items.Count} alert rules in LibreNMS?"))
+        if (items.Count > Confirmations.BulkThreshold
+            && !_windows.Confirm($"{verb} rules", $"{verb} all {items.Count} selected alert rules in LibreNMS?", verb))
         {
             return;
         }
@@ -441,7 +438,7 @@ public sealed class RulesViewModel : ObservableObject
 
     private async Task DeleteRuleAsync(RuleItemViewModel item)
     {
-        if (!_windows.Confirm("Delete rule", $"Permanently delete the rule '{item.Name}' from LibreNMS? This cannot be undone."))
+        if (!_windows.Confirm("Delete rule", $"Delete the rule \"{item.Name}\" from LibreNMS? {Confirmations.CannotBeUndone}", "Delete", destructive: true))
         {
             return;
         }
