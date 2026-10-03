@@ -70,21 +70,30 @@
             <TextBlock Text="{Binding SuccessMessage}" TextWrapping="Wrap" />
         </Border>
 
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-            <TextBlock Text="Checking..."
-                       Style="{StaticResource SubtleTextStyle}"
+        <DockPanel Margin="0,20,0,0" LastChildFill="False">
+            <!-- No server to hand: the whole app on an example network (DemoMode). -->
+            <TextBlock DockPanel.Dock="Left"
                        VerticalAlignment="Center"
-                       Margin="0,0,12,0"
-                       Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
-            <!-- IsCancel gives Escape and the button the same behaviour, and
-                 sets DialogResult to false on its own. -->
-            <Button Content="Cancel"
-                    IsCancel="True"
-                    Margin="0,0,8,0" />
-            <Button Content="Connect"
-                    Command="{Binding ConnectCommand}"
-                    Style="{StaticResource PrimaryButtonStyle}"
-                    IsDefault="True" />
-        </StackPanel>
+                       Visibility="{Binding CanTryDemo, Converter={StaticResource BoolToVisibility}}"
+                       ToolTip="DashyNMS restarts on an example network, so you can look around without a LibreNMS server. Nothing you have saved here is changed.">
+                <Hyperlink Command="{Binding TryDemoCommand}">Try the demo</Hyperlink>
+            </TextBlock>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <TextBlock Text="Checking..."
+                           Style="{StaticResource SubtleTextStyle}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,12,0"
+                           Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+                <!-- IsCancel gives Escape and the button the same behaviour, and
+                     sets DialogResult to false on its own. -->
+                <Button Content="Cancel"
+                        IsCancel="True"
+                        Margin="0,0,8,0" />
+                <Button Content="Connect"
+                        Command="{Binding ConnectCommand}"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        IsDefault="True" />
+            </StackPanel>
+        </DockPanel>
     </StackPanel>
 </Window>

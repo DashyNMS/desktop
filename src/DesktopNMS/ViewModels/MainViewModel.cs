@@ -16,6 +16,7 @@ using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
+using DesktopNMS.Demo;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
@@ -48,6 +49,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly IGraylogApi _graylog;
     private readonly ISelfActionTracker _selfActions;
     private readonly IUpdateCheckService _updates;
+    private readonly DemoMode _demo;
     private readonly ILogger<MainViewModel> _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, AlertItemViewModel> _index = new();
@@ -116,6 +118,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IGraylogApi graylog,
         ISelfActionTracker selfActions,
         IUpdateCheckService updates,
+        DemoMode demo,
         ILogger<MainViewModel> logger)
     {
         _client = client;
@@ -142,6 +145,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _graylog.ConfigurationChanged += OnGraylogConfigurationChanged;
         _selfActions = selfActions;
         _updates = updates;
+        _demo = demo;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -1931,8 +1935,24 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RequestRefresh();
     }
 
+    /// <summary>Running on the demo's example network (see DemoMode) - the title bar says so.</summary>
+    public bool IsDemo => _demo.IsActive && !_demo.IsRenderingScreenshots;
+
     private void SignOut()
     {
+        if (_demo.IsActive)
+        {
+            if (_windows.Confirm(
+                    "Leave the demo",
+                    "DashyNMS restarts, ready for you to sign in to your own LibreNMS. Nothing from the demo is kept.",
+                    "Leave the demo"))
+            {
+                SignedOut?.Invoke(this, EventArgs.Empty);
+            }
+
+            return;
+        }
+
         // In plain words what goes (#231) - signing out is a fresh start.
         if (!_windows.Confirm(
                 "Sign out",
