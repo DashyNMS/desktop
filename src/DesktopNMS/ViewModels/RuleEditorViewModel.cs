@@ -148,11 +148,15 @@ public sealed class RuleEditorViewModel : ObservableObject
         _originalRule = null;
         Name = $"{rule.Name} (copy)";
         OnPropertyChanged(nameof(IsEditMode));
+        OnPropertyChanged(nameof(SavePermission));
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(IsMuted));
     }
 
     public bool IsEditMode => _originalRule is not null;
+
+    /// <summary>What Save needs from the token (#51) - see <see cref="Views.PermissionGate"/>.</summary>
+    public ApiPermission SavePermission => IsEditMode ? ApiPermission.EditRules : ApiPermission.CreateRules;
 
     public string Title => IsEditMode ? "Edit rule" : _source is not null ? "Duplicate rule" : "Add rule";
 

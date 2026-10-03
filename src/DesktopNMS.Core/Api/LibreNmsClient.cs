@@ -78,6 +78,8 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
 
     public ServerFailover Failover => _transport.Failover;
 
+    public ApiPermissions Permissions => _transport.Permissions;
+
     public void Disconnect() => _transport.Clear();
 
     public event EventHandler<Security.CertificateDetails>? CertificateRejected

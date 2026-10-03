@@ -42,13 +42,28 @@ public sealed class LibreNmsApiException : Exception
     /// </summary>
     public bool LooksLikeStaleConnection { get; }
 
-    /// <summary>True when the token was rejected, so the UI can send the user back to sign-in.</summary>
-    public bool IsAuthenticationFailure =>
-        StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden;
+    /// <summary>
+    /// True when the token itself was rejected (401), so the UI can send the
+    /// user back to sign-in. A 403 is not this: the token is fine, its user
+    /// just isn't allowed that one thing (#51) - see <see cref="IsPermissionDenied"/>.
+    /// </summary>
+    public bool IsAuthenticationFailure => StatusCode is HttpStatusCode.Unauthorized;
+
+    /// <summary>The token was accepted, but its user isn't allowed this action (403) - see <see cref="ApiPermissions"/>.</summary>
+    public bool IsPermissionDenied => StatusCode is HttpStatusCode.Forbidden;
+
+    /// <summary>What a 403 means, in place of LibreNMS's own "This action is unauthorized."</summary>
+    public const string PermissionDeniedMessage =
+        "Your API token isn't allowed to do this in LibreNMS. A LibreNMS admin can give its user more permissions.";
 
     /// <summary>A single line suitable for a status bar or a toast.</summary>
     public string ToUserMessage()
     {
+        if (IsPermissionDenied)
+        {
+            return PermissionDeniedMessage;
+        }
+
         if (!string.IsNullOrWhiteSpace(ServerMessage))
         {
             return ServerMessage!;

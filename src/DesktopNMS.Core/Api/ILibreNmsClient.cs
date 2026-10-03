@@ -61,6 +61,9 @@ public interface ILibreNmsClient
     /// <summary>The backup address state for the live connection - see <see cref="ServerFailover"/>.</summary>
     ServerFailover Failover { get; }
 
+    /// <summary>Writes the token has been refused this session (#51), so the app can turn their buttons off.</summary>
+    ApiPermissions Permissions { get; }
+
     /// <summary>Forgets the current connection.</summary>
     void Disconnect();
 

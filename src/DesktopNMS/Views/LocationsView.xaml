@@ -55,6 +55,7 @@
 
                 <Button Grid.Column="3"
                         Command="{Binding AddLocationCommand}"
+                        views:PermissionGate.Requires="CreateLocations"
                         Style="{StaticResource IconButtonStyle}"
                         ToolTip="Add location">
                     <TextBlock Text="+" FontFamily="{StaticResource BodyFont}" FontSize="20" FontWeight="SemiBold" />
@@ -134,7 +135,7 @@
                                             ToolTip="Edit this location">
                                         <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
                                     </Button>
-                                    <Button Command="{Binding DeleteCommand}"
+                                    <Button Command="{Binding DeleteCommand}" views:PermissionGate.Requires="DeleteLocations"
                                             Style="{StaticResource IconButtonStyle}"
                                             Width="28"
                                             Height="28"
