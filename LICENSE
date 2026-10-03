@@ -1,0 +1,31 @@
+Copyright (c) 2026 Thomas Pickup. All rights reserved.
+
+DashyNMS desktop, including its source code, designs, graphics and text, is
+the property of Thomas Pickup.
+
+The source code is published so that people can see how the app works and
+review it for security. You may view it, and GitHub's terms let you fork the
+repository on GitHub, but no other permission is granted. In particular, you
+may not, without prior written permission:
+
+  - copy, reproduce or redistribute the code, or any part of it;
+  - modify it, or create works based on it;
+  - build, publish or distribute the app, or any app made from this code,
+    through any store, download site or other channel;
+  - use it for any commercial purpose.
+
+Installing and using the official releases published at
+https://github.com/DashyNMS/desktop/releases is permitted.
+
+Reporting bugs and security issues is welcome; see SECURITY.md.
+
+"DashyNMS" and the DashyNMS logo are trademarks of Thomas Pickup and may not
+be used to identify any other product or service.
+
+Third-party components keep their own licences: the IBM Plex and Sora fonts
+are under the SIL Open Font License (see docs/licences), and the NuGet
+packages the app uses are under their publishers' licences.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY ARISING FROM THE SOFTWARE OR ITS USE.

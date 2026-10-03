@@ -3,6 +3,11 @@
 Technical reference for building, running and understanding the codebase.
 Looking for what the app *does*? See the [README](../README.md) instead.
 
+The source is published for reference and security review; pull requests
+aren't accepted. See the [LICENSE](../LICENSE), and [SECURITY.md](../SECURITY.md)
+for reporting a security problem. Bugs and ideas are welcome as
+[issues](https://github.com/DashyNMS/desktop/issues).
+
 ## Requirements
 
 - Windows 10 1809 (build 17763) or later — earlier builds have no toast support.
