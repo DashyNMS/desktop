@@ -43,7 +43,7 @@ public sealed class LocationsViewModel : ObservableObject
         _windows = windows;
         _logger = logger;
 
-        Locations = new ObservableCollection<LocationListItemViewModel>();
+        Locations = new BatchObservableCollection<LocationListItemViewModel>();
         LocationsView = CollectionViewSource.GetDefaultView(Locations);
         LocationsView.Filter = FilterLocation;
         LocationsView.SortDescriptions.Add(new SortDescription(nameof(LocationListItemViewModel.Name), ListSortDirection.Ascending));
@@ -53,7 +53,7 @@ public sealed class LocationsViewModel : ObservableObject
         ClearFiltersCommand = new RelayCommand(() => SearchText = string.Empty);
     }
 
-    public ObservableCollection<LocationListItemViewModel> Locations { get; }
+    public BatchObservableCollection<LocationListItemViewModel> Locations { get; }
 
     public ICollectionView LocationsView { get; }
 
@@ -132,10 +132,13 @@ public sealed class LocationsViewModel : ObservableObject
         {
             var locations = await _client.Locations.ListAsync().ConfigureAwait(true);
 
-            Locations.Clear();
-            foreach (var location in locations.OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase))
+            using (Locations.BeginBatch())
             {
-                Locations.Add(new LocationListItemViewModel(location, ViewDevices, EditLocation, DeleteLocation));
+                Locations.Clear();
+                foreach (var location in locations.OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    Locations.Add(new LocationListItemViewModel(location, ViewDevices, EditLocation, DeleteLocation));
+                }
             }
 
             OnPropertyChanged(nameof(HasLocations));

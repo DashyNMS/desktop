@@ -65,7 +65,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         _logger = logger;
 
         Views = new ObservableCollection<NeighbourViewDefinition>();
-        Items = new ObservableCollection<NeighbourItemViewModel>();
+        Items = new BatchObservableCollection<NeighbourItemViewModel>();
         ItemsView = CollectionViewSource.GetDefaultView(Items);
         ItemsView.Filter = item => item is NeighbourItemViewModel n && IsStateShown(n.State) && n.Matches(SearchText);
 
@@ -167,7 +167,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     /// <summary>"System description contains X and switch starts with Y" - what the selected view looks for.</summary>
     public string ViewRulesText => _selectedView is { } view ? DescribeRules(view) : string.Empty;
 
-    public ObservableCollection<NeighbourItemViewModel> Items { get; }
+    public BatchObservableCollection<NeighbourItemViewModel> Items { get; }
 
     public ICollectionView ItemsView { get; }
 
@@ -396,31 +396,34 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     {
         var selectedKey = _selected?.Key;
 
-        Items.Clear();
-        if (_snapshot is { } snapshot)
+        using (Items.BeginBatch())
         {
-            // Every neighbour with "All" picked (#221); a neighbourhood's
-            // rules narrow it down.
-            var neighbours = _selectedView is { } view
-                ? snapshot.For(view, id => _devices.Get(id)?.BestName)
-                : snapshot.Neighbours;
-
-            var rows = neighbours
-                .Select(n => new NeighbourItemViewModel(
-                    n,
-                    snapshot.PortOf(n),
-                    _devices.Get(n.SwitchDeviceId),
-                    n.RemoteDeviceId is { } id ? _devices.Get(id) : null,
-                    snapshot.IpOf(n)));
-
-            // One neighbour seen on several ports shows only its live
-            // link(s) - not the one on a switch that's gone offline. Down
-            // ones first, as on mobile - what needs a look comes to the top.
-            foreach (var row in Neighbours.PreferLiveLinks(rows, r => r.Neighbour, r => r.IsLinkUp, r => !r.IsSwitchDown)
-                         .OrderBy(r => r.State == NeighbourState.Down ? 0 : r.State == NeighbourState.Up ? 1 : 2)
-                         .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
+            Items.Clear();
+            if (_snapshot is { } snapshot)
             {
-                Items.Add(row);
+                // Every neighbour with "All" picked (#221); a neighbourhood's
+                // rules narrow it down.
+                var neighbours = _selectedView is { } view
+                    ? snapshot.For(view, id => _devices.Get(id)?.BestName)
+                    : snapshot.Neighbours;
+
+                var rows = neighbours
+                    .Select(n => new NeighbourItemViewModel(
+                        n,
+                        snapshot.PortOf(n),
+                        _devices.Get(n.SwitchDeviceId),
+                        n.RemoteDeviceId is { } id ? _devices.Get(id) : null,
+                        snapshot.IpOf(n)));
+
+                // One neighbour seen on several ports shows only its live
+                // link(s) - not the one on a switch that's gone offline. Down
+                // ones first, as on mobile - what needs a look comes to the top.
+                foreach (var row in Neighbours.PreferLiveLinks(rows, r => r.Neighbour, r => r.IsLinkUp, r => !r.IsSwitchDown)
+                             .OrderBy(r => r.State == NeighbourState.Down ? 0 : r.State == NeighbourState.Up ? 1 : 2)
+                             .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    Items.Add(row);
+                }
             }
         }
 

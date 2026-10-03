@@ -57,7 +57,7 @@ public sealed class WirelessWidgetViewModel : DashboardWidgetViewModel, IDisposa
         _openDevice = openDevice;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
-        Controllers = new ObservableCollection<WirelessControllerItemViewModel>();
+        Controllers = new BatchObservableCollection<WirelessControllerItemViewModel>();
         OpenDeviceCommand = new RelayCommand(parameter =>
         {
             if (parameter is WirelessControllerItemViewModel item)
@@ -74,7 +74,7 @@ public sealed class WirelessWidgetViewModel : DashboardWidgetViewModel, IDisposa
         _deviceMonitor.RequestRefresh();
     }
 
-    public ObservableCollection<WirelessControllerItemViewModel> Controllers { get; }
+    public BatchObservableCollection<WirelessControllerItemViewModel> Controllers { get; }
 
     public RelayCommand OpenDeviceCommand { get; }
 
@@ -240,10 +240,13 @@ public sealed class WirelessWidgetViewModel : DashboardWidgetViewModel, IDisposa
             .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        Controllers.Clear();
-        foreach (var item in ordered)
+        using (Controllers.BeginBatch())
         {
-            Controllers.Add(item);
+            Controllers.Clear();
+            foreach (var item in ordered)
+            {
+                Controllers.Add(item);
+            }
         }
 
         OnPropertyChanged(nameof(TotalClientsText));

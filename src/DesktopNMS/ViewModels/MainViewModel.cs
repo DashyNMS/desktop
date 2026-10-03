@@ -152,7 +152,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ViewUpdateNotesCommand = new RelayCommand(ViewUpdateNotes);
         _settings.Changed += OnBadgeSettingChanged;
 
-        Alerts = new ObservableCollection<AlertItemViewModel>();
+        Alerts = new BatchObservableCollection<AlertItemViewModel>();
         AlertsView = CollectionViewSource.GetDefaultView(Alerts);
         GroupFilter = new FilterFacet(OnFilterChanged);
         GroupFilter.PropertyChanged += OnGroupFilterPropertyChanged;
@@ -237,7 +237,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         UpdateConnectionState();
     }
 
-    public ObservableCollection<AlertItemViewModel> Alerts { get; }
+    public BatchObservableCollection<AlertItemViewModel> Alerts { get; }
 
     public ICollectionView AlertsView { get; }
 
@@ -1329,45 +1329,51 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var context = CreateDisplayContext();
         var incoming = alerts.Select(a => a.Id).ToHashSet();
 
-        // Drop anything the server no longer reports.
-        for (var i = Alerts.Count - 1; i >= 0; i--)
-        {
-            if (!incoming.Contains(Alerts[i].Id))
-            {
-                _index.Remove(Alerts[i].Id);
-                Alerts.RemoveAt(i);
-            }
-        }
-
-        // Align the collection with the server's ordering, updating in place so
-        // the selection and scroll position survive a refresh.
         var visibilityChanged = false;
 
-        for (var target = 0; target < alerts.Count; target++)
+        // A first fill (sign-in, or this list opened for the first time)
+        // lands as one Reset rather than a notification per row (#70);
+        // after that it's synced in place, keeping selection and scroll.
+        using (Alerts.Count == 0 ? Alerts.BeginBatch() : null)
         {
-            var alert = alerts[target];
-
-            if (_index.TryGetValue(alert.Id, out var existing))
+            // Drop anything the server no longer reports.
+            for (var i = Alerts.Count - 1; i >= 0; i--)
             {
-                // The view only filters an item when it's added, so an alert
-                // updated in place - e.g. now acknowledged, with acknowledged
-                // alerts hidden - would otherwise stay showing until a filter
-                // is next changed.
-                var wasShown = FilterAlert(existing);
-                existing.Update(alert, context);
-                visibilityChanged |= FilterAlert(existing) != wasShown;
-
-                var currentIndex = Alerts.IndexOf(existing);
-                if (currentIndex >= 0 && currentIndex != target && target < Alerts.Count)
+                if (!incoming.Contains(Alerts[i].Id))
                 {
-                    Alerts.Move(currentIndex, target);
+                    _index.Remove(Alerts[i].Id);
+                    Alerts.RemoveAt(i);
                 }
             }
-            else
+
+            // Align the collection with the server's ordering, updating in place so
+            // the selection and scroll position survive a refresh.
+            for (var target = 0; target < alerts.Count; target++)
             {
-                var item = new AlertItemViewModel(alert, context);
-                _index[alert.Id] = item;
-                Alerts.Insert(Math.Min(target, Alerts.Count), item);
+                var alert = alerts[target];
+
+                if (_index.TryGetValue(alert.Id, out var existing))
+                {
+                    // The view only filters an item when it's added, so an alert
+                    // updated in place - e.g. now acknowledged, with acknowledged
+                    // alerts hidden - would otherwise stay showing until a filter
+                    // is next changed.
+                    var wasShown = FilterAlert(existing);
+                    existing.Update(alert, context);
+                    visibilityChanged |= FilterAlert(existing) != wasShown;
+
+                    var currentIndex = Alerts.IndexOf(existing, target);
+                    if (currentIndex >= 0 && currentIndex != target && target < Alerts.Count)
+                    {
+                        Alerts.Move(currentIndex, target);
+                    }
+                }
+                else
+                {
+                    var item = new AlertItemViewModel(alert, context);
+                    _index[alert.Id] = item;
+                    Alerts.Insert(Math.Min(target, Alerts.Count), item);
+                }
             }
         }
 

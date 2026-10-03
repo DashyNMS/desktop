@@ -69,7 +69,7 @@ public abstract class TopWidgetViewModel : DashboardWidgetViewModel, IDisposable
         _rankBy = model.TopRankBy;
         _hideQuiet = model.TopHideQuiet;
 
-        Rows = new ObservableCollection<TopRowViewModel>();
+        Rows = new BatchObservableCollection<TopRowViewModel>();
         Header = new TopWidgetHeader(this);
         RankByInCommand = new RelayCommand(() => SetRankBy(_rankBy == RankBy.In ? RankBy.Total : RankBy.In));
         RankByOutCommand = new RelayCommand(() => SetRankBy(_rankBy == RankBy.Out ? RankBy.Total : RankBy.Out));
@@ -88,7 +88,7 @@ public abstract class TopWidgetViewModel : DashboardWidgetViewModel, IDisposable
         _ = LoadAsync(refresh: false);
     }
 
-    public ObservableCollection<TopRowViewModel> Rows { get; }
+    public BatchObservableCollection<TopRowViewModel> Rows { get; }
 
     public RelayCommand OpenCommand { get; }
 
@@ -277,10 +277,13 @@ public abstract class TopWidgetViewModel : DashboardWidgetViewModel, IDisposable
 
     private void Apply()
     {
-        Rows.Clear();
-        foreach (var row in BuildRows(_latest))
+        using (Rows.BeginBatch())
         {
-            Rows.Add(row);
+            Rows.Clear();
+            foreach (var row in BuildRows(_latest))
+            {
+                Rows.Add(row);
+            }
         }
 
         RaiseStateChanged();

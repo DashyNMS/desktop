@@ -92,7 +92,7 @@ public sealed class RuleEditorViewModel : ObservableObject
         Root.ReplaceWith(new AlertConditionNode { Condition = "AND", Rules = new List<AlertConditionNode>() }); // one blank row to start
 
         MatchPicker = new CheckablePickerViewModel();
-        ImportableRules = new ObservableCollection<AlertRule>();
+        ImportableRules = new BatchObservableCollection<AlertRule>();
 
         ToggleImportCommand = new RelayCommand(() => IsImportOpen = !IsImportOpen);
         ImportSqlCommand = new RelayCommand(() => Import(AlertRuleSqlImporter.Parse));
@@ -404,7 +404,7 @@ public sealed class RuleEditorViewModel : ObservableObject
     public RelayCommand ImportOldFormatCommand { get; }
 
     /// <summary>Every other rule on the server, for "Import from → Alert Rule".</summary>
-    public ObservableCollection<AlertRule> ImportableRules { get; }
+    public BatchObservableCollection<AlertRule> ImportableRules { get; }
 
     /// <summary>Picking a rule copies its conditions in, then clears the selection so the same rule can be picked again.</summary>
     public AlertRule? SelectedImportRule
@@ -564,10 +564,13 @@ public sealed class RuleEditorViewModel : ObservableObject
             MatchPicker.Add(GroupKind, groupsTask.Result.Select(g => (g.Id, g.Name)), (_source?.Groups ?? new List<int>()).ToHashSet());
             MatchPicker.Add(LocationKind, locationsTask.Result.Select(l => (l.Id, l.Name)), (_source?.Locations ?? new List<int>()).ToHashSet());
 
-            ImportableRules.Clear();
-            foreach (var rule in rulesTask.Result.Where(r => r.Id != _originalRule?.Id).OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
+            using (ImportableRules.BeginBatch())
             {
-                ImportableRules.Add(rule);
+                ImportableRules.Clear();
+                foreach (var rule in rulesTask.Result.Where(r => r.Id != _originalRule?.Id).OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    ImportableRules.Add(rule);
+                }
             }
         }
         catch (LibreNmsApiException ex)

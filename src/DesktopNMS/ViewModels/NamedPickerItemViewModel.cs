@@ -48,14 +48,14 @@ public sealed class CheckablePickerViewModel : ObservableObject
 
     public CheckablePickerViewModel()
     {
-        Items = new ObservableCollection<NamedPickerItemViewModel>();
+        Items = new BatchObservableCollection<NamedPickerItemViewModel>();
         View = CollectionViewSource.GetDefaultView(Items);
         View.Filter = Filter;
         View.SortDescriptions.Add(new SortDescription(nameof(NamedPickerItemViewModel.Kind), ListSortDirection.Ascending));
         View.SortDescriptions.Add(new SortDescription(nameof(NamedPickerItemViewModel.Name), ListSortDirection.Ascending));
     }
 
-    public ObservableCollection<NamedPickerItemViewModel> Items { get; }
+    public BatchObservableCollection<NamedPickerItemViewModel> Items { get; }
 
     public ICollectionView View { get; }
 
@@ -78,10 +78,13 @@ public sealed class CheckablePickerViewModel : ObservableObject
 
     public void Load(IEnumerable<(int Id, string Name)> all, IReadOnlySet<int> checkedIds)
     {
-        Items.Clear();
-        foreach (var (id, name) in all)
+        using (Items.BeginBatch())
         {
-            Items.Add(new NamedPickerItemViewModel(id, name, checkedIds.Contains(id)));
+            Items.Clear();
+            foreach (var (id, name) in all)
+            {
+                Items.Add(new NamedPickerItemViewModel(id, name, checkedIds.Contains(id)));
+            }
         }
     }
 

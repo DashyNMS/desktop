@@ -110,7 +110,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
         _dispatcher = Dispatcher.CurrentDispatcher;
         _settings.Changed += OnSettingsChanged;
 
-        Maps = new ObservableCollection<CustomMapSummary>();
+        Maps = new BatchObservableCollection<CustomMapSummary>();
         MapsView = CollectionViewSource.GetDefaultView(Maps);
         MapsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(CustomMapSummary.MenuGroup)));
 
@@ -152,7 +152,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
 
     public string TileTemplate => Core.Topology.TileUrlTemplate.Normalise(_settings.Current.MapTileUrl) ?? Core.Topology.TileUrlTemplate.Default;
 
-    public ObservableCollection<CustomMapSummary> Maps { get; }
+    public BatchObservableCollection<CustomMapSummary> Maps { get; }
 
     /// <summary>The map list grouped by menu group, like LibreNMS's Custom Maps menu.</summary>
     public ICollectionView MapsView { get; }
@@ -484,10 +484,13 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
         var currentId = _selectedSummary?.Id;
 
         _suppressSelectionLoad = true;
-        Maps.Clear();
-        foreach (var summary in _store.List())
+        using (Maps.BeginBatch())
         {
-            Maps.Add(summary);
+            Maps.Clear();
+            foreach (var summary in _store.List())
+            {
+                Maps.Add(summary);
+            }
         }
 
         SelectedSummary = currentId is null ? null : Maps.FirstOrDefault(m => m.Id == currentId);

@@ -54,7 +54,7 @@ public sealed class GroupsViewModel : ObservableObject
         _deviceList = deviceList;
         _logger = logger;
 
-        Groups = new ObservableCollection<GroupListItemViewModel>();
+        Groups = new BatchObservableCollection<GroupListItemViewModel>();
         GroupsView = CollectionViewSource.GetDefaultView(Groups);
         GroupsView.Filter = FilterGroup;
         GroupsView.SortDescriptions.Add(new SortDescription(nameof(GroupListItemViewModel.Name), ListSortDirection.Ascending));
@@ -64,7 +64,7 @@ public sealed class GroupsViewModel : ObservableObject
         ClearFiltersCommand = new RelayCommand(ClearFilters);
     }
 
-    public ObservableCollection<GroupListItemViewModel> Groups { get; }
+    public BatchObservableCollection<GroupListItemViewModel> Groups { get; }
 
     public ICollectionView GroupsView { get; }
 
@@ -170,10 +170,13 @@ public sealed class GroupsViewModel : ObservableObject
         {
             var groups = await _client.DeviceGroups.ListAsync().ConfigureAwait(true);
 
-            Groups.Clear();
-            foreach (var group in groups.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase))
+            using (Groups.BeginBatch())
             {
-                Groups.Add(new GroupListItemViewModel(group, ViewDevices, EditGroup, DeleteGroup, RediscoverGroup));
+                Groups.Clear();
+                foreach (var group in groups.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    Groups.Add(new GroupListItemViewModel(group, ViewDevices, EditGroup, DeleteGroup, RediscoverGroup));
+                }
             }
 
             OnPropertyChanged(nameof(HasGroups));

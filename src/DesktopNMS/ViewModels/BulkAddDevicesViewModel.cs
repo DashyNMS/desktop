@@ -72,7 +72,7 @@ public sealed class BulkAddDevicesViewModel : ObservableObject
         _logger = logger;
 
         Options = new DeviceAddOptionsViewModel(client, logger, isBulk: true);
-        Items = new ObservableCollection<BulkDeviceItemViewModel>();
+        Items = new BatchObservableCollection<BulkDeviceItemViewModel>();
 
         AddCommand = new AsyncRelayCommand(() => RunAsync(Items.Where(i => i.Status == BulkDeviceStatus.Ready).ToList()), () => !IsRunning && ReadyCount > 0);
         RetryFailedCommand = new AsyncRelayCommand(RetryFailedAsync, () => !IsRunning && FailedCount > 0);
@@ -88,7 +88,7 @@ public sealed class BulkAddDevicesViewModel : ObservableObject
     /// <summary>The settings every device gets, unless its CSV row says otherwise.</summary>
     public DeviceAddOptionsViewModel Options { get; }
 
-    public ObservableCollection<BulkDeviceItemViewModel> Items { get; }
+    public BatchObservableCollection<BulkDeviceItemViewModel> Items { get; }
 
     public AsyncRelayCommand AddCommand { get; }
 
@@ -261,12 +261,15 @@ public sealed class BulkAddDevicesViewModel : ObservableObject
     {
         var result = IsCsvMode ? _csv : BulkDeviceImport.ParseList(PasteText);
 
-        Items.Clear();
-        foreach (var row in result.Rows)
+        using (Items.BeginBatch())
         {
-            var item = new BulkDeviceItemViewModel(row);
-            ApplyExisting(item);
-            Items.Add(item);
+            Items.Clear();
+            foreach (var row in result.Rows)
+            {
+                var item = new BulkDeviceItemViewModel(row);
+                ApplyExisting(item);
+                Items.Add(item);
+            }
         }
 
         OnPropertyChanged(nameof(CsvMessage));
