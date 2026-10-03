@@ -26,7 +26,10 @@ public static class PermissionGate
         "SavedToolTip",
         typeof(object),
         typeof(PermissionGate),
-        new PropertyMetadata(DependencyProperty.UnsetValue));
+        new PropertyMetadata(null));
+
+    /// <summary>Stands for "no tooltip of its own" - a property's default can't be UnsetValue.</summary>
+    private static readonly object NoToolTip = new();
 
     private static readonly DependencyProperty IsGatedProperty = DependencyProperty.RegisterAttached(
         "IsGated",
@@ -104,7 +107,8 @@ public static class PermissionGate
 
         if (refused && !gated)
         {
-            element.SetValue(SavedToolTipProperty, element.ReadLocalValue(FrameworkElement.ToolTipProperty));
+            var own = element.ReadLocalValue(FrameworkElement.ToolTipProperty);
+            element.SetValue(SavedToolTipProperty, own == DependencyProperty.UnsetValue ? NoToolTip : own);
             element.SetValue(IsGatedProperty, true);
             element.IsEnabled = false;
             element.ToolTip = ApiPermissions.Describe(GetRequires(element)!.Value);
@@ -121,7 +125,7 @@ public static class PermissionGate
                 case BindingExpressionBase expression:
                     BindingOperations.SetBinding(element, FrameworkElement.ToolTipProperty, expression.ParentBindingBase);
                     break;
-                case var saved when saved == DependencyProperty.UnsetValue:
+                case var saved when saved == NoToolTip:
                     element.ClearValue(FrameworkElement.ToolTipProperty);
                     break;
                 case var saved:
