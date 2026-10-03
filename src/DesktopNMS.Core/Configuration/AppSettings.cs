@@ -854,6 +854,24 @@ public sealed class DashboardWidget
     /// <summary>For a Top errors widget: leave out ports with no errors, so a healthy network shows "No interface errors" rather than a list of zeros.</summary>
     public bool TopHideQuiet { get; set; } = true;
 
+    /// <summary>For an Event log or Graylog widget (#202, #203): how many entries to show.</summary>
+    public int LogCount { get; set; } = 10;
+
+    /// <summary>For an Event log widget: only entries of this LibreNMS type ("system", "interface", …), or null for every type.</summary>
+    public string? LogType { get; set; }
+
+    /// <summary>
+    /// For an Event log widget, text the entries must contain; for a Graylog
+    /// widget, a search in Graylog's own syntax. Null or blank shows everything.
+    /// </summary>
+    public string? LogSearch { get; set; }
+
+    /// <summary>For a Graylog widget: one stream's id, or null for every stream.</summary>
+    public string? GraylogStreamId { get; set; }
+
+    /// <summary>For a Graylog widget: how far back to search, in seconds.</summary>
+    public int GraylogRangeSeconds { get; set; } = 900;
+
     /// <summary>
     /// Anything in the stored widget this version doesn't model - another
     /// widget type's settings, written by DashyNMS Mobile or a newer desktop -
@@ -883,7 +901,12 @@ public sealed class DashboardWidget
         TopCount = TopCount,
         TopRankByName = TopRankByName,
         TopHideQuiet = TopHideQuiet,
-        Extra = Extra is null ? null : new Dictionary<string, JsonElement>(Extra),
+        LogCount = LogCount,
+        LogType = LogType,
+        LogSearch = LogSearch,
+        GraylogStreamId = GraylogStreamId,
+        GraylogRangeSeconds = GraylogRangeSeconds,
+        Extra =Extra is null ? null : new Dictionary<string, JsonElement>(Extra),
     };
 
     /// <summary>Clamps anything a hand-edited settings file could have made nonsensical.</summary>
@@ -898,6 +921,9 @@ public sealed class DashboardWidget
         if (RowSpan < MinRowSpan) RowSpan = MinRowSpan;
         if (TopCount < 1) TopCount = 1;
         if (TopCount > 50) TopCount = 50;
+        if (LogCount < 1) LogCount = 1;
+        if (LogCount > 100) LogCount = 100;
+        if (GraylogRangeSeconds < 60) GraylogRangeSeconds = 60;
         Sensors ??= new List<PinnedSensor>();
     }
 }

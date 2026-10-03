@@ -48,6 +48,15 @@ public interface IWindowService
     /// <summary>Opens Device Details on its Ports section with one port picked - from a Top widget.</summary>
     void ShowDevicePort(int deviceId, int portId);
 
+    /// <summary>Opens Device Details on its Event log section - from the Event log widget (#202).</summary>
+    void ShowDeviceEventLog(int deviceId);
+
+    /// <summary>Opens Device Details on its Graylog section - from the Graylog widget (#203).</summary>
+    void ShowDeviceGraylog(int deviceId);
+
+    /// <summary>Shows the main window on the Logs tab - a Graylog widget message from a source that isn't a known device (#203).</summary>
+    void ShowLogsTab();
+
     /// <summary>The Dashboard's "Add widget" picker (#204). Returns the widget chosen, or null if cancelled.</summary>
     DesktopNMS.ViewModels.WidgetCatalogEntry? ShowWidgetPicker(IReadOnlyList<DesktopNMS.ViewModels.WidgetCatalogEntry> catalog);
 
