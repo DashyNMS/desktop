@@ -55,6 +55,9 @@ public sealed class ConfirmDialogViewModel : ObservableObject
     /// <summary>Tints the title red for an error notice - same red the rest of the app already uses for error banners/text.</summary>
     public bool IsError { get; }
 
+    /// <summary>An action nothing in DashyNMS can undo (#66): the confirm button turns red, and Cancel - not it - takes Enter.</summary>
+    public bool IsDestructive { get; init; }
+
     /// <summary>
     /// Read by the caller after the dialog closes, regardless of whether it
     /// was confirmed or cancelled - checking the box is a standalone "stop

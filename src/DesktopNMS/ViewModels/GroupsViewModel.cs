@@ -245,10 +245,10 @@ public sealed class GroupsViewModel : ObservableObject
     private async Task DeleteGroupAsync(GroupListItemViewModel item)
     {
         var message = item.IsEditableAsStatic
-            ? $"Permanently delete the group '{item.Name}' from LibreNMS? This cannot be undone."
-            : $"Permanently delete the group '{item.Name}' from LibreNMS? This cannot be undone, and its rules cannot be recreated from DashyNMS - only from LibreNMS's own web UI.";
+            ? $"Delete the group \"{item.Name}\" from LibreNMS? {Confirmations.CannotBeUndone}"
+            : $"Delete the group \"{item.Name}\" from LibreNMS? {Confirmations.CannotBeUndone} Its rules can only be recreated in LibreNMS's own web UI, not in DashyNMS.";
 
-        if (!_windows.Confirm("Delete group", message))
+        if (!_windows.Confirm("Delete group", message, "Delete", destructive: true))
         {
             return;
         }
@@ -294,7 +294,7 @@ public sealed class GroupsViewModel : ObservableObject
             return;
         }
 
-        if (!_windows.Confirm("Rediscover group", $"Ask LibreNMS to rediscover all {deviceIds.Count} device(s) in '{item.Name}' now?"))
+        if (!_windows.Confirm("Rediscover group", $"Ask LibreNMS to rediscover all {deviceIds.Count} device(s) in \"{item.Name}\" now?", "Rediscover"))
         {
             return;
         }

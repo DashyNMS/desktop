@@ -498,7 +498,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     private void DeleteView(NeighbourViewDefinition? view)
     {
         if (view is null
-            || !_windows.Confirm("Delete neighbourhood", $"Delete the \"{view.Name}\" neighbourhood? This only removes the filter - nothing changes in LibreNMS."))
+            || !_windows.Confirm("Delete neighbourhood", $"Delete the neighbourhood \"{view.Name}\"? {Confirmations.CannotBeUndone} Only the filter goes - nothing changes in LibreNMS.", "Delete", destructive: true))
         {
             return;
         }

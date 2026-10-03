@@ -712,6 +712,12 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         }
 
         var devices = _selectedDevices.ToList();
+        if (devices.Count > Confirmations.BulkThreshold
+            && !_windows.Confirm("Rediscover devices", $"Ask LibreNMS to rediscover all {devices.Count} selected devices now?", "Rediscover"))
+        {
+            return;
+        }
+
         var failedNames = new List<string>();
 
         await Task.WhenAll(devices.Select(async device =>

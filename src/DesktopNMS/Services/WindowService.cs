@@ -500,11 +500,11 @@ public sealed class WindowService : IWindowService
 
     public void ShowInformation(string title, string message) => ShowNotice(title, message, isError: false);
 
-    public bool Confirm(string title, string message)
-        => ShowConfirmDialog(title, message, showDontAskAgain: false, dontAskAgainLabel: string.Empty).Confirmed;
+    public bool Confirm(string title, string message, string confirmLabel, bool destructive = false)
+        => ShowConfirmDialog(title, message, confirmLabel, destructive, showDontAskAgain: false, dontAskAgainLabel: string.Empty).Confirmed;
 
-    public (bool Confirmed, bool DontAskAgain) ConfirmWithOptOut(string title, string message, string dontAskAgainLabel = "Don't ask me again")
-        => ShowConfirmDialog(title, message, showDontAskAgain: true, dontAskAgainLabel);
+    public (bool Confirmed, bool DontAskAgain) ConfirmWithOptOut(string title, string message, string confirmLabel, string dontAskAgainLabel = "Don't ask me again")
+        => ShowConfirmDialog(title, message, confirmLabel, destructive: false, showDontAskAgain: true, dontAskAgainLabel);
 
     public bool ConfirmTrustCertificate(string service, DesktopNMS.Core.Security.CertificateDetails certificate)
     {
@@ -526,9 +526,9 @@ public sealed class WindowService : IWindowService
     /// a plain Windows message box does not pick up the app's own dark/light
     /// theme and stands out against the rest of the UI.
     /// </summary>
-    private (bool Confirmed, bool DontAskAgain) ShowConfirmDialog(string title, string message, bool showDontAskAgain, string dontAskAgainLabel)
+    private (bool Confirmed, bool DontAskAgain) ShowConfirmDialog(string title, string message, string confirmLabel, bool destructive, bool showDontAskAgain, string dontAskAgainLabel)
     {
-        var viewModel = new ConfirmDialogViewModel(title, message, showDontAskAgain, dontAskAgainLabel);
+        var viewModel = new ConfirmDialogViewModel(title, message, showDontAskAgain, dontAskAgainLabel, confirmLabel: confirmLabel) { IsDestructive = destructive };
         var window = new ConfirmDialog(viewModel);
         RememberPlacement(window);
 
