@@ -37,6 +37,9 @@ public partial class App : Application
 
     /// <summary>Passed to the fresh copy after Sign out, with the closing copy's process id (#231).</summary>
     private const string FreshStartArgument = "--fresh-start";
+
+    /// <summary>Passed by the uninstaller (#64): remove the notification registration, then exit.</summary>
+    private const string UninstallArgument = "--uninstall";
     private EventWaitHandle? _showWindowSignal;
     private CancellationTokenSource? _showWindowListener;
     private ServiceProvider? _services;
@@ -50,6 +53,15 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Before the single-instance check: this runs alongside nothing else,
+        // shows nothing, and must work even if a copy is somehow still open.
+        if (e.Args.Any(a => a.Equals(UninstallArgument, StringComparison.OrdinalIgnoreCase)))
+        {
+            RemoveNotificationRegistration();
+            Shutdown();
+            return;
+        }
 
         if (!ClaimSingleInstance())
         {
@@ -807,6 +819,24 @@ public partial class App : Application
         _tray?.Dispose();
 
         Shutdown();
+    }
+
+    /// <summary>
+    /// The uninstaller's last call into the app (#64): clears its toasts from
+    /// Action Center and removes the COM activator and AppUserModelId it
+    /// registered under HKCU, so nothing is left pointing at a deleted exe.
+    /// The installer removes the shortcut and the Run value itself.
+    /// </summary>
+    private static void RemoveNotificationRegistration()
+    {
+        try
+        {
+            ToastNotificationManagerCompat.Uninstall();
+        }
+        catch (Exception)
+        {
+            // Nothing to show and nobody to tell - the uninstall carries on.
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)

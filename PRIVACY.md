@@ -20,7 +20,7 @@ Everything DashyNMS saves stays on your computer, under your Windows account:
 - **`%APPDATA%\DashyNMS`:** your server address and settings, dashboards and map layouts, downloaded updates, and log files kept for 14 days. Your LibreNMS API token, Graylog password and Unimus token are encrypted with Windows (DPAPI), so only your Windows account on this computer can read them. You can turn off saving the LibreNMS token entirely.
 - **`%LOCALAPPDATA%\DashyNMS`:** cached map tiles.
 
-**Signing out removes all of it** apart from the logs and downloaded updates, and DashyNMS restarts ready to sign in again. Uninstalling removes the app but leaves these folders, so a reinstall picks up where you left off; delete them to remove everything.
+**Signing out removes all of it** apart from the logs and downloaded updates, and DashyNMS restarts ready to sign in again. Uninstalling asks whether to remove these folders too. Keep them and a reinstall picks up where you left off; a silent uninstall always keeps them.
 
 ## Questions
 
