@@ -1937,7 +1937,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void SignOut()
     {
-        if (!_windows.Confirm("Sign out", "Sign out and forget the stored API token?"))
+        // In plain words what goes (#231) - signing out is a fresh start.
+        if (!_windows.Confirm(
+                "Sign out",
+                "Signing out removes everything DashyNMS has saved on this computer: your sign-in, settings, dashboards, maps, and Graylog and Unimus connections."
+                + Environment.NewLine + Environment.NewLine
+                + "DashyNMS then restarts, ready for you to sign in again."))
         {
             return;
         }

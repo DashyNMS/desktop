@@ -132,6 +132,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
         _settings.Changed += OnSettingsChanged;
         _layout.Changed += OnLayoutChanged;
+        _session.StateChanged += OnSessionStateChanged;
         _sensorMonitor.PollStarted += OnPollStarted;
         _sensorMonitor.Polled += OnPolled;
     }
@@ -328,6 +329,10 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
     // ---------------------------------------------------------------- widgets
 
+    /// <summary>Signed in: make the widgets now (see <see cref="SyncWidgets"/>).</summary>
+    private void OnSessionStateChanged(object? sender, EventArgs e)
+        => _dispatcher.InvokeAsync(SyncWidgets);
+
     private void OnLayoutChanged(object? sender, EventArgs e)
     {
         var previousIds = Widgets.Select(w => w.Id).ToHashSet();
@@ -350,6 +355,13 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     /// <summary>Adds/removes/updates <see cref="Widgets"/> to match the persisted layout.</summary>
     private void SyncWidgets()
     {
+        // Nothing to load until signed in (#231): the widgets are made once
+        // there's a session, so none of them asks a server that isn't there.
+        if (!_session.IsConnected)
+        {
+            return;
+        }
+
         var models = _layout.Widgets;
         var incomingIds = models.Select(w => w.Id).ToHashSet();
 
@@ -437,6 +449,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
         _autoRefresh.Dispose();
         _settings.Changed -= OnSettingsChanged;
         _layout.Changed -= OnLayoutChanged;
+        _session.StateChanged -= OnSessionStateChanged;
         _sensorMonitor.PollStarted -= OnPollStarted;
         _sensorMonitor.Polled -= OnPolled;
 

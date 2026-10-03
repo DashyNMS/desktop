@@ -29,6 +29,9 @@ public partial class App : Application
 
     private Mutex? _singleInstanceMutex;
     private bool _signInOpen;
+
+    /// <summary>Passed to the fresh copy after Sign out: wipe everything saved before loading anything (#231).</summary>
+    private const string ResetArgument = "--signed-out-reset";
     private EventWaitHandle? _showWindowSignal;
     private CancellationTokenSource? _showWindowListener;
     private ServiceProvider? _services;
@@ -60,9 +63,26 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
         AsyncRelayCommand.UnhandledError += OnCommandError;
 
+        // Straight after Sign out (#231): forget everything saved on this
+        // computer before any of it is loaded, so this start is the same as a
+        // fresh install. Here rather than in the old copy, which could still
+        // save settings on its way out.
+        var resetFailures = e.Args.Contains(ResetArgument, StringComparer.OrdinalIgnoreCase)
+            ? LocalDataReset.Wipe(AppPaths.DataDirectory, System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DashyNMS"))
+            : null;
+
         _services = BuildServices();
         _logger = _services.GetRequiredService<ILogger<App>>();
         _logger.LogInformation("DashyNMS starting");
+
+        if (resetFailures is not null)
+        {
+            _logger.LogInformation("Signed out: everything saved on this computer was removed{Failures}",
+                resetFailures.Count == 0 ? string.Empty : " except " + resetFailures.Count + " item(s) that were in use");
+
+            // "Start with Windows" is a setting too.
+            _services.GetRequiredService<IStartupRegistration>().SetEnabled(false);
+        }
 
         // Must happen before the first toast is sent, and costs nothing on the
         // runs where the shortcut already matches.
@@ -525,7 +545,9 @@ public partial class App : Application
 
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = false });
+            var start = new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = false };
+            start.ArgumentList.Add(ResetArgument);
+            System.Diagnostics.Process.Start(start);
         }
         catch (Exception ex)
         {
