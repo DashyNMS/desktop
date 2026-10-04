@@ -10,9 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://dashynms.pckp.net/">Website</a> ·
+  <a href="https://dashynms.pckp.net/desktop/">Website</a> ·
   <a href="https://github.com/DashyNMS/desktop/releases/latest">Download</a> ·
-  <a href="https://dashynms.pckp.net/privacy/">Privacy</a>
+  <a href="https://dashynms.pckp.net/desktop/privacy/">Privacy</a>
 </p>
 
 ---
