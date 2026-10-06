@@ -102,6 +102,21 @@ public class GraphSvgStyleTests
         Assert.Contains($"stroke=\"{Palette.Accent}\"", GraphSvgStyle.Apply(Svg(cpu), Palette));
     }
 
+    [Fact]
+    public void A_blue_series_after_a_red_first_one_is_not_red()
+    {
+        // A multi-line graph as a real server sent it: #CC0000, then #4096EE, then #008C00.
+        const string red = "<path fill=\"none\" stroke-width=\"1.25\" stroke=\"rgb(80%, 0%, 0%)\" stroke-opacity=\"1\" d=\"M 61 300 L 70 290 \"/>";
+        const string blue = "<path fill=\"none\" stroke-width=\"1.25\" stroke=\"rgb(25.098039%, 58.823529%, 93.333333%)\" stroke-opacity=\"1\" d=\"M 61 310 L 70 280 \"/>";
+        const string green = "<path fill=\"none\" stroke-width=\"1.25\" stroke=\"rgb(0%, 54.901961%, 0%)\" stroke-opacity=\"1\" d=\"M 61 320 L 70 270 \"/>";
+
+        var lines = GraphSvgStyle.Apply(Svg(red, blue, green), Palette).Split('\n');
+
+        Assert.Contains($"stroke=\"{Palette.Accent}\"", lines.Single(l => l.Contains("M 61 300")));
+        Assert.Contains($"stroke=\"{Palette.Teal}\"", lines.Single(l => l.Contains("M 61 310")));
+        Assert.Contains($"stroke=\"{Palette.Ok}\"", lines.Single(l => l.Contains("M 61 320")));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("not an svg")]

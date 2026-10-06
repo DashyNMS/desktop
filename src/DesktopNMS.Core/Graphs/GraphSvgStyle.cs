@@ -219,7 +219,11 @@ public static partial class GraphSvgStyle
                 return _assigned[family] = palette.Accent;
             }
 
-            var own = family == Family.Blue ? Natural(_first.Value) : Natural(family);
+            // Blue takes what the first series gave up - but never red, which
+            // would read as an alarm (a CPU graph that starts red, then blue).
+            var own = family != Family.Blue ? Natural(family)
+                : _first == Family.Red ? palette.Teal
+                : Natural(_first.Value);
             return _assigned[family] = own;
         }
 
