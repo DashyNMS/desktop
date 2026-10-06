@@ -188,6 +188,11 @@ internal sealed class DemoFleet
             case "links":
                 return Collection("links", _links.Where(l => LocalDeviceOf(l) == device.Id));
 
+            case "graphs" when parts.Length >= 6:
+                // One sensor's own graph: devices/{id}/graphs/health/{graph}/{sensor}.
+                var one = SensorsOf(device).Where(s => Prop(s, "sensor_id").ToString(CultureInfo.InvariantCulture) == parts[5]).ToList();
+                return Svg(DemoGraphs.Sensors(width, height, Seed(device.Name + parts[5]), one.Select(s => (Descr(s), Current(s))).ToList()), legend: !(query.TryGetValue("legend", out var oneLegend) && oneLegend == "no"));
+
             case "graphs":
                 return Collection("graphs", new[]
                 {
@@ -240,11 +245,18 @@ internal sealed class DemoFleet
                 // A list this demo has nothing for: wireless, ARP, VLANs, ...
                 return Ok(new(), unhandled: !other.Equals("wireless-sensors", StringComparison.Ordinal));
 
+            case var sensorGraph when sensorGraph.StartsWith("device_", StringComparison.Ordinal)
+                                      && SensorsOf(device, sensorGraph["device_".Length..]) is { Count: > 0 } classSensors:
+                // A sensor class's graph: a line per sensor, by description, as LibreNMS draws it.
+                return Svg(
+                    DemoGraphs.Sensors(width, height, Seed(device.Name + sensorGraph), classSensors.Select(s => (Descr(s), Current(s))).ToList()),
+                    legend: !(query.TryGetValue("legend", out var sensorLegend) && sensorLegend == "no"));
+
             default:
                 // Anything else under a device, asked for a time range, is a graph, by name.
                 return Svg(parts[2] switch
                 {
-                    "device_bits" => DemoGraphs.Traffic(width, height, Seed(device.Name), device.Load),
+                    "device_bits" => DemoGraphs.Traffic(width, height, Seed(device.Name), device.Load, TrafficNow(device)),
                     "device_processor" => DemoGraphs.Percent(width, height, Seed(device.Name + "cpu"), device.Cpu),
                     "device_mempool" => DemoGraphs.Percent(width, height, Seed(device.Name + "mem"), device.Memory),
                     "device_icmp_perf" => DemoGraphs.Latency(width, height, Seed(device.Name + "ping")),
@@ -477,6 +489,12 @@ internal sealed class DemoFleet
             Sensor(d.Name, "voltage", "PSU 1 input", 231.4, 264, 254, 196, 207);
         }
 
+        // The featured switch has more to show in its temperature graph.
+        Sensor("core-sw-01", "temperature", "Supervisor", 58, 85, 75);
+        Sensor("core-sw-01", "temperature", "ASIC", 66, 80, 70);
+        Sensor("core-sw-01", "temperature", "PSU 1", 39, 70, 60);
+        Sensor("core-sw-01", "temperature", "PSU 2", 41, 70, 60);
+
         foreach (var name in new[] { "core-sw-01", "core-sw-02", "edge-rtr-01" })
         {
             Sensor(name, "dbm", "Te1/1/1 Rx power", -3.1 - Device(name).Id * 0.2, 1, 0, -14, -12.5);
@@ -686,6 +704,25 @@ internal sealed class DemoFleet
     private ExamplePort? PortOf(ExampleDevice device, string name) => _ports.FirstOrDefault(p => p.DeviceId == device.Id && p.Name == name);
 
     private static int Prop(object o, string name) => Convert.ToInt32(o.GetType().GetProperty(name)!.GetValue(o), CultureInfo.InvariantCulture);
+
+    /// <summary>A device's traffic now, in and out, in Gb/s - its ports' rates added up, as the legend does.</summary>
+    private (double In, double Out) TrafficNow(ExampleDevice device)
+    {
+        var ports = _ports.Where(p => p.DeviceId == device.Id).ToList();
+        return (ports.Sum(p => p.Speed * p.Load) / 1e9, ports.Sum(p => p.Speed * p.Load * 0.42) / 1e9);
+    }
+
+    /// <summary>A device's sensors (of one class), by description - LibreNMS's order in its sensor graphs.</summary>
+    private List<object> SensorsOf(ExampleDevice device, string? sensorClass = null)
+        => _sensors
+            .Where(s => Prop(s, "device_id") == device.Id)
+            .Where(s => sensorClass is null || string.Equals((string)s.GetType().GetProperty("sensor_class")!.GetValue(s)!, sensorClass, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(Descr, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    private static string Descr(object sensor) => (string)sensor.GetType().GetProperty("sensor_descr")!.GetValue(sensor)!;
+
+    private static double Current(object sensor) => Convert.ToDouble(sensor.GetType().GetProperty("sensor_current")!.GetValue(sensor), CultureInfo.InvariantCulture);
 
     private static int IdOf(object o) => Prop(o, "id");
 

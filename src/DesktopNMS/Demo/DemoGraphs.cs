@@ -20,11 +20,22 @@ internal static class DemoGraphs
     private const int Bottom = 34;
 
     // LibreNMS's own: port traffic (generic_bits), ping (icmp_perf), and the "mixed" palette's first colour.
-    public static string Traffic(int width, int height, int seed, double load)
+    /// <param name="now">The device's traffic now, in and out, in Gb/s - so the graph ends where the legend says; null for a port graph.</param>
+    public static string Traffic(int width, int height, int seed, double load, (double In, double Out)? now = null)
     {
-        var inbound = Series(seed, 0.25 + load * 0.6, 0.18);
-        var outbound = Series(seed + 7, (0.25 + load * 0.6) * 0.45, 0.12);
-        return Chart(width, height, "bps", Math.Max(1, load) * 10, new[]
+        var max = Math.Max(1, load) * 10;
+        double inLevel = 0.25 + load * 0.6, outLevel = inLevel * 0.45;
+        if (now is { In: > 0 } rates)
+        {
+            // The day's last samples sit at about 0.6 of a series' level, its peak at about 1.15.
+            max = Math.Ceiling(rates.In * 2.5 / 5) * 5;
+            inLevel = rates.In / max / 0.6;
+            outLevel = rates.Out / max / 0.6;
+        }
+
+        var inbound = Series(seed, inLevel, 0.18);
+        var outbound = Series(seed + 7, outLevel, 0.12);
+        return Chart(width, height, "bps", max, new[]
         {
             new Line(inbound, "#91B13C", "#006600", "In"),
             new Line(outbound, "#8080BD", "#000099", "Out"),
@@ -37,11 +48,24 @@ internal static class DemoGraphs
     public static string Latency(int width, int height, int seed)
         => Chart(width, height, "ms", 10, new[] { new Line(Series(seed, 0.22, 0.1), "#CCD2DE", "#36393D", "RTT") });
 
+    /// <summary>A sensor class's graph: a line per sensor around its current value, in LibreNMS's sensor colours (sensor.inc.php).</summary>
+    public static string Sensors(int width, int height, int seed, IReadOnlyList<(string Name, double Current)> sensors)
+    {
+        string[] colours = ["#CC0000", "#008C00", "#4096EE", "#73880A", "#D01F3C", "#36393D", "#FF0084"];
+        var max = Math.Max(1, sensors.Count == 0 ? 1 : sensors.Max(s => Math.Abs(s.Current))) * 1.4;
+        var lines = sensors.Select((s, i) =>
+        {
+            var values = Series(seed + i * 11, Math.Clamp(Math.Abs(s.Current) / max, 0.05, 0.9), 0.04);
+            return new Line(values, null, colours[i % colours.Length], s.Name);
+        }).ToList();
+        return Chart(width, height, string.Empty, Math.Round(max), lines);
+    }
+
     /// <summary>The graph without its legend, as LibreNMS draws it for "legend=no".</summary>
     public static string WithoutLegend(string svg)
         => System.Text.RegularExpressions.Regex.Replace(svg, "<(path|text) class=\"legend\"[^>]*?(/>|>[^<]*</text>)", string.Empty);
 
-    private sealed record Line(double[] Values, string Area, string Stroke, string Label);
+    private sealed record Line(double[] Values, string? Area, string Stroke, string Label);
 
     /// <summary>288 five-minute samples, 0..1, with a working-day hump.</summary>
     private static double[] Series(int seed, double level, double noise)
@@ -111,7 +135,11 @@ internal static class DemoGraphs
                 points.Append(CultureInfo.InvariantCulture, $"{(i == 0 ? "M" : "L")} {x:0.##} {y:0.##} ");
             }
 
-            svg.Append(CultureInfo.InvariantCulture, $"<path fill-rule=\"nonzero\" fill=\"{Rgb(line.Area)}\" fill-opacity=\"1\" d=\"M {Left} {bottom} L{points.ToString()[1..]}L {Left + plotW} {bottom} Z\"/>\n");
+            if (line.Area is not null)
+            {
+                svg.Append(CultureInfo.InvariantCulture, $"<path fill-rule=\"nonzero\" fill=\"{Rgb(line.Area)}\" fill-opacity=\"1\" d=\"M {Left} {bottom} L{points.ToString()[1..]}L {Left + plotW} {bottom} Z\"/>\n");
+            }
+
             svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"none\" stroke-width=\"1.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke=\"{Rgb(line.Stroke)}\" stroke-opacity=\"1\" d=\"{points}\"/>\n");
             svg.Append(CultureInfo.InvariantCulture, $"<path class=\"legend\" fill-rule=\"nonzero\" fill=\"{Rgb(line.Stroke)}\" fill-opacity=\"1\" d=\"M {legendX} {height - 11} L {legendX} {height - 3} L {legendX + 8} {height - 3} L {legendX + 8} {height - 11} Z\"/>\n");
             svg.Append(CultureInfo.InvariantCulture, $"<text class=\"legend\" x=\"{legendX + 12}\" y=\"{height - 4}\" font-family=\"DejaVu Sans Mono, Consolas, monospace\" font-size=\"9\" fill=\"{Black}\">{line.Label}</text>\n");

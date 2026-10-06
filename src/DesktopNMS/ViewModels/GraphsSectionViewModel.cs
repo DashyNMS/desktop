@@ -4,6 +4,8 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using DesktopNMS.Core.Api;
+using DesktopNMS.Core.Configuration;
+using DesktopNMS.Core.Graphs;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
 using Microsoft.Extensions.Logging;
@@ -26,8 +28,9 @@ public sealed class GraphsSectionViewModel : ObservableObject
     private readonly ILibreNmsClient _client;
     private readonly ILogger _logger;
 
-    /// <summary>Already-fetched-and-recoloured SVG per graph+range, kept for exactly this view model's lifetime - the Device Details window's lifetime (issue #20). Re-opening the same device later is a fresh, deliberate re-fetch; nothing here is persisted.</summary>
-    private readonly Dictionary<(string GraphName, GraphTimeRange Range), string> _cache = new();
+    /// <summary>LibreNMS's SVG as sent, per graph, range and legend, kept for exactly this view model's lifetime - the Device Details window's (issue #20) - so turning series on and off needs no new request. Re-opening the same device later is a fresh, deliberate re-fetch.</summary>
+    private readonly Dictionary<(string GraphName, GraphTimeRange Range, bool Legend), string> _cache = new();
+    private readonly ISettingsStore _settings;
 
     private bool _hasLoadedOnce;
     private Task? _loadTypesTask;
@@ -36,9 +39,10 @@ public sealed class GraphsSectionViewModel : ObservableObject
     private string? _errorMessage;
     private string? _currentSvg;
 
-    public GraphsSectionViewModel(int deviceId, ILibreNmsClient client, ILogger logger)
+    public GraphsSectionViewModel(int deviceId, ILibreNmsClient client, ISettingsStore settings, ILogger logger)
     {
         _deviceId = deviceId;
+        _settings = settings;
         _client = client;
         _logger = logger;
 
@@ -216,34 +220,306 @@ public sealed class GraphsSectionViewModel : ObservableObject
         }
 
         var range = TimeRange.ToTimeRange();
-        var cacheKey = (graph.Name, range);
-
-        if (_cache.TryGetValue(cacheKey, out var cached))
-        {
-            CurrentSvg = cached;
-            return;
-        }
+        var version = ++_loadVersion;
 
         IsLoading = true;
         ErrorMessage = null;
 
         try
         {
-            var rawSvg = await _client.Graphs.GetSvgAsync(_deviceId, graph.Name, range, width: 1000, height: 350).ConfigureAwait(true);
-            var themedSvg = GraphSvgTheming.ApplyCurrentTheme(rawSvg);
+            // Our own legend where the series can be named (GraphLegend);
+            // LibreNMS's otherwise - and if the graph doesn't have the series
+            // the legend expects, LibreNMS's after all, rather than a wrong one.
+            var entries = await LegendEntriesAsync(graph.Name).ConfigureAwait(true);
+            string raw;
+            if (entries is { Count: > 0 })
+            {
+                raw = await RawAsync(graph.Name, range, legend: false).ConfigureAwait(true);
+                if (GraphSvgTheming.Restyle(raw).SeriesColours.Count != entries.Count)
+                {
+                    _logger.LogDebug("Graph {GraphName} for device {DeviceId} didn't have the {Count} series expected - showing LibreNMS's legend", graph.Name, _deviceId, entries.Count);
+                    entries = null;
+                    raw = await RawAsync(graph.Name, range, legend: true).ConfigureAwait(true);
+                }
+            }
+            else
+            {
+                entries = null;
+                raw = await RawAsync(graph.Name, range, legend: true).ConfigureAwait(true);
+            }
 
-            _cache[cacheKey] = themedSvg;
-            CurrentSvg = themedSvg;
+            if (version != _loadVersion)
+            {
+                return;
+            }
+
+            _raw = raw;
+            _entries = entries;
+            _hidden = new HashSet<string>(
+                entries is null ? Enumerable.Empty<string>() : HiddenSetting(graph.Name).Where(n => entries.Any(e => e.Name == n)),
+                StringComparer.Ordinal);
+            await RenderAsync(version).ConfigureAwait(true);
         }
         catch (LibreNmsApiException ex)
         {
             _logger.LogWarning(ex, "Could not load graph {GraphName} for device {DeviceId}", graph.Name, _deviceId);
             ErrorMessage = ex.ToUserMessage();
             CurrentSvg = null;
+            Legend.Clear();
+            RaiseLegendChanged();
         }
         finally
         {
-            IsLoading = false;
+            if (version == _loadVersion)
+            {
+                IsLoading = false;
+            }
         }
     }
+
+    // --------------------------------------------------------------- legend
+
+    private const int GraphWidth = 1000;
+    private const int GraphHeight = 350;
+
+    private int _loadVersion;
+    private string? _raw;
+    private IReadOnlyList<GraphLegendEntry>? _entries;
+    private HashSet<string> _hidden = new(StringComparer.Ordinal);
+    private IReadOnlyList<Sensor>? _sensors;
+    private string? _scaleNote;
+
+    /// <summary>The app's own legend (see GraphLegend) - empty when LibreNMS's legend is in the graph instead.</summary>
+    public ObservableCollection<GraphLegendItemViewModel> Legend { get; } = new();
+
+    public bool HasLegend => Legend.Count > 0;
+
+    public bool HasHiddenSeries => _hidden.Count > 0 && HasLegend;
+
+    /// <summary>"4 of 6 shown".</summary>
+    public string ShownText => $"{Legend.Count - _hidden.Count} of {Legend.Count} shown";
+
+    /// <summary>"Scale covers every series" / "Scale fitted to ASIC" / nothing.</summary>
+    public string? ScaleNote
+    {
+        get => _scaleNote;
+        private set => SetProperty(ref _scaleNote, value);
+    }
+
+    public RelayCommand ShowAllCommand => _showAll ??= new RelayCommand(() => SetHidden(Array.Empty<string>()));
+
+    private RelayCommand? _showAll;
+
+    /// <summary>Hides or shows one series.</summary>
+    internal void Toggle(string name)
+        => SetHidden(_hidden.Contains(name) ? _hidden.Where(n => n != name) : _hidden.Append(name));
+
+    /// <summary>Shows only this series.</summary>
+    internal void ShowOnly(string name)
+        => SetHidden(Legend.Select(i => i.Name).Where(n => n != name));
+
+    private void SetHidden(IEnumerable<string> hidden)
+    {
+        var next = new HashSet<string>(hidden, StringComparer.Ordinal);
+
+        // Turning the last one off too would leave an empty graph - not something to ask for.
+        if (_entries is null || next.Count >= _entries.Count)
+        {
+            return;
+        }
+
+        _hidden = next;
+        if (SelectedGraph is { } graph)
+        {
+            var key = HiddenKey(graph.Name);
+            if (_hidden.Count == 0)
+            {
+                _settings.Current.GraphHiddenSeries.Remove(key);
+            }
+            else
+            {
+                _settings.Current.GraphHiddenSeries[key] = _hidden.ToList();
+            }
+
+            _settings.SaveQuietly();
+        }
+
+        _ = RenderAsync(_loadVersion);
+    }
+
+    /// <summary>The graph as it should look now: the series shown, and the scale fitted to a lone sensor.</summary>
+    private async Task RenderAsync(int version)
+    {
+        if (_raw is not { } raw)
+        {
+            return;
+        }
+
+        if (_entries is not { } entries)
+        {
+            Legend.Clear();
+            CurrentSvg = GraphSvgTheming.Restyle(raw).Svg;
+            ScaleNote = null;
+            RaiseLegendChanged();
+            return;
+        }
+
+        var hiddenIndexes = entries.Select((e, i) => (e, i)).Where(x => _hidden.Contains(x.e.Name)).Select(x => x.i).ToHashSet();
+        var styled = GraphSvgTheming.Restyle(raw, hiddenIndexes);
+
+        SyncLegend(entries, styled.SeriesColours);
+
+        var shown = entries.Where(e => !_hidden.Contains(e.Name)).ToList();
+        if (shown is [{ SensorId: { } sensorId } only] && entries.Count > 1 && SelectedGraph is { } graph)
+        {
+            // One sensor left: its own graph, so the scale fits it rather than every sensor.
+            try
+            {
+                var colour = styled.SeriesColours[entries.ToList().IndexOf(only)];
+                var single = await SensorRawAsync(graph.Name, sensorId, TimeRange.ToTimeRange()).ConfigureAwait(true);
+                if (version != _loadVersion || !_hidden.SetEquals(entries.Where(e => e != only).Select(e => e.Name)))
+                {
+                    return;
+                }
+
+                CurrentSvg = GraphSvgTheming.Restyle(single, mainColour: colour).Svg;
+                ScaleNote = $"Scale fitted to {only.Name}";
+                return;
+            }
+            catch (LibreNmsApiException ex)
+            {
+                _logger.LogDebug(ex, "Could not load sensor {SensorId}'s own graph - keeping the shared scale", sensorId);
+            }
+        }
+
+        CurrentSvg = styled.Svg;
+        ScaleNote = _hidden.Count > 0 ? "Scale covers every series" : null;
+    }
+
+    private void SyncLegend(IReadOnlyList<GraphLegendEntry> entries, IReadOnlyList<string> colours)
+    {
+        if (Legend.Count != entries.Count || Legend.Select(i => i.Name).Zip(entries, (a, b) => a == b.Name).Any(same => !same))
+        {
+            Legend.Clear();
+            for (var i = 0; i < entries.Count; i++)
+            {
+                Legend.Add(new GraphLegendItemViewModel(entries[i], colours[i], this));
+            }
+        }
+
+        foreach (var item in Legend)
+        {
+            item.IsShown = !_hidden.Contains(item.Name);
+        }
+
+        RaiseLegendChanged();
+    }
+
+    private void RaiseLegendChanged()
+    {
+        OnPropertyChanged(nameof(HasLegend));
+        OnPropertyChanged(nameof(HasHiddenSeries));
+        OnPropertyChanged(nameof(ShownText));
+    }
+
+    /// <summary>The series names for this graph, in LibreNMS's drawing order - or null when it isn't a graph we can name the series of.</summary>
+    private async Task<IReadOnlyList<GraphLegendEntry>?> LegendEntriesAsync(string graphName)
+    {
+        try
+        {
+            if (graphName == GraphLegend.TrafficGraph)
+            {
+                return GraphLegend.ForTraffic(await _client.Ports.ListForDeviceAsync(_deviceId).ConfigureAwait(true));
+            }
+
+            if (graphName == GraphLegend.ProcessorGraph)
+            {
+                return GraphLegend.ForProcessors(await _client.Health.ListProcessorsAsync(_deviceId).ConfigureAwait(true));
+            }
+
+            if (GraphLegend.SensorClassOf(graphName) is { } sensorClass)
+            {
+                _sensors ??= (await _client.Sensors.ListAsync().ConfigureAwait(true)).Where(s => s.DeviceId == _deviceId).ToList();
+                var entries = GraphLegend.ForSensors(_sensors, sensorClass);
+                return entries.Count > 0 ? entries : null;
+            }
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogDebug(ex, "Could not name the series of {GraphName} - showing LibreNMS's legend", graphName);
+        }
+
+        return null;
+    }
+
+    private async Task<string> RawAsync(string graphName, GraphTimeRange range, bool legend)
+    {
+        var key = (graphName, range, legend);
+        if (!_cache.TryGetValue(key, out var raw))
+        {
+            raw = await _client.Graphs.GetSvgAsync(_deviceId, graphName, range, GraphWidth, GraphHeight, legend: legend).ConfigureAwait(true);
+            _cache[key] = raw;
+        }
+
+        return raw;
+    }
+
+    private async Task<string> SensorRawAsync(string graphName, int sensorId, GraphTimeRange range)
+    {
+        var key = (graphName + "/" + sensorId.ToString(System.Globalization.CultureInfo.InvariantCulture), range, false);
+        if (!_cache.TryGetValue(key, out var raw))
+        {
+            raw = await _client.Graphs.GetSensorSvgAsync(_deviceId, graphName, sensorId, range, GraphWidth, GraphHeight, legend: false).ConfigureAwait(true);
+            _cache[key] = raw;
+        }
+
+        return raw;
+    }
+
+    private string HiddenKey(string graphName) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{_deviceId}:{graphName}");
+
+    private IReadOnlyList<string> HiddenSetting(string graphName)
+        => _settings.Current.GraphHiddenSeries.TryGetValue(HiddenKey(graphName), out var hidden) ? hidden : Array.Empty<string>();
+}
+
+/// <summary>One series in the Graphs section's legend: click to hide or show it, double-click for only it.</summary>
+public sealed class GraphLegendItemViewModel : ObservableObject
+{
+    private readonly GraphsSectionViewModel _owner;
+    private bool _isShown = true;
+
+    public GraphLegendItemViewModel(GraphLegendEntry entry, string colour, GraphsSectionViewModel owner)
+    {
+        _owner = owner;
+        Name = entry.Name;
+        Detail = entry.Detail;
+        Value = entry.Value;
+        Colour = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(colour);
+        ColourBrush = new System.Windows.Media.SolidColorBrush(Colour);
+        ColourBrush.Freeze();
+        ToggleCommand = new RelayCommand(() => _owner.Toggle(Name));
+        OnlyCommand = new RelayCommand(() => _owner.ShowOnly(Name));
+    }
+
+    public string Name { get; }
+
+    public string? Detail { get; }
+
+    public bool HasDetail => !string.IsNullOrWhiteSpace(Detail);
+
+    public string? Value { get; }
+
+    public System.Windows.Media.Color Colour { get; }
+
+    public System.Windows.Media.SolidColorBrush ColourBrush { get; }
+
+    public bool IsShown
+    {
+        get => _isShown;
+        set => SetProperty(ref _isShown, value);
+    }
+
+    public RelayCommand ToggleCommand { get; }
+
+    public RelayCommand OnlyCommand { get; }
 }

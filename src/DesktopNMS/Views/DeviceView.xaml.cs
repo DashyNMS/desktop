@@ -464,4 +464,14 @@ public partial class DeviceView : Window
             viewModel.ExpandHiddenLinesCommand.Execute(line);
         }
     }
+
+    /// <summary>Double-clicking a graph legend entry shows only that series (the click before it already toggled it).</summary>
+    private void OnGraphLegendDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: GraphLegendItemViewModel item })
+        {
+            item.OnlyCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
 }

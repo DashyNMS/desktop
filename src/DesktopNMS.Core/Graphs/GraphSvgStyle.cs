@@ -37,14 +37,18 @@ public sealed record GraphPalette(
     public double AreaOpacity { get; init; } = 0.22;
 }
 
+/// <summary>A restyled graph, and the colour each of its series was given, in drawing order.</summary>
+public sealed record StyledGraph(string Svg, IReadOnlyList<string> SeriesColours);
+
 /// <summary>
 /// Restyles a graph SVG as LibreNMS renders it (rrdtool's Cairo output) into
 /// the app's own look: horizontal dashed gridlines in the border colour, no
-/// vertical or minor grid, muted axis and legend text, and each series in the
-/// nearest of the app's colours - a line in full, its area see-through
-/// beneath. Nothing is redrawn: rrdtool's own paths are kept and only their
-/// colours, opacity and dashes change, so it works for every graph type and
-/// whatever font the server has.
+/// vertical or minor grid, muted axis and legend text, and each series in one
+/// of the app's colours - a line in full, its area see-through beneath.
+/// Nothing is redrawn: rrdtool's own paths are kept and only their colours,
+/// opacity and dashes change, so it works for every graph type and whatever
+/// font the server has. Series can be left out, for a legend that turns them
+/// on and off.
 /// </summary>
 /// <remarks>
 /// rrdtool writes every colour as an attribute - <c>fill="rgb(64.7%, 64.7%, 64.7%)"</c> -
@@ -52,8 +56,15 @@ public sealed record GraphPalette(
 /// LibreNMS's API always draws in its light palette (it never passes the
 /// dark "style"): black text, minor grid #a5a5a5, major grid #FF9999, frame
 /// and arrows #5e5e5e, rrdtool's own axis #1F1F1F. Those are recognised
-/// exactly; anything else greyish is told apart by how light it is, and any
-/// colour by its hue.
+/// exactly; anything else greyish is told apart by how light it is.
+/// <para>
+/// A series is a line, an area, or both, drawn one after another (a sensor
+/// graph: a line per sensor; processors: a line then its area per core;
+/// traffic: an area then its line per direction). LibreNMS's colours repeat,
+/// so series are told apart by drawing order: a new one starts at a new hue,
+/// or a second line (or area) in another colour. Each gets its own app
+/// colour - the first the accent, as in the mockups, the rest by hue.
+/// </para>
 /// </remarks>
 public static partial class GraphSvgStyle
 {
@@ -63,80 +74,213 @@ public static partial class GraphSvgStyle
     private static readonly (byte R, byte G, byte B) Axis = (0x1F, 0x1F, 0x1F);
 
     /// <summary>The restyled SVG; anything that isn't an rrdtool SVG comes back unchanged.</summary>
-    public static string Apply(string svg, GraphPalette palette)
+    public static string Apply(string svg, GraphPalette palette) => Restyle(svg, palette).Svg;
+
+    /// <summary>
+    /// The restyled SVG and its series' colours, leaving out the series in
+    /// <paramref name="hidden"/> (indexes in drawing order). A hidden series
+    /// keeps its colour for the legend; the others keep theirs too.
+    /// </summary>
+    public static StyledGraph Restyle(string svg, GraphPalette palette, IReadOnlySet<int>? hidden = null)
     {
         if (string.IsNullOrEmpty(svg) || !svg.Contains("<svg", StringComparison.Ordinal))
         {
-            return svg;
+            return new StyledGraph(svg, Array.Empty<string>());
         }
 
         // Text: rrdtool's glyph outlines grouped under one fill, or plain <text>.
         svg = TextFill().Replace(svg, m => IsDark(m.Groups["c"].Value) ? m.Groups["head"].Value + palette.Text + "\"" : m.Value);
 
-        // Paths come in drawing order - grid, then each series as defined - so
-        // the first series met is the graph's main one.
-        var series = new SeriesColours(palette);
-        return PathElement().Replace(svg, m => RestylePath(m.Value, palette, series) ?? string.Empty);
+        var paths = PathElement().Matches(svg).Select(m => Describe(m)).ToList();
+        var groups = GroupSeries(paths);
+        var colours = AssignColours(groups, palette);
+
+        // A legend's colour square takes the colour of the series it stands for.
+        var swatchColours = new Dictionary<(byte, byte, byte), string>();
+        foreach (var path in paths.Where(p => p.Series is not null))
+        {
+            swatchColours.TryAdd(path.Colour!.Value, colours[path.Series!.Value]);
+        }
+
+        var index = 0;
+        return new StyledGraph(
+            PathElement().Replace(svg, _ => Restyle(paths[index++], palette, colours, swatchColours, hidden) ?? string.Empty),
+            colours);
     }
 
-    /// <summary>One &lt;path&gt;, restyled - or null to drop it (minor and vertical grid).</summary>
-    private static string? RestylePath(string path, GraphPalette palette, SeriesColours series)
+    /// <summary>What one &lt;path&gt; is: furniture, a series' line or area, or a legend square.</summary>
+    private sealed class PathInfo(string markup)
     {
-        var stroke = Attribute(path, "stroke");
-        var fill = Attribute(path, "fill");
+        public string Markup { get; } = markup;
 
-        if (stroke is not null && Parse(stroke) is { } strokeColour)
+        public Role Role { get; init; }
+
+        public bool IsLine { get; init; }
+
+        public (byte R, byte G, byte B)? Colour { get; init; }
+
+        public bool IsSwatch { get; init; }
+
+        /// <summary>The series this path belongs to, once grouped.</summary>
+        public int? Series { get; set; }
+    }
+
+    private static PathInfo Describe(Match match)
+    {
+        var path = match.Value;
+        if (Attribute(path, "stroke") is { } stroke && Parse(stroke) is { } strokeColour)
         {
-            var role = RoleOf(strokeColour);
-            switch (role)
-            {
-                case Role.MinorGrid:
-                    return null;
-                case Role.MajorGrid:
-                    // Vertical time divisions and the short tick marks go; the horizontal lines stay, dashed.
-                    if (!IsHorizontal(path) || IsShort(path))
-                    {
-                        return null;
-                    }
-
-                    path = SetAttribute(path, "stroke", palette.Grid);
-                    path = SetAttribute(path, "stroke-width", "1");
-                    return SetAttribute(path, "stroke-dasharray", "3 5");
-                case Role.Frame:
-                    return SetAttribute(path, "stroke", palette.Grid);
-                case Role.Text:
-                    return SetAttribute(path, "stroke", palette.Text);
-                case Role.Series:
-                    path = SetAttribute(path, "stroke", series.For(strokeColour));
-                    return Width(path) is { } width && width >= 1 && width < 1.6
-                        ? SetAttribute(path, "stroke-width", "1.6")
-                        : path;
-            }
+            return new PathInfo(path) { Role = RoleOf(strokeColour), IsLine = true, Colour = strokeColour };
         }
 
-        if (fill is not null && fill != "none" && Parse(fill) is { } fillColour)
+        if (Attribute(path, "fill") is { } fill && fill != "none" && Parse(fill) is { } fillColour)
         {
-            switch (RoleOf(fillColour))
+            return new PathInfo(path) { Role = RoleOf(fillColour), IsLine = false, Colour = fillColour, IsSwatch = IsSwatch(path) };
+        }
+
+        return new PathInfo(path) { Role = Role.Other };
+    }
+
+    /// <summary>Splits the series paths into series, in drawing order; returns each series' family.</summary>
+    private static List<Family> GroupSeries(List<PathInfo> paths)
+    {
+        var families = new List<Family>();
+        Family? family = null;
+        (byte R, byte G, byte B)? line = null, area = null;
+
+        foreach (var path in paths.Where(p => p.Role == Role.Series && !p.IsSwatch && !IsInvisible(p.Markup)))
+        {
+            var colour = path.Colour!.Value;
+            var pathFamily = FamilyOf(colour);
+            var sameKindBefore = path.IsLine ? line : area;
+            var continues = family == pathFamily && (sameKindBefore is null || sameKindBefore == colour);
+
+            if (!continues)
             {
-                case Role.Text:
-                    return SetAttribute(path, "fill", palette.Text);
-                case Role.Frame or Role.MinorGrid or Role.MajorGrid:
+                families.Add(pathFamily);
+                family = pathFamily;
+                line = area = null;
+            }
+
+            if (path.IsLine)
+            {
+                line = colour;
+            }
+            else
+            {
+                area = colour;
+            }
+
+            path.Series = families.Count - 1;
+        }
+
+        return families;
+    }
+
+    /// <summary>
+    /// An app colour per series: the first takes the accent; the rest keep
+    /// their own hue where it's free, a blue one taking what the first gave up
+    /// (so traffic is In blue / Out green) - never alarm red for a blue one
+    /// after a red first (a CPU graph) - and the next free colour otherwise.
+    /// </summary>
+    private static List<string> AssignColours(List<Family> families, GraphPalette palette)
+    {
+        var colours = new List<string>();
+        var spare = new[] { palette.Ok, palette.Purple, palette.Teal, palette.Orange, palette.Pink, palette.Warning, palette.Critical };
+
+        for (var i = 0; i < families.Count; i++)
+        {
+            if (i == 0)
+            {
+                colours.Add(palette.Accent);
+                continue;
+            }
+
+            var family = families[i];
+            var wanted = family != Family.Blue ? Natural(family, palette)
+                : families[0] == Family.Red ? palette.Teal
+                : Natural(families[0], palette);
+
+            if (colours.Contains(wanted))
+            {
+                wanted = spare.FirstOrDefault(c => !colours.Contains(c)) ?? spare[(i - 1) % spare.Length];
+            }
+
+            colours.Add(wanted);
+        }
+
+        return colours;
+    }
+
+    private static string Natural(Family family, GraphPalette palette) => family switch
+    {
+        Family.Red => palette.Critical,
+        Family.Orange => palette.Orange,
+        Family.Yellow => palette.Warning,
+        Family.Green => palette.Ok,
+        Family.Teal => palette.Teal,
+        Family.Purple => palette.Purple,
+        Family.Pink => palette.Pink,
+        Family.Blue => palette.Accent,
+
+        // Grey: the accent's own place, taken by the first series - so the next free colour.
+        _ => palette.Ok,
+    };
+
+    /// <summary>One &lt;path&gt;, restyled - or null to drop it (minor and vertical grid, a hidden series).</summary>
+    private static string? Restyle(PathInfo info, GraphPalette palette, List<string> colours, Dictionary<(byte, byte, byte), string> swatchColours, IReadOnlySet<int>? hidden)
+    {
+        var path = info.Markup;
+        var colourAttribute = info.IsLine ? "stroke" : "fill";
+
+        switch (info.Role)
+        {
+            case Role.MinorGrid:
+                return info.IsLine ? null : SetAttribute(path, "fill", palette.Grid);
+            case Role.MajorGrid:
+                if (!info.IsLine)
+                {
                     return SetAttribute(path, "fill", palette.Grid);
-                case Role.Series:
-                    path = SetAttribute(path, "fill", series.For(fillColour));
+                }
 
-                    // A series' area sits see-through under its line; a legend swatch stays solid.
-                    return IsSwatch(path) || Opacity(path, "fill-opacity") == 0
-                        ? path
-                        : SetAttribute(path, "fill-opacity", Format(Math.Min(Opacity(path, "fill-opacity") ?? 1, palette.AreaOpacity)));
-            }
+                // Vertical time divisions and the short tick marks go; the horizontal lines stay, dashed.
+                if (!IsHorizontal(path) || IsShort(path))
+                {
+                    return null;
+                }
+
+                path = SetAttribute(path, "stroke", palette.Grid);
+                path = SetAttribute(path, "stroke-width", "1");
+                return SetAttribute(path, "stroke-dasharray", "3 5");
+            case Role.Frame:
+                return SetAttribute(path, colourAttribute, palette.Grid);
+            case Role.Text:
+                return SetAttribute(path, colourAttribute, palette.Text);
+            case Role.Series when info.IsSwatch:
+                return SetAttribute(path, "fill", swatchColours.GetValueOrDefault(info.Colour!.Value, palette.Accent));
+            case Role.Series when info.Series is { } series:
+                if (hidden is not null && hidden.Contains(series))
+                {
+                    return null;
+                }
+
+                path = SetAttribute(path, colourAttribute, colours[series]);
+                if (info.IsLine)
+                {
+                    return Width(path) is { } width && width >= 1 && width < 1.6 ? SetAttribute(path, "stroke-width", "1.6") : path;
+                }
+
+                return Opacity(path, "fill-opacity") == 0
+                    ? path
+                    : SetAttribute(path, "fill-opacity", Format(Math.Min(Opacity(path, "fill-opacity") ?? 1, palette.AreaOpacity)));
+            default:
+                return path;
         }
-
-        return path;
     }
 
     private enum Role
     {
+        Other,
         Text,
         MinorGrid,
         MajorGrid,
@@ -170,12 +314,7 @@ public static partial class GraphSvgStyle
         // a dark or light one is a series (LibreNMS's ping line is #36393d,
         // its jitter band #ccd2de).
         var (_, _, lightness) = Hsl(c);
-        if (IsGrey(c) && lightness is > 0.45 and < 0.65)
-        {
-            return Role.Frame;
-        }
-
-        return Role.Series;
+        return IsGrey(c) && lightness is > 0.45 and < 0.65 ? Role.Frame : Role.Series;
     }
 
     /// <summary>A family of series colours: a hue, or grey. A series' line and area are one family.</summary>
@@ -192,76 +331,29 @@ public static partial class GraphSvgStyle
         Pink,
     }
 
-    /// <summary>
-    /// Gives each family of series colours an app colour, in the order the
-    /// series are drawn. The first - the graph's main series - takes the
-    /// accent, as in the mockups; the rest keep their own hue, and a blue one
-    /// (the accent's own) takes whatever the first one gave up. So a port's
-    /// traffic is In blue / Out green, a CPU graph isn't alarm red, and ping's
-    /// loss stays red.
-    /// </summary>
-    private sealed class SeriesColours(GraphPalette palette)
+    private static Family FamilyOf((byte R, byte G, byte B) c)
     {
-        private readonly Dictionary<Family, string> _assigned = new();
-        private Family? _first;
-
-        public string For((byte R, byte G, byte B) colour)
+        if (IsGrey(c))
         {
-            var family = FamilyOf(colour);
-            if (_assigned.TryGetValue(family, out var assigned))
-            {
-                return assigned;
-            }
-
-            if (_first is null)
-            {
-                _first = family;
-                return _assigned[family] = palette.Accent;
-            }
-
-            // Blue takes what the first series gave up - but never red, which
-            // would read as an alarm (a CPU graph that starts red, then blue).
-            var own = family != Family.Blue ? Natural(family)
-                : _first == Family.Red ? palette.Teal
-                : Natural(_first.Value);
-            return _assigned[family] = own;
+            return Family.Grey;
         }
 
-        private string Natural(Family family) => family switch
+        return Hsl(c).Hue switch
         {
-            Family.Red => palette.Critical,
-            Family.Orange => palette.Orange,
-            Family.Yellow => palette.Warning,
-            Family.Green => palette.Ok,
-            Family.Teal => palette.Teal,
-            Family.Purple => palette.Purple,
-            Family.Pink => palette.Pink,
-
-            // Grey or blue first: the accent's taken, so the next free colour.
-            _ => palette.Ok,
+            < 15 or >= 345 => Family.Red,
+            < 40 => Family.Orange,
+            < 70 => Family.Yellow,
+            < 160 => Family.Green,
+            < 195 => Family.Teal,
+            < 255 => Family.Blue,
+            < 290 => Family.Purple,
+            _ => Family.Pink,
         };
-
-        private static Family FamilyOf((byte R, byte G, byte B) c)
-        {
-            var (hue, _, _) = Hsl(c);
-            if (IsGrey(c))
-            {
-                return Family.Grey;
-            }
-
-            return hue switch
-            {
-                < 15 or >= 345 => Family.Red,
-                < 40 => Family.Orange,
-                < 70 => Family.Yellow,
-                < 160 => Family.Green,
-                < 195 => Family.Teal,
-                < 255 => Family.Blue,
-                < 290 => Family.Purple,
-                _ => Family.Pink,
-            };
-        }
     }
+
+    /// <summary>A path drawn fully transparent - LibreNMS's invisible "LINE:min#00000000" under the ping band.</summary>
+    private static bool IsInvisible(string path)
+        => Opacity(path, "stroke-opacity") == 0 || Opacity(path, "fill-opacity") == 0;
 
     // ------------------------------------------------------------- geometry
 

@@ -117,6 +117,73 @@ public class GraphSvgStyleTests
         Assert.Contains($"stroke=\"{Palette.Ok}\"", lines.Single(l => l.Contains("M 61 320")));
     }
 
+    private static string Line(string rgb, string d) => $"<path fill=\"none\" stroke-width=\"1\" stroke=\"rgb({rgb})\" stroke-opacity=\"1\" d=\"{d}\"/>";
+
+    private static string Area(string rgb, string d, string opacity = "1") => $"<path fill-rule=\"nonzero\" fill=\"rgb({rgb})\" fill-opacity=\"{opacity}\" d=\"{d}\"/>";
+
+    // LibreNMS's sensor colours, in sensor.inc.php's order.
+    private static readonly string[] SensorColours =
+    [
+        "80%, 0%, 0%", "0%, 54.901961%, 0%", "25.098039%, 58.823529%, 93.333333%", "45.098039%, 53.333333%, 3.921569%",
+        "81.568627%, 12.156863%, 23.529412%", "21.176471%, 22.352941%, 23.921569%", "100%, 0%, 51.764706%",
+    ];
+
+    [Fact]
+    public void A_sensor_graph_is_a_series_per_line_each_in_its_own_colour()
+    {
+        // Eight sensors: LibreNMS's seven colours, then the first again.
+        var lines = Enumerable.Range(0, 8).Select(i => Line(SensorColours[i % 7], $"M 61 {300 + i} L 70 {290 + i} ")).ToArray();
+
+        var styled = GraphSvgStyle.Restyle(Svg(lines), Palette);
+
+        Assert.Equal(8, styled.SeriesColours.Count);
+        Assert.Equal(Palette.Accent, styled.SeriesColours[0]);
+        Assert.Equal(7, styled.SeriesColours.Take(7).Distinct().Count());
+    }
+
+    [Fact]
+    public void A_processor_graph_is_a_line_and_its_faint_area_per_core()
+    {
+        // generic_multi_line: LINE1.25 then AREA in the same colour at 0x20 alpha, per core.
+        var cores = Enumerable.Range(0, 3).SelectMany(i => new[]
+        {
+            Line(SensorColours[i], $"M 61 {300 + i} L 70 {290 + i} "),
+            Area(SensorColours[i], $"M 61 {320 + i} L 61 360 L 70 360 L 70 {310 + i} Z", "0.12549"),
+        }).ToArray();
+
+        Assert.Equal(3, GraphSvgStyle.Restyle(Svg(cores), Palette).SeriesColours.Count);
+    }
+
+    [Fact]
+    public void Traffic_is_two_series_and_an_area_split_by_gaps_is_still_one()
+    {
+        // The In area comes in two pieces either side of a gap in the data.
+        var styled = GraphSvgStyle.Restyle(Svg(InArea, InArea.Replace("M 61 200", "M 80 200"), InLine, OutArea, OutLine), Palette);
+
+        Assert.Equal(2, styled.SeriesColours.Count);
+    }
+
+    [Fact]
+    public void Hidden_series_are_left_out_and_the_rest_keep_their_colours()
+    {
+        var lines = Enumerable.Range(0, 3).Select(i => Line(SensorColours[i], $"M 61 {300 + i} L 70 {290 + i} ")).ToArray();
+        var all = GraphSvgStyle.Restyle(Svg(lines), Palette);
+
+        var styled = GraphSvgStyle.Restyle(Svg(lines), Palette, new HashSet<int> { 1 });
+
+        Assert.Contains("M 61 300", styled.Svg);
+        Assert.DoesNotContain("M 61 301", styled.Svg);
+        Assert.Contains("M 61 302", styled.Svg);
+        Assert.Equal(all.SeriesColours, styled.SeriesColours);
+        Assert.Contains($"stroke=\"{all.SeriesColours[2]}\"", styled.Svg);
+    }
+
+    [Fact]
+    public void The_ping_band_and_its_line_are_one_series_and_loss_another()
+    {
+        Assert.Equal(2, GraphSvgStyle.Restyle(Svg(JitterBand, RttLine, LossBar), Palette).SeriesColours.Count);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("not an svg")]

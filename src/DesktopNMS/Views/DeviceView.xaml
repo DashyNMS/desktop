@@ -2096,11 +2096,109 @@
                 </Grid>
 
                 <Grid Grid.Row="1">
-                    <svgc:SvgViewbox SvgSource="{Binding Graphs.CurrentSvg}"
+                    <DockPanel>
+                    <!-- Our own legend (LibreNMS's is left out of the graph):
+                         click a series to hide or show it, double-click for
+                         only that one. -->
+                    <svgc:SvgViewbox DockPanel.Dock="Top"
+                                     SvgSource="{Binding Graphs.CurrentSvg}"
                                      Stretch="Uniform"
                                      HorizontalAlignment="Left"
                                      VerticalAlignment="Top"
                                      Visibility="{Binding Graphs.CurrentSvg, Converter={StaticResource NullToVisibility}}" />
+
+                    <StackPanel DockPanel.Dock="Top"
+                                Margin="0,14,0,0"
+                                Visibility="{Binding Graphs.HasLegend, Converter={StaticResource BoolToVisibility}}">
+                        <DockPanel Margin="0,0,0,10" LastChildFill="False">
+                            <TextBlock DockPanel.Dock="Left" Text="{Binding Graphs.ShownText}" VerticalAlignment="Center" Style="{StaticResource SubtleTextStyle}" />
+                            <Button DockPanel.Dock="Left"
+                                    Content="Show all"
+                                    Command="{Binding Graphs.ShowAllCommand}"
+                                    Padding="10,2"
+                                    Margin="12,0,0,0"
+                                    Visibility="{Binding Graphs.HasHiddenSeries, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock DockPanel.Dock="Right"
+                                       Text="Click to hide or show · double-click for only that one"
+                                       FontSize="11.5"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource SubtleTextStyle}" />
+                            <TextBlock DockPanel.Dock="Right"
+                                       Text="{Binding Graphs.ScaleNote}"
+                                       FontSize="11.5"
+                                       Margin="0,0,18,0"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource SubtleTextStyle}" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding Graphs.Legend}" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Command="{Binding ToggleCommand}"
+                                            MouseDoubleClick="OnGraphLegendDoubleClick"
+                                            Width="250"
+                                            Margin="0,0,8,8"
+                                            Cursor="Hand"
+                                            ToolTip="{Binding Name}"
+                                            AutomationProperties.Name="{Binding Name}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Chip"
+                                                        Background="{StaticResource SurfaceAltBrush}"
+                                                        BorderBrush="{StaticResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="8"
+                                                        Padding="12,8">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border x:Name="Swatch"
+                                                                Width="12"
+                                                                Height="12"
+                                                                CornerRadius="3"
+                                                                BorderThickness="2"
+                                                                BorderBrush="{Binding ColourBrush}"
+                                                                Background="{Binding ColourBrush}"
+                                                                VerticalAlignment="Center" />
+                                                        <TextBlock x:Name="Label"
+                                                                   Grid.Column="1"
+                                                                   Text="{Binding Name}"
+                                                                   FontWeight="SemiBold"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Margin="10,0,8,0"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="2"
+                                                                   Text="{Binding Value}"
+                                                                   FontFamily="{StaticResource MonoFont}"
+                                                                   VerticalAlignment="Center" />
+                                                    </Grid>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding IsShown}" Value="False">
+                                                        <Setter TargetName="Chip" Property="Background" Value="Transparent" />
+                                                        <Setter TargetName="Chip" Property="Opacity" Value="0.5" />
+                                                        <Setter TargetName="Swatch" Property="Background" Value="Transparent" />
+                                                        <Setter TargetName="Label" Property="TextDecorations" Value="Strikethrough" />
+                                                    </DataTrigger>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    </DockPanel>
 
                     <views:LoadingOverlay Text="Loading graph…" Visibility="{Binding Graphs.IsLoading, Converter={StaticResource BoolToVisibility}}" />
 

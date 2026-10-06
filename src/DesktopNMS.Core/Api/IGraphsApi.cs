@@ -65,4 +65,19 @@ public interface IGraphsApi
         int width,
         int height,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/v0/devices/{id}/graphs/health/{graphName}/{sensorId} - one
+    /// sensor's own graph (LibreNMS turns "device_temperature" into that
+    /// sensor's "sensor_temperature"), its scale fitted to that sensor alone.
+    /// </summary>
+    Task<string> GetSensorSvgAsync(
+        int deviceId,
+        string graphName,
+        int sensorId,
+        GraphTimeRange range,
+        int width,
+        int height,
+        CancellationToken cancellationToken = default,
+        bool legend = true);
 }

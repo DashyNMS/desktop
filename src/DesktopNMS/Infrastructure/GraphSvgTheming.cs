@@ -13,6 +13,14 @@ public static class GraphSvgTheming
 {
     public static string ApplyCurrentTheme(string svg) => GraphSvgStyle.Apply(svg, CurrentPalette());
 
+    /// <summary>Restyled with some series left out - for the Graphs section's own legend.</summary>
+    /// <param name="mainColour">The colour for the first series instead of the accent - a single sensor's own graph, kept in the colour its legend entry shows.</param>
+    public static StyledGraph Restyle(string svg, IReadOnlySet<int>? hidden = null, string? mainColour = null)
+    {
+        var palette = CurrentPalette();
+        return GraphSvgStyle.Restyle(svg, mainColour is null ? palette : palette with { Accent = mainColour }, hidden);
+    }
+
     /// <summary>The current theme's colours; anything missing falls back to the dark palette's.</summary>
     private static GraphPalette CurrentPalette()
     {

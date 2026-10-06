@@ -264,7 +264,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         EventLog = new BatchObservableCollection<EventLogItemViewModel>();
         ConfigBackups = new ObservableCollection<UnimusBackupItemViewModel>();
         PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
-        Graphs = new GraphsSectionViewModel(deviceId, client, logger);
+        Graphs = new GraphsSectionViewModel(deviceId, client, settings, logger);
         PortGraphs = new PortGraphsPanelViewModel(client, settings, logger);
         Graylog = GraylogMessagesViewModel.ForDevice(deviceId, () => _device, graylog, client, deviceCache, settings, windows, logger, _loadCts.Token);
         Graylog.PropertyChanged += OnGraylogPropertyChanged;
