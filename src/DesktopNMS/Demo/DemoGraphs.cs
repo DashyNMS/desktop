@@ -32,6 +32,10 @@ internal static class DemoGraphs
     public static string Latency(int width, int height, int seed)
         => Chart(width, height, "ms", 10, new[] { (Series(seed, 0.22, 0.1), "#DB9A04", false, "Ping") });
 
+    /// <summary>The graph without its legend, as LibreNMS draws it for "legend=no".</summary>
+    public static string WithoutLegend(string svg)
+        => System.Text.RegularExpressions.Regex.Replace(svg, "<(rect|text) class=\"legend\"[^>]*?(/>|>[^<]*</text>)", string.Empty);
+
     /// <summary>288 five-minute samples, 0..1, with a working-day hump.</summary>
     private static double[] Series(int seed, double level, double noise)
     {
@@ -90,8 +94,8 @@ internal static class DemoGraphs
             }
 
             svg.Append(CultureInfo.InvariantCulture, $"<polyline points=\"{points}\" fill=\"none\" stroke=\"{colour}\" stroke-width=\"1.4\"/>");
-            svg.Append(CultureInfo.InvariantCulture, $"<rect x=\"{legendX}\" y=\"{height - 11}\" width=\"8\" height=\"8\" fill=\"{colour}\"/>");
-            svg.Append(CultureInfo.InvariantCulture, $"<text x=\"{legendX + 12}\" y=\"{height - 4}\" font-family=\"DejaVu Sans Mono, Consolas, monospace\" font-size=\"9\" {Text}>{label}</text>");
+            svg.Append(CultureInfo.InvariantCulture, $"<rect class=\"legend\" x=\"{legendX}\" y=\"{height - 11}\" width=\"8\" height=\"8\" fill=\"{colour}\"/>");
+            svg.Append(CultureInfo.InvariantCulture, $"<text class=\"legend\" x=\"{legendX + 12}\" y=\"{height - 4}\" font-family=\"DejaVu Sans Mono, Consolas, monospace\" font-size=\"9\" {Text}>{label}</text>");
             legendX += 60;
         }
 

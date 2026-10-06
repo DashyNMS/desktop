@@ -75,7 +75,7 @@ public sealed class SingleGraphViewModel : ObservableObject
 
         try
         {
-            var rawSvg = await _client.Graphs.GetSvgAsync(_deviceId, _graphName, _range, _width, _height, cancellationToken).ConfigureAwait(true);
+            var rawSvg = await _client.Graphs.GetSvgAsync(_deviceId, _graphName, _range, _width, _height, cancellationToken, legend: false).ConfigureAwait(true);
             Svg = GraphSvgTheming.ApplyCurrentTheme(rawSvg);
         }
         catch (OperationCanceledException)

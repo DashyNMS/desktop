@@ -39,7 +39,9 @@ public interface IGraphsApi
     /// SVG LibreNMS returns (confirmed live: image/svg+xml, no cookie
     /// session needed, honours "from"/"width"/"height"). Callers apply their
     /// own theming (see Infrastructure.GraphSvgTheming) before display -
-    /// this returns exactly what the server sent.
+    /// this returns exactly what the server sent. Without
+    /// <paramref name="legend"/> LibreNMS leaves out the legend rows under
+    /// the graph ("legend=no"), for small graphs that show only the shape.
     /// </summary>
     Task<string> GetSvgAsync(
         int deviceId,
@@ -47,7 +49,8 @@ public interface IGraphsApi
         GraphTimeRange range,
         int width,
         int height,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool legend = true);
 
     /// <summary>
     /// GET /api/v0/devices/{id}/ports/{ifName}/{graphType} - one port's graph

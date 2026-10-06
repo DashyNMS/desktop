@@ -1,37 +1,45 @@
 using System.Windows;
 using System.Windows.Media;
+using DesktopNMS.Core.Graphs;
 
 namespace DesktopNMS.Infrastructure;
 
 /// <summary>
-/// Recolours a LibreNMS-rendered graph SVG for the app's current theme
-/// (issue #14). RRDtool's Cairo SVG output has no background rectangle at
-/// all - confirmed against a live sample - so it already sits correctly on
-/// this app's own surface unchanged. The only colour that needs changing is
-/// axis/legend text, which always comes back flat black regardless of
-/// theme; gridlines (mid-grey) and the 2-3 data-series colours read fine on
-/// either theme unchanged, so they are deliberately left alone.
+/// Restyles a LibreNMS-rendered graph SVG in the app's current theme and
+/// accent (issue #14, mockups) - see <see cref="GraphSvgStyle"/>, which does
+/// the work and is shared with DashyNMS Mobile. This only reads the colours.
 /// </summary>
 public static class GraphSvgTheming
 {
-    private const string BlackFill = "fill=\"rgb(0%, 0%, 0%)\"";
+    public static string ApplyCurrentTheme(string svg) => GraphSvgStyle.Apply(svg, CurrentPalette());
 
-    /// <summary>
-    /// Reads the *current* theme's text colour rather than assuming dark -
-    /// this app also has a Light palette (Palette.Light.xaml's own
-    /// TextPrimaryColor is near-black already, so recolouring there is
-    /// close to a no-op, which is correct).
-    /// </summary>
-    public static string ApplyCurrentTheme(string svg)
+    /// <summary>The current theme's colours; anything missing falls back to the dark palette's.</summary>
+    private static GraphPalette CurrentPalette()
     {
-        if (Application.Current.Resources["TextPrimaryColor"] is not Color textColor)
+        var resources = Application.Current?.Resources;
+        var fallback = GraphPalette.Dark;
+        if (resources is null)
         {
-            return svg;
+            return fallback;
         }
 
-        var fill = $"fill=\"rgb({Percent(textColor.R)}%, {Percent(textColor.G)}%, {Percent(textColor.B)}%)\"";
-        return svg.Replace(BlackFill, fill);
-    }
+        string Hex(string key, string otherwise) => resources[key] switch
+        {
+            Color c => $"#{c.R:X2}{c.G:X2}{c.B:X2}",
+            SolidColorBrush b => $"#{b.Color.R:X2}{b.Color.G:X2}{b.Color.B:X2}",
+            _ => otherwise,
+        };
 
-    private static double Percent(byte channel) => channel * 100d / 255d;
+        return fallback with
+        {
+            Text = Hex("TextSecondaryColor", fallback.Text),
+            Grid = Hex("BorderColor", fallback.Grid),
+
+            // The brush, not the colour: a custom accent replaces the brush (AccentTheme).
+            Accent = Hex("AccentBrush", fallback.Accent),
+            Ok = Hex("OkColor", fallback.Ok),
+            Warning = Hex("WarningColor", fallback.Warning),
+            Critical = Hex("CriticalColor", fallback.Critical),
+        };
+    }
 }

@@ -249,7 +249,7 @@ internal sealed class DemoFleet
                     "device_mempool" => DemoGraphs.Percent(width, height, Seed(device.Name + "mem"), device.Memory),
                     "device_icmp_perf" => DemoGraphs.Latency(width, height, Seed(device.Name + "ping")),
                     _ => DemoGraphs.Percent(width, height, Seed(device.Name + parts[2]), 0.4),
-                });
+                }, legend: !(query.TryGetValue("legend", out var noLegend) && noLegend == "no"));
         }
     }
 
@@ -744,7 +744,7 @@ internal sealed class DemoFleet
     private static DemoResponse Fail(int status, string message)
         => new(JsonSerializer.Serialize(new { status = "error", message }, Json), Status: status);
 
-    private static DemoResponse Svg(string svg) => new(svg, "image/svg+xml");
+    private static DemoResponse Svg(string svg, bool legend = true) => new(legend ? svg : DemoGraphs.WithoutLegend(svg), "image/svg+xml");
 
     private sealed record ExampleDevice(int Id, string Name, string Ip, string Os, string Hardware, string Version, string Type, string Location, double Load, double Cpu, double Memory, bool Up, bool Disabled, string Serial);
 

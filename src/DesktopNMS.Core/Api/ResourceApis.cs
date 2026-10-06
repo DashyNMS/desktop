@@ -883,7 +883,8 @@ internal sealed class GraphsApi : IGraphsApi
         GraphTimeRange range,
         int width,
         int height,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool legend = true)
     {
         var from = Uri.EscapeDataString(range.ToFromParameter());
         var url = string.Create(
@@ -893,6 +894,11 @@ internal sealed class GraphsApi : IGraphsApi
         if (range.ToToParameter() is { } to)
         {
             url += "&to=" + Uri.EscapeDataString(to);
+        }
+
+        if (!legend)
+        {
+            url += "&legend=no";
         }
 
         return _transport.SendRawAsync(url, cancellationToken);
