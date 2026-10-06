@@ -2077,41 +2077,177 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="0,0,0,14">
+                <!-- What the graph shows: range and graph, the full width. -->
+                <Border Grid.Row="0" Style="{StaticResource OverviewCardStyle}" Padding="16,12" Margin="0,0,0,14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="RANGE" Style="{StaticResource CardTitleStyle}" Margin="0,0,14,0" VerticalAlignment="Center" />
+                        <views:GraphTimeRangePicker Grid.Column="1"
+                                                     DataContext="{Binding Graphs.TimeRange}"
+                                                     VerticalAlignment="Center" />
+
+                        <!-- The device's graphs, or a port's: type a port's name to jump to it. -->
+                        <TextBlock Grid.Column="2" Text="SHOW" Style="{StaticResource CardTitleStyle}" Margin="14,0,14,0" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="3"
+                                  ItemsSource="{Binding Graphs.Sources}"
+                                  SelectedItem="{Binding Graphs.SelectedSource}"
+                                  DisplayMemberPath="Name"
+                                  IsTextSearchEnabled="True"
+                                  TextSearch.TextPath="Name"
+                                  MaxDropDownHeight="420"
+                                  Width="240" />
+
+                        <TextBlock Grid.Column="4" Text="GRAPH" Style="{StaticResource CardTitleStyle}" Margin="14,0,14,0" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="5"
+                                  ItemsSource="{Binding Graphs.AvailableGraphs}"
+                                  SelectedItem="{Binding Graphs.SelectedGraph}"
+                                  DisplayMemberPath="Description"
+                                  Width="280" />
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <views:GraphTimeRangePicker Grid.Column="0"
-                                                 DataContext="{Binding Graphs.TimeRange}"
-                                                 VerticalAlignment="Center" />
+                    <!-- The graph. Spans the width when LibreNMS's own legend
+                         is in it (a graph the app can't name the series of). -->
+                    <Border Grid.Column="0">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource OverviewCardStyle}">
+                                <Setter Property="Grid.ColumnSpan" Value="1" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Graphs.HasLegend}" Value="False">
+                                        <Setter Property="Grid.ColumnSpan" Value="2" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="{Binding Graphs.GraphTitle}" Style="{StaticResource CardTitleStyle}" />
+                            <Grid>
+                                <svgc:SvgViewbox SvgSource="{Binding Graphs.CurrentSvg}"
+                                                 Stretch="Uniform"
+                                                 HorizontalAlignment="Left"
+                                                 VerticalAlignment="Top"
+                                                 Visibility="{Binding Graphs.CurrentSvg, Converter={StaticResource NullToVisibility}}" />
 
-                    <ComboBox Grid.Column="1"
-                              ItemsSource="{Binding Graphs.AvailableGraphs}"
-                              SelectedItem="{Binding Graphs.SelectedGraph}"
-                              DisplayMemberPath="Description"
-                              Width="280"
-                              Margin="14,0,0,0" />
-                </Grid>
+                                <views:LoadingOverlay Text="Loading graph…" Visibility="{Binding Graphs.IsLoading, Converter={StaticResource BoolToVisibility}}" />
 
-                <Grid Grid.Row="1">
-                    <svgc:SvgViewbox SvgSource="{Binding Graphs.CurrentSvg}"
-                                     Stretch="Uniform"
-                                     HorizontalAlignment="Left"
-                                     VerticalAlignment="Top"
-                                     Visibility="{Binding Graphs.CurrentSvg, Converter={StaticResource NullToVisibility}}" />
+                                <TextBlock Text="{Binding Graphs.ErrorMessage}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           MaxWidth="480"
+                                           IsHitTestVisible="False"
+                                           Visibility="{Binding Graphs.HasError, Converter={StaticResource BoolToVisibility}}"
+                                           Style="{StaticResource SubtleTextStyle}" />
+                            </Grid>
+                        </DockPanel>
+                    </Border>
 
-                    <views:LoadingOverlay Text="Loading graph…" Visibility="{Binding Graphs.IsLoading, Converter={StaticResource BoolToVisibility}}" />
+                    <!-- Our own legend (LibreNMS's is cut off the graph): click
+                         a series to hide or show it, shift-click for only that
+                         one, as the severity pills. -->
+                    <Border Grid.Column="1"
+                            Width="300"
+                            Margin="14,0,0,0"
+                            Padding="12,14"
+                            Style="{StaticResource OverviewCardStyle}"
+                            Visibility="{Binding Graphs.HasLegend, Converter={StaticResource BoolToVisibility}}">
+                        <DockPanel>
+                            <DockPanel DockPanel.Dock="Top" Margin="4,0,4,0">
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Graphs.ShownText}" Style="{StaticResource CardNoteStyle}" VerticalAlignment="Top" />
+                                <TextBlock Text="{Binding Graphs.LegendTitle}" Style="{StaticResource CardTitleStyle}" />
+                            </DockPanel>
 
-                    <TextBlock Text="{Binding Graphs.ErrorMessage}"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               TextWrapping="Wrap"
-                               MaxWidth="480"
-                               IsHitTestVisible="False"
-                               Visibility="{Binding Graphs.HasError, Converter={StaticResource BoolToVisibility}}"
-                               Style="{StaticResource SubtleTextStyle}" />
+                            <Button DockPanel.Dock="Bottom"
+                                    Content="Show all"
+                                    Command="{Binding Graphs.ShowAllCommand}"
+                                    Margin="0,10,0,0"
+                                    Padding="10,5"
+                                    Visibility="{Binding Graphs.HasHiddenSeries, Converter={StaticResource BoolToVisibility}}" />
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                                <ItemsControl ItemsSource="{Binding Graphs.Legend}" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Command="{Binding ToggleCommand}"
+                                                    PreviewMouseLeftButtonDown="OnGraphLegendPreviewMouseDown"
+                                                    HorizontalAlignment="Stretch"
+                                                    Margin="0,0,0,6"
+                                                    Cursor="Hand"
+                                                    ToolTip="Show/hide (shift-click to show only this one)"
+                                                    AutomationProperties.Name="{Binding Name}">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Chip"
+                                                                Background="{StaticResource SurfaceAltBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="8"
+                                                                Padding="10,7">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <Border x:Name="Swatch"
+                                                                        Width="12"
+                                                                        Height="12"
+                                                                        CornerRadius="3"
+                                                                        BorderThickness="2"
+                                                                        BorderBrush="{Binding ColourBrush}"
+                                                                        Background="{Binding ColourBrush}"
+                                                                        VerticalAlignment="Center" />
+                                                                <StackPanel Grid.Column="1" Margin="10,0,8,0" VerticalAlignment="Center">
+                                                                    <TextBlock x:Name="Label"
+                                                                               Text="{Binding Name}"
+                                                                               FontWeight="SemiBold"
+                                                                               TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Text="{Binding Detail}"
+                                                                               FontSize="11.5"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               Style="{StaticResource SubtleTextStyle}"
+                                                                               Visibility="{Binding Detail, Converter={StaticResource NullToVisibility}}" />
+                                                                </StackPanel>
+                                                                <TextBlock Grid.Column="2"
+                                                                           Text="{Binding Value}"
+                                                                           FontFamily="{StaticResource MonoFont}"
+                                                                           VerticalAlignment="Center" />
+                                                            </Grid>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <DataTrigger Binding="{Binding IsShown}" Value="False">
+                                                                <Setter TargetName="Chip" Property="Background" Value="Transparent" />
+                                                                <Setter TargetName="Chip" Property="Opacity" Value="0.5" />
+                                                                <Setter TargetName="Swatch" Property="Background" Value="Transparent" />
+                                                                <Setter TargetName="Label" Property="TextDecorations" Value="Strikethrough" />
+                                                            </DataTrigger>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}" />
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
                 </Grid>
             </Grid>
 

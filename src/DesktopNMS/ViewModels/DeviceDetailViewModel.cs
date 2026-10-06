@@ -264,8 +264,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         EventLog = new BatchObservableCollection<EventLogItemViewModel>();
         ConfigBackups = new ObservableCollection<UnimusBackupItemViewModel>();
         PollerGroups = new ObservableCollection<PollerGroup> { DefaultPollerGroup };
-        Graphs = new GraphsSectionViewModel(deviceId, client, logger);
+        Graphs = new GraphsSectionViewModel(deviceId, client, settings, logger);
         PortGraphs = new PortGraphsPanelViewModel(client, settings, logger);
+        PortGraphs.OpenRequested += (_, request) => ShowPortGraph(request.IfName, request.GraphType);
         Graylog = GraylogMessagesViewModel.ForDevice(deviceId, () => _device, graylog, client, deviceCache, settings, windows, logger, _loadCts.Token);
         Graylog.PropertyChanged += OnGraylogPropertyChanged;
         Inventory = new InventorySectionViewModel(deviceId, client, logger, _loadCts.Token);
@@ -4049,6 +4050,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         SelectedSection = DeviceDetailSection.Graphs;
         _ = Graphs.SelectGraphByNameAsync(graphName);
+    }
+
+    /// <summary>Jumps to the Graphs section with one port's graph - a click on one under the Ports table.</summary>
+    public void ShowPortGraph(string ifName, string graphType)
+    {
+        // Asked for first, so the section's first visit loads this rather than the device's first graph.
+        _ = Graphs.ShowPortGraphAsync(ifName, graphType);
+        SelectedSection = DeviceDetailSection.Graphs;
     }
 
     private void SelectEdit()

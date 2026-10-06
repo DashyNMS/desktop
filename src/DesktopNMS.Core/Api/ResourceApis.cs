@@ -883,7 +883,8 @@ internal sealed class GraphsApi : IGraphsApi
         GraphTimeRange range,
         int width,
         int height,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool legend = true)
     {
         var from = Uri.EscapeDataString(range.ToFromParameter());
         var url = string.Create(
@@ -893,6 +894,11 @@ internal sealed class GraphsApi : IGraphsApi
         if (range.ToToParameter() is { } to)
         {
             url += "&to=" + Uri.EscapeDataString(to);
+        }
+
+        if (!legend)
+        {
+            url += "&legend=no";
         }
 
         return _transport.SendRawAsync(url, cancellationToken);
@@ -905,7 +911,8 @@ internal sealed class GraphsApi : IGraphsApi
         GraphTimeRange range,
         int width,
         int height,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool legend = true)
     {
         ArgumentException.ThrowIfNullOrEmpty(ifName);
 
@@ -913,10 +920,42 @@ internal sealed class GraphsApi : IGraphsApi
         var url = string.Create(
             CultureInfo.InvariantCulture,
             $"devices/{deviceId}/ports/{Uri.EscapeDataString(ifName)}/{Uri.EscapeDataString(graphType)}?from={from}&width={width}&height={height}");
+        if (!legend)
+        {
+            url += "&legend=no";
+        }
 
         if (range.ToToParameter() is { } to)
         {
             url += "&to=" + Uri.EscapeDataString(to);
+        }
+
+        return _transport.SendRawAsync(url, cancellationToken);
+    }
+
+    public Task<string> GetSensorSvgAsync(
+        int deviceId,
+        string graphName,
+        int sensorId,
+        GraphTimeRange range,
+        int width,
+        int height,
+        CancellationToken cancellationToken = default,
+        bool legend = true)
+    {
+        var from = Uri.EscapeDataString(range.ToFromParameter());
+        var url = string.Create(
+            CultureInfo.InvariantCulture,
+            $"devices/{deviceId}/graphs/health/{Uri.EscapeDataString(graphName)}/{sensorId}?from={from}&width={width}&height={height}");
+
+        if (range.ToToParameter() is { } to)
+        {
+            url += "&to=" + Uri.EscapeDataString(to);
+        }
+
+        if (!legend)
+        {
+            url += "&legend=no";
         }
 
         return _transport.SendRawAsync(url, cancellationToken);

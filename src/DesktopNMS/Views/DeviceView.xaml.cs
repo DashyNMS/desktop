@@ -464,4 +464,20 @@ public partial class DeviceView : Window
             viewModel.ExpandHiddenLinesCommand.Execute(line);
         }
     }
+
+    /// <summary>
+    /// Shift-clicking a graph legend entry shows only that series, as the
+    /// severity pills do - handled here so a plain click still runs its
+    /// toggle command unchanged.
+    /// </summary>
+    private void OnGraphLegendPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Shift || sender is not FrameworkElement { DataContext: GraphLegendItemViewModel item })
+        {
+            return;
+        }
+
+        item.OnlyCommand.Execute(null);
+        e.Handled = true;
+    }
 }

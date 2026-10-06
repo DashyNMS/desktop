@@ -272,6 +272,12 @@ public sealed class AppSettings
     /// <summary>Remembered column widths/order and sort per DataGrid, keyed by a stable per-grid name (e.g. "Devices", "DeviceDetail.Ports") - see DataGridLayoutHelper.</summary>
     public Dictionary<string, GridLayout> GridLayouts { get; set; } = new();
 
+    /// <summary>
+    /// Series turned off in a device's graphs, by name - keyed "{deviceId}:{graph}",
+    /// e.g. "12:device_temperature" → ["PSU 1", "PSU 2"]. See GraphLegend.
+    /// </summary>
+    public Dictionary<string, List<string>> GraphHiddenSeries { get; set; } = new();
+
     public AppSettings Clone() => new()
     {
         ServerUrl = ServerUrl,
@@ -325,6 +331,7 @@ public sealed class AppSettings
         Window = Window?.Clone(),
         WindowPlacements = WindowPlacements.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
         GridLayouts = GridLayouts.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
+        GraphHiddenSeries = GraphHiddenSeries.ToDictionary(kv => kv.Key, kv => kv.Value.ToList()),
     };
 
     /// <summary>Clamps anything a hand-edited settings file could have made nonsensical.</summary>
@@ -372,6 +379,7 @@ public sealed class AppSettings
         }
 
         GridLayouts ??= new Dictionary<string, GridLayout>();
+        GraphHiddenSeries ??= new Dictionary<string, List<string>>();
         DbmThresholds ??= new DbmThresholdSettings();
         SignalThresholds ??= new SignalThresholdSettings();
         TemperatureThresholds ??= BandThresholdSettings.TemperatureDefaults();

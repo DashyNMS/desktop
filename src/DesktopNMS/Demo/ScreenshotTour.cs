@@ -65,6 +65,8 @@ internal sealed class ScreenshotTour
             await SectionAsync(deviceWindow, () => device.SelectedSection = DeviceDetailSection.Overview, "device-overview").ConfigureAwait(true);
             await SectionAsync(deviceWindow, () => device.SelectedSection = DeviceDetailSection.Ports, "device-ports").ConfigureAwait(true);
             await SectionAsync(deviceWindow, () => device.ShowGraph("device_bits"), "device-graphs").ConfigureAwait(true);
+            await SectionAsync(deviceWindow, () => device.ShowGraph("device_temperature"), "device-graphs-temperature").ConfigureAwait(true);
+            await SectionAsync(deviceWindow, () => { device.Graphs.Toggle("PSU 1"); device.Graphs.Toggle("PSU 2"); }, "device-graphs-legend").ConfigureAwait(true);
             await SectionAsync(deviceWindow, () => device.SelectedSection = DeviceDetailSection.Neighbours, "device-neighbours").ConfigureAwait(true);
             deviceWindow.Close();
         }

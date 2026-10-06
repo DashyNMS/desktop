@@ -70,6 +70,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         ItemsView.Filter = item => item is NeighbourItemViewModel n && IsStateShown(n.State) && n.Matches(SearchText);
 
         PortGraphs = new PortGraphsPanelViewModel(client, settings, logger);
+        PortGraphs.OpenRequested += (_, request) => _windows.ShowDevicePortGraph(request.DeviceId, request.IfName, request.GraphType);
 
         RefreshCommand = new AsyncRelayCommand(() => LoadAsync(refresh: true), () => _session.IsConnected && !IsBusy);
         ClearFiltersCommand = new RelayCommand(() =>

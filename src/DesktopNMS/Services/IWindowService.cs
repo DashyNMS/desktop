@@ -42,6 +42,9 @@ public interface IWindowService
     /// </summary>
     void ShowDeviceGraph(int deviceId, string graphName);
 
+    /// <summary>Shows a device's detail window on its Graphs section with one port's graph - a click on one under the Neighbours table.</summary>
+    void ShowDevicePortGraph(int deviceId, string ifName, string graphType);
+
     /// <summary>Shows a device's detail window on its Wireless section (#55) - the Dashboard Wireless widget's click-through.</summary>
     void ShowDeviceWireless(int deviceId);
 

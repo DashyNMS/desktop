@@ -297,7 +297,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
             // Overview ping-graph thumbnail, issue #11), but starting from
             // too small a fetch leaves LibreNMS's own legend/axis text too
             // sparse to be legible once stretched up.
-            var rawSvg = await _client.Graphs.GetSvgAsync(deviceId, graph.Name, TimeRange.ToTimeRange(), width: 500, height: 220).ConfigureAwait(true);
+            var rawSvg = await _client.Graphs.GetSvgAsync(deviceId, graph.Name, TimeRange.ToTimeRange(), width: 500, height: 220, legend: false).ConfigureAwait(true);
 
             if (version != _loadVersion)
             {

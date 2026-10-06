@@ -10,7 +10,7 @@
              d:DataContext="{d:DesignInstance Type=vm:PortGraphsPanelViewModel}">
 
     <!-- The port graphs panel - see PortGraphsPanelViewModel. Traffic,
-         packets and errors for one port, two across; the chevron folds it
+         packets and errors for one port, four across; the chevron folds it
          down to this header line, so the table above can have the full
          height. Shown once a port is picked. -->
     <Border Background="{StaticResource SurfaceBrush}"
@@ -49,55 +49,93 @@
                 </Border>
             </Grid>
 
-            <ScrollViewer Grid.Row="1"
-                          Height="420"
+            <!-- Without their legends, four fit across; a click opens one
+                 full size in Graphs, where its legend is. -->
+            <ItemsControl Grid.Row="1"
                           Margin="0,10,0,0"
-                          VerticalScrollBarVisibility="Auto"
+                          ItemsSource="{Binding Graphs}"
+                          Focusable="False"
                           Visibility="{Binding IsCollapsed, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
-                <ItemsControl ItemsSource="{Binding Graphs}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <UniformGrid Columns="2" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Background="{StaticResource SurfaceAltBrush}"
-                                    CornerRadius="5"
-                                    Padding="10,8"
-                                    Margin="0,0,10,10">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="170" />
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Text="{Binding Title}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
-                                    <Grid Grid.Row="1">
-                                        <svgc:SvgViewbox SvgSource="{Binding Svg}"
-                                                         Stretch="Uniform"
-                                                         HorizontalAlignment="Left"
-                                                         VerticalAlignment="Top"
-                                                         Visibility="{Binding Svg, Converter={StaticResource NullToVisibility}}" />
-                                        <TextBlock Text="Loading graph..."
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   IsHitTestVisible="False"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
-                                        <TextBlock Text="{Binding ErrorMessage}"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   TextWrapping="Wrap"
-                                                   IsHitTestVisible="False"
-                                                   Style="{StaticResource SubtleTextStyle}"
-                                                   Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
-                                    </Grid>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="4" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Command="{Binding OpenCommand}"
+                                Margin="0,0,10,0"
+                                Cursor="Hand"
+                                ToolTip="Open in Graphs"
+                                AutomationProperties.Name="{Binding Title}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Card"
+                                            Background="{StaticResource SurfaceAltBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="10,8">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="150" />
+                                            </Grid.RowDefinitions>
+                                            <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                                                <Border x:Name="Maximise"
+                                                        DockPanel.Dock="Right"
+                                                        Width="22"
+                                                        Height="22"
+                                                        CornerRadius="5"
+                                                        Opacity="0.5">
+                                                    <TextBlock Text="&#xE740;"
+                                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                               FontSize="11"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center" />
+                                                </Border>
+                                                <TextBlock Text="{Binding Title}" Style="{StaticResource SectionHeaderStyle}" Margin="0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            </DockPanel>
+                                            <Grid Grid.Row="1">
+                                                <svgc:SvgViewbox SvgSource="{Binding Svg}"
+                                                                 Stretch="Uniform"
+                                                                 HorizontalAlignment="Left"
+                                                                 VerticalAlignment="Top"
+                                                                 IsHitTestVisible="False"
+                                                                 Visibility="{Binding Svg, Converter={StaticResource NullToVisibility}}" />
+                                                <TextBlock Text="Loading graph..."
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           IsHitTestVisible="False"
+                                                           Style="{StaticResource SubtleTextStyle}"
+                                                           Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
+                                                <TextBlock Text="{Binding ErrorMessage}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           TextWrapping="Wrap"
+                                                           IsHitTestVisible="False"
+                                                           Style="{StaticResource SubtleTextStyle}"
+                                                           Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                            <Setter TargetName="Maximise" Property="Opacity" Value="1" />
+                                            <Setter TargetName="Maximise" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter TargetName="Maximise" Property="Visibility" Value="Collapsed" />
+                                            <Setter Property="Cursor" Value="Arrow" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </Grid>
     </Border>
 </UserControl>

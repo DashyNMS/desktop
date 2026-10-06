@@ -109,6 +109,17 @@ public sealed class WindowService : IWindowService
         }
     }
 
+    public void ShowDevicePortGraph(int deviceId, string ifName, string graphType)
+    {
+        ShowDeviceDetail(deviceId);
+
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window)
+            && window.DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.ShowPortGraph(ifName, graphType);
+        }
+    }
+
     public void ShowNeighbour(string viewId, string? name, string? mac = null)
     {
         ShowMain();

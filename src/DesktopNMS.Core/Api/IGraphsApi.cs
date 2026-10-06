@@ -39,7 +39,9 @@ public interface IGraphsApi
     /// SVG LibreNMS returns (confirmed live: image/svg+xml, no cookie
     /// session needed, honours "from"/"width"/"height"). Callers apply their
     /// own theming (see Infrastructure.GraphSvgTheming) before display -
-    /// this returns exactly what the server sent.
+    /// this returns exactly what the server sent. Without
+    /// <paramref name="legend"/> LibreNMS leaves out the legend rows under
+    /// the graph ("legend=no"), for small graphs that show only the shape.
     /// </summary>
     Task<string> GetSvgAsync(
         int deviceId,
@@ -47,12 +49,14 @@ public interface IGraphsApi
         GraphTimeRange range,
         int width,
         int height,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool legend = true);
 
     /// <summary>
     /// GET /api/v0/devices/{id}/ports/{ifName}/{graphType} - one port's graph
     /// ("port_bits" for traffic), as SVG. An ifName with a slash ("1/1/5",
-    /// "Gi0/5") goes as %2F, which LibreNMS decodes (checked live).
+    /// "Gi0/5") goes as %2F, which LibreNMS decodes (checked live). Without
+    /// <paramref name="legend"/>, "legend=no" as for <see cref="GetSvgAsync"/>.
     /// </summary>
     Task<string> GetPortSvgAsync(
         int deviceId,
@@ -61,5 +65,21 @@ public interface IGraphsApi
         GraphTimeRange range,
         int width,
         int height,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool legend = true);
+
+    /// <summary>
+    /// GET /api/v0/devices/{id}/graphs/health/{graphName}/{sensorId} - one
+    /// sensor's own graph (LibreNMS turns "device_temperature" into that
+    /// sensor's "sensor_temperature"), its scale fitted to that sensor alone.
+    /// </summary>
+    Task<string> GetSensorSvgAsync(
+        int deviceId,
+        string graphName,
+        int sensorId,
+        GraphTimeRange range,
+        int width,
+        int height,
+        CancellationToken cancellationToken = default,
+        bool legend = true);
 }
