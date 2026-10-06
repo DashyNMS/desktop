@@ -227,25 +227,18 @@ public sealed class GraphsSectionViewModel : ObservableObject
 
         try
         {
-            // Our own legend where the series can be named (GraphLegend);
-            // LibreNMS's otherwise - and if the graph doesn't have the series
-            // the legend expects, LibreNMS's after all, rather than a wrong one.
-            var entries = await LegendEntriesAsync(graph.Name).ConfigureAwait(true);
-            string raw;
-            if (entries is { Count: > 0 })
+            // LibreNMS draws its legend; its entries (a colour square each)
+            // say how many series there are and in what colours. Our own
+            // legend replaces it where they can be named - from the API
+            // (sensors, processors, traffic, with values), from LibreNMS's own
+            // graph definitions (GraphSeriesNames), or the graph's own name
+            // for a lone series - and LibreNMS's stays otherwise.
+            var raw = await RawAsync(graph.Name, range, legend: true).ConfigureAwait(true);
+            var legendColours = GraphSvgTheming.Restyle(raw).LegendColours;
+            var entries = await NameSeriesAsync(graph, legendColours).ConfigureAwait(true);
+            if (entries is null)
             {
-                raw = await RawAsync(graph.Name, range, legend: false).ConfigureAwait(true);
-                if (GraphSvgTheming.Restyle(raw).SeriesColours.Count != entries.Count)
-                {
-                    _logger.LogDebug("Graph {GraphName} for device {DeviceId} didn't have the {Count} series expected - showing LibreNMS's legend", graph.Name, _deviceId, entries.Count);
-                    entries = null;
-                    raw = await RawAsync(graph.Name, range, legend: true).ConfigureAwait(true);
-                }
-            }
-            else
-            {
-                entries = null;
-                raw = await RawAsync(graph.Name, range, legend: true).ConfigureAwait(true);
+                _logger.LogDebug("Can't name the {Count} series of {GraphName} for device {DeviceId} - showing LibreNMS's legend", legendColours.Count, graph.Name, _deviceId);
             }
 
             if (version != _loadVersion)
@@ -356,7 +349,7 @@ public sealed class GraphsSectionViewModel : ObservableObject
         }
 
         var hiddenIndexes = entries.Select((e, i) => (e, i)).Where(x => _hidden.Contains(x.e.Name)).Select(x => x.i).ToHashSet();
-        var styled = GraphSvgTheming.Restyle(raw, hiddenIndexes);
+        var styled = GraphSvgTheming.Restyle(raw, hiddenIndexes, cropLegend: true);
 
         SyncLegend(entries, styled.SeriesColours);
 
@@ -412,6 +405,32 @@ public sealed class GraphsSectionViewModel : ObservableObject
     }
 
     /// <summary>The series names for this graph, in LibreNMS's drawing order - or null when it isn't a graph we can name the series of.</summary>
+    /// <summary>
+    /// Names for each of the graph's series (one per LibreNMS legend entry,
+    /// in its colours) - the API's where it has them, then LibreNMS's own
+    /// graph definitions, then the graph's own name for a lone series. Null
+    /// when none of them fits, so LibreNMS's legend stays.
+    /// </summary>
+    private async Task<IReadOnlyList<GraphLegendEntry>?> NameSeriesAsync(GraphType graph, IReadOnlyList<string> legendColours)
+    {
+        if (legendColours.Count == 0)
+        {
+            return null;
+        }
+
+        if (await LegendEntriesAsync(graph.Name).ConfigureAwait(true) is { } fromApi && fromApi.Count == legendColours.Count)
+        {
+            return fromApi;
+        }
+
+        if (GraphSeriesNames.Resolve(graph.Name, legendColours) is { } names)
+        {
+            return names.Select(n => new GraphLegendEntry(n, null, null)).ToList();
+        }
+
+        return legendColours.Count == 1 ? [new GraphLegendEntry(graph.Description ?? graph.Name, null, null)] : null;
+    }
+
     private async Task<IReadOnlyList<GraphLegendEntry>?> LegendEntriesAsync(string graphName)
     {
         try

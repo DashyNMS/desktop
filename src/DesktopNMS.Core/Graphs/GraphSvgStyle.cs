@@ -37,8 +37,14 @@ public sealed record GraphPalette(
     public double AreaOpacity { get; init; } = 0.22;
 }
 
-/// <summary>A restyled graph, and the colour each of its series was given, in drawing order.</summary>
-public sealed record StyledGraph(string Svg, IReadOnlyList<string> SeriesColours);
+/// <summary>A restyled graph, and its series.</summary>
+/// <param name="SeriesColours">The app colour each series was given, in order.</param>
+/// <param name="LegendColours">
+/// When LibreNMS drew its legend: each entry's colour as LibreNMS drew it
+/// ("#CC0000"), one per series in the same order - what
+/// <see cref="GraphSeriesNames.Resolve"/> names them by. Empty without a legend.
+/// </param>
+public sealed record StyledGraph(string Svg, IReadOnlyList<string> SeriesColours, IReadOnlyList<string> LegendColours);
 
 /// <summary>
 /// Restyles a graph SVG as LibreNMS renders it (rrdtool's Cairo output) into
@@ -77,35 +83,149 @@ public static partial class GraphSvgStyle
     public static string Apply(string svg, GraphPalette palette) => Restyle(svg, palette).Svg;
 
     /// <summary>
-    /// The restyled SVG and its series' colours, leaving out the series in
-    /// <paramref name="hidden"/> (indexes in drawing order). A hidden series
-    /// keeps its colour for the legend; the others keep theirs too.
+    /// The restyled SVG and its series, leaving out the series in
+    /// <paramref name="hidden"/> (indexes, in order). A hidden series keeps
+    /// its colour for the legend; the others keep theirs too.
     /// </summary>
-    public static StyledGraph Restyle(string svg, GraphPalette palette, IReadOnlySet<int>? hidden = null)
+    /// <param name="cropLegend">Cut LibreNMS's legend off the bottom - for the app's own legend, drawn in its place.</param>
+    /// <remarks>
+    /// With LibreNMS's legend in the graph, its series are the legend's
+    /// entries - one colour square each, in order, in the colour the series
+    /// is drawn in - and anything drawn that no entry names (a jitter band,
+    /// a percentile line) goes with the series beside it. Without a legend,
+    /// each run of drawing is taken to be a series.
+    /// </remarks>
+    public static StyledGraph Restyle(string svg, GraphPalette palette, IReadOnlySet<int>? hidden = null, bool cropLegend = false)
     {
         if (string.IsNullOrEmpty(svg) || !svg.Contains("<svg", StringComparison.Ordinal))
         {
-            return new StyledGraph(svg, Array.Empty<string>());
+            return new StyledGraph(svg, Array.Empty<string>(), Array.Empty<string>());
         }
 
         // Text: rrdtool's glyph outlines grouped under one fill, or plain <text>.
         svg = TextFill().Replace(svg, m => IsDark(m.Groups["c"].Value) ? m.Groups["head"].Value + palette.Text + "\"" : m.Value);
 
         var paths = PathElement().Matches(svg).Select(m => Describe(m)).ToList();
-        var groups = GroupSeries(paths);
-        var colours = AssignColours(groups, palette);
+        var groupFamilies = GroupSeries(paths);
+        var swatches = paths.Where(p => p.Role == Role.Series && p.IsSwatch).Select(p => p.Colour!.Value).ToList();
+
+        List<Family> families;
+        if (swatches.Count > 0 && NameSeries(paths, groupFamilies.Count, swatches) is { } owners)
+        {
+            foreach (var path in paths.Where(p => p.Series is not null))
+            {
+                path.Series = owners[path.Series!.Value];
+            }
+
+            families = swatches.Select(FamilyOf).ToList();
+        }
+        else
+        {
+            families = groupFamilies;
+            swatches.Clear();
+        }
+
+        var colours = AssignColours(families, palette);
 
         // A legend's colour square takes the colour of the series it stands for.
         var swatchColours = new Dictionary<(byte, byte, byte), string>();
+        for (var i = 0; i < swatches.Count; i++)
+        {
+            swatchColours.TryAdd(swatches[i], colours[i]);
+        }
+
         foreach (var path in paths.Where(p => p.Series is not null))
         {
             swatchColours.TryAdd(path.Colour!.Value, colours[path.Series!.Value]);
         }
 
         var index = 0;
-        return new StyledGraph(
-            PathElement().Replace(svg, _ => Restyle(paths[index++], palette, colours, swatchColours, hidden) ?? string.Empty),
-            colours);
+        var styled = PathElement().Replace(svg, _ => Restyle(paths[index++], palette, colours, swatchColours, hidden) ?? string.Empty);
+        if (cropLegend && swatches.Count > 0)
+        {
+            styled = CropBelowAxis(styled, paths);
+        }
+
+        return new StyledGraph(styled, colours, swatches.Select(c => $"#{c.R:X2}{c.G:X2}{c.B:X2}").ToList());
+    }
+
+    /// <summary>
+    /// Which legend entry each run of drawing belongs to: the entry of its
+    /// colour, or - for one no entry names - the entry before it (the next
+    /// one when it comes first). Null when an entry names nothing drawn.
+    /// </summary>
+    private static int[]? NameSeries(List<PathInfo> paths, int groupCount, List<(byte R, byte G, byte B)> swatches)
+    {
+        var owners = Enumerable.Repeat(-1, groupCount).ToArray();
+        var seenWithColour = new Dictionary<(byte, byte, byte), int>();
+
+        for (var group = 0; group < groupCount; group++)
+        {
+            var colours = paths.Where(p => p.Series == group && !p.IsSwatch).Select(p => p.Colour!.Value).Distinct().ToList();
+            foreach (var colour in colours)
+            {
+                // The same colour twice in a legend (a palette that wraps): the first run takes the first entry, the next run the next.
+                var entries = swatches.Select((c, i) => (c, i)).Where(x => x.c == colour).Select(x => x.i).ToList();
+                if (entries.Count == 0)
+                {
+                    continue;
+                }
+
+                var seen = seenWithColour.GetValueOrDefault(colour);
+                owners[group] = entries[Math.Min(seen, entries.Count - 1)];
+                seenWithColour[colour] = seen + 1;
+                break;
+            }
+        }
+
+        if (owners.All(o => o < 0) || Enumerable.Range(0, swatches.Count).Any(i => !owners.Contains(i)))
+        {
+            return null;
+        }
+
+        for (var group = 0; group < groupCount; group++)
+        {
+            if (owners[group] < 0)
+            {
+                owners[group] = owners.Take(group).LastOrDefault(o => o >= 0, -1) is var before and >= 0
+                    ? before
+                    : owners.Skip(group).First(o => o >= 0);
+            }
+        }
+
+        return owners;
+    }
+
+    /// <summary>Cuts the graph off just below its time axis labels - leaving LibreNMS's legend out.</summary>
+    private static string CropBelowAxis(string svg, List<PathInfo> paths)
+    {
+        // The axis: the longest horizontal line drawn in rrdtool's axis or frame colour.
+        var axis = paths
+            .Where(p => p.Role == Role.Frame && p.IsLine && IsHorizontal(p.Markup))
+            .Select(p => PathPoints(p.Markup))
+            .Where(points => points.Count >= 2)
+            .OrderByDescending(points => Math.Abs(points[1].X - points[0].X))
+            .FirstOrDefault();
+        if (axis is null)
+        {
+            return svg;
+        }
+
+        // The time labels sit about 13px under the axis at LibreNMS's 7-8pt; leave room for them.
+        var bottom = Math.Ceiling(axis[0].Y + 20);
+        var root = RootElement().Match(svg);
+        if (!root.Success
+            || Attribute(root.Value, "viewBox") is not { } viewBox
+            || viewBox.Split(' ', StringSplitOptions.RemoveEmptyEntries) is not [var x, var y, var w, var h]
+            || !double.TryParse(h, NumberStyles.Float, CultureInfo.InvariantCulture, out var height)
+            || bottom >= height)
+        {
+            return svg;
+        }
+
+        var cropped = SetAttribute(root.Value, "viewBox", $"{x} {y} {w} {Format(bottom)}");
+        cropped = SetAttribute(cropped, "height", Format(bottom));
+        return svg[..root.Index] + cropped + svg[(root.Index + root.Length)..];
     }
 
     /// <summary>What one &lt;path&gt; is: furniture, a series' line or area, or a legend square.</summary>
@@ -483,6 +603,9 @@ public static partial class GraphSvgStyle
 
     [GeneratedRegex("<path\\b[^>]*>")]
     private static partial Regex PathElement();
+
+    [GeneratedRegex("<svg\\b[^>]*>")]
+    private static partial Regex RootElement();
 
     [GeneratedRegex("rgb\\(\\s*([\\d.]+)%\\s*,\\s*([\\d.]+)%\\s*,\\s*([\\d.]+)%\\s*\\)")]
     private static partial Regex RgbPercent();

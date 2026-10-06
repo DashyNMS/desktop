@@ -26,6 +26,7 @@ public class GraphSvgStyleTests
     private const string RttLine = "<path fill=\"none\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke=\"rgb(21.176471%, 22.352941%, 23.921569%)\" stroke-opacity=\"1\" stroke-miterlimit=\"10\" d=\"M 61 339 L 64 339 L 64 338 L 67 338 \"/>";
     private const string LossBar = "<path fill-rule=\"nonzero\" fill=\"rgb(83.137255%, 18.039216%, 3.137255%)\" fill-opacity=\"1\" d=\"M 140 56 L 140 365 L 147 365 L 147 358 L 143 358 L 143 56 Z M 140 56 \"/>";
     private const string RttSwatch = "<path fill-rule=\"nonzero\" fill=\"rgb(21.176471%, 22.352941%, 23.921569%)\" fill-opacity=\"1\" d=\"M 16 401.921875 L 16 409.121094 L 23.199219 409.121094 L 23.199219 401.921875 Z M 16 401.921875 \"/>";
+    private const string LossSwatch = "<path fill-rule=\"nonzero\" fill=\"rgb(83.137255%, 18.039216%, 3.137255%)\" fill-opacity=\"1\" d=\"M 16 415.921875 L 16 423.121094 L 23.199219 423.121094 L 23.199219 415.921875 Z M 16 415.921875 \"/>";
 
     // Port traffic: In area #91B13C and line #006600, Out area #8080BD and line #000099.
     private const string InArea = "<path fill-rule=\"nonzero\" fill=\"rgb(56.862745%, 69.411765%, 23.529412%)\" fill-opacity=\"1\" d=\"M 61 200 L 61 274 L 70 274 L 70 190 Z M 61 200 \"/>";
@@ -62,7 +63,7 @@ public class GraphSvgStyleTests
     [Fact]
     public void Ping_is_the_accent_with_a_see_through_band_and_loss_stays_red()
     {
-        var styled = GraphSvgStyle.Apply(Svg(JitterBand, RttLine, LossBar, RttSwatch), Palette);
+        var styled = GraphSvgStyle.Apply(Svg(JitterBand, RttLine, LossBar, RttSwatch, LossSwatch), Palette);
         var lines = styled.Split('\n');
 
         var band = lines.Single(l => l.Contains("M 61 325"));
@@ -182,6 +183,33 @@ public class GraphSvgStyleTests
     public void The_ping_band_and_its_line_are_one_series_and_loss_another()
     {
         Assert.Equal(2, GraphSvgStyle.Restyle(Svg(JitterBand, RttLine, LossBar), Palette).SeriesColours.Count);
+    }
+
+    [Fact]
+    public void With_a_legend_its_entries_are_the_series_and_unnamed_drawing_goes_with_the_one_before()
+    {
+        // Ping: band and line (one entry, RTT), a loss bar (Loss), then a percentile line no entry names.
+        const string percentile = "<path fill=\"none\" stroke-width=\"1\" stroke=\"rgb(66.666667%, 0%, 0%)\" stroke-opacity=\"1\" d=\"M 61 200 L 1065 200 \"/>";
+
+        var styled = GraphSvgStyle.Restyle(Svg(JitterBand, RttLine, LossBar, percentile, RttSwatch, LossSwatch), Palette, new HashSet<int> { 1 });
+
+        Assert.Equal(new[] { "#36393D", "#D42E08" }, styled.LegendColours);
+        Assert.Equal(2, styled.SeriesColours.Count);
+
+        // Loss hidden: its bar and the percentile line after it go too; RTT stays.
+        Assert.DoesNotContain("M 140 56", styled.Svg);
+        Assert.DoesNotContain("M 61 200 L 1065 200", styled.Svg);
+        Assert.Contains("M 61 339", styled.Svg);
+    }
+
+    [Fact]
+    public void Cropping_cuts_the_legend_off_below_the_time_axis()
+    {
+        var styled = GraphSvgStyle.Restyle(Svg(AxisLine, JitterBand, RttLine, LossBar, RttSwatch, LossSwatch), Palette, cropLegend: true);
+
+        // The axis is at y 365; the time labels under it stay, the legend from y 400 goes.
+        Assert.Contains("height=\"385\"", styled.Svg);
+        Assert.Contains("viewBox=\"0 0 1137 385\"", styled.Svg);
     }
 
     [Theory]
