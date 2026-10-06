@@ -4,7 +4,8 @@ namespace DesktopNMS.Core.Graphs;
 /// The names of the series in LibreNMS's device graphs, read from its own
 /// graph definitions by tools/Generate-GraphSeriesNames.cs (the table is in
 /// GraphSeriesNames.Generated.cs) - for the graphs the API can't name the
-/// series of itself (TCP and SNMP statistics, ping response, and so on).
+/// series of itself (TCP and SNMP statistics, ping response, and so on) -
+/// and in its port graphs (GraphSeriesNames.Ports.cs).
 /// </summary>
 public static partial class GraphSeriesNames
 {
@@ -15,7 +16,7 @@ public static partial class GraphSeriesNames
     private sealed record Definition(IReadOnlyList<Series> Series, bool LegendInOrder);
 
     /// <summary>Whether there's a definition for this graph at all.</summary>
-    public static bool Knows(string graphName) => Generated.ContainsKey(graphName);
+    public static bool Knows(string graphName) => Generated.ContainsKey(graphName) || Ports.ContainsKey(graphName);
 
     /// <summary>
     /// The names for a graph's legend entries, given each entry's colour as
@@ -25,7 +26,7 @@ public static partial class GraphSeriesNames
     /// </summary>
     public static IReadOnlyList<string>? Resolve(string graphName, IReadOnlyList<string> legendColours)
     {
-        if (!Generated.TryGetValue(graphName, out var definition) || legendColours.Count == 0)
+        if (!(Generated.TryGetValue(graphName, out var definition) || Ports.TryGetValue(graphName, out definition)) || legendColours.Count == 0)
         {
             return null;
         }

@@ -68,10 +68,117 @@ public sealed class GraphsSectionViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(GraphTitle));
                 OnPropertyChanged(nameof(LegendTitle));
-                _ = LoadSelectedGraphAsync();
+
+                // Mid-switch between the device and a port, the picker's list is refilled - one load once it's done.
+                if (!_switchingSource)
+                {
+                    if (value is not null && SelectedSource?.IsPort != true)
+                    {
+                        _lastDeviceGraph = value;
+                    }
+
+                    _ = LoadSelectedGraphAsync();
+                }
             }
         }
     }
+
+    // --------------------------------------------------------------- device or port
+
+    private readonly List<GraphType> _deviceGraphs = new();
+    private GraphSource _deviceSource = new("Device graphs", null);
+    private GraphSource? _selectedSource;
+    private GraphType? _lastDeviceGraph;
+    private bool _switchingSource;
+
+    /// <summary>What the graphs are of: the device, or one of its ports - each with its own graphs in the picker.</summary>
+    public ObservableCollection<GraphSource> Sources { get; } = new();
+
+    public GraphSource? SelectedSource
+    {
+        get => _selectedSource;
+        set
+        {
+            if (value is not null && !ReferenceEquals(value, _selectedSource))
+            {
+                SelectSource(value, _selectedGraph?.Name);
+            }
+        }
+    }
+
+    /// <summary>Shows a port's graph - a click on one under the Ports table.</summary>
+    public async Task ShowPortGraphAsync(string ifName, string graphType)
+    {
+        var request = (ifName, graphType);
+        if (!_hasLoadedOnce)
+        {
+            _hasLoadedOnce = true;
+            _loadTypesTask = LoadGraphTypesAsync(selectGraphName: null, request);
+            await _loadTypesTask.ConfigureAwait(true);
+            return;
+        }
+
+        if (_loadTypesTask is { } task)
+        {
+            await task.ConfigureAwait(true);
+        }
+
+        SelectPortGraph(request);
+    }
+
+    private void SelectPortGraph((string IfName, string GraphType) request)
+    {
+        var source = Sources.FirstOrDefault(s => s.IfName == request.IfName);
+        if (source is null)
+        {
+            // Not in the list (it didn't load) - shown all the same, just without values.
+            source = new GraphSource(request.IfName, new Port { IfName = request.IfName });
+            Sources.Add(source);
+        }
+
+        SelectSource(source, request.GraphType);
+    }
+
+    /// <summary>Switches the picker to <paramref name="source"/>'s graphs, keeping <paramref name="graphName"/> where it has one.</summary>
+    private void SelectSource(GraphSource source, string? graphName)
+    {
+        _selectedSource = source;
+        OnPropertyChanged(nameof(SelectedSource));
+
+        IReadOnlyList<GraphType> graphs = source.IsPort ? PortGraphsPanelViewModel.Types : _deviceGraphs;
+        _switchingSource = true;
+        try
+        {
+            AvailableGraphs.Clear();
+            foreach (var graph in graphs)
+            {
+                AvailableGraphs.Add(graph);
+            }
+
+            SelectedGraph = graphs.FirstOrDefault(g => g.Name == graphName)
+                ?? (source.IsPort ? null : _lastDeviceGraph)
+                ?? graphs.FirstOrDefault();
+        }
+        finally
+        {
+            _switchingSource = false;
+        }
+
+        OnPropertyChanged(nameof(GraphTitle));
+        OnPropertyChanged(nameof(LegendTitle));
+        _ = LoadSelectedGraphAsync();
+    }
+
+    /// <summary>"Te1/1/1 · edge-fw-01 uplink" - a port's name and its description, when it has one of its own.</summary>
+    private static string PortLabel(Port port)
+    {
+        var name = port.IfName ?? port.IfDescr ?? $"Port {port.PortId}";
+        return port.IfAlias is { Length: > 0 } alias && alias != name && alias != port.IfDescr ? $"{name} · {alias}" : name;
+    }
+
+    /// <summary>The graph as cached and remembered: a port's graph has the port in it.</summary>
+    private static string GraphKey(GraphType graph, GraphSource? source)
+        => source?.IfName is { } ifName ? $"{graph.Name}:{ifName}" : graph.Name;
 
     /// <summary>The graph card's heading: "TEMPERATURE · LAST 24 HOURS".</summary>
     public string GraphTitle
@@ -87,12 +194,13 @@ public sealed class GraphsSectionViewModel : ObservableObject
                 GraphTimeRangePreset.Year => "LAST YEAR",
                 _ => "CUSTOM RANGE",
             };
-            return _selectedGraph is { } graph ? $"{graph.Description.ToUpperInvariant()} · {range}" : range;
+            var port = _selectedSource?.IfName is { } ifName ? ifName.ToUpperInvariant() + " · " : string.Empty;
+            return _selectedGraph is { } graph ? $"{port}{graph.Description.ToUpperInvariant()} · {range}" : range;
         }
     }
 
     /// <summary>The series card's heading.</summary>
-    public string LegendTitle => _selectedGraph?.Name switch
+    public string LegendTitle => _selectedSource?.IsPort == true ? "SERIES" : _selectedGraph?.Name switch
     {
         GraphLegend.ProcessorGraph => "PROCESSORS",
         { } name when GraphLegend.SensorClassOf(name) is not null => "SENSORS",
@@ -168,7 +276,11 @@ public sealed class GraphsSectionViewModel : ObservableObject
             await task.ConfigureAwait(true);
         }
 
-        if (AvailableGraphs.FirstOrDefault(g => g.Name == graphName) is { } match)
+        if (SelectedSource?.IsPort == true)
+        {
+            SelectSource(_deviceSource, graphName);
+        }
+        else if (AvailableGraphs.FirstOrDefault(g => g.Name == graphName) is { } match)
         {
             SelectedGraph = match;
         }
@@ -179,7 +291,8 @@ public sealed class GraphsSectionViewModel : ObservableObject
     /// falls back to the first graph (the plain first-visit default) when
     /// null or not found.
     /// </param>
-    private async Task LoadGraphTypesAsync(string? selectGraphName)
+    /// <param name="selectPortGraph">Or a port's graph instead.</param>
+    private async Task LoadGraphTypesAsync(string? selectGraphName, (string IfName, string GraphType)? selectPortGraph = null)
     {
         IsLoading = true;
         ErrorMessage = null;
@@ -195,10 +308,30 @@ public sealed class GraphsSectionViewModel : ObservableObject
             var deviceWideTask = _client.Graphs.ListAsync(_deviceId);
             var healthTask = _client.Graphs.ListHealthAsync(_deviceId);
             var wirelessTask = ListWirelessGraphsAsync(_client, _deviceId, _logger);
-            await Task.WhenAll(deviceWideTask, healthTask, wirelessTask).ConfigureAwait(true);
+            var portsTask = ListPortsAsync();
+            await Task.WhenAll(deviceWideTask, healthTask, wirelessTask, portsTask).ConfigureAwait(true);
 
+            _deviceGraphs.Clear();
+            _deviceGraphs.AddRange(deviceWideTask.Result.Concat(healthTask.Result).Concat(wirelessTask.Result).OrderBy(t => t.Description, StringComparer.OrdinalIgnoreCase));
+
+            Sources.Clear();
+            _deviceSource = new GraphSource("Device graphs", null);
+            Sources.Add(_deviceSource);
+            foreach (var port in portsTask.Result)
+            {
+                Sources.Add(new GraphSource(PortLabel(port), port));
+            }
+
+            if (selectPortGraph is { } portGraph)
+            {
+                SelectPortGraph(portGraph);
+                return;
+            }
+
+            _selectedSource = _deviceSource;
+            OnPropertyChanged(nameof(SelectedSource));
             AvailableGraphs.Clear();
-            foreach (var type in deviceWideTask.Result.Concat(healthTask.Result).Concat(wirelessTask.Result).OrderBy(t => t.Description, StringComparer.OrdinalIgnoreCase))
+            foreach (var type in _deviceGraphs)
             {
                 AvailableGraphs.Add(type);
             }
@@ -223,6 +356,24 @@ public sealed class GraphsSectionViewModel : ObservableObject
             _logger.LogWarning(ex, "Could not load graph types for device {DeviceId}", _deviceId);
             ErrorMessage = ex.ToUserMessage();
             IsLoading = false;
+        }
+    }
+
+    /// <summary>The device's ports, for the Show picker - best effort, as the wireless graphs: without them, it's the device's graphs only.</summary>
+    private async Task<IReadOnlyList<Port>> ListPortsAsync()
+    {
+        try
+        {
+            return (await _client.Ports.ListForDeviceAsync(_deviceId).ConfigureAwait(true))
+                .Where(p => !p.Deleted && !string.IsNullOrEmpty(p.IfName))
+                .OrderBy(p => p.IfIndex ?? int.MaxValue)
+                .ThenBy(p => p.IfName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogDebug(ex, "Could not list the ports of device {DeviceId} for its graphs", _deviceId);
+            return Array.Empty<Port>();
         }
     }
 
@@ -251,6 +402,7 @@ public sealed class GraphsSectionViewModel : ObservableObject
             return;
         }
 
+        var source = SelectedSource;
         var range = TimeRange.ToTimeRange();
         var version = ++_loadVersion;
 
@@ -265,9 +417,9 @@ public sealed class GraphsSectionViewModel : ObservableObject
             // (sensors, processors, traffic, with values), from LibreNMS's own
             // graph definitions (GraphSeriesNames), or the graph's own name
             // for a lone series - and LibreNMS's stays otherwise.
-            var raw = await RawAsync(graph.Name, range, legend: true).ConfigureAwait(true);
+            var raw = await RawAsync(graph, source, range).ConfigureAwait(true);
             var legendColours = GraphSvgTheming.Restyle(raw).LegendColours;
-            var entries = await NameSeriesAsync(graph, legendColours).ConfigureAwait(true);
+            var entries = await NameSeriesAsync(graph, source, legendColours).ConfigureAwait(true);
             if (entries is null)
             {
                 _logger.LogDebug("Can't name the {Count} series of {GraphName} for device {DeviceId} - showing LibreNMS's legend", legendColours.Count, graph.Name, _deviceId);
@@ -281,7 +433,7 @@ public sealed class GraphsSectionViewModel : ObservableObject
             _raw = raw;
             _entries = entries;
             _hidden = new HashSet<string>(
-                entries is null ? Enumerable.Empty<string>() : HiddenSetting(graph.Name).Where(n => entries.Any(e => e.Name == n)),
+                entries is null ? Enumerable.Empty<string>() : HiddenSetting(GraphKey(graph, source)).Where(n => entries.Any(e => e.Name == n)),
                 StringComparer.Ordinal);
             await RenderAsync(version).ConfigureAwait(true);
         }
@@ -350,7 +502,7 @@ public sealed class GraphsSectionViewModel : ObservableObject
         _hidden = next;
         if (SelectedGraph is { } graph)
         {
-            var key = HiddenKey(graph.Name);
+            var key = HiddenKey(GraphKey(graph, SelectedSource));
             if (_hidden.Count == 0)
             {
                 _settings.Current.GraphHiddenSeries.Remove(key);
@@ -445,11 +597,22 @@ public sealed class GraphsSectionViewModel : ObservableObject
     /// graph definitions, then the graph's own name for a lone series. Null
     /// when none of them fits, so LibreNMS's legend stays.
     /// </summary>
-    private async Task<IReadOnlyList<GraphLegendEntry>?> NameSeriesAsync(GraphType graph, IReadOnlyList<string> legendColours)
+    private async Task<IReadOnlyList<GraphLegendEntry>?> NameSeriesAsync(GraphType graph, GraphSource? source, IReadOnlyList<string> legendColours)
     {
         if (legendColours.Count == 0)
         {
             return null;
+        }
+
+        if (source?.Port is { } port)
+        {
+            // A port's graph: named from LibreNMS's port graphs, its values the port's own, as of now.
+            if (GraphSeriesNames.Resolve(graph.Name, legendColours) is { } portNames)
+            {
+                return GraphLegend.ForPort(graph.Name, portNames, await FreshPortAsync(port).ConfigureAwait(true));
+            }
+
+            return legendColours.Count == 1 ? [new GraphLegendEntry(graph.Description, null, null)] : null;
         }
 
         if (await LegendEntriesAsync(graph.Name).ConfigureAwait(true) is { } fromApi && fromApi.Count == legendColours.Count)
@@ -494,12 +657,30 @@ public sealed class GraphsSectionViewModel : ObservableObject
         return null;
     }
 
-    private async Task<string> RawAsync(string graphName, GraphTimeRange range, bool legend)
+    /// <summary>The port as LibreNMS has it now - for its current rates; as listed when that fails.</summary>
+    private async Task<Port> FreshPortAsync(Port port)
     {
-        var key = (graphName, range, legend);
+        try
+        {
+            var ports = await _client.Ports.ListForDeviceAsync(_deviceId).ConfigureAwait(true);
+            return ports.FirstOrDefault(p => p.IfName == port.IfName) ?? port;
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogDebug(ex, "Could not refresh port {IfName}'s rates on device {DeviceId}", port.IfName, _deviceId);
+            return port;
+        }
+    }
+
+    /// <summary>LibreNMS's SVG with its legend - the device's graph, or the port's.</summary>
+    private async Task<string> RawAsync(GraphType graph, GraphSource? source, GraphTimeRange range)
+    {
+        var key = (GraphKey(graph, source), range, true);
         if (!_cache.TryGetValue(key, out var raw))
         {
-            raw = await _client.Graphs.GetSvgAsync(_deviceId, graphName, range, GraphWidth, GraphHeight, legend: legend).ConfigureAwait(true);
+            raw = source?.IfName is { } ifName
+                ? await _client.Graphs.GetPortSvgAsync(_deviceId, ifName, graph.Name, range, GraphWidth, GraphHeight).ConfigureAwait(true)
+                : await _client.Graphs.GetSvgAsync(_deviceId, graph.Name, range, GraphWidth, GraphHeight, legend: true).ConfigureAwait(true);
             _cache[key] = raw;
         }
 
@@ -564,4 +745,25 @@ public sealed class GraphLegendItemViewModel : ObservableObject
     public RelayCommand ToggleCommand { get; }
 
     public RelayCommand OnlyCommand { get; }
+}
+
+/// <summary>What the Graphs section's graphs are of: the device (no port), or one of its ports.</summary>
+public sealed class GraphSource
+{
+    public GraphSource(string name, Port? port)
+    {
+        Name = name;
+        Port = port;
+    }
+
+    public string Name { get; }
+
+    public Port? Port { get; }
+
+    public string? IfName => Port?.IfName;
+
+    public bool IsPort => Port is not null;
+
+    /// <summary>The picker's closed display - see <see cref="GraphType.ToString"/>.</summary>
+    public override string ToString() => Name;
 }

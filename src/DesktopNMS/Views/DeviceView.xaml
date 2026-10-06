@@ -2085,6 +2085,8 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Grid.Column="0" Text="RANGE" Style="{StaticResource CardTitleStyle}" Margin="0,0,14,0" VerticalAlignment="Center" />
@@ -2092,8 +2094,19 @@
                                                      DataContext="{Binding Graphs.TimeRange}"
                                                      VerticalAlignment="Center" />
 
-                        <TextBlock Grid.Column="2" Text="GRAPH" Style="{StaticResource CardTitleStyle}" Margin="14,0,14,0" VerticalAlignment="Center" />
+                        <!-- The device's graphs, or a port's: type a port's name to jump to it. -->
+                        <TextBlock Grid.Column="2" Text="SHOW" Style="{StaticResource CardTitleStyle}" Margin="14,0,14,0" VerticalAlignment="Center" />
                         <ComboBox Grid.Column="3"
+                                  ItemsSource="{Binding Graphs.Sources}"
+                                  SelectedItem="{Binding Graphs.SelectedSource}"
+                                  DisplayMemberPath="Name"
+                                  IsTextSearchEnabled="True"
+                                  TextSearch.TextPath="Name"
+                                  MaxDropDownHeight="420"
+                                  Width="240" />
+
+                        <TextBlock Grid.Column="4" Text="GRAPH" Style="{StaticResource CardTitleStyle}" Margin="14,0,14,0" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="5"
                                   ItemsSource="{Binding Graphs.AvailableGraphs}"
                                   SelectedItem="{Binding Graphs.SelectedGraph}"
                                   DisplayMemberPath="Description"

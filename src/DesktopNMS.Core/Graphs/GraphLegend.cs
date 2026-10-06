@@ -60,6 +60,44 @@ public static class GraphLegend
         };
     }
 
+    /// <summary>
+    /// A port graph's series (named by <see cref="GraphSeriesNames"/>, in
+    /// legend order) with the port's current values where LibreNMS reports
+    /// them: traffic, unicast packets and errors - not broadcast, multicast
+    /// or discards, which the API's port rates leave out.
+    /// </summary>
+    public static IReadOnlyList<GraphLegendEntry> ForPort(string graphType, IReadOnlyList<string> names, Port port)
+        => names.Select(name => new GraphLegendEntry(name, null, (graphType, name) switch
+        {
+            ("port_bits", "In") => Format(port.IfInOctetsRate, v => FormatRate(v * 8)),
+            ("port_bits", "Out") => Format(port.IfOutOctetsRate, v => FormatRate(v * 8)),
+            ("port_upkts", "In") => Format(port.IfInUcastPktsRate, FormatPerSecond),
+            ("port_upkts", "Out") => Format(port.IfOutUcastPktsRate, FormatPerSecond),
+            ("port_errors", "Errors in") => Format(port.IfInErrorsRate, FormatPerSecond),
+            ("port_errors", "Errors out") => Format(port.IfOutErrorsRate, FormatPerSecond),
+            _ => null,
+        })).ToList();
+
+    private static string? Format(double? value, Func<double, string> format) => value is { } v ? format(v) : null;
+
+    /// <summary>Packets or errors a second: "0.02/s", "840/s", "1.2k/s".</summary>
+    public static string FormatPerSecond(double perSecond)
+    {
+        string[] units = ["", "k", "M", "G"];
+        var value = perSecond;
+        var unit = 0;
+        while (value >= 1000 && unit < units.Length - 1)
+        {
+            value /= 1000;
+            unit++;
+        }
+
+        var number = value >= 100 ? value.ToString("0", CultureInfo.InvariantCulture)
+            : value >= 1 || unit > 0 ? value.ToString("0.#", CultureInfo.InvariantCulture)
+            : value.ToString("0.##", CultureInfo.InvariantCulture);
+        return number + units[unit] + "/s";
+    }
+
     public static string FormatRate(double bitsPerSecond)
     {
         string[] units = ["b/s", "kb/s", "Mb/s", "Gb/s", "Tb/s"];
