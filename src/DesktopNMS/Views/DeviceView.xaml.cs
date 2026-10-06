@@ -465,13 +465,19 @@ public partial class DeviceView : Window
         }
     }
 
-    /// <summary>Double-clicking a graph legend entry shows only that series (the click before it already toggled it).</summary>
-    private void OnGraphLegendDoubleClick(object sender, MouseButtonEventArgs e)
+    /// <summary>
+    /// Shift-clicking a graph legend entry shows only that series, as the
+    /// severity pills do - handled here so a plain click still runs its
+    /// toggle command unchanged.
+    /// </summary>
+    private void OnGraphLegendPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: GraphLegendItemViewModel item })
+        if (Keyboard.Modifiers != ModifierKeys.Shift || sender is not FrameworkElement { DataContext: GraphLegendItemViewModel item })
         {
-            item.OnlyCommand.Execute(null);
-            e.Handled = true;
+            return;
         }
+
+        item.OnlyCommand.Execute(null);
+        e.Handled = true;
     }
 }

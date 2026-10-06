@@ -287,7 +287,6 @@ public sealed class GraphsSectionViewModel : ObservableObject
     private IReadOnlyList<GraphLegendEntry>? _entries;
     private HashSet<string> _hidden = new(StringComparer.Ordinal);
     private IReadOnlyList<Sensor>? _sensors;
-    private string? _scaleNote;
 
     /// <summary>The app's own legend (see GraphLegend) - empty when LibreNMS's legend is in the graph instead.</summary>
     public ObservableCollection<GraphLegendItemViewModel> Legend { get; } = new();
@@ -298,13 +297,6 @@ public sealed class GraphsSectionViewModel : ObservableObject
 
     /// <summary>"4 of 6 shown".</summary>
     public string ShownText => $"{Legend.Count - _hidden.Count} of {Legend.Count} shown";
-
-    /// <summary>"Scale covers every series" / "Scale fitted to ASIC" / nothing.</summary>
-    public string? ScaleNote
-    {
-        get => _scaleNote;
-        private set => SetProperty(ref _scaleNote, value);
-    }
 
     public RelayCommand ShowAllCommand => _showAll ??= new RelayCommand(() => SetHidden(Array.Empty<string>()));
 
@@ -359,7 +351,6 @@ public sealed class GraphsSectionViewModel : ObservableObject
         {
             Legend.Clear();
             CurrentSvg = GraphSvgTheming.Restyle(raw).Svg;
-            ScaleNote = null;
             RaiseLegendChanged();
             return;
         }
@@ -383,7 +374,6 @@ public sealed class GraphsSectionViewModel : ObservableObject
                 }
 
                 CurrentSvg = GraphSvgTheming.Restyle(single, mainColour: colour).Svg;
-                ScaleNote = $"Scale fitted to {only.Name}";
                 return;
             }
             catch (LibreNmsApiException ex)
@@ -393,7 +383,6 @@ public sealed class GraphsSectionViewModel : ObservableObject
         }
 
         CurrentSvg = styled.Svg;
-        ScaleNote = _hidden.Count > 0 ? "Scale covers every series" : null;
     }
 
     private void SyncLegend(IReadOnlyList<GraphLegendEntry> entries, IReadOnlyList<string> colours)
@@ -482,7 +471,7 @@ public sealed class GraphsSectionViewModel : ObservableObject
         => _settings.Current.GraphHiddenSeries.TryGetValue(HiddenKey(graphName), out var hidden) ? hidden : Array.Empty<string>();
 }
 
-/// <summary>One series in the Graphs section's legend: click to hide or show it, double-click for only it.</summary>
+/// <summary>One series in the Graphs section's legend: click to hide or show it, shift-click for only it.</summary>
 public sealed class GraphLegendItemViewModel : ObservableObject
 {
     private readonly GraphsSectionViewModel _owner;

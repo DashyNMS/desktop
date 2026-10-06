@@ -2098,8 +2098,8 @@
                 <Grid Grid.Row="1">
                     <DockPanel>
                     <!-- Our own legend (LibreNMS's is left out of the graph):
-                         click a series to hide or show it, double-click for
-                         only that one. -->
+                         click a series to hide or show it, shift-click for
+                         only that one, as the severity pills. -->
                     <svgc:SvgViewbox DockPanel.Dock="Top"
                                      SvgSource="{Binding Graphs.CurrentSvg}"
                                      Stretch="Uniform"
@@ -2118,17 +2118,6 @@
                                     Padding="10,2"
                                     Margin="12,0,0,0"
                                     Visibility="{Binding Graphs.HasHiddenSeries, Converter={StaticResource BoolToVisibility}}" />
-                            <TextBlock DockPanel.Dock="Right"
-                                       Text="Click to hide or show · double-click for only that one"
-                                       FontSize="11.5"
-                                       VerticalAlignment="Center"
-                                       Style="{StaticResource SubtleTextStyle}" />
-                            <TextBlock DockPanel.Dock="Right"
-                                       Text="{Binding Graphs.ScaleNote}"
-                                       FontSize="11.5"
-                                       Margin="0,0,18,0"
-                                       VerticalAlignment="Center"
-                                       Style="{StaticResource SubtleTextStyle}" />
                         </DockPanel>
                         <ItemsControl ItemsSource="{Binding Graphs.Legend}" Focusable="False">
                             <ItemsControl.ItemsPanel>
@@ -2139,11 +2128,11 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Button Command="{Binding ToggleCommand}"
-                                            MouseDoubleClick="OnGraphLegendDoubleClick"
+                                            PreviewMouseLeftButtonDown="OnGraphLegendPreviewMouseDown"
                                             Width="250"
                                             Margin="0,0,8,8"
                                             Cursor="Hand"
-                                            ToolTip="{Binding Name}"
+                                            ToolTip="Show/hide (shift-click to show only this one)"
                                             AutomationProperties.Name="{Binding Name}">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
