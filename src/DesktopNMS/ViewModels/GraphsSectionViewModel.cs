@@ -48,7 +48,11 @@ public sealed class GraphsSectionViewModel : ObservableObject
 
         AvailableGraphs = new ObservableCollection<GraphType>();
         TimeRange = new GraphTimeRangeViewModel();
-        TimeRange.Changed += (_, _) => _ = LoadSelectedGraphAsync();
+        TimeRange.Changed += (_, _) =>
+        {
+            OnPropertyChanged(nameof(GraphTitle));
+            _ = LoadSelectedGraphAsync();
+        };
     }
 
     public ObservableCollection<GraphType> AvailableGraphs { get; }
@@ -62,10 +66,38 @@ public sealed class GraphsSectionViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedGraph, value))
             {
+                OnPropertyChanged(nameof(GraphTitle));
+                OnPropertyChanged(nameof(LegendTitle));
                 _ = LoadSelectedGraphAsync();
             }
         }
     }
+
+    /// <summary>The graph card's heading: "TEMPERATURE · LAST 24 HOURS".</summary>
+    public string GraphTitle
+    {
+        get
+        {
+            var range = TimeRange.Preset switch
+            {
+                GraphTimeRangePreset.Hour => "LAST HOUR",
+                GraphTimeRangePreset.Day => "LAST 24 HOURS",
+                GraphTimeRangePreset.Week => "LAST 7 DAYS",
+                GraphTimeRangePreset.Month => "LAST 30 DAYS",
+                GraphTimeRangePreset.Year => "LAST YEAR",
+                _ => "CUSTOM RANGE",
+            };
+            return _selectedGraph is { } graph ? $"{graph.Description.ToUpperInvariant()} · {range}" : range;
+        }
+    }
+
+    /// <summary>The series card's heading.</summary>
+    public string LegendTitle => _selectedGraph?.Name switch
+    {
+        GraphLegend.ProcessorGraph => "PROCESSORS",
+        { } name when GraphLegend.SensorClassOf(name) is not null => "SENSORS",
+        _ => "SERIES",
+    };
 
     /// <summary>The recoloured SVG markup, bound directly to SvgViewbox.SvgSource - null while loading/on error/before anything is selected.</summary>
     public string? CurrentSvg
@@ -273,7 +305,8 @@ public sealed class GraphsSectionViewModel : ObservableObject
     // --------------------------------------------------------------- legend
 
     private const int GraphWidth = 1000;
-    private const int GraphHeight = 350;
+    // About the graph card's shape beside the series card, so the graph fills it.
+    private const int GraphHeight = 520;
 
     private int _loadVersion;
     private string? _raw;
@@ -286,10 +319,11 @@ public sealed class GraphsSectionViewModel : ObservableObject
 
     public bool HasLegend => Legend.Count > 0;
 
-    public bool HasHiddenSeries => _hidden.Count > 0 && HasLegend;
+    /// <summary>Counted from the legend, not the saved names - a remembered sensor that has since gone hides nothing.</summary>
+    public bool HasHiddenSeries => Legend.Any(i => !i.IsShown);
 
     /// <summary>"4 of 6 shown".</summary>
-    public string ShownText => $"{Legend.Count - _hidden.Count} of {Legend.Count} shown";
+    public string ShownText => $"{Legend.Count(i => i.IsShown)} of {Legend.Count} shown";
 
     public RelayCommand ShowAllCommand => _showAll ??= new RelayCommand(() => SetHidden(Array.Empty<string>()));
 
@@ -308,7 +342,7 @@ public sealed class GraphsSectionViewModel : ObservableObject
         var next = new HashSet<string>(hidden, StringComparer.Ordinal);
 
         // Turning the last one off too would leave an empty graph - not something to ask for.
-        if (_entries is null || next.Count >= _entries.Count)
+        if (_entries is null || _entries.All(e => next.Contains(e.Name)))
         {
             return;
         }
