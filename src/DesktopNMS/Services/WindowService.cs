@@ -171,6 +171,23 @@ public sealed class WindowService : IWindowService
         return window.ShowDialog() == true ? viewModel.Chosen : null;
     }
 
+    public void ShowLicences()
+    {
+        var window = new LicencesWindow(new LicencesViewModel(OpenUrl));
+
+        // Over Settings, where it's opened from.
+        if (Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive) is { } active)
+        {
+            window.Owner = active;
+        }
+        else
+        {
+            window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        }
+
+        window.ShowDialog();
+    }
+
     public bool ShowWhatsNew()
     {
         if (BundledWhatsNew.Current is not { } notes)

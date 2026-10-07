@@ -12,6 +12,13 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
   </ItemGroup>
 
+  <!-- The open-source licence texts both apps show (#266), by file name -
+       see Licences/OpenSourceNotices.cs. A project that compiles Core's
+       sources itself (mobile's DesktopNMS.Core.Portable) needs the same item. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Licences\Texts\*.txt" LogicalName="DesktopNMS.Core.Licences.%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <!-- So request bodies built by the internal resource APIs can be checked
        key by key against a fake transport - LibreNMS applies whichever keys
        are present, so an extra or missing one is a real bug (see #169). -->

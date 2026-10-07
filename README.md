@@ -93,6 +93,6 @@ Open DashyNMS, enter your server's address and paste the token. That's it. Closi
 
 ---
 
-<sub>DashyNMS isn't affiliated with LibreNMS. LibreNMS is a trademark of its respective owners.<br>
+<sub>DashyNMS isn't affiliated with LibreNMS or Graylog. LibreNMS and Graylog are trademarks of their respective owners.<br>
 The source is published for reference and security review only. All rights reserved; see [LICENSE](LICENSE).<br>
 Found a security problem? See [SECURITY.md](SECURITY.md). Technical notes are in the [developer guide](docs/DEVELOPMENT.md).</sub>

@@ -1357,7 +1357,17 @@
                                     Command="{Binding ReportBugCommand}"
                                     ToolTip="Opens a new GitHub issue with your DashyNMS, Windows and LibreNMS versions filled in - nothing is sent until you submit it there"
                                     Padding="10,6" />
+                            <Button Content="Open-source licences"
+                                    Command="{Binding ShowLicencesCommand}"
+                                    ToolTip="What DashyNMS is built with, each with its copyright and licence"
+                                    Padding="10,6"
+                                    Margin="8,0,0,0" />
                         </StackPanel>
+
+                        <TextBlock Text="{Binding Trademarks}"
+                                   Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,14,0,0" />
                     </StackPanel>
 
                 </Grid>

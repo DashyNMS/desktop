@@ -199,6 +199,7 @@ public sealed class SettingsViewModel : ObservableObject
             () => _windows.OpenUrl(new Uri(_latestRelease!.HtmlUrl!)),
             () => _latestRelease?.HtmlUrl is not null);
         ShowWhatsNewCommand = new RelayCommand(() => _windows.ShowWhatsNew());
+        ShowLicencesCommand = new RelayCommand(() => _windows.ShowLicences());
         ViewReleasesPageCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri("https://github.com/DashyNMS/desktop/releases")));
         ReportBugCommand = new RelayCommand(
@@ -1354,6 +1355,12 @@ public sealed class SettingsViewModel : ObservableObject
     public string WhatsNewSummary => BundledWhatsNew.Current?.Summary() ?? string.Empty;
 
     public RelayCommand ShowWhatsNewCommand { get; }
+
+    /// <summary>About's open-source licences (#266).</summary>
+    public RelayCommand ShowLicencesCommand { get; }
+
+    /// <summary>About's trademark line - Core's, so both apps say the same.</summary>
+    public string Trademarks => DesktopNMS.Core.Licences.OpenSourceNotices.Trademarks;
 
     private async Task CheckForUpdatesAsync(bool notifyIfNewer)
     {
