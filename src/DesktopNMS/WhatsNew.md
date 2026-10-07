@@ -13,6 +13,7 @@ Released 18 October 2026
 
 ## Improved
 - **A new look.** Sidebar navigation, a themed title bar and the fonts from DashyNMS Mobile. {look}
+- **Graphs.** In the app's own colours, with a legend to turn series on and off, and any port's graphs a click away. {chart}
 - **Widget picker.** Categories, search and a preview of each widget. {grid}
 - **Tray.** A themed menu, a quick look on left-click, and an icon that shows the alert state. {tray}
 - **Read-only tokens.** Buttons for changes your API token can't make are turned off, with the reason. {lock}
