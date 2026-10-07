@@ -20,6 +20,12 @@
         <TextBlock Style="{StaticResource SubtleTextStyle}"
                    TextWrapping="Wrap"
                    Margin="0,6,0,0"
+                   Visibility="{Binding ShowsWebSignIn, Converter={StaticResource BoolToVisibility}}"
+                   Text="Sign in on your LibreNMS server's own page, and DashyNMS creates an API token for this PC. It's stored encrypted for your Windows account only." />
+        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                   TextWrapping="Wrap"
+                   Margin="0,6,0,0"
+                   Visibility="{Binding ShowsTokenEntry, Converter={StaticResource BoolToVisibility}}"
                    Text="Create a token in LibreNMS under Settings, API, API Access. DashyNMS stores it encrypted for your Windows account only." />
 
         <TextBlock Text="Server address" Style="{StaticResource SectionHeaderStyle}" />
@@ -38,17 +44,29 @@
                    TextWrapping="Wrap"
                    Margin="0,4,0,0" />
 
-        <TextBlock Text="API token" Style="{StaticResource SectionHeaderStyle}" />
-        <PasswordBox x:Name="TokenBox" PasswordChanged="OnTokenChanged" />
-        <TextBlock Text="Leave blank to use the token already saved on this machine."
-                   Style="{StaticResource SubtleTextStyle}"
-                   Margin="0,4,0,0" />
+        <StackPanel Visibility="{Binding ShowsTokenEntry, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="API token" Style="{StaticResource SectionHeaderStyle}" />
+            <PasswordBox x:Name="TokenBox" PasswordChanged="OnTokenChanged" />
+            <TextBlock Text="Leave blank to use the token already saved on this machine."
+                       Style="{StaticResource SubtleTextStyle}"
+                       Margin="0,4,0,0" />
+        </StackPanel>
 
         <CheckBox Content="Remember this token on this machine"
                   IsChecked="{Binding RememberToken}"
                   Margin="0,14,0,0" />
         <CheckBox Content="Allow an untrusted or self-signed certificate"
                   IsChecked="{Binding AllowUntrustedCertificate}" />
+
+        <!-- The other way in: a pasted token, or back to signing in on LibreNMS's page. -->
+        <TextBlock Margin="0,12,0,0"
+                   Visibility="{Binding ShowsWebSignIn, Converter={StaticResource BoolToVisibility}}">
+            <Hyperlink Command="{Binding UseTokenCommand}">Use an API token instead</Hyperlink>
+        </TextBlock>
+        <TextBlock Margin="0,12,0,0"
+                   Visibility="{Binding ShowsLibreNmsLink, Converter={StaticResource BoolToVisibility}}">
+            <Hyperlink Command="{Binding UseLibreNmsCommand}">Sign in with LibreNMS instead</Hyperlink>
+        </TextBlock>
 
         <Border Background="#33DA3633"
                 BorderBrush="{StaticResource CriticalBrush}"
@@ -92,7 +110,13 @@
                 <Button Content="Connect"
                         Command="{Binding ConnectCommand}"
                         Style="{StaticResource PrimaryButtonStyle}"
-                        IsDefault="True" />
+                        IsDefault="{Binding ShowsTokenEntry}"
+                        Visibility="{Binding ShowsTokenEntry, Converter={StaticResource BoolToVisibility}}" />
+                <Button Content="Sign in with LibreNMS"
+                        Command="{Binding SignInWithLibreNmsCommand}"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        IsDefault="{Binding ShowsWebSignIn}"
+                        Visibility="{Binding ShowsWebSignIn, Converter={StaticResource BoolToVisibility}}" />
             </StackPanel>
         </DockPanel>
     </StackPanel>
