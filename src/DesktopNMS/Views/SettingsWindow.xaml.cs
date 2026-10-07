@@ -16,6 +16,7 @@ public partial class SettingsWindow : Window
         _viewModel = viewModel;
 
         InitializeComponent();
+        DesktopNMS.Infrastructure.TokenBoxes.CleanPastes(ServerTokenBox);
 
         DataContext = viewModel;
         _viewModel.RequestClose += OnRequestClose;

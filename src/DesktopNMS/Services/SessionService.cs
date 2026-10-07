@@ -104,7 +104,7 @@ public sealed class SessionService : ISessionService
 
         if (string.IsNullOrWhiteSpace(apiToken))
         {
-            return ConnectionTestResult.Failure("Enter the API token from LibreNMS (Settings, API, API Access).");
+            return ConnectionTestResult.Failure(DesktopNMS.Core.SignIn.SignInHelp.MissingToken);
         }
 
         if (!TryParseBackup(backupAddress, out var backupWebRoot, out var backupError))

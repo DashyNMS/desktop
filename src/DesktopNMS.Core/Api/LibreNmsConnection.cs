@@ -121,6 +121,14 @@ public sealed class LibreNmsConnection
         return true;
     }
 
+    /// <summary>
+    /// LibreNMS's API Tokens page for whatever the user typed as the server
+    /// address (#261) - scheme, port and a sub-path install included, as
+    /// <see cref="TryParseWebRoot"/> reads it. Null when it isn't an address yet.
+    /// </summary>
+    public static Uri? ApiTokensPageUrl(string? address)
+        => TryParseWebRoot(address, out var webRoot, out _) ? new Uri(webRoot!, SignIn.WebTokenSignIn.TokensPath) : null;
+
     /// <summary>Absolute URL of an alert in the LibreNMS web UI.</summary>
     public Uri AlertUrl(int alertId) => new(WebRoot, $"alerts/?state=-1&alert_id={alertId}");
 
