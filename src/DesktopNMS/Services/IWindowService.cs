@@ -66,6 +66,9 @@ public interface IWindowService
     /// <summary>This release's "What's new" (#227), which then counts as seen. False when this build has none.</summary>
     bool ShowWhatsNew();
 
+    /// <summary>Settings › About › Open-source licences (#266).</summary>
+    void ShowLicences();
+
     /// <summary>Shows the main window on a Neighbours view (#55), with this neighbour selected if one is named and listed - the MAC picks out which of several unnamed ones.</summary>
     void ShowNeighbour(string viewId, string? name, string? mac = null);
 
