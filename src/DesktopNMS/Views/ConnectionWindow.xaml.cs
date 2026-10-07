@@ -16,10 +16,13 @@ public partial class ConnectionWindow : Window
         DataContext = viewModel;
         _viewModel.RequestClose += OnRequestClose;
 
+        // A token "Sign in with LibreNMS" made but couldn't sign in with: in the box, to try again.
+        _viewModel.TokenCreated += (_, token) => TokenBox.Password = token;
+
         Loaded += (_, _) =>
         {
             // Land on whichever field is still empty.
-            if (string.IsNullOrWhiteSpace(ServerBox.Text))
+            if (string.IsNullOrWhiteSpace(ServerBox.Text) || !_viewModel.UsesToken)
             {
                 ServerBox.Focus();
             }

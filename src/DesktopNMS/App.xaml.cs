@@ -526,6 +526,14 @@ public partial class App : Application
         services.AddSingleton<IUnimusTokenProtector, DpapiUnimusTokenProtector>();
         services.AddSingleton<IGraylogPasswordProtector, DpapiGraylogPasswordProtector>();
 
+        // "Sign in with LibreNMS" (mobile#162) needs the WebView2 runtime; without it,
+        // nothing is registered and the connection window asks for a token, as before.
+        services.AddSingleton<DesktopNMS.Core.SignIn.ICertificateProbe, DesktopNMS.Core.SignIn.CertificateProbe>();
+        if (WebView2SignIn.IsAvailable)
+        {
+            services.AddSingleton<DesktopNMS.Core.SignIn.IWebSignIn, WebView2SignIn>();
+        }
+
         services.AddSingleton<ISessionService, SessionService>();
         services.AddSingleton<IDeviceCache, DeviceCache>();
         services.AddSingleton<IAlertRuleCache, AlertRuleCache>();

@@ -54,6 +54,23 @@ public static class CertificateTrust
         return string.Join(':', hash.Select(b => b.ToString("X2", CultureInfo.InvariantCulture)));
     }
 
+    /// <summary>
+    /// Whether a certificate a web view was shown (its DER bytes, as the
+    /// platform hands them over) is one the user trusted - for "Sign in with
+    /// LibreNMS", whose web views (WebView2, WKWebView, Android's) can't use
+    /// <see cref="CreateCallback"/>.
+    /// </summary>
+    public static bool IsTrusted(IReadOnlyCollection<string>? trustedFingerprints, byte[]? derBytes)
+    {
+        if (derBytes is not { Length: > 0 } || trustedFingerprints is not { Count: > 0 })
+        {
+            return false;
+        }
+
+        var fingerprint = string.Join(':', SHA256.HashData(derBytes).Select(b => b.ToString("X2", CultureInfo.InvariantCulture)));
+        return trustedFingerprints.Any(trusted => SameFingerprint(trusted, fingerprint));
+    }
+
     /// <summary>Compares fingerprints ignoring case and separators, so "ab cd" matches "AB:CD".</summary>
     public static bool SameFingerprint(string? a, string? b)
         => a is not null && b is not null && string.Equals(Normalise(a), Normalise(b), StringComparison.Ordinal);

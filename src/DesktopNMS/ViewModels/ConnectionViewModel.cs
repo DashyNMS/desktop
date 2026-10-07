@@ -1,7 +1,12 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
+using DesktopNMS.Core.Security;
+using DesktopNMS.Core.SignIn;
 using DesktopNMS.Demo;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
@@ -9,8 +14,10 @@ using DesktopNMS.Services;
 namespace DesktopNMS.ViewModels;
 
 /// <summary>
-/// Sign-in dialog: server address plus an API token from LibreNMS
-/// (Settings, API, API Access).
+/// Sign-in dialog: the server address, then "Sign in with LibreNMS" - sign
+/// in on the server's own website and let DashyNMS create its API token
+/// (mobile#162, the flow in Core's <see cref="WebTokenSignIn"/>) - or, as the
+/// way back when that can't work, an API token pasted in.
 /// </summary>
 public sealed class ConnectionViewModel : ObservableObject
 {
@@ -18,6 +25,9 @@ public sealed class ConnectionViewModel : ObservableObject
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
     private readonly DemoMode _demo;
+    private readonly IWebSignIn? _webSignIn;
+    private readonly ICertificateProbe _probe;
+    private bool _usesToken;
 
     private string _serverUrl = string.Empty;
     private string _apiToken = string.Empty;
@@ -27,12 +37,21 @@ public sealed class ConnectionViewModel : ObservableObject
     private string? _errorMessage;
     private string? _successMessage;
 
-    public ConnectionViewModel(ISessionService session, ISettingsStore settings, IWindowService windows, DemoMode demo)
+    public ConnectionViewModel(
+        ISessionService session,
+        ISettingsStore settings,
+        IWindowService windows,
+        DemoMode demo,
+        ITokenProtector tokens,
+        ICertificateProbe probe,
+        IWebSignIn? webSignIn = null)
     {
         _session = session;
         _settings = settings;
         _windows = windows;
         _demo = demo;
+        _probe = probe;
+        _webSignIn = webSignIn;
 
         var current = settings.Current;
         _serverUrl = current.ServerUrl ?? string.Empty;
@@ -40,9 +59,149 @@ public sealed class ConnectionViewModel : ObservableObject
         _allowUntrustedCertificate = current.AllowUntrustedCertificate;
         _rememberToken = current.RememberToken;
 
-        ConnectCommand = new AsyncRelayCommand(ConnectAsync, () => !IsBusy);
+        // A token already saved here: signing in again needs nothing new, so the token form it is.
+        _usesToken = webSignIn is null || tokens.HasStoredToken;
+
+        ConnectCommand = new AsyncRelayCommand(() => ConnectAsync(), () => !IsBusy);
         TryDemoCommand = new RelayCommand(TryDemo, () => !IsBusy);
+        SignInWithLibreNmsCommand = new AsyncRelayCommand(SignInWithLibreNmsAsync, () => !IsBusy);
+        UseTokenCommand = new RelayCommand(() => SetUsesToken(true));
+        UseLibreNmsCommand = new RelayCommand(() => SetUsesToken(false));
     }
+
+    /// <summary>"Sign in with LibreNMS": the server's website, where DashyNMS then creates its own token.</summary>
+    public AsyncRelayCommand SignInWithLibreNmsCommand { get; }
+
+    public RelayCommand UseTokenCommand { get; }
+
+    public RelayCommand UseLibreNmsCommand { get; }
+
+    /// <summary>
+    /// True once the user has chosen to paste an API token, or "Sign in with
+    /// LibreNMS" couldn't work for this server - the form then asks for the
+    /// token as it always did.
+    /// </summary>
+    public bool UsesToken
+    {
+        get => _usesToken;
+        private set
+        {
+            if (SetProperty(ref _usesToken, value))
+            {
+                OnPropertyChanged(nameof(ShowsWebSignIn));
+                OnPropertyChanged(nameof(ShowsTokenEntry));
+                OnPropertyChanged(nameof(ShowsLibreNmsLink));
+            }
+        }
+    }
+
+    /// <summary>"Sign in with LibreNMS" is the way in, unless there's no WebView2 for it.</summary>
+    public bool ShowsWebSignIn => _webSignIn is not null && !UsesToken;
+
+    public bool ShowsTokenEntry => !ShowsWebSignIn;
+
+    /// <summary>"Sign in with LibreNMS instead", under the token form - only where it can work.</summary>
+    public bool ShowsLibreNmsLink => _webSignIn is not null && UsesToken;
+
+    /// <summary>Raised with a token "Sign in with LibreNMS" made, when signing in with it then failed - the window puts it in the token box to try again.</summary>
+    public event EventHandler<string>? TokenCreated;
+
+    private void SetUsesToken(bool value)
+    {
+        ErrorMessage = null;
+        UsesToken = value;
+    }
+
+    /// <summary>
+    /// "Sign in with LibreNMS": checks the server answers and its certificate
+    /// is trusted, shows its website for the user to sign in on, and signs in
+    /// with the token created there - named after this PC and the day. When
+    /// it can't work - plain http, an account without API access, LibreNMS
+    /// before 26.4 - it says why and goes back to asking for a token.
+    /// </summary>
+    private async Task SignInWithLibreNmsAsync()
+    {
+        if (_webSignIn is null)
+        {
+            return;
+        }
+
+        ErrorMessage = null;
+        SuccessMessage = null;
+        if (!LibreNmsConnection.TryParseWebRoot(ServerUrl, out var webRoot, out var error))
+        {
+            ErrorMessage = error;
+            return;
+        }
+
+        // The user types their password into this page, so never over plain http.
+        if (!string.Equals(webRoot!.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            FallBack(WebSignInMessages.NeedsHttps);
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var probe = await _probe.ProbeAsync(webRoot, AllowUntrustedCertificate, TrustedCertificates()).ConfigureAwait(true);
+            if (probe.UntrustedCertificate is { } certificate)
+            {
+                if (_windows.ConfirmTrustCertificate("LibreNMS", certificate))
+                {
+                    _session.TrustCertificate(certificate);
+                    probe = await _probe.ProbeAsync(webRoot, AllowUntrustedCertificate, TrustedCertificates()).ConfigureAwait(true);
+                }
+                else
+                {
+                    probe = new ProbeResult(false, ErrorMessage: WebSignInMessages.CertificateDeclined);
+                }
+            }
+
+            if (!probe.Reached)
+            {
+                ErrorMessage = probe.ErrorMessage;
+                return;
+            }
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+
+        var flow = new WebTokenSignIn(webRoot, WebTokenSignIn.NameFor(_webSignIn.DeviceName, DateTime.Now));
+        var result = await _webSignIn.SignInAsync(new WebSignInRequest(flow, AllowUntrustedCertificate, TrustedCertificates())).ConfigureAwait(true);
+
+        switch (result.Outcome)
+        {
+            case WebSignInOutcome.Token:
+                ApiToken = result.Token!;
+                if (!await ConnectAsync().ConfigureAwait(true))
+                {
+                    // The token's made: keep it in the (hidden) box to try again.
+                    UsesToken = true;
+                    TokenCreated?.Invoke(this, result.Token!);
+                }
+
+                break;
+
+            case WebSignInOutcome.NotAllowed:
+                FallBack(WebSignInMessages.NotAllowed);
+                break;
+
+            case WebSignInOutcome.Failed:
+                FallBack(WebSignInMessages.Failed);
+                break;
+        }
+    }
+
+    private void FallBack(string message)
+    {
+        UsesToken = true;
+        ErrorMessage = message;
+    }
+
+    private IReadOnlyCollection<string> TrustedCertificates() => _settings.Current.TrustedCertificates.ToArray();
 
     /// <summary>Raised with true once a session has been established. Cancelling is handled by the dialog itself.</summary>
     public event EventHandler<bool>? RequestClose;
@@ -105,6 +264,7 @@ public sealed class ConnectionViewModel : ObservableObject
             if (SetProperty(ref _isBusy, value))
             {
                 ConnectCommand.RaiseCanExecuteChanged();
+                SignInWithLibreNmsCommand?.RaiseCanExecuteChanged();
             }
         }
     }
@@ -137,7 +297,8 @@ public sealed class ConnectionViewModel : ObservableObject
 
     public bool HasSuccess => !string.IsNullOrEmpty(_successMessage);
 
-    private async Task ConnectAsync()
+    /// <summary>Signs in with <see cref="ApiToken"/> - pasted, or made by "Sign in with LibreNMS". True once connected.</summary>
+    private async Task<bool> ConnectAsync()
     {
         ErrorMessage = null;
         SuccessMessage = null;
@@ -169,7 +330,7 @@ public sealed class ConnectionViewModel : ObservableObject
                 var version = result.SystemInfo?.LocalVersion;
                 SuccessMessage = (version is null ? "Connected" : $"Connected to LibreNMS {version}") + (result.UsedBackupAddress ? " through the backup address." : ".");
                 RequestClose?.Invoke(this, true);
-                return;
+                return true;
             }
 
             ErrorMessage = result.ErrorMessage;
@@ -186,5 +347,7 @@ public sealed class ConnectionViewModel : ObservableObject
         {
             IsBusy = false;
         }
+
+        return false;
     }
 }
