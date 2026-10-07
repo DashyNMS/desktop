@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        xmlns:signin="clr-namespace:DesktopNMS.Core.SignIn;assembly=DesktopNMS.Core"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:ConnectionViewModel}"
         Title="Connect to LibreNMS"
@@ -25,8 +26,10 @@
         <TextBlock Style="{StaticResource SubtleTextStyle}"
                    TextWrapping="Wrap"
                    Margin="0,6,0,0"
-                   Visibility="{Binding ShowsTokenEntry, Converter={StaticResource BoolToVisibility}}"
-                   Text="Create a token in LibreNMS under Settings, API, API Access. DashyNMS stores it encrypted for your Windows account only." />
+                   Visibility="{Binding ShowsTokenEntry, Converter={StaticResource BoolToVisibility}}">
+            <Run Text="{x:Static signin:SignInHelp.TokenHint}" />
+            <Run Text="DashyNMS stores it encrypted for your Windows account only." />
+        </TextBlock>
 
         <TextBlock Text="Server address" Style="{StaticResource SectionHeaderStyle}" />
         <TextBox Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}"
@@ -45,8 +48,30 @@
                    Margin="0,4,0,0" />
 
         <StackPanel Visibility="{Binding ShowsTokenEntry, Converter={StaticResource BoolToVisibility}}">
-            <TextBlock Text="API token" Style="{StaticResource SectionHeaderStyle}" />
-            <PasswordBox x:Name="TokenBox" PasswordChanged="OnTokenChanged" />
+            <DockPanel LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left" Text="API token" Style="{StaticResource SectionHeaderStyle}" />
+                <!-- Straight to where tokens are made, for the address above. -->
+                <TextBlock DockPanel.Dock="Right" Margin="0,14,0,6" VerticalAlignment="Bottom">
+                    <Hyperlink Command="{Binding OpenTokensPageCommand}">Open the API Tokens page</Hyperlink>
+                </TextBlock>
+            </DockPanel>
+            <PasswordBox x:Name="TokenBox" PasswordChanged="OnTokenChanged" GotKeyboardFocus="OnTokenBoxFocused" />
+
+            <!-- A token copied from LibreNMS: offered, never filled in silently. -->
+            <Border x:Name="CopiedTokenOffer"
+                    Visibility="Collapsed"
+                    Background="{StaticResource SurfaceAltBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="5"
+                    Padding="10,6"
+                    Margin="0,6,0,0">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Use it" Padding="10,2" Click="OnUseCopiedToken" />
+                    <TextBlock Text="You've copied a LibreNMS API token. Use it?" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,10,0" />
+                </DockPanel>
+            </Border>
+
             <TextBlock Text="Leave blank to use the token already saved on this machine."
                        Style="{StaticResource SubtleTextStyle}"
                        Margin="0,4,0,0" />

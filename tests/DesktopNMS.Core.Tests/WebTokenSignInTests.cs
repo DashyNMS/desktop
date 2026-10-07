@@ -168,3 +168,21 @@ public sealed class CertificateTrustIsTrustedTests
         Assert.False(CertificateTrust.IsTrusted([], der));
     }
 }
+
+public sealed class ApiTokensPageUrlTests
+{
+    [Theory]
+    [InlineData("nms.example.com", "https://nms.example.com/api-access")]
+    [InlineData("https://nms.example.com:8443", "https://nms.example.com:8443/api-access")]
+    [InlineData("http://192.0.2.10/librenms/", "http://192.0.2.10/librenms/api-access")]
+    [InlineData("https://nms.example.com/librenms/api/v0", "https://nms.example.com/librenms/api-access")]
+    public void Opens_the_tokens_page_under_the_web_root(string address, string expected)
+        => Assert.Equal(expected, LibreNmsConnection.ApiTokensPageUrl(address)?.AbsoluteUri);
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("ftp://nms.example.com")]
+    public void Nothing_until_it_is_an_address(string? address)
+        => Assert.Null(LibreNmsConnection.ApiTokensPageUrl(address));
+}

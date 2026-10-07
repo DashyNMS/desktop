@@ -67,6 +67,23 @@ public sealed class ConnectionViewModel : ObservableObject
         SignInWithLibreNmsCommand = new AsyncRelayCommand(SignInWithLibreNmsAsync, () => !IsBusy);
         UseTokenCommand = new RelayCommand(() => SetUsesToken(true));
         UseLibreNmsCommand = new RelayCommand(() => SetUsesToken(false));
+        OpenTokensPageCommand = new RelayCommand(OpenTokensPage);
+    }
+
+    /// <summary>"Open the API Tokens page" (#261): LibreNMS's page for making a token, in the browser.</summary>
+    public RelayCommand OpenTokensPageCommand { get; }
+
+    private void OpenTokensPage()
+    {
+        if (LibreNmsConnection.ApiTokensPageUrl(ServerUrl) is { } page)
+        {
+            ErrorMessage = null;
+            _windows.OpenUrl(page);
+        }
+        else
+        {
+            ErrorMessage = "Enter the server address first, then open its API Tokens page.";
+        }
     }
 
     /// <summary>"Sign in with LibreNMS": the server's website, where DashyNMS then creates its own token.</summary>
