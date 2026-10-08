@@ -180,6 +180,29 @@ public static class NotificationRuleChoices
         return choices;
     }
 
+    /// <summary>
+    /// The one choice a right-click menu offers, never one that changes mode -
+    /// that's left to Settings: in "Only…", notify about the rule or stop;
+    /// otherwise, leave it out or notify again. On an alert it's that alert's
+    /// device; on a rule, every device.
+    /// </summary>
+    public static NotificationRuleAction Primary(NotificationSettings settings, int ruleId, int? deviceId)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        if (settings.RuleMode == NotificationRuleMode.Only)
+        {
+            return Coverage(settings.OnlyRules, ruleId, deviceId).Covered
+                ? NotificationRuleAction.StopOnly
+                : deviceId is null ? NotificationRuleAction.OnlyEverywhere : NotificationRuleAction.OnlyOnDevice;
+        }
+
+        var left = settings.RuleMode == NotificationRuleMode.AllExcept && Coverage(settings.ExceptRules, ruleId, deviceId).Covered;
+        return left
+            ? NotificationRuleAction.NotifyAgain
+            : deviceId is null ? NotificationRuleAction.LeaveOutEverywhere : NotificationRuleAction.LeaveOutOnDevice;
+    }
+
     /// <summary>The choice moves notifications into another mode - "Only…" from everything else - which is worth confirming first.</summary>
     public static bool ChangesMode(NotificationSettings settings, NotificationRuleAction action)
     {
@@ -229,8 +252,8 @@ public static class NotificationRuleChoices
     {
         NotificationRuleAction.LeaveOutOnDevice => "Don't notify me about this rule on this device",
         NotificationRuleAction.LeaveOutEverywhere => forRule ? "Don't notify me about this rule" : "Don't notify me about this rule on any device",
-        NotificationRuleAction.OnlyOnDevice => "Only notify me about this rule, on this device",
-        NotificationRuleAction.OnlyEverywhere => forRule ? "Only notify me about this rule" : "Only notify me about this rule, on every device",
+        NotificationRuleAction.OnlyOnDevice => "Notify me about this rule on this device",
+        NotificationRuleAction.OnlyEverywhere => forRule ? "Notify me about this rule" : "Notify me about this rule on every device",
         NotificationRuleAction.NotifyAgain => "Notify me about this again",
         NotificationRuleAction.StopOnly => "Stop notifying me about this",
         _ => action.ToString(),

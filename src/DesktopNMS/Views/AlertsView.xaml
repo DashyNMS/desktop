@@ -345,15 +345,11 @@
                         <MenuItem Header="Filter by this rule" Command="{Binding FilterBySelectedRuleCommand}" />
                         <MenuItem Header="Filter by this device" Command="{Binding FilterBySelectedDeviceCommand}" />
                         <Separator />
-                        <!-- Which alerts notify (#268) - built as the menu opens. -->
-                        <MenuItem Header="Notifications" ItemsSource="{Binding NotificationMenu}" IsEnabled="{Binding HasSelection}">
-                            <MenuItem.ItemContainerStyle>
-                                <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
-                                    <Setter Property="Header" Value="{Binding Header}" />
-                                    <Setter Property="Command" Value="{Binding Command}" />
-                                </Style>
-                            </MenuItem.ItemContainerStyle>
-                        </MenuItem>
+                        <!-- Notifications for this alert's rule (#268): one plain choice,
+                             built as the menu opens; everything else is in Settings. -->
+                        <MenuItem Header="{Binding NotificationChoice.Header}"
+                                  Command="{Binding NotificationChoice.Command}"
+                                  Visibility="{Binding NotificationChoice, Converter={StaticResource NullToVisibility}}" />
                         <Separator />
                         <MenuItem Header="Open device" Command="{Binding OpenDeviceCommand}" FontWeight="SemiBold" />
                         <MenuItem Header="Open procedure" Command="{Binding OpenProcedureCommand}" />

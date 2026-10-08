@@ -30,7 +30,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
     private readonly NotificationRuleService _notificationRules;
-    private IReadOnlyList<NotificationMenuItem> _notificationMenu = Array.Empty<NotificationMenuItem>();
+    private NotificationMenuItem? _notificationChoice;
     private readonly AlertMonitor _monitor;
     private readonly IDeviceCache _devices;
     private readonly IAlertRuleCache _rules;
@@ -784,17 +784,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public bool HasSelection => SelectedAlert is not null;
 
-    /// <summary>The right-click menu's Notifications choices for the selected alert (#268) - built as the menu opens, see <see cref="RefreshNotificationMenu"/>.</summary>
-    public IReadOnlyList<NotificationMenuItem> NotificationMenu
+    /// <summary>The right-click menu's notifications choice for the selected alert (#268) - built as the menu opens, see <see cref="RefreshNotificationMenu"/>.</summary>
+    public NotificationMenuItem? NotificationChoice
     {
-        get => _notificationMenu;
-        private set => SetProperty(ref _notificationMenu, value);
+        get => _notificationChoice;
+        private set => SetProperty(ref _notificationChoice, value);
     }
 
-    /// <summary>Called as the alert's right-click menu opens, so it reflects the current choices.</summary>
-    public void RefreshNotificationMenu() => NotificationMenu = SelectedAlert is { } alert
-        ? _notificationRules.MenuFor(alert.RuleId, alert.RuleName, alert.DeviceId, alert.DeviceName)
-        : Array.Empty<NotificationMenuItem>();
+    /// <summary>Called as the alert's right-click menu opens, so it reflects what's already chosen.</summary>
+    public void RefreshNotificationMenu() => NotificationChoice = SelectedAlert is { } alert
+        ? _notificationRules.ChoiceFor(alert.RuleId, alert.RuleName, alert.DeviceId, alert.DeviceName)
+        : null;
 
     /// <summary>
     /// Every row currently highlighted in the grid (Ctrl/Shift-click), kept in

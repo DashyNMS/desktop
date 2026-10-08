@@ -230,6 +230,22 @@ public class NotificationRulesTests
     }
 
     [Fact]
+    public void The_right_click_choice_never_changes_mode()
+    {
+        var settings = new NotificationSettings();
+        Assert.Equal(NotificationRuleAction.LeaveOutOnDevice, NotificationRuleChoices.Primary(settings, 5, deviceId: 1));
+        Assert.Equal(NotificationRuleAction.LeaveOutEverywhere, NotificationRuleChoices.Primary(settings, 5, deviceId: null));
+
+        NotificationRuleChoices.Apply(settings, NotificationRuleAction.LeaveOutOnDevice, 5, "Port down", 1, "core-sw");
+        Assert.Equal(NotificationRuleAction.NotifyAgain, NotificationRuleChoices.Primary(settings, 5, deviceId: 1));
+
+        settings.RuleMode = NotificationRuleMode.Only;
+        Assert.Equal(NotificationRuleAction.OnlyOnDevice, NotificationRuleChoices.Primary(settings, 5, deviceId: 1));
+        NotificationRuleChoices.Apply(settings, NotificationRuleAction.OnlyEverywhere, 5, "Port down");
+        Assert.Equal(NotificationRuleAction.StopOnly, NotificationRuleChoices.Primary(settings, 5, deviceId: 1));
+    }
+
+    [Fact]
     public void A_rule_has_no_device_choices()
     {
         var choices = NotificationRuleChoices.For(new NotificationSettings(), 5, deviceId: null);

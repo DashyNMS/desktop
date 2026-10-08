@@ -27,7 +27,7 @@ public sealed class RulesViewModel : ObservableObject
     private readonly AlertMonitor _monitor;
     private readonly ILogger<RulesViewModel> _logger;
     private readonly NotificationRuleService _notificationRules;
-    private IReadOnlyList<NotificationMenuItem> _notificationMenu = Array.Empty<NotificationMenuItem>();
+    private NotificationMenuItem? _notificationChoice;
 
     /// <summary>Latest per-rule count of active + acknowledged alerts, kept between rule reloads so a fresh row can be stamped immediately.</summary>
     private Dictionary<int, int> _alertCounts = new();
@@ -108,19 +108,17 @@ public sealed class RulesViewModel : ObservableObject
 
     public string SelectionText => $"{_selectedRules.Count} selected";
 
-    /// <summary>The right-click menu's Notifications choices for the one selected rule, on every device (#268).</summary>
-    public IReadOnlyList<NotificationMenuItem> NotificationMenu
+    /// <summary>The right-click menu's notifications choice for the one selected rule, on every device (#268).</summary>
+    public NotificationMenuItem? NotificationChoice
     {
-        get => _notificationMenu;
-        private set => SetProperty(ref _notificationMenu, value);
+        get => _notificationChoice;
+        private set => SetProperty(ref _notificationChoice, value);
     }
 
-    public bool HasSingleSelection => _selectedRules.Count == 1;
-
-    /// <summary>Called as the rule's right-click menu opens, so it reflects the current choices.</summary>
-    public void RefreshNotificationMenu() => NotificationMenu = _selectedRules is [var rule]
-        ? _notificationRules.MenuFor(rule.Id, rule.Name)
-        : Array.Empty<NotificationMenuItem>();
+    /// <summary>Called as the rule's right-click menu opens, so it reflects what's already chosen.</summary>
+    public void RefreshNotificationMenu() => NotificationChoice = _selectedRules is [var rule]
+        ? _notificationRules.ChoiceFor(rule.Id, rule.Name)
+        : null;
 
     /// <summary>The grid's selection changed - set by the view.</summary>
     public void SetSelection(IEnumerable<RuleItemViewModel> rules)
@@ -128,7 +126,6 @@ public sealed class RulesViewModel : ObservableObject
         _selectedRules = rules.ToList();
         OnPropertyChanged(nameof(HasSelection));
         OnPropertyChanged(nameof(HasMultipleSelection));
-        OnPropertyChanged(nameof(HasSingleSelection));
         OnPropertyChanged(nameof(SelectionText));
         EnableSelectedCommand.RaiseCanExecuteChanged();
         DisableSelectedCommand.RaiseCanExecuteChanged();
