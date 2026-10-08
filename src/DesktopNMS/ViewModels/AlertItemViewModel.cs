@@ -146,6 +146,33 @@ public sealed class AlertItemViewModel : ObservableObject
         _detailState is AlertDetailState.NotLoaded
         || (_detailState == AlertDetailState.Loaded && _detailStamp != _alert.Timestamp);
 
+    private string? _historyText;
+    private DateTime? _historyStamp;
+
+    /// <summary>"Fired 6 times in the last 30 days · last 2 days ago" (#270) - null until loaded.</summary>
+    public string? HistoryText
+    {
+        get => _historyText;
+        private set
+        {
+            if (SetProperty(ref _historyText, value))
+            {
+                OnPropertyChanged(nameof(IsLoadingHistory));
+            }
+        }
+    }
+
+    public bool IsLoadingHistory => _historyText is null;
+
+    /// <summary>The history is missing, or is from before this alert last changed.</summary>
+    public bool NeedsHistory => _historyText is null || _historyStamp != _alert.Timestamp;
+
+    public void SetHistory(string text)
+    {
+        _historyStamp = _alert.Timestamp;
+        HistoryText = text;
+    }
+
     public void BeginLoadingDetail()
     {
         DetailError = null;

@@ -54,6 +54,9 @@ public interface IWindowService
     /// <summary>Opens Device Details on its Event log section - from the Event log widget (#202).</summary>
     void ShowDeviceEventLog(int deviceId);
 
+    /// <summary>Opens Device Details on its Alerts section - current alerts and the alert history (#270).</summary>
+    void ShowDeviceAlerts(int deviceId);
+
     /// <summary>Opens Device Details on its Graylog section - from the Graylog widget (#203).</summary>
     void ShowDeviceGraylog(int deviceId);
 
@@ -158,6 +161,9 @@ public interface IWindowService
     /// dialog was cancelled or the request failed.
     /// </summary>
     string? ShowScheduleMaintenanceDialog(int deviceId, string deviceName);
+
+    /// <summary>The same dialog for several devices at once (#271) - each gets the same window; returns a summary, failures included, or null if cancelled.</summary>
+    string? ShowScheduleMaintenanceDialog(IReadOnlyList<ViewModels.MaintenanceTarget> devices);
 
     /// <summary>Shows the "Add alert template" dialog. Returns true if a template was created.</summary>
     bool ShowAddAlertTemplateDialog();

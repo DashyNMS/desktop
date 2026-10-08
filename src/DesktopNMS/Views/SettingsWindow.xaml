@@ -1438,6 +1438,12 @@
                                     Command="{Binding ReportBugCommand}"
                                     ToolTip="Opens a new GitHub issue with your DashyNMS, Windows and LibreNMS versions filled in - nothing is sent until you submit it there"
                                     Padding="10,6" />
+                            <!-- #273: the log, to attach to a bug report. -->
+                            <Button Content="Open log folder"
+                                    Command="{Binding OpenLogFolderCommand}"
+                                    ToolTip="Opens the folder DashyNMS writes its log to, in File Explorer - check a log for anything private before sharing it"
+                                    Padding="10,6"
+                                    Margin="8,0,0,0" />
                             <Button Content="Open-source licences"
                                     Command="{Binding ShowLicencesCommand}"
                                     ToolTip="What DashyNMS is built with, each with its copyright and licence"

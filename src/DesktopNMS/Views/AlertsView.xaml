@@ -462,6 +462,18 @@
                             <TextBlock Text="{Binding TimestampText}" />
                             <TextBlock Text="{Binding AgeText}" Style="{StaticResource SubtleTextStyle}" />
 
+                            <!-- #270: a one-off or flapping? From the device's alert log, loaded after the details. -->
+                            <TextBlock Text="Before" Style="{StaticResource SectionHeaderStyle}" />
+                            <TextBlock Text="Checking earlier alerts..."
+                                       Style="{StaticResource SubtleTextStyle}"
+                                       Visibility="{Binding IsLoadingHistory, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock TextWrapping="Wrap"
+                                       Visibility="{Binding IsLoadingHistory, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                                <Run Text="{Binding HistoryText, Mode=OneWay}" />
+                                <LineBreak />
+                                <Hyperlink Command="{Binding DataContext.OpenDeviceAlertHistoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">Device alert history</Hyperlink>
+                            </TextBlock>
+
                             <!-- ============ What actually tripped the rule ============ -->
                             <Grid>
                                 <Grid.ColumnDefinitions>

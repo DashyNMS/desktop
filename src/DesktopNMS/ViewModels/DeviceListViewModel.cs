@@ -141,6 +141,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         UnpinSelectedCommand = new RelayCommand(() => SetSelectedPinned(false), () => _selectedDevices.Count > 0);
         AddSelectedToGroupCommand = new RelayCommand(AddSelectedToGroup, () => _selectedDevices.Count > 0);
         RediscoverSelectedCommand = new AsyncRelayCommand(RediscoverSelectedAsync, () => _selectedDevices.Count > 0);
+        MaintenanceSelectedCommand = new RelayCommand(MaintenanceSelected, () => _selectedDevices.Count > 0);
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
@@ -226,6 +227,28 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     /// <summary>Triggers a LibreNMS rediscovery for every currently-selected device - see <see cref="RediscoverSelectedAsync"/>.</summary>
     public AsyncRelayCommand RediscoverSelectedCommand { get; }
+
+    /// <summary>Schedules maintenance for every selected device with one window (#271).</summary>
+    public RelayCommand MaintenanceSelectedCommand { get; }
+
+    public string MaintenanceSelectedLabel => HasMultipleSelection
+        ? $"Maintenance… ({_selectedDevices.Count} devices)"
+        : "Maintenance…";
+
+    private void MaintenanceSelected()
+    {
+        if (_selectedDevices.Count == 0)
+        {
+            return;
+        }
+
+        var message = _windows.ShowScheduleMaintenanceDialog(_selectedDevices.Select(d => new MaintenanceTarget(d.DeviceId, d.Name)).ToList());
+        if (message is not null)
+        {
+            _windows.ShowInformation("Maintenance scheduled", message);
+            _deviceMonitor.RequestRefresh();
+        }
+    }
 
     /// <summary>A short "45s" / "2:05" countdown to the next automatic refresh.</summary>
     public string NextRefreshText => PollAlignment.FormatRemaining(_deviceMonitor.SecondsUntilNextPoll());
@@ -352,6 +375,8 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(PinSelectedLabel));
         OnPropertyChanged(nameof(UnpinSelectedLabel));
         OnPropertyChanged(nameof(RediscoverSelectedLabel));
+        OnPropertyChanged(nameof(MaintenanceSelectedLabel));
+        MaintenanceSelectedCommand.RaiseCanExecuteChanged();
         OnPropertyChanged(nameof(ShowPinSelectedAction));
         OnPropertyChanged(nameof(ShowUnpinSelectedAction));
         OnPropertyChanged(nameof(PinningEnabled));

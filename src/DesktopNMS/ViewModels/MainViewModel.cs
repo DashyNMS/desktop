@@ -185,6 +185,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         CopyAlertsCsvCommand = new RelayCommand(CopyAlertsCsv);
         ExportAlertsCsvCommand = new RelayCommand(ExportAlertsCsv);
         ReloadDetailCommand = new RelayCommand(() => ReloadDetail(force: true), () => SelectedAlert is not null);
+        OpenDeviceAlertHistoryCommand = new RelayCommand(() =>
+        {
+            if (SelectedAlert is { } alert)
+            {
+                _windows.ShowDeviceAlerts(alert.DeviceId);
+            }
+        });
         SelectDashboardTabCommand = new RelayCommand(() => SelectedTab = MainTab.Dashboard);
         SelectDevicesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Devices);
         SelectHealthTabCommand = new RelayCommand(() => SelectedTab = MainTab.Health);
@@ -262,6 +269,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>Right-click "Filter by this rule" (issue #163) - the same Rule chip the Rules tab's alert badge sets.</summary>
     public RelayCommand FilterBySelectedRuleCommand { get; }
+
+    /// <summary>The alert details' "Device alert history" link (#270): Device Details, on its Alerts section.</summary>
+    public RelayCommand OpenDeviceAlertHistoryCommand { get; }
 
     /// <summary>Right-click "Filter by this device" (issue #163) - a Device chip alongside the Rule one.</summary>
     public RelayCommand FilterBySelectedDeviceCommand { get; }
@@ -1464,18 +1474,66 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (!_settings.Current.LoadAlertFaults || !_session.IsConnected)
+        if (!_session.IsConnected)
         {
             return;
         }
 
-        if (!force && !item.NeedsDetail)
+        var loadFaults = _settings.Current.LoadAlertFaults && (force || item.NeedsDetail);
+        var loadHistory = force || item.NeedsHistory;
+        if (!loadFaults && !loadHistory)
         {
             return;
         }
 
         _detailCts = new CancellationTokenSource();
-        _ = LoadDetailAsync(item, _detailCts.Token);
+        _ = LoadDetailThenHistoryAsync(item, loadFaults, loadHistory, _detailCts.Token);
+    }
+
+    /// <summary>The faults first, then (#270) the history - a slow alert log never holds up the details.</summary>
+    private async Task LoadDetailThenHistoryAsync(AlertItemViewModel item, bool loadFaults, bool loadHistory, CancellationToken cancellationToken)
+    {
+        if (loadFaults)
+        {
+            await LoadDetailAsync(item, cancellationToken).ConfigureAwait(true);
+        }
+
+        if (loadHistory && !cancellationToken.IsCancellationRequested)
+        {
+            await LoadHistoryAsync(item, cancellationToken).ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>How often this rule has fired on this device in the last 30 days (#270), from the device's alert log.</summary>
+    private async Task LoadHistoryAsync(AlertItemViewModel item, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // The alert log filters by device but not by rule, so take a deep
+            // window: a busy device can log a lot in 30 days.
+            var entries = await _client.Logs.ListAlertLogAsync(item.DeviceId, limit: 500, cancellationToken).ConfigureAwait(true);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            var summary = AlertHistory.Summarise(
+                entries,
+                item.RuleId,
+                item.DeviceId,
+                DateTime.Now,
+                _settings.Current.ServerTimestampsAreUtc);
+            item.SetHistory(summary.Describe(DateTime.Now));
+        }
+        catch (OperationCanceledException)
+        {
+            // Another alert was selected.
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(ex, "Could not load the alert history for alert {AlertId}", item.Id);
+            item.SetHistory("Earlier alerts couldn't be loaded");
+        }
     }
 
     private async Task LoadDetailAsync(AlertItemViewModel item, CancellationToken cancellationToken)
