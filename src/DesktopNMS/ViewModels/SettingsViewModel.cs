@@ -96,7 +96,7 @@ public sealed class PersistenceOption
 /// <summary>
 /// Settings dialog. Edits a copy so Cancel really cancels.
 /// </summary>
-public sealed class SettingsViewModel : ObservableObject
+public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly ISettingsStore _store;
     private readonly ICustomMapStore _customMaps;
@@ -271,6 +271,11 @@ public sealed class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsGraylogSectionSelected));
                 OnPropertyChanged(nameof(IsMapsSectionSelected));
                 OnPropertyChanged(nameof(IsAboutSectionSelected));
+
+                if (value == SettingsSection.Notifications)
+                {
+                    _ = LoadNotificationRuleChoicesAsync();
+                }
             }
         }
     }

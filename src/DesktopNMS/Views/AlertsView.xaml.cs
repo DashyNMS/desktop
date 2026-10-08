@@ -27,6 +27,15 @@ public partial class AlertsView : UserControl
         SearchBox.SelectAll();
     }
 
+    /// <summary>The Notifications choices depend on the alert and on what's already chosen, so they're built as the menu opens (#268).</summary>
+    private void OnAlertGridContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+        {
+            viewModel.RefreshNotificationMenu();
+        }
+    }
+
     public void ApplyGridLayout(GridLayout? layout) => DataGridLayoutHelper.Apply(AlertGrid, layout);
 
     public GridLayout? CaptureGridLayout() => DataGridLayoutHelper.Capture(AlertGrid);

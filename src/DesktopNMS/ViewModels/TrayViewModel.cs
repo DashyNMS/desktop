@@ -20,7 +20,8 @@ public sealed record TraySnapshot(
     TimeSpan? LastChecked,
     string? NextCheck,
     IReadOnlyList<AlertItemViewModel> Alerts,
-    string? UpdateReadyText);
+    string? UpdateReadyText,
+    AlertSeverity CountFrom = AlertSeverity.Ok);
 
 /// <summary>One of the quick look's latest alerts.</summary>
 public sealed class TrayAlertViewModel
@@ -200,9 +201,11 @@ public sealed class TrayViewModel : ObservableObject
         _snapshot = snapshot;
         _state = TrayStatus.Describe(snapshot.Connection, snapshot.OnBackup, snapshot.Critical, snapshot.Warning, snapshot.BadgeCount, snapshot.BadgeIsCritical, snapshot.LastChecked, snapshot.NextCheck);
 
-        // Active ones only, newest first, worst first on a tie.
+        // Active ones only, of the severities counted (#269), newest first, worst first on a tie.
         _latestAlerts = snapshot.Alerts
-            .Where(a => a.State == AlertState.Active && a.Severity is AlertSeverity.Critical or AlertSeverity.Warning)
+            .Where(a => a.State == AlertState.Active
+                && a.Severity is AlertSeverity.Critical or AlertSeverity.Warning
+                && AlertCounting.Counts(a.State, a.Severity, snapshot.CountFrom, includeAcknowledged: false))
             .OrderByDescending(a => a.LocalTimestamp ?? DateTime.MinValue)
             .ThenBy(a => a.Severity == AlertSeverity.Critical ? 0 : 1)
             .Take(LatestAlertCount)

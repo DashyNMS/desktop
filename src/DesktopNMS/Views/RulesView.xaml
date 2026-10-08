@@ -133,7 +133,21 @@
                       IsReadOnly="True"
                       SelectionMode="Extended"
                       SelectionChanged="OnRulesSelectionChanged"
+                      ContextMenuOpening="OnRulesContextMenuOpening"
                       Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <!-- Which alerts notify (#268), for the rule on every device - built as the menu opens. -->
+                        <MenuItem Header="Notifications" ItemsSource="{Binding NotificationMenu}" IsEnabled="{Binding HasSingleSelection}">
+                            <MenuItem.ItemContainerStyle>
+                                <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header" Value="{Binding Header}" />
+                                    <Setter Property="Command" Value="{Binding Command}" />
+                                </Style>
+                            </MenuItem.ItemContainerStyle>
+                        </MenuItem>
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
                 <DataGrid.Columns>
 
                     <DataGridTemplateColumn Header="Severity" Width="90" SortMemberPath="SeverityRank">

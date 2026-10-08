@@ -26,6 +26,8 @@ public sealed class RulesViewModel : ObservableObject
     private readonly IWindowService _windows;
     private readonly AlertMonitor _monitor;
     private readonly ILogger<RulesViewModel> _logger;
+    private readonly NotificationRuleService _notificationRules;
+    private IReadOnlyList<NotificationMenuItem> _notificationMenu = Array.Empty<NotificationMenuItem>();
 
     /// <summary>Latest per-rule count of active + acknowledged alerts, kept between rule reloads so a fresh row can be stamped immediately.</summary>
     private Dictionary<int, int> _alertCounts = new();
@@ -37,8 +39,9 @@ public sealed class RulesViewModel : ObservableObject
     private bool _showWarning = true;
     private bool _showOk = true;
 
-    public RulesViewModel(ILibreNmsClient client, ISessionService session, IWindowService windows, AlertMonitor monitor, ILogger<RulesViewModel> logger)
+    public RulesViewModel(ILibreNmsClient client, ISessionService session, IWindowService windows, AlertMonitor monitor, NotificationRuleService notificationRules, ILogger<RulesViewModel> logger)
     {
+        _notificationRules = notificationRules;
         _client = client;
         _session = session;
         _windows = windows;
@@ -105,12 +108,27 @@ public sealed class RulesViewModel : ObservableObject
 
     public string SelectionText => $"{_selectedRules.Count} selected";
 
+    /// <summary>The right-click menu's Notifications choices for the one selected rule, on every device (#268).</summary>
+    public IReadOnlyList<NotificationMenuItem> NotificationMenu
+    {
+        get => _notificationMenu;
+        private set => SetProperty(ref _notificationMenu, value);
+    }
+
+    public bool HasSingleSelection => _selectedRules.Count == 1;
+
+    /// <summary>Called as the rule's right-click menu opens, so it reflects the current choices.</summary>
+    public void RefreshNotificationMenu() => NotificationMenu = _selectedRules is [var rule]
+        ? _notificationRules.MenuFor(rule.Id, rule.Name)
+        : Array.Empty<NotificationMenuItem>();
+
     /// <summary>The grid's selection changed - set by the view.</summary>
     public void SetSelection(IEnumerable<RuleItemViewModel> rules)
     {
         _selectedRules = rules.ToList();
         OnPropertyChanged(nameof(HasSelection));
         OnPropertyChanged(nameof(HasMultipleSelection));
+        OnPropertyChanged(nameof(HasSingleSelection));
         OnPropertyChanged(nameof(SelectionText));
         EnableSelectedCommand.RaiseCanExecuteChanged();
         DisableSelectedCommand.RaiseCanExecuteChanged();

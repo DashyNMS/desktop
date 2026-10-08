@@ -232,6 +232,7 @@
             </Grid.ColumnDefinitions>
 
             <DataGrid x:Name="AlertGrid"
+                      ContextMenuOpening="OnAlertGridContextMenuOpening"
                       Grid.Column="0"
                       ItemsSource="{Binding AlertsView}"
                       SelectedItem="{Binding SelectedAlert}"
@@ -343,6 +344,16 @@
                         <Separator />
                         <MenuItem Header="Filter by this rule" Command="{Binding FilterBySelectedRuleCommand}" />
                         <MenuItem Header="Filter by this device" Command="{Binding FilterBySelectedDeviceCommand}" />
+                        <Separator />
+                        <!-- Which alerts notify (#268) - built as the menu opens. -->
+                        <MenuItem Header="Notifications" ItemsSource="{Binding NotificationMenu}" IsEnabled="{Binding HasSelection}">
+                            <MenuItem.ItemContainerStyle>
+                                <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header" Value="{Binding Header}" />
+                                    <Setter Property="Command" Value="{Binding Command}" />
+                                </Style>
+                            </MenuItem.ItemContainerStyle>
+                        </MenuItem>
                         <Separator />
                         <MenuItem Header="Open device" Command="{Binding OpenDeviceCommand}" FontWeight="SemiBold" />
                         <MenuItem Header="Open procedure" Command="{Binding OpenProcedureCommand}" />
