@@ -9,7 +9,10 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:DashboardViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100"
-             Loaded="OnLoaded">
+             Loaded="OnLoaded"
+             PreviewKeyDown="OnPreviewKeyDown"
+             Focusable="True"
+             FocusVisualStyle="{x:Null}">
 
     <UserControl.Resources>
 
@@ -94,48 +97,6 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <!-- Toolbar: only shown once the widget's own edit icon is on.
-                     Swaps between "manage sensors" (Add sensor button) and the
-                     picker's search box, mirroring IsPickerOpen. -->
-                <Border Grid.Row="0"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="0,0,0,1"
-                        Padding="8,6"
-                        Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Grid.Column="0"
-                                   Text="Manage sensors"
-                                   FontWeight="SemiBold"
-                                   VerticalAlignment="Center"
-                                   Margin="4,0,0,0"
-                                   Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
-
-                        <Button Grid.Column="1"
-                                Content="Add sensor"
-                                Padding="8,4"
-                                Command="{Binding TogglePickerCommand}"
-                                Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
-
-                        <TextBox Grid.Column="0"
-                                 Text="{Binding PickerSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                                 ToolTip="Search by device or sensor"
-                                 Margin="0,0,8,0"
-                                 Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}}" />
-
-                        <Button Grid.Column="1"
-                                ToolTip="Back"
-                                Style="{StaticResource IconButtonStyle}"
-                                Command="{Binding TogglePickerCommand}"
-                                Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
-                        </Button>
-                    </Grid>
-                </Border>
 
                 <!-- Body: a plain read-only list normally; once editing, either
                      the current sensors (each removable) or the "Add sensor"
@@ -143,7 +104,7 @@
                 <Grid Grid.Row="1">
 
                     <!-- Viewing (not editing): plain, uncluttered sensor readout. -->
-                    <Grid Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                    <Grid>
                         <!-- Two-line rows (#212): device and sensor, with the value
                              on the right coloured by its severity - no Status column. -->
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -207,7 +168,7 @@
                                    Style="{StaticResource WidgetStateTextStyle}"
                                    Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
 
-                        <TextBlock Text="No sensors yet. Click the pencil to add some."
+                        <TextBlock Text="No sensors yet. Choose some from ⋯, Set up…"
                                    Style="{StaticResource WidgetStateTextStyle}"
                                    Visibility="{Binding LoadState.IsEmpty, Converter={StaticResource BoolToVisibility}}" />
 
@@ -216,91 +177,6 @@
                                    Visibility="{Binding LoadState.IsNoMatches, Converter={StaticResource BoolToVisibility}}" />
                     </Grid>
 
-                    <!-- Editing, sensor list: same sensors, each with a Remove button. -->
-                    <Grid Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}}">
-                        <Grid Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
-                            <ListBox ItemsSource="{Binding Sensors}"
-                                     BorderThickness="0"
-                                     Background="Transparent"
-                                     Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="4,4">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" />
-                                                <TextBlock Text="{Binding Description}" Style="{StaticResource SubtleTextStyle}" />
-                                            </StackPanel>
-
-                                            <Button Grid.Column="1"
-                                                    ToolTip="Remove from widget"
-                                                    Style="{StaticResource IconButtonStyle}"
-                                                    VerticalAlignment="Center"
-                                                    Command="{Binding DataContext.RemoveSensorCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                    CommandParameter="{Binding}">
-                                                <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" />
-                                            </Button>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-
-                            <TextBlock Text="Nothing added yet. Click &quot;Add sensor&quot; above to get started."
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="240"
-                                       TextAlignment="Center"
-                                       IsHitTestVisible="False"
-                                       Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
-                                       Style="{StaticResource SubtleTextStyle}" />
-                        </Grid>
-
-                        <!-- Editing, picker: candidates not yet on this widget, each with an Add button. -->
-                        <Grid Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}}">
-                            <ListBox ItemsSource="{Binding PickerResults}"
-                                     BorderThickness="0"
-                                     Background="Transparent"
-                                     Visibility="{Binding HasPickerResults, Converter={StaticResource BoolToVisibility}}">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="4,4">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" />
-                                                <TextBlock Text="{Binding Description}" Style="{StaticResource SubtleTextStyle}" />
-                                            </StackPanel>
-
-                                            <Button Grid.Column="1"
-                                                    Content="Add"
-                                                    Padding="8,4"
-                                                    VerticalAlignment="Center"
-                                                    Command="{Binding DataContext.AddSensorCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                    CommandParameter="{Binding}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-
-                            <TextBlock Text="No matching sensors. Sensors must be visible on the Health tab to show up here."
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="240"
-                                       TextAlignment="Center"
-                                       IsHitTestVisible="False"
-                                       Visibility="{Binding HasPickerResults, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
-                                       Style="{StaticResource SubtleTextStyle}" />
-                        </Grid>
-                    </Grid>
 
                 </Grid>
             </Grid>
@@ -1324,101 +1200,6 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="0,0,0,1"
-                        Padding="8,6"
-                        Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}}">
-                <Grid>
-
-                    <!-- Device picker: candidates to choose from. -->
-                    <Grid Visibility="{Binding IsDevicePickerOpen, Converter={StaticResource BoolToVisibility}}">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <Grid Grid.Row="0" Margin="0,0,0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox Grid.Column="0"
-                                     Text="{Binding DevicePickerSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
-                                     ToolTip="Search devices"
-                                     Margin="0,0,8,0" />
-                            <Button Grid.Column="1"
-                                    ToolTip="Back"
-                                    Style="{StaticResource IconButtonStyle}"
-                                    Command="{Binding ToggleDevicePickerCommand}">
-                                <TextBlock Text="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
-                            </Button>
-                        </Grid>
-
-                        <ListBox Grid.Row="1"
-                                 ItemsSource="{Binding DevicePickerResults}"
-                                 BorderThickness="0"
-                                 Background="Transparent"
-                                 MaxHeight="180"
-                                 Visibility="{Binding HasDevicePickerResults, Converter={StaticResource BoolToVisibility}}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Content="{Binding DisplayName}"
-                                            Command="{Binding DataContext.SelectDeviceCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                            CommandParameter="{Binding}"
-                                            HorizontalAlignment="Stretch"
-                                            HorizontalContentAlignment="Left"
-                                            Padding="8,6"
-                                            Margin="0,0,0,2" />
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-
-                        <TextBlock Grid.Row="1"
-                                   Text="No matching devices."
-                                   HorizontalAlignment="Center"
-                                   Margin="0,10,0,0"
-                                   IsHitTestVisible="False"
-                                   Visibility="{Binding HasDevicePickerResults, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
-                                   Style="{StaticResource SubtleTextStyle}" />
-                    </Grid>
-
-                    <!-- Configuration: which device, which graph, which time range. -->
-                    <StackPanel Visibility="{Binding IsDevicePickerOpen, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
-                        <Button HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Left"
-                                Padding="8,6"
-                                Margin="0,0,0,6"
-                                Command="{Binding ToggleDevicePickerCommand}"
-                                ToolTip="Choose a device">
-                            <Button.Style>
-                                <!-- BasedOn the app's own themed default (Dark.xaml) - an
-                                     unqualified TargetType="Button" style here would replace
-                                     that implicit style entirely rather than layer on top of
-                                     it, falling back to plain unthemed OS chrome. -->
-                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                    <Setter Property="Content" Value="Choose a device" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HasSelectedDevice}" Value="True">
-                                            <Setter Property="Content" Value="{Binding SelectedDeviceName}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-
-                        <ComboBox ItemsSource="{Binding AvailableGraphs}"
-                                  SelectedItem="{Binding SelectedGraph}"
-                                  DisplayMemberPath="Description"
-                                  Margin="0,0,0,6"
-                                  Visibility="{Binding HasSelectedDevice, Converter={StaticResource BoolToVisibility}}" />
-
-                        <Border Visibility="{Binding HasSelectedDevice, Converter={StaticResource BoolToVisibility}}">
-                            <views:GraphTimeRangePicker DataContext="{Binding TimeRange}" />
-                        </Border>
-                    </StackPanel>
-                </Grid>
-                </Border>
 
                 <Grid Grid.Row="1">
                     <!-- Click to open this graph full size in the device's
@@ -1461,7 +1242,7 @@
                                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}"
                                Style="{StaticResource SubtleTextStyle}" />
 
-                    <TextBlock Text="No graph yet. Click the pencil to choose a device and graph."
+                    <TextBlock Text="No graph yet. Choose a device and graph from ⋯, Set up…"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                TextWrapping="Wrap"
@@ -1488,19 +1269,27 @@
                  Margin so adjacent widgets still show a gutter between them
                  without changing where either widget's cell actually is. -->
             <Grid Width="{Binding ColumnSpan, Converter={StaticResource GridUnitToPixels}}"
-                  Height="{Binding RowSpan, Converter={StaticResource GridUnitToPixels}}">
+                  Height="{Binding RowSpan, Converter={StaticResource GridUnitToPixels}}"
+                  PreviewMouseLeftButtonDown="OnWidgetMouseDown">
             <Border Margin="6"
                     Background="{StaticResource SurfaceBrush}"
                     CornerRadius="6">
-                <!-- Outlined in the accent for a moment after being added from
-                     the picker (#204), so it's easy to spot where it landed. -->
+                <!-- Outlined in the accent while selected, set up, or just added (#204, #274, #275). -->
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
                         <Setter Property="BorderThickness" Value="1" />
                         <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="BorderThickness" Value="2" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsEditingWidget}" Value="True">
+                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="BorderThickness" Value="2" />
+                            </DataTrigger>
                             <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
-                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                 <Setter Property="BorderThickness" Value="2" />
                             </DataTrigger>
                         </Style.Triggers>
@@ -1512,11 +1301,19 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <!-- Header: a Thumb fills the row so any blank area drags the
-                         widget; the rename box/remove button sit on top and take
-                         mouse priority where they overlap it. Auto-height with
-                         generous padding, rather than a fixed pixel height, so
-                         the rename box always has room and never clips. -->
+                    <!-- In edit mode, a dashed outline says it can be moved and resized (#274). -->
+                    <Rectangle Grid.RowSpan="2"
+                               RadiusX="6"
+                               RadiusY="6"
+                               Stroke="{StaticResource TextSecondaryBrush}"
+                               StrokeThickness="1"
+                               StrokeDashArray="4 3"
+                               Opacity="0.5"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVisibility}}" />
+
+                    <!-- Header: in edit mode a Thumb fills the row, so any blank area
+                         drags the widget; the title and buttons sit on top. -->
                     <Grid Grid.Row="0" MinHeight="44">
                         <Thumb Background="Transparent"
                                Cursor="SizeAll"
@@ -1531,74 +1328,99 @@
                             </Thumb.Template>
                         </Thumb>
 
-                        <Grid Margin="12,6">
+                        <Grid Margin="10,6,8,6">
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
+                            <!-- The grip, in edit mode: drag the title bar to move it. -->
                             <TextBlock Grid.Column="0"
+                                       Text="&#xE76F;"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"
+                                       IsHitTestVisible="False"
+                                       Visibility="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVisibility}}" />
+
+                            <TextBlock Grid.Column="1"
                                        Text="{Binding Title}"
                                        FontWeight="SemiBold"
                                        VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"
                                        IsHitTestVisible="False"
-                                       Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
-
-                            <TextBox Grid.Column="0"
+                                       Visibility="{Binding IsRenaming, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                            <!-- ⋯ › Rename, or F2: Enter or Esc, or clicking away, finishes. -->
+                            <TextBox Grid.Column="1"
                                      Text="{Binding Title, UpdateSourceTrigger=LostFocus}"
                                      VerticalAlignment="Center"
                                      MinHeight="30"
                                      Margin="0,0,8,0"
-                                     Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}}" />
+                                     IsVisibleChanged="OnRenameBoxVisibleChanged"
+                                     KeyDown="OnRenameBoxKeyDown"
+                                     LostKeyboardFocus="OnRenameBoxLostFocus"
+                                     Visibility="{Binding IsRenaming, Converter={StaticResource BoolToVisibility}}" />
 
-                            <!-- Widget-specific controls (a Top widget's count and eye),
-                                 templated by type; hidden while renaming. -->
-                            <ContentControl Grid.Column="1"
+                            <!-- Set up in the panel beside the dashboard (#275). -->
+                            <Border Grid.Column="2"
+                                    CornerRadius="9"
+                                    Padding="8,1"
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource AccentSubtleBrush}"
+                                    Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="Live preview" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" />
+                            </Border>
+
+                            <!-- Widget-specific controls (a Top widget's count and eye), templated by type. -->
+                            <ContentControl Grid.Column="3"
                                             Content="{Binding HeaderOptions}"
                                             Focusable="False"
                                             VerticalAlignment="Center"
                                             Margin="0,0,4,0"
-                                            Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                            Visibility="{Binding IsRenaming, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
 
-                            <!-- Per-widget edit toggle: always available, independent of
-                                 "Edit layout". Renaming and removing this widget only
-                                 become possible once it is switched on; the icon and
-                                 tooltip swap to Save once it is, so clicking it again
-                                 reads as "done", not "undo the edit". -->
-                            <Button Grid.Column="2"
-                                    Command="{Binding ToggleEditCommand}">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
-                                        <Setter Property="ToolTip" Value="Edit widget" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsEditingWidget}" Value="True">
-                                                <Setter Property="ToolTip" Value="Save" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Text" Value="&#xE70F;" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsEditingWidget}" Value="True">
-                                                    <Setter Property="Text" Value="&#xE74E;" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </Button>
-
-                            <Button Grid.Column="3"
-                                    ToolTip="Delete widget"
+                            <!-- ⋯ (#274): Set up…, Rename, Size, Duplicate, Remove - in or out of edit mode. -->
+                            <Button x:Name="MoreButton"
+                                    Grid.Column="4"
                                     Style="{StaticResource IconButtonStyle}"
-                                    Command="{Binding RemoveCommand}"
-                                    Visibility="{Binding IsEditingWidget, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                                    ToolTip="More"
+                                    AutomationProperties.Name="{Binding Title, StringFormat=More for {0}}"
+                                    Opacity="0.55"
+                                    Click="OnMoreClick">
+                                <TextBlock Text="&#xE712;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Set up…" Command="{Binding SetUpCommand}">
+                                            <MenuItem.Icon><TextBlock Text="&#xE713;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" /></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="Rename" InputGestureText="F2" Command="{Binding RenameCommand}">
+                                            <MenuItem.Icon><TextBlock Text="&#xE8AC;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" /></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="Size">
+                                            <MenuItem.Icon><TextBlock Text="&#xE740;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" /></MenuItem.Icon>
+                                            <MenuItem Header="Small" Command="{Binding SetSizeCommand}" CommandParameter="Small" />
+                                            <MenuItem Header="Medium" Command="{Binding SetSizeCommand}" CommandParameter="Medium" />
+                                            <MenuItem Header="Large" Command="{Binding SetSizeCommand}" CommandParameter="Large" />
+                                            <MenuItem Header="Wide" Command="{Binding SetSizeCommand}" CommandParameter="Wide" />
+                                        </MenuItem>
+                                        <MenuItem Header="Duplicate"
+                                                  InputGestureText="Ctrl+D"
+                                                  Command="{Binding DuplicateCommand}"
+                                                  Visibility="{Binding AllowsSeveral, Converter={StaticResource BoolToVisibility}}">
+                                            <MenuItem.Icon><TextBlock Text="&#xE8C8;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" /></MenuItem.Icon>
+                                        </MenuItem>
+                                        <Separator />
+                                        <MenuItem Header="Remove" InputGestureText="Del" Command="{Binding RemoveCommand}">
+                                            <MenuItem.Icon><TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" /></MenuItem.Icon>
+                                        </MenuItem>
+                                    </ContextMenu>
+                                </Button.ContextMenu>
                             </Button>
                         </Grid>
                     </Grid>
@@ -1610,7 +1432,7 @@
                         <ContentControl Content="{Binding}" Focusable="False" />
                     </Border>
 
-                    <!-- Resize grip, bottom-right corner. -->
+                    <!-- Resize grip, bottom-right corner, in edit mode. -->
                     <Thumb Grid.Row="1"
                            Width="16"
                            Height="16"
@@ -1632,6 +1454,15 @@
                 </Grid>
             </Border>
             </Grid>
+            <DataTemplate.Triggers>
+                <!-- The ⋯ is quiet until the widget's hovered, or in edit mode. -->
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="MoreButton" Property="Opacity" Value="1" />
+                </Trigger>
+                <DataTrigger Binding="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="True">
+                    <Setter TargetName="MoreButton" Property="Opacity" Value="1" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
         </DataTemplate>
 
     </UserControl.Resources>
@@ -1645,23 +1476,59 @@
         </Grid.RowDefinitions>
 
         <!-- ======================== Toolbar ======================== -->
+        <!-- Not editing: one glyph to start editing (#274), as on the app's other toolbars. -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="18,8">
+                Padding="18,8"
+                Visibility="{Binding IsEditMode, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <ToggleButton Content="Edit layout" Style="{StaticResource ChipToggleStyle}" IsChecked="{Binding IsEditMode}" />
-
-                <!-- Single entry point for every widget type: the widget picker
-                     (#204) - categories, search and a preview of each. -->
-                <Button Content="Add widget"
-                        Style="{StaticResource PrimaryButtonStyle}"
-                        Padding="12,6"
-                        Margin="10,0,0,0"
-                        Command="{Binding AddWidgetCommand}"
-                        Visibility="{Binding IsEditMode, Converter={StaticResource BoolToVisibility}}" />
+                <Button Style="{StaticResource IconButtonStyle}"
+                        ToolTip="Edit dashboard"
+                        AutomationProperties.Name="Edit dashboard"
+                        Command="{Binding EditCommand}">
+                    <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" />
+                </Button>
             </StackPanel>
+        </Border>
+
+        <!-- Editing (#274): the one edit bar - Undo, Tidy up and Add widgets as
+             glyphs, then Cancel and Done. Add widgets lives only here (#277). -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource AccentSubtleBrush}"
+                BorderBrush="{DynamicResource AccentBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,8"
+                Visibility="{Binding IsEditMode, Converter={StaticResource BoolToVisibility}}">
+            <DockPanel LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left" Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <TextBlock DockPanel.Dock="Left" Text="Editing dashboard" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock DockPanel.Dock="Left"
+                           Style="{StaticResource SubtleTextStyle}"
+                           VerticalAlignment="Center"
+                           Margin="12,0,0,0"
+                           Text="Drag a title bar to move it, a corner to resize. Arrows move the selected widget, Shift + arrows resize it." />
+
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Style="{StaticResource IconButtonStyle}" ToolTip="{Binding UndoToolTip}" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Undo" Command="{Binding UndoCommand}" Margin="0,0,2,0">
+                        <TextBlock Text="&#xE7A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" />
+                    </Button>
+                    <Button Style="{StaticResource IconButtonStyle}" ToolTip="Tidy up - close the gaps" AutomationProperties.Name="Tidy up" Command="{Binding TidyUpCommand}" Margin="0,0,2,0">
+                        <TextBlock Text="&#xF0E2;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" />
+                    </Button>
+                    <Button Style="{StaticResource IconButtonStyle}" ToolTip="Add widgets" AutomationProperties.Name="Add widgets" Command="{Binding AddWidgetCommand}">
+                        <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" />
+                    </Button>
+                    <Rectangle Width="1" Height="22" Fill="{StaticResource BorderBrush}" Margin="10,0" />
+                    <Button Content="Cancel"
+                            Command="{Binding CancelCommand}"
+                            ToolTip="Put the dashboard back as it was"
+                            Padding="12,5"
+                            Margin="0,0,8,0" />
+                    <Button Content="Done" Command="{Binding DoneCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="14,5" />
+                </StackPanel>
+            </DockPanel>
         </Border>
 
         <!-- ======================== Error banner ======================== -->
@@ -1680,27 +1547,74 @@
              always be dragged flush to every edge - X/Y of 0 is the actual
              top-left corner the user sees, not a spot buried under padding. -->
         <Grid Grid.Row="2" Margin="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
             <ScrollViewer x:Name="CanvasScroll"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Auto"
                           SizeChanged="OnCanvasSizeChanged">
-                <ItemsControl x:Name="WidgetsHost" ItemsSource="{Binding Widgets}" ItemTemplate="{StaticResource WidgetTemplate}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <Canvas x:Name="WidgetsCanvas" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemContainerStyle>
-                        <Style TargetType="ContentPresenter">
-                            <Setter Property="Canvas.Left" Value="{Binding Column, Converter={StaticResource GridUnitToPixels}}" />
-                            <Setter Property="Canvas.Top" Value="{Binding Row, Converter={StaticResource GridUnitToPixels}}" />
-                        </Style>
-                    </ItemsControl.ItemContainerStyle>
-                </ItemsControl>
+                <Grid>
+                    <!-- The "+ Add widget" space (#277): where the next widget fits. -->
+                    <Canvas Visibility="{Binding ShowAddSpace, Converter={StaticResource BoolToVisibility}}">
+                        <Button Canvas.Left="{Binding AddSpaceLeft}"
+                                Canvas.Top="{Binding AddSpaceTop}"
+                                Width="{Binding AddSpaceWidth}"
+                                Height="{Binding AddSpaceHeight}"
+                                Command="{Binding AddWidgetCommand}"
+                                Cursor="Hand"
+                                ToolTip="Add widgets here">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Grid Margin="6">
+                                        <Rectangle x:Name="Outline"
+                                                   RadiusX="6"
+                                                   RadiusY="6"
+                                                   Stroke="{StaticResource TextSecondaryBrush}"
+                                                   StrokeThickness="1.5"
+                                                   StrokeDashArray="4 3"
+                                                   Fill="Transparent"
+                                                   Opacity="0.6" />
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <TextBlock Text="Add widget" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Outline" Property="Stroke" Value="{DynamicResource AccentBrush}" />
+                                            <Setter TargetName="Outline" Property="Fill" Value="{DynamicResource AccentSubtleBrush}" />
+                                            <Setter TargetName="Outline" Property="Opacity" Value="1" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Canvas>
+
+                    <ItemsControl x:Name="WidgetsHost" ItemsSource="{Binding Widgets}" ItemTemplate="{StaticResource WidgetTemplate}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Canvas x:Name="WidgetsCanvas" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemContainerStyle>
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="Canvas.Left" Value="{Binding Column, Converter={StaticResource GridUnitToPixels}}" />
+                                <Setter Property="Canvas.Top" Value="{Binding Row, Converter={StaticResource GridUnitToPixels}}" />
+                            </Style>
+                        </ItemsControl.ItemContainerStyle>
+                    </ItemsControl>
+
+                    <!-- Alignment guides while dragging or resizing (#278) - drawn by the code-behind. -->
+                    <Canvas x:Name="GuideLayer" IsHitTestVisible="False" />
+                </Grid>
             </ScrollViewer>
 
             <!-- Turned off with "Don't show again": just say how to start. -->
-            <TextBlock Text="Your dashboard is empty. Use + to add a widget."
+            <TextBlock Text="Your dashboard is empty. Click the pencil to edit it, then + to add widgets."
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        IsHitTestVisible="False">
@@ -1832,6 +1746,245 @@
                     </StackPanel>
                 </Border>
             </ScrollViewer>
+
+            <!-- Removed or duplicated, with Undo (#276, #279). -->
+            <Border Grid.Column="0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,0,18"
+                    Padding="16,6,8,6"
+                    CornerRadius="10"
+                    Background="{StaticResource SurfaceAltBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    Visibility="{Binding IsToastVisible, Converter={StaticResource BoolToVisibility}}">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.45" />
+                </Border.Effect>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding ToastText}" VerticalAlignment="Center" Margin="0,0,14,0" />
+                    <Button Content="Set up…"
+                            Command="{Binding ToastSetUpCommand}"
+                            Padding="10,4"
+                            Margin="0,0,6,0"
+                            Visibility="{Binding ToastCanSetUp, Converter={StaticResource BoolToVisibility}}" />
+                    <Button Content="Undo" Command="{Binding UndoCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="12,4" Margin="0,0,4,0" />
+                    <Button Style="{StaticResource IconButtonStyle}" ToolTip="Dismiss" Command="{Binding DismissToastCommand}">
+                        <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" />
+                    </Button>
+                </StackPanel>
+            </Border>
+
+            <!-- The set-up panel (#275): one widget's options, the widget updating beside it. -->
+            <Border Grid.Column="1"
+                    Width="380"
+                    Margin="12,0,0,0"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Visibility="{Binding HasSetUpWidget, Converter={StaticResource BoolToVisibility}}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="16,12">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource IconButtonStyle}" ToolTip="Close" Command="{Binding CloseSetUpCommand}" VerticalAlignment="Top">
+                                <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" />
+                            </Button>
+                            <StackPanel>
+                                <TextBlock Text="{Binding SetUpKind}" Style="{StaticResource SectionHeaderStyle}" Margin="0" />
+                                <TextBlock Text="{Binding SetUpWidget.Title}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="16,10">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Done" Command="{Binding CloseSetUpCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="14,5" />
+                            <TextBlock VerticalAlignment="Center">
+                                <Hyperlink Command="{Binding SetUpWidget.RemoveCommand}" Foreground="{StaticResource CriticalBrush}">Remove widget</Hyperlink>
+                            </TextBlock>
+                        </DockPanel>
+                    </Border>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,12">
+                        <StackPanel DataContext="{Binding SetUpWidget}">
+                            <TextBlock Text="TITLE" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                            <TextBox Text="{Binding Title, UpdateSourceTrigger=LostFocus}" />
+
+                            <TextBlock Text="SIZE" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                            <UniformGrid Columns="4">
+                                <Button Content="Small" Command="{Binding SetSizeCommand}" CommandParameter="Small" Margin="0,0,4,0" Padding="4,6" />
+                                <Button Content="Medium" Command="{Binding SetSizeCommand}" CommandParameter="Medium" Margin="2,0" Padding="4,6" />
+                                <Button Content="Large" Command="{Binding SetSizeCommand}" CommandParameter="Large" Margin="2,0" Padding="4,6" />
+                                <Button Content="Wide" Command="{Binding SetSizeCommand}" CommandParameter="Wide" Margin="4,0,0,0" Padding="4,6" />
+                            </UniformGrid>
+
+                            <!-- The kind's own options: its set-up template below, or its title-bar options. -->
+                            <ContentControl Content="{Binding}" Focusable="False" Margin="0,16,0,0">
+                                <ContentControl.Resources>
+                                    <!-- Any widget: the same options as its title bar, if it has any. -->
+                                    <DataTemplate DataType="{x:Type vm:DashboardWidgetViewModel}">
+                                        <StackPanel>
+                                            <TextBlock Text="OPTIONS" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6"
+                                                       Visibility="{Binding HeaderOptions, Converter={StaticResource NullToVisibility}}" />
+                                            <ContentControl Content="{Binding HeaderOptions}" Focusable="False" HorizontalAlignment="Left" />
+                                            <TextBlock Text="Nothing else to set up for this widget."
+                                                       Style="{StaticResource SubtleTextStyle}"
+                                                       Visibility="{Binding HeaderOptions, Converter={StaticResource NullToVisibility}, ConverterParameter=invert}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+
+                                    <!-- Sensors: the ones on it, each removable, and a search to add more. -->
+                                    <DataTemplate DataType="{x:Type vm:SensorWidgetViewModel}">
+                                        <StackPanel>
+                                            <DockPanel Margin="0,0,0,6">
+                                                <Button DockPanel.Dock="Right"
+                                                        Content="Add sensor"
+                                                        Padding="8,3"
+                                                        Command="{Binding TogglePickerCommand}"
+                                                        Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                                <Button DockPanel.Dock="Right"
+                                                        Style="{StaticResource IconButtonStyle}"
+                                                        ToolTip="Back to the sensors on it"
+                                                        Command="{Binding TogglePickerCommand}"
+                                                        Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                                                </Button>
+                                                <TextBlock Text="SENSORS" Style="{StaticResource SectionHeaderStyle}" Margin="0" VerticalAlignment="Center" />
+                                            </DockPanel>
+
+                                            <!-- On it: each with Remove. -->
+                                            <StackPanel Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                                                <ItemsControl ItemsSource="{Binding Sensors}" Focusable="False">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <DockPanel Margin="0,3">
+                                                                <Button DockPanel.Dock="Right"
+                                                                        ToolTip="Remove from widget"
+                                                                        Style="{StaticResource IconButtonStyle}"
+                                                                        VerticalAlignment="Center"
+                                                                        Command="{Binding DataContext.RemoveSensorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                        CommandParameter="{Binding}">
+                                                                    <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" />
+                                                                </Button>
+                                                                <StackPanel VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Text="{Binding Description}" Style="{StaticResource SubtleTextStyle}" TextTrimming="CharacterEllipsis" />
+                                                                </StackPanel>
+                                                            </DockPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="None yet. Add sensor finds them by device or sensor."
+                                                           TextWrapping="Wrap"
+                                                           Style="{StaticResource SubtleTextStyle}"
+                                                           Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                            </StackPanel>
+
+                                            <!-- Adding: search, then Add. -->
+                                            <StackPanel Visibility="{Binding IsPickerOpen, Converter={StaticResource BoolToVisibility}}">
+                                                <TextBox Text="{Binding PickerSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                                                         Style="{StaticResource SearchTextBoxStyle}"
+                                                         Tag="Search by device or sensor"
+                                                         Margin="0,0,0,8" />
+                                                <ItemsControl ItemsSource="{Binding PickerResults}" Focusable="False">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <DockPanel Margin="0,3">
+                                                                <Button DockPanel.Dock="Right"
+                                                                        Content="Add"
+                                                                        Padding="8,3"
+                                                                        VerticalAlignment="Center"
+                                                                        Command="{Binding DataContext.AddSensorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                        CommandParameter="{Binding}" />
+                                                                <StackPanel VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Text="{Binding Description}" Style="{StaticResource SubtleTextStyle}" TextTrimming="CharacterEllipsis" />
+                                                                </StackPanel>
+                                                            </DockPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="No matching sensors. Sensors must be visible on the Health tab to show up here."
+                                                           TextWrapping="Wrap"
+                                                           Style="{StaticResource SubtleTextStyle}"
+                                                           Visibility="{Binding HasPickerResults, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+
+                                    <!-- Graph: the device, the graph and the range. -->
+                                    <DataTemplate DataType="{x:Type vm:GraphWidgetViewModel}">
+                                        <StackPanel>
+                                            <TextBlock Text="DEVICE" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                            <!-- Choosing: search the devices. -->
+                                            <StackPanel Visibility="{Binding IsDevicePickerOpen, Converter={StaticResource BoolToVisibility}}">
+                                                <DockPanel Margin="0,0,0,6">
+                                                    <Button DockPanel.Dock="Right"
+                                                            ToolTip="Back"
+                                                            Style="{StaticResource IconButtonStyle}"
+                                                            Command="{Binding ToggleDevicePickerCommand}">
+                                                        <TextBlock Text="&#xE72B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                                                    </Button>
+                                                    <TextBox Text="{Binding DevicePickerSearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                                                             Style="{StaticResource SearchTextBoxStyle}"
+                                                             Tag="Search devices"
+                                                             Margin="0,0,8,0" />
+                                                </DockPanel>
+                                                <ItemsControl ItemsSource="{Binding DevicePickerResults}" Focusable="False">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Content="{Binding DisplayName}"
+                                                                    Command="{Binding DataContext.SelectDeviceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    HorizontalAlignment="Stretch"
+                                                                    HorizontalContentAlignment="Left"
+                                                                    Padding="8,6"
+                                                                    Margin="0,0,0,2" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="No matching devices."
+                                                           Style="{StaticResource SubtleTextStyle}"
+                                                           Visibility="{Binding HasDevicePickerResults, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                            </StackPanel>
+
+                                            <!-- Chosen: the device, then its graph and range. -->
+                                            <StackPanel Visibility="{Binding IsDevicePickerOpen, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                                                <Button HorizontalAlignment="Stretch"
+                                                        HorizontalContentAlignment="Left"
+                                                        Padding="8,6"
+                                                        Command="{Binding ToggleDevicePickerCommand}"
+                                                        ToolTip="Choose a device">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                            <Setter Property="Content" Value="Choose a device" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasSelectedDevice}" Value="True">
+                                                                    <Setter Property="Content" Value="{Binding SelectedDeviceName}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+
+                                                <StackPanel Visibility="{Binding HasSelectedDevice, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="GRAPH" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                                    <ComboBox ItemsSource="{Binding AvailableGraphs}"
+                                                              SelectedItem="{Binding SelectedGraph}"
+                                                              DisplayMemberPath="Description" />
+                                                    <TextBlock Text="RANGE" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                                    <views:GraphTimeRangePicker DataContext="{Binding TimeRange}" HorizontalAlignment="Left" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ContentControl.Resources>
+                            </ContentControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
         </Grid>
 
         <!-- ======================== Status bar ======================== -->

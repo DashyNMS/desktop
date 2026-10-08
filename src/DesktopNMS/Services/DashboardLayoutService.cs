@@ -25,6 +25,19 @@ public interface IDashboardLayoutService
 
     void RemoveWidget(string id);
 
+    /// <summary>
+    /// A copy of a widget with everything it shows - its sensors, graph and
+    /// options - titled "(copy)", in the next free space (#279). Null when
+    /// there's no such widget.
+    /// </summary>
+    DashboardWidget? DuplicateWidget(string id);
+
+    /// <summary>Every widget as it is now, copied - for Undo and Cancel (#276).</summary>
+    IReadOnlyList<DashboardWidget> Snapshot();
+
+    /// <summary>Puts the dashboard back to a <see cref="Snapshot"/>, in one save.</summary>
+    void Restore(IReadOnlyList<DashboardWidget> widgets);
+
     void Rename(string id, string title);
 
     /// <summary>
@@ -78,7 +91,8 @@ public sealed class DashboardLayoutService : IDashboardLayoutService
     public DashboardWidget AddWidget(string widgetType, string title)
     {
         var list = _settings.Current.DashboardWidgets;
-        var (column, row) = FindFreeSpot(list, DashboardWidget.DefaultColumnSpan, DashboardWidget.DefaultRowSpan);
+        // Beside the others where there's room (#90) - see DashboardGrid.FindFreeSpot.
+        var (column, row) = DashboardGrid.FindFreeSpot(list.Select(GridItem.From), DashboardWidget.DefaultColumnSpan, DashboardWidget.DefaultRowSpan);
 
         var widget = new DashboardWidget
         {
@@ -94,48 +108,6 @@ public sealed class DashboardLayoutService : IDashboardLayoutService
         return widget;
     }
 
-    /// <summary>
-    /// Finds the first spot on the grid, scanning row by row, where a new
-    /// widget of this size would not overlap any existing one. <paramref name="columnSpan"/>
-    /// scans against a real column count wide enough to actually pack widgets
-    /// side by side (three default-width widgets' worth) - too narrow a bound
-    /// here (this used to be 6, the same as <see cref="DashboardWidget.MinColumnSpan"/>,
-    /// too small for even one <see cref="DashboardWidget.DefaultColumnSpan"/>-wide
-    /// widget) means every widget "overlaps" at every candidate column on its
-    /// own row and the search falls through to stacking everything straight
-    /// down column 0, one per row, wasting the rest of the canvas's width -
-    /// what read as "too much padding" on a wide window (issue #90) was
-    /// actually this. Bounded to a generous but finite number of rows so a
-    /// pathological number of existing widgets cannot search forever.
-    /// </summary>
-    private static (int Column, int Row) FindFreeSpot(IReadOnlyList<DashboardWidget> existing, int columnSpan, int rowSpan)
-    {
-        const int columns = DashboardWidget.DefaultColumnSpan * 3;
-        const int rows = 200;
-
-        for (var row = 0; row < rows; row++)
-        {
-            for (var col = 0; col < columns; col++)
-            {
-                if (existing.All(w => !Overlaps(col, row, columnSpan, rowSpan, w)))
-                {
-                    return (col, row);
-                }
-            }
-        }
-
-        // Practically unreachable, but fall back to stacking below everything
-        // rather than searching forever.
-        var maxRow = existing.Count == 0 ? 0 : existing.Max(w => w.Row + w.RowSpan);
-        return (0, maxRow);
-    }
-
-    private static bool Overlaps(int column, int row, int columnSpan, int rowSpan, DashboardWidget other)
-        => column < other.Column + other.ColumnSpan
-        && column + columnSpan > other.Column
-        && row < other.Row + other.RowSpan
-        && row + rowSpan > other.Row;
-
     public void RemoveWidget(string id)
     {
         var list = _settings.Current.DashboardWidgets;
@@ -144,6 +116,36 @@ public sealed class DashboardLayoutService : IDashboardLayoutService
             return;
         }
 
+        _settings.Save();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public DashboardWidget? DuplicateWidget(string id)
+    {
+        var list = _settings.Current.DashboardWidgets;
+        if (Find(id) is not { } original)
+        {
+            return null;
+        }
+
+        var copy = original.Clone();
+        copy.Id = Guid.NewGuid().ToString("N");
+        copy.Title = original.Title + " (copy)";
+        (copy.Column, copy.Row) = DashboardGrid.FindFreeSpot(list.Select(GridItem.From), original.ColumnSpan, original.RowSpan);
+
+        list.Add(copy);
+        _settings.Save();
+        Changed?.Invoke(this, EventArgs.Empty);
+        return copy;
+    }
+
+    public IReadOnlyList<DashboardWidget> Snapshot() => _settings.Current.DashboardWidgets.Select(w => w.Clone()).ToList();
+
+    public void Restore(IReadOnlyList<DashboardWidget> widgets)
+    {
+        var list = _settings.Current.DashboardWidgets;
+        list.Clear();
+        list.AddRange(widgets.Select(w => w.Clone()));
         _settings.Save();
         Changed?.Invoke(this, EventArgs.Empty);
     }

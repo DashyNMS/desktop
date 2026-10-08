@@ -32,8 +32,24 @@ namespace DesktopNMS.ViewModels;
 /// others trigger a fetch of their own - having any combination open never
 /// costs more than one poll of each kind of data.
 /// </summary>
-public sealed class DashboardViewModel : ObservableObject, IDisposable
+public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetActions
 {
+    /// <summary>How many steps Undo goes back (#276).</summary>
+    private const int MaxUndo = 50;
+
+    /// <summary>Kinds that show nothing until they're set up - the set-up panel opens on them once added (#275).</summary>
+    private static readonly HashSet<string> NeedsSetUp = new(StringComparer.Ordinal) { DashboardWidgetTypes.Sensors, DashboardWidgetTypes.Graph };
+
+    private readonly List<IReadOnlyList<DashboardWidget>> _undo = new();
+    private IReadOnlyList<DashboardWidget> _current = Array.Empty<DashboardWidget>();
+    private IReadOnlyList<DashboardWidget>? _editStart;
+    private bool _restoring;
+    private DashboardWidgetViewModel? _setUpWidget;
+    private DashboardWidgetViewModel? _selectedWidget;
+    private string? _toastText;
+    private string? _toastWidgetId;
+    private DispatcherTimer? _toastTimer;
+
     private readonly SensorMonitor _sensorMonitor;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
@@ -131,7 +147,25 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
+        EditCommand = new RelayCommand(() => IsEditMode = true);
+        DoneCommand = new RelayCommand(() => IsEditMode = false);
+        CancelCommand = new RelayCommand(CancelEditing);
+        UndoCommand = new RelayCommand(Undo, () => _undo.Count > 0);
+        TidyUpCommand = new RelayCommand(TidyUp, () => Widgets.Count > 0);
+        CloseSetUpCommand = new RelayCommand(() => SetUpWidget = null);
+        ToastSetUpCommand = new RelayCommand(() =>
+        {
+            if (_toastWidgetId is { } id && _widgetIndex.TryGetValue(id, out var widget))
+            {
+                SetUp(widget);
+            }
+
+            DismissToast();
+        });
+        DismissToastCommand = new RelayCommand(DismissToast);
+
         SyncWidgets();
+        _current = _layout.Snapshot();
 
         _settings.Changed += OnSettingsChanged;
         _layout.Changed += OnLayoutChanged;
@@ -158,11 +192,361 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
     /// <summary>Raised with a just-added widget, so the view can scroll it into sight.</summary>
     public event EventHandler<DashboardWidgetViewModel>? WidgetAdded;
 
-    /// <summary>True while the user is arranging the dashboard: widgets show drag/resize/remove handles.</summary>
+    /// <summary>
+    /// "Edit dashboard" (#274): the one edit mode - the edit bar, ⠿ to drag,
+    /// corners to resize, the "+" space. Cancel puts the dashboard back as it
+    /// was when editing began; Done keeps it.
+    /// </summary>
     public bool IsEditMode
     {
         get => _isEditMode;
-        set => SetProperty(ref _isEditMode, value);
+        set
+        {
+            if (!SetProperty(ref _isEditMode, value))
+            {
+                return;
+            }
+
+            _editStart = value ? _layout.Snapshot() : null;
+            if (!value)
+            {
+                SelectedWidget = null;
+                foreach (var widget in Widgets)
+                {
+                    widget.IsRenaming = false;
+                }
+            }
+
+            OnPropertyChanged(nameof(ShowAddSpace));
+        }
+    }
+
+    public RelayCommand EditCommand { get; }
+
+    public RelayCommand DoneCommand { get; }
+
+    public RelayCommand CancelCommand { get; }
+
+    /// <summary>Undo (#276): back one change - a move, resize, removal, rename, set-up change, Duplicate or Tidy up. Ctrl+Z too.</summary>
+    public RelayCommand UndoCommand { get; }
+
+    /// <summary>Tidy up (#278): every widget up as far as it goes, closing the gaps.</summary>
+    public RelayCommand TidyUpCommand { get; }
+
+    public RelayCommand CloseSetUpCommand { get; }
+
+    public RelayCommand ToastSetUpCommand { get; }
+
+    public RelayCommand DismissToastCommand { get; }
+
+    /// <summary>"Undo" with how many steps there are to go back - the edit bar's tooltip.</summary>
+    public string UndoToolTip => _undo.Count == 0 ? "Nothing to undo" : $"Undo (Ctrl+Z) - {_undo.Count} change{(_undo.Count == 1 ? string.Empty : "s")}";
+
+    /// <summary>The widget open in the set-up panel (#275), or null when it's closed.</summary>
+    public DashboardWidgetViewModel? SetUpWidget
+    {
+        get => _setUpWidget;
+        private set
+        {
+            var previous = _setUpWidget;
+            if (!SetProperty(ref _setUpWidget, value))
+            {
+                return;
+            }
+
+            if (previous is not null)
+            {
+                previous.IsEditingWidget = false;
+            }
+
+            if (value is not null)
+            {
+                value.IsEditingWidget = true;
+            }
+
+            OnPropertyChanged(nameof(HasSetUpWidget));
+            OnPropertyChanged(nameof(SetUpKind));
+        }
+    }
+
+    public bool HasSetUpWidget => _setUpWidget is not null;
+
+    /// <summary>"SET UP · GRAPH" - which kind of widget the panel is setting up.</summary>
+    public string SetUpKind => _setUpWidget is null ? string.Empty
+        : "SET UP · " + (WidgetNames.TryGetValue(_setUpWidget.WidgetType, out var name) ? name : _setUpWidget.WidgetType).ToUpperInvariant();
+
+    private static readonly IReadOnlyDictionary<string, string> WidgetNames = WidgetPickerViewModel
+        .DefaultCatalog(new WidgetPickerContext(Array.Empty<string>(), true, 0, true))
+        .ToDictionary(e => e.WidgetType, e => e.Name);
+
+    /// <summary>The widget the keys act on in edit mode (#278): arrows move it, Shift + arrows resize it, Del removes it.</summary>
+    public DashboardWidgetViewModel? SelectedWidget
+    {
+        get => _selectedWidget;
+        set
+        {
+            var previous = _selectedWidget;
+            if (!SetProperty(ref _selectedWidget, value))
+            {
+                return;
+            }
+
+            if (previous is not null)
+            {
+                previous.IsSelected = false;
+            }
+
+            if (value is not null)
+            {
+                value.IsSelected = true;
+            }
+        }
+    }
+
+    /// <summary>The message after removing or duplicating a widget, with Undo (#276).</summary>
+    public string? ToastText
+    {
+        get => _toastText;
+        private set
+        {
+            if (SetProperty(ref _toastText, value))
+            {
+                OnPropertyChanged(nameof(IsToastVisible));
+            }
+        }
+    }
+
+    public bool IsToastVisible => _toastText is not null;
+
+    /// <summary>The message offers Set up… - after Duplicate.</summary>
+    public bool ToastCanSetUp => _toastWidgetId is not null;
+
+    /// <summary>The "+ Add widget" space (#277): where the next widget fits, shown in edit mode.</summary>
+    public bool ShowAddSpace => IsEditMode && Widgets.Count > 0;
+
+    public double AddSpaceLeft => AddSpace().Column * DashboardWidget.CellSize;
+
+    public double AddSpaceTop => AddSpace().Row * DashboardWidget.CellSize;
+
+    public double AddSpaceWidth => DashboardWidget.DefaultColumnSpan * DashboardWidget.CellSize;
+
+    public double AddSpaceHeight => DashboardWidget.DefaultRowSpan * DashboardWidget.CellSize;
+
+    private (int Column, int Row) AddSpace()
+        => DashboardGrid.FindFreeSpot(Widgets.Select(ToGridItem), DashboardWidget.DefaultColumnSpan, DashboardWidget.DefaultRowSpan);
+
+    private static GridItem ToGridItem(DashboardWidgetViewModel w) => new(w.Id, w.Column, w.Row, w.ColumnSpan, w.RowSpan);
+
+    // ------------------------------------------------------- the ⋯ menu (#274)
+
+    /// <summary>Set up… (#275): the panel beside the dashboard, with this widget's options.</summary>
+    public void SetUp(DashboardWidgetViewModel widget) => SetUpWidget = widget;
+
+    /// <summary>Remove (#276): straight away, with Undo - no "are you sure?".</summary>
+    public void Remove(DashboardWidgetViewModel widget)
+    {
+        if (ReferenceEquals(SetUpWidget, widget))
+        {
+            SetUpWidget = null;
+        }
+
+        if (ReferenceEquals(SelectedWidget, widget))
+        {
+            SelectedWidget = null;
+        }
+
+        var title = widget.Title;
+        _layout.RemoveWidget(widget.Id);
+        ShowToast($"Removed “{title}”", setUpWidgetId: null);
+    }
+
+    /// <summary>Duplicate (#279): a copy with its set-up, in the next free space.</summary>
+    public void Duplicate(DashboardWidgetViewModel widget)
+    {
+        if (!widget.AllowsSeveral || _layout.DuplicateWidget(widget.Id) is not { } copy || !_widgetIndex.TryGetValue(copy.Id, out var added))
+        {
+            return;
+        }
+
+        added.Flash();
+        WidgetAdded?.Invoke(this, added);
+        ShowToast($"Duplicated “{widget.Title}”, with its set-up", setUpWidgetId: copy.Id);
+    }
+
+    /// <summary>Size ▸ Small, Medium, Large or Wide (#278): others move out of the way, as when resizing.</summary>
+    public void Resize(DashboardWidgetViewModel widget, WidgetSize size)
+    {
+        (widget.ColumnSpan, widget.RowSpan) = DashboardGrid.SpanFor(size);
+        Reflow(widget);
+        CommitLayout();
+    }
+
+    /// <summary>Pushes whatever <paramref name="anchor"/> now overlaps down, cascading - see <see cref="DashboardGrid.PushDown"/>.</summary>
+    public void Reflow(DashboardWidgetViewModel anchor)
+    {
+        var items = Widgets.Select(ToGridItem).ToList();
+        DashboardGrid.PushDown(items.First(i => i.Id == anchor.Id), items);
+        Apply(items);
+    }
+
+    /// <summary>The keys in edit mode (#278): arrows move the selected widget a cell, Shift + arrows resize it.</summary>
+    public void Nudge(int columns, int rows, bool resize)
+    {
+        if (SelectedWidget is not { } widget)
+        {
+            return;
+        }
+
+        if (resize)
+        {
+            widget.ColumnSpan = Math.Max(DashboardWidget.MinColumnSpan, widget.ColumnSpan + columns);
+            widget.RowSpan = Math.Max(DashboardWidget.MinRowSpan, widget.RowSpan + rows);
+        }
+        else
+        {
+            widget.Column = Math.Max(0, widget.Column + columns);
+            widget.Row = Math.Max(0, widget.Row + rows);
+        }
+
+        Reflow(widget);
+        CommitLayout();
+    }
+
+    private void TidyUp()
+    {
+        var items = Widgets.Select(ToGridItem).ToList();
+        DashboardGrid.TidyUp(items);
+        Apply(items);
+        CommitLayout();
+    }
+
+    private void Apply(IEnumerable<GridItem> items)
+    {
+        foreach (var item in items)
+        {
+            if (_widgetIndex.TryGetValue(item.Id, out var widget))
+            {
+                widget.Column = item.Column;
+                widget.Row = item.Row;
+                widget.ColumnSpan = item.ColumnSpan;
+                widget.RowSpan = item.RowSpan;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Undo (#276)
+
+    /// <summary>Every change to the layout is a step to go back to - recorded as it's saved.</summary>
+    private void RecordChange()
+    {
+        if (_restoring)
+        {
+            return;
+        }
+
+        _undo.Add(_current);
+        if (_undo.Count > MaxUndo)
+        {
+            _undo.RemoveAt(0);
+        }
+
+        _current = _layout.Snapshot();
+        RaiseUndoChanged();
+    }
+
+    private void Undo()
+    {
+        if (_undo.Count == 0)
+        {
+            return;
+        }
+
+        var target = _undo[^1];
+        _undo.RemoveAt(_undo.Count - 1);
+        RestoreTo(target);
+        DismissToast();
+        RaiseUndoChanged();
+    }
+
+    private void CancelEditing()
+    {
+        if (_editStart is { } start)
+        {
+            RestoreTo(start);
+        }
+
+        _undo.Clear();
+        RaiseUndoChanged();
+        SetUpWidget = null;
+        DismissToast();
+        IsEditMode = false;
+    }
+
+    /// <summary>
+    /// Puts the layout back to <paramref name="target"/>. A widget whose set-up
+    /// differs is made afresh, so it shows what it had (its sensors, its graph)
+    /// rather than only moving back.
+    /// </summary>
+    private void RestoreTo(IReadOnlyList<DashboardWidget> target)
+    {
+        var before = _layout.Widgets.ToDictionary(w => w.Id, Serialise);
+        foreach (var model in target)
+        {
+            if (before.TryGetValue(model.Id, out var json) && json != Serialise(model) && _widgetIndex.TryGetValue(model.Id, out var stale))
+            {
+                _widgetIndex.Remove(model.Id);
+                Widgets.Remove(stale);
+                (stale as IDisposable)?.Dispose();
+            }
+        }
+
+        var setUpId = SetUpWidget?.Id;
+        _restoring = true;
+        try
+        {
+            _layout.Restore(target);
+        }
+        finally
+        {
+            _restoring = false;
+        }
+
+        _current = _layout.Snapshot();
+        SetUpWidget = setUpId is not null && _widgetIndex.TryGetValue(setUpId, out var again) ? again : null;
+    }
+
+    private static string Serialise(DashboardWidget widget)
+    {
+        var copy = widget.Clone();
+        copy.Column = copy.Row = copy.ColumnSpan = copy.RowSpan = 0;
+        copy.Title = string.Empty;
+        return System.Text.Json.JsonSerializer.Serialize(copy);
+    }
+
+    private void RaiseUndoChanged()
+    {
+        UndoCommand.RaiseCanExecuteChanged();
+        OnPropertyChanged(nameof(UndoToolTip));
+    }
+
+    private void ShowToast(string text, string? setUpWidgetId)
+    {
+        _toastWidgetId = setUpWidgetId;
+        OnPropertyChanged(nameof(ToastCanSetUp));
+        ToastText = text;
+
+        _toastTimer?.Stop();
+        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(8) };
+        _toastTimer.Tick += (_, _) => DismissToast();
+        _toastTimer.Start();
+    }
+
+    private void DismissToast()
+    {
+        _toastTimer?.Stop();
+        _toastWidgetId = null;
+        OnPropertyChanged(nameof(ToastCanSetUp));
+        ToastText = null;
     }
 
     public AsyncRelayCommand RefreshCommand { get; }
@@ -350,8 +734,13 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
 
     private void OnLayoutChanged(object? sender, EventArgs e)
     {
+        RecordChange();
         var previousIds = Widgets.Select(w => w.Id).ToHashSet();
         SyncWidgets();
+        OnPropertyChanged(nameof(ShowAddSpace));
+        OnPropertyChanged(nameof(AddSpaceLeft));
+        OnPropertyChanged(nameof(AddSpaceTop));
+        TidyUpCommand.RaiseCanExecuteChanged();
 
         // A brand new widget has nothing to show yet (SyncFrom only re-applies
         // a widget's own last-seen fleet). Seed it from the last real fetch
@@ -402,27 +791,58 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
             else
             {
                 var created = CreateWidgetViewModel(model);
-                created.ConfirmRemove = ConfirmRemoveWidget;
+                created.Actions = this;
                 _widgetIndex[model.Id] = created;
                 Widgets.Add(created);
             }
         }
     }
 
-    /// <summary>The widget picker (#204): add the chosen widget and flash it so it can be found.</summary>
+    /// <summary>
+    /// The widget picker (#204, #277): add the widgets chosen - several at
+    /// once, in one step for Undo - each in the next free space, and flash
+    /// them so they can be found. A single Sensors or Graph widget opens the
+    /// set-up panel straight away, since it shows nothing until set up (#275).
+    /// </summary>
     private void AddWidget()
     {
-        var chosen = _windows.ShowWidgetPicker(WidgetPickerViewModel.DefaultCatalog(_settings.Current.EnablePinnedDevices, _graylog.IsConfigured));
-        if (chosen is null)
+        var settings = _settings.Current;
+        var context = new WidgetPickerContext(Widgets.Select(w => w.WidgetType).ToList(), settings.EnablePinnedDevices, settings.PinnedDevices.Count, _graylog.IsConfigured);
+        var chosen = _windows.ShowWidgetPicker(WidgetPickerViewModel.DefaultCatalog(context));
+        if (chosen.Count == 0)
         {
             return;
         }
 
-        var model = _layout.AddWidget(chosen.WidgetType, chosen.Name);
-        if (_widgetIndex.TryGetValue(model.Id, out var added))
+        var placed = _layout.Widgets.Select(GridItem.From).ToList();
+        var models = new List<DashboardWidget>();
+        foreach (var entry in chosen)
         {
-            added.Flash();
-            WidgetAdded?.Invoke(this, added);
+            var (column, row) = DashboardGrid.FindFreeSpot(placed, DashboardWidget.DefaultColumnSpan, DashboardWidget.DefaultRowSpan);
+            var model = new DashboardWidget { WidgetType = entry.WidgetType, Title = entry.Name, Column = column, Row = row };
+            models.Add(model);
+            placed.Add(GridItem.From(model));
+        }
+
+        _layout.AddWidgets(models);
+
+        DashboardWidgetViewModel? last = null;
+        foreach (var model in models)
+        {
+            if (_widgetIndex.TryGetValue(model.Id, out var added))
+            {
+                added.Flash();
+                last = added;
+            }
+        }
+
+        if (last is not null)
+        {
+            WidgetAdded?.Invoke(this, last);
+            if (models.Count == 1 && NeedsSetUp.Contains(last.WidgetType))
+            {
+                SetUp(last);
+            }
         }
     }
 
@@ -438,13 +858,6 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable
             _windows.ShowDeviceDetail(row.DeviceId);
         }
     }
-
-    private bool ConfirmRemoveWidget(DashboardWidgetViewModel widget)
-        => _windows.Confirm(
-            "Delete widget",
-            $"Delete the widget \"{widget.Title}\" from the dashboard? {Confirmations.CannotBeUndone}",
-            "Delete",
-            destructive: true);
 
     private DashboardWidgetViewModel CreateWidgetViewModel(DashboardWidget model) => model.WidgetType switch
     {
