@@ -776,6 +776,16 @@
                                 <ComboBox ItemsSource="{Binding StartupTabOptions}"
                                           SelectedItem="{Binding SelectedStartupTab}"
                                           DisplayMemberPath="Label" />
+
+                                <!-- #287: what clicking Logs opens, as Settings › Maps' Default map does for Maps. -->
+                                <TextBlock Text="Default log" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <ComboBox ItemsSource="{Binding DefaultLogOptions}"
+                                          SelectedItem="{Binding SelectedDefaultLog}"
+                                          DisplayMemberPath="Label" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Which log opens when you click Logs. The others are a hover away. Graylog opens the event log until it's set up." />
                             </StackPanel>
                         </Border>
                     </StackPanel>

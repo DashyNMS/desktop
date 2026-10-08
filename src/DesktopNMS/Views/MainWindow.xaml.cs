@@ -27,6 +27,7 @@ public partial class MainWindow : Window
 
     /// <summary>Same again, for Network/Geographical/Custom Maps under the Maps button.</summary>
     private readonly DispatcherTimer _mapsFlyoutCloseTimer;
+    private readonly DispatcherTimer _logsFlyoutCloseTimer;
 
     /// <summary>Same again, for the user's views under the Neighbours button.</summary>
     private readonly DispatcherTimer _neighboursFlyoutCloseTimer;
@@ -65,6 +66,14 @@ public partial class MainWindow : Window
             MapsFlyout.IsOpen = false;
         };
         MapsFlyout.PlacementTarget = MapsTabButton;
+
+        _logsFlyoutCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        _logsFlyoutCloseTimer.Tick += (_, _) =>
+        {
+            _logsFlyoutCloseTimer.Stop();
+            LogsFlyout.IsOpen = false;
+        };
+        LogsFlyout.PlacementTarget = LogsTabButton;
 
         _neighboursFlyoutCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _neighboursFlyoutCloseTimer.Tick += (_, _) =>
@@ -139,6 +148,24 @@ public partial class MainWindow : Window
     {
         _mapsFlyoutCloseTimer.Stop();
         MapsFlyout.IsOpen = false;
+    }
+
+    private void LogsTabButton_MouseEnter(object sender, MouseEventArgs e)
+    {
+        _logsFlyoutCloseTimer.Stop();
+        LogsFlyout.IsOpen = !_viewModel.IsNavExpanded;
+    }
+
+    private void LogsTabButton_MouseLeave(object sender, MouseEventArgs e) => _logsFlyoutCloseTimer.Start();
+
+    private void LogsFlyoutContent_MouseEnter(object sender, MouseEventArgs e) => _logsFlyoutCloseTimer.Stop();
+
+    private void LogsFlyoutContent_MouseLeave(object sender, MouseEventArgs e) => _logsFlyoutCloseTimer.Start();
+
+    private void LogsFlyoutItem_Click(object sender, RoutedEventArgs e)
+    {
+        _logsFlyoutCloseTimer.Stop();
+        LogsFlyout.IsOpen = false;
     }
 
     private void NeighboursTabButton_MouseEnter(object sender, MouseEventArgs e)

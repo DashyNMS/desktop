@@ -1992,6 +1992,29 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>What clicking Logs opens (#287) - the same option shape as the Default map.</summary>
+    public IReadOnlyList<DefaultMapOption> DefaultLogOptions { get; } = new[]
+    {
+        new DefaultMapOption(AppSettings.DefaultLogEvents, "Event log"),
+        new DefaultMapOption(AppSettings.DefaultLogAlerts, "Alert log"),
+        new DefaultMapOption(AppSettings.DefaultLogGraylog, "Graylog"),
+    };
+
+    public DefaultMapOption SelectedDefaultLog
+    {
+        get => DefaultLogOptions.FirstOrDefault(o => o.Value == _draft.DefaultLog) ?? DefaultLogOptions[0];
+        set
+        {
+            if (value is null || _draft.DefaultLog == value.Value)
+            {
+                return;
+            }
+
+            _draft.DefaultLog = value.Value;
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>Blank means OpenStreetMap's standard tiles - LibreNMS's own default.</summary>
     public string? MapTileUrl
     {

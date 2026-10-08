@@ -3,34 +3,47 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:DesktopNMS.Views">
 
-    <!-- The Logs tab (issue #114): Graylog for now - see LogsViewModel. -->
+    <!-- The Logs tab: LibreNMS's event log and alert log for every device
+         (#287), and Graylog (#114) - see LogsViewModel. -->
     <Grid Margin="24,18,24,18">
-        <!-- Visibility on a wrapper: on the view itself it would resolve
-             against the view's own (overridden) DataContext. -->
-        <Grid Visibility="{Binding Graylog.IsConfigured, Converter={StaticResource BoolToVisibility}}">
-            <views:GraylogMessagesView x:Name="GraylogView" DataContext="{Binding Graylog}" />
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Which log is chosen in the sidebar - Logs' menu, or its list when expanded. -->
+        <Grid Grid.Row="1" Visibility="{Binding IsFleetLogSelected, Converter={StaticResource BoolToVisibility}}">
+            <views:FleetLogsView DataContext="{Binding Fleet}" />
         </Grid>
 
-        <!-- Not set up: say where to do it rather than showing an empty table. -->
-        <Border HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                MaxWidth="460"
-                Padding="24,20"
-                CornerRadius="8"
-                Background="{StaticResource SurfaceAltBrush}"
-                Visibility="{Binding Graylog.IsConfigured, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
-            <StackPanel>
-                <TextBlock Text="Graylog isn't set up" Style="{StaticResource HeadingTextStyle}" />
-                <TextBlock Style="{StaticResource SubtleTextStyle}"
-                           TextWrapping="Wrap"
-                           Margin="0,8,0,16"
-                           Text="Connect DashyNMS to your Graylog server to browse and search every device's log messages here. Use the same details as LibreNMS's Settings, External, Graylog." />
-                <Button Content="Open Settings"
-                        Style="{StaticResource PrimaryButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Padding="14,7"
-                        Command="{Binding DataContext.SettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-            </StackPanel>
-        </Border>
+        <Grid Grid.Row="1" Visibility="{Binding IsGraylogSelected, Converter={StaticResource BoolToVisibility}}">
+            <!-- Visibility on a wrapper: on the view itself it would resolve
+                 against the view's own (overridden) DataContext. -->
+            <Grid Visibility="{Binding Graylog.IsConfigured, Converter={StaticResource BoolToVisibility}}">
+                <views:GraylogMessagesView x:Name="GraylogView" DataContext="{Binding Graylog}" />
+            </Grid>
+
+            <!-- Not set up: say where to do it rather than showing an empty table. -->
+            <Border HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    MaxWidth="460"
+                    Padding="24,20"
+                    CornerRadius="8"
+                    Background="{StaticResource SurfaceAltBrush}"
+                    Visibility="{Binding Graylog.IsConfigured, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                <StackPanel>
+                    <TextBlock Text="Graylog isn't set up" Style="{StaticResource HeadingTextStyle}" />
+                    <TextBlock Style="{StaticResource SubtleTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,8,0,16"
+                               Text="Connect DashyNMS to your Graylog server to browse and search every device's log messages here. Use the same details as LibreNMS's Settings, External, Graylog." />
+                    <Button Content="Open Settings"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            HorizontalAlignment="Left"
+                            Padding="14,7"
+                            Command="{Binding DataContext.SettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>

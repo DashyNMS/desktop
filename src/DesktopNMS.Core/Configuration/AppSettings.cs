@@ -254,6 +254,15 @@ public sealed class AppSettings
     /// </summary>
     public string DefaultMap { get; set; } = DefaultMapNetwork;
 
+    /// <summary>Which log the Logs tab opens on (#287): "EventLog", "AlertLog" or "Graylog" - Graylog falls back to the event log while it isn't set up.</summary>
+    public string DefaultLog { get; set; } = DefaultLogEvents;
+
+    public const string DefaultLogEvents = "EventLog";
+
+    public const string DefaultLogAlerts = "AlertLog";
+
+    public const string DefaultLogGraylog = "Graylog";
+
     public const string DefaultMapNetwork = "Network";
 
     public const string DefaultMapGeographical = "Geographical";
@@ -332,6 +341,7 @@ public sealed class AppSettings
         AccentColor = AccentColor,
         Theme = Theme,
         DefaultMap = DefaultMap,
+        DefaultLog = DefaultLog,
         MapTileUrl = MapTileUrl,
         Window = Window?.Clone(),
         WindowPlacements = WindowPlacements.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()),
@@ -358,6 +368,11 @@ public sealed class AppSettings
         if (string.IsNullOrWhiteSpace(DefaultMap))
         {
             DefaultMap = DefaultMapNetwork;
+        }
+
+        if (DefaultLog is not (DefaultLogEvents or DefaultLogAlerts or DefaultLogGraylog))
+        {
+            DefaultLog = DefaultLogEvents;
         }
 
         if (string.IsNullOrWhiteSpace(MapTileUrl))

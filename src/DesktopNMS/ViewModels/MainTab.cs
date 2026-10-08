@@ -26,4 +26,10 @@ public enum MainTab
 
     /// <summary>Logs → Graylog: every device's Graylog messages (issue #114).</summary>
     LogsGraylog,
+
+    /// <summary>Logs → Event log: every device's LibreNMS events (#287).</summary>
+    LogsEvents,
+
+    /// <summary>Logs → Alert log: every device's alert log (#287).</summary>
+    LogsAlerts,
 }
