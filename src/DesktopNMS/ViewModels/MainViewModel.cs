@@ -821,9 +821,100 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>True when exactly one alert is selected, i.e. the single-alert detail view should show.</summary>
     public bool IsSingleSelection => SelectedCount == 1;
 
-    public string AcknowledgeButtonLabel => HasMultipleSelection ? $"Acknowledge {SelectedCount}" : "Acknowledge";
+    public string AcknowledgeButtonLabel => _bulkKind == AlertChangeKind.Acknowledged
+        ? "Acknowledging…"
+        : HasMultipleSelection ? $"Acknowledge {SelectedCount}" : "Acknowledge";
 
-    public string UnacknowledgeButtonLabel => HasMultipleSelection ? $"Return {SelectedCount} to active" : "Return to active";
+    public string UnacknowledgeButtonLabel => _bulkKind == AlertChangeKind.Unacknowledged
+        ? "Returning…"
+        : HasMultipleSelection ? $"Return {SelectedCount} to active" : "Return to active";
+
+    // ------------------------------------------------------- action feedback
+
+    private AlertChangeKind? _bulkKind;
+    private string? _actionToastText;
+    private bool _actionToastIsError;
+    private IReadOnlyList<AlertItemViewModel> _actionToastUndo = Array.Empty<AlertItemViewModel>();
+    private DispatcherTimer? _actionToastTimer;
+
+    /// <summary>"Acknowledged core-sw-01 · Port down" - shown for a few seconds after acknowledging or returning to active.</summary>
+    public string? ActionToastText
+    {
+        get => _actionToastText;
+        private set
+        {
+            if (SetProperty(ref _actionToastText, value))
+            {
+                OnPropertyChanged(nameof(IsActionToastVisible));
+            }
+        }
+    }
+
+    public bool IsActionToastVisible => _actionToastText is not null;
+
+    /// <summary>Some of them failed: the toast is red rather than green.</summary>
+    public bool ActionToastIsError
+    {
+        get => _actionToastIsError;
+        private set => SetProperty(ref _actionToastIsError, value);
+    }
+
+    /// <summary>An acknowledgement can be undone from its toast - the alerts go back to active.</summary>
+    public bool ActionToastCanUndo => _actionToastUndo.Count > 0;
+
+    public AsyncRelayCommand UndoAcknowledgeCommand => _undoAcknowledgeCommand ??= new AsyncRelayCommand(UndoAcknowledgeAsync, () => ActionToastCanUndo);
+
+    private AsyncRelayCommand? _undoAcknowledgeCommand;
+
+    public RelayCommand DismissActionToastCommand => _dismissActionToastCommand ??= new RelayCommand(HideActionToast);
+
+    private RelayCommand? _dismissActionToastCommand;
+
+    private void ShowActionToast(string text, bool isError, IReadOnlyList<AlertItemViewModel> undo)
+    {
+        _actionToastUndo = undo;
+        ActionToastIsError = isError;
+        ActionToastText = text;
+        OnPropertyChanged(nameof(ActionToastCanUndo));
+        UndoAcknowledgeCommand.RaiseCanExecuteChanged();
+
+        _actionToastTimer?.Stop();
+        _actionToastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(isError ? 10 : 6) };
+        _actionToastTimer.Tick += (_, _) => HideActionToast();
+        _actionToastTimer.Start();
+    }
+
+    private void HideActionToast()
+    {
+        _actionToastTimer?.Stop();
+        _actionToastUndo = Array.Empty<AlertItemViewModel>();
+        ActionToastText = null;
+        OnPropertyChanged(nameof(ActionToastCanUndo));
+        UndoAcknowledgeCommand.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>Returns the alerts just acknowledged to active, from the toast.</summary>
+    private async Task UndoAcknowledgeAsync()
+    {
+        var items = _actionToastUndo;
+        HideActionToast();
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        await RunAlertActionAsync(
+            items,
+            "Could not undo",
+            item => _client.Alerts.UnmuteAsync(item.Id, "Unacknowledged from DashyNMS"),
+            "Returned to active",
+            AlertChangeKind.Unacknowledged).ConfigureAwait(true);
+    }
+
+    /// <summary>"core-sw-01 · Port down" for one alert, "3 alerts" for several.</summary>
+    private static string Describe(IReadOnlyList<AlertItemViewModel> items) => items.Count == 1
+        ? $"{items[0].DeviceName} · {items[0].RuleName}"
+        : $"{items.Count} alerts";
 
     /// <summary>A short "3 critical, 2 warning" breakdown of the current multi-selection.</summary>
     public string SelectionSummary
@@ -1641,6 +1732,27 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             }
         }
 
+        await RunAlertActionAsync(items, failureTitle, action, successCountVerb, selfActionKind, onAllSucceeded).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Runs <paramref name="action"/> on <paramref name="items"/> together: the
+    /// button says what's happening and the rows dim while it runs, then a
+    /// toast says how it went - with Undo after an acknowledgement.
+    /// </summary>
+    private async Task RunAlertActionAsync(
+        IReadOnlyList<AlertItemViewModel> items,
+        string failureTitle,
+        Func<AlertItemViewModel, Task> action,
+        string successCountVerb,
+        AlertChangeKind selfActionKind,
+        Action? onAllSucceeded = null)
+    {
+        HideActionToast();
+        _bulkKind = selfActionKind;
+        OnPropertyChanged(nameof(AcknowledgeButtonLabel));
+        OnPropertyChanged(nameof(UnacknowledgeButtonLabel));
+
         _isBulkUpdating = true;
         foreach (var item in items)
         {
@@ -1676,11 +1788,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
 
         _isBulkUpdating = false;
+        _bulkKind = null;
+        OnPropertyChanged(nameof(AcknowledgeButtonLabel));
+        OnPropertyChanged(nameof(UnacknowledgeButtonLabel));
         OnPropertyChanged(nameof(CanAcknowledge));
         OnPropertyChanged(nameof(CanUnacknowledge));
         RaiseCommandStates();
 
         var succeeded = items.Count - failures.Count;
+        var done = items.Where(i => failures.All(f => f.Item != i)).ToList();
+        var undo = selfActionKind == AlertChangeKind.Acknowledged ? done : (IReadOnlyList<AlertItemViewModel>)Array.Empty<AlertItemViewModel>();
 
         if (failures.Count == 0)
         {
@@ -1688,19 +1805,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 ? $"{successCountVerb} alert #{items[0].Id}."
                 : $"{successCountVerb} {succeeded} alerts.";
             _logger.LogInformation("{Verb} {Count} alert(s): {Ids}", successCountVerb, succeeded, string.Join(", ", items.Select(i => i.Id)));
+            ShowActionToast($"{successCountVerb} {Describe(items)}", isError: false, undo);
             onAllSucceeded?.Invoke();
         }
         else if (succeeded == 0)
         {
             StatusMessage = "Last action failed.";
-            _windows.ShowError(failureTitle, failures[0].Message);
+            ShowActionToast($"{failureTitle}: {failures[0].Message}", isError: true, Array.Empty<AlertItemViewModel>());
         }
         else
         {
             StatusMessage = $"{successCountVerb} {succeeded} of {items.Count} alerts; {failures.Count} failed.";
-            _windows.ShowError(
-                failureTitle,
-                $"{succeeded} of {items.Count} succeeded. First failure (alert #{failures[0].Item.Id}): {failures[0].Message}");
+            ShowActionToast(
+                $"{successCountVerb} {succeeded} of {items.Count}. Alert #{failures[0].Item.Id} failed: {failures[0].Message}",
+                isError: true,
+                undo);
         }
 
         RequestRefresh();

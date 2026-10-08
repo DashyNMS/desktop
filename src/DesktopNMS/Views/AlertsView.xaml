@@ -337,6 +337,18 @@
 
                 </DataGrid.Columns>
 
+                <!-- Rows fade while their acknowledge or return to active is on its way. -->
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsUpdating}" Value="True">
+                                <Setter Property="Opacity" Value="0.45" />
+                                <Setter Property="Cursor" Value="Wait" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
+
                 <DataGrid.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Acknowledge" Command="{Binding AcknowledgeCommand}" views:PermissionGate.Requires="AcknowledgeAlerts" />
@@ -356,6 +368,59 @@
                     </ContextMenu>
                 </DataGrid.ContextMenu>
             </DataGrid>
+
+            <!-- How an acknowledge or return to active went, with Undo after an acknowledgement. -->
+            <Border Grid.Column="0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,0,18"
+                    Padding="12,6,8,6"
+                    MaxWidth="560"
+                    CornerRadius="10"
+                    Background="{StaticResource SurfaceAltBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    Visibility="{Binding IsActionToastVisible, Converter={StaticResource BoolToVisibility}}">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.45" />
+                </Border.Effect>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="14"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="&#xE73E;" />
+                                <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ActionToastIsError}" Value="True">
+                                        <Setter Property="Text" Value="&#xE783;" />
+                                        <Setter Property="Foreground" Value="{StaticResource CriticalBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Grid.Column="1" Text="{Binding ActionToastText}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,14,0" />
+                    <Button Grid.Column="2"
+                            Content="Undo"
+                            Command="{Binding UndoAcknowledgeCommand}"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Padding="12,4"
+                            Margin="0,0,4,0"
+                            Visibility="{Binding ActionToastCanUndo, Converter={StaticResource BoolToVisibility}}" />
+                    <Button Grid.Column="3" Style="{StaticResource IconButtonStyle}" ToolTip="Dismiss" Command="{Binding DismissActionToastCommand}">
+                        <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" />
+                    </Button>
+                </Grid>
+            </Border>
 
             <!-- Loading/empty/no-matches (issue #16) -->
             <TextBlock Grid.Column="0"
