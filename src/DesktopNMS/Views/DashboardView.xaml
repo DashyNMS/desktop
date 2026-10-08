@@ -1200,16 +1200,6 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <!-- Which device and port a port graph is of (#285). -->
-                <TextBlock Grid.Row="0"
-                           Style="{StaticResource SubtleTextStyle}"
-                           FontSize="11"
-                           Margin="2,0,0,4"
-                           TextTrimming="CharacterEllipsis"
-                           Visibility="{Binding PortLabel, Converter={StaticResource NullToVisibility}}">
-                    <Run Text="{Binding SelectedDeviceName, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding PortLabel, Mode=OneWay}" />
-                </TextBlock>
-
                 <Grid Grid.Row="1">
                     <!-- Click to open this graph full size in the device's
                          Device Details (issue #161). A chrome-less Button

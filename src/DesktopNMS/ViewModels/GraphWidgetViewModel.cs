@@ -149,9 +149,6 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         }
     }
 
-    /// <summary>"Gi0/1 · uplink" while a port's graph is shown, for the widget's subtitle.</summary>
-    public string? PortLabel => _selectedSource?.IsPort == true ? _selectedSource.Name : null;
-
     private void FillGraphs(GraphSource source)
     {
         _selectedGraph = null;
@@ -160,8 +157,6 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         {
             AvailableGraphs.Add(type);
         }
-
-        OnPropertyChanged(nameof(PortLabel));
     }
 
     public GraphTimeRangeViewModel TimeRange { get; }
@@ -294,7 +289,6 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         OnPropertyChanged(nameof(SelectedGraph));
         OnPropertyChanged(nameof(SelectedSource));
         OnPropertyChanged(nameof(HasSources));
-        OnPropertyChanged(nameof(PortLabel));
         OnPropertyChanged(nameof(IsConfigured));
 
         Layout.SetGraph(Id, deviceId, null);
