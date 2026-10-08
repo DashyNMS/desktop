@@ -41,7 +41,7 @@ public sealed class PortGraphsPanelViewModel : ObservableObject
         _logger = logger;
 
         Graphs = new ObservableCollection<PortGraphViewModel>(
-            Types.Select(t => new PortGraphViewModel(t.Name, t.Description, Open)));
+            Types.Select(t => new PortGraphViewModel(t.Name, t.Description, Open, AddToDashboard)));
 
         TimeRange = new GraphTimeRangeViewModel();
         TimeRange.Changed += (_, _) => _ = LoadAsync();
@@ -68,6 +68,47 @@ public sealed class PortGraphsPanelViewModel : ObservableObject
         {
             OpenRequested?.Invoke(this, new PortGraphOpenRequest(_deviceId, ifName, graph.GraphType));
         }
+    }
+
+    /// <summary>A graph's "Add to dashboard" (#285): (device, ifName, graph type) and a title for the widget.</summary>
+    public event EventHandler<PortGraphAddRequest>? AddToDashboardRequested;
+
+    private string? _notice;
+    private System.Windows.Threading.DispatcherTimer? _noticeTimer;
+
+    /// <summary>"Traffic added to the dashboard" for a few seconds in the header, after Add to dashboard.</summary>
+    public string? Notice
+    {
+        get => _notice;
+        private set
+        {
+            if (SetProperty(ref _notice, value))
+            {
+                OnPropertyChanged(nameof(HasNotice));
+            }
+        }
+    }
+
+    public bool HasNotice => _notice is not null;
+
+    private void AddToDashboard(PortGraphViewModel graph)
+    {
+        if (_ifName is not { } ifName)
+        {
+            return;
+        }
+
+        AddToDashboardRequested?.Invoke(this, new PortGraphAddRequest(_deviceId, ifName, graph.GraphType, $"{ifName} · {graph.Title}"));
+
+        Notice = $"{graph.Title} added to the dashboard";
+        _noticeTimer?.Stop();
+        _noticeTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        _noticeTimer.Tick += (_, _) =>
+        {
+            _noticeTimer?.Stop();
+            Notice = null;
+        };
+        _noticeTimer.Start();
     }
 
     public GraphTimeRangeViewModel TimeRange { get; }
@@ -205,15 +246,19 @@ public sealed class PortGraphViewModel : ObservableObject
     private bool _isLoading;
     private string? _errorMessage;
 
-    public PortGraphViewModel(string graphType, string title, Action<PortGraphViewModel>? open = null)
+    public PortGraphViewModel(string graphType, string title, Action<PortGraphViewModel>? open = null, Action<PortGraphViewModel>? addToDashboard = null)
     {
         GraphType = graphType;
         Title = title;
         OpenCommand = new RelayCommand(() => open?.Invoke(this), () => open is not null && Svg is not null);
+        AddToDashboardCommand = new RelayCommand(() => addToDashboard?.Invoke(this), () => addToDashboard is not null);
     }
 
     /// <summary>Opens this graph full size in Graphs.</summary>
     public RelayCommand OpenCommand { get; }
+
+    /// <summary>Puts this graph on the dashboard as a Graph widget (#285).</summary>
+    public RelayCommand AddToDashboardCommand { get; }
 
     /// <summary>LibreNMS's graph name, e.g. "port_errors".</summary>
     public string GraphType { get; }
@@ -269,3 +314,6 @@ public sealed class PortGraphViewModel : ObservableObject
 
 /// <summary>A port graph to open full size in Graphs.</summary>
 public sealed record PortGraphOpenRequest(int DeviceId, string IfName, string GraphType);
+
+/// <summary>A port graph to put on the dashboard (#285), with the widget's title.</summary>
+public sealed record PortGraphAddRequest(int DeviceId, string IfName, string GraphType, string Title);

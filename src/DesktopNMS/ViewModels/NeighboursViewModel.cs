@@ -71,6 +71,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
 
         PortGraphs = new PortGraphsPanelViewModel(client, settings, logger);
         PortGraphs.OpenRequested += (_, request) => _windows.ShowDevicePortGraph(request.DeviceId, request.IfName, request.GraphType);
+        PortGraphs.AddToDashboardRequested += (_, request) => _windows.AddPortGraphToDashboard(request.DeviceId, request.IfName, request.GraphType, request.Title);
 
         RefreshCommand = new AsyncRelayCommand(() => LoadAsync(refresh: true), () => _session.IsConnected && !IsBusy);
         ClearFiltersCommand = new RelayCommand(() =>

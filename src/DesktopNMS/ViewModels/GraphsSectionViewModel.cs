@@ -170,7 +170,7 @@ public sealed class GraphsSectionViewModel : ObservableObject
     }
 
     /// <summary>"Te1/1/1 · edge-fw-01 uplink" - a port's name and its description, when it has one of its own.</summary>
-    private static string PortLabel(Port port)
+    internal static string PortLabel(Port port)
     {
         var name = port.IfName ?? port.IfDescr ?? $"Port {port.PortId}";
         return port.IfAlias is { Length: > 0 } alias && alias != name && alias != port.IfDescr ? $"{name} · {alias}" : name;

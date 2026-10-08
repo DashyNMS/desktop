@@ -221,6 +221,9 @@ public sealed class WindowService : IWindowService
         return true;
     }
 
+    public void AddPortGraphToDashboard(int deviceId, string ifName, string graphType, string title)
+        => _services.GetRequiredService<IDashboardLayoutService>().AddPortGraph(deviceId, ifName, graphType, title);
+
     public void ShowDeviceAlerts(int deviceId)
     {
         ShowDeviceDetail(deviceId);

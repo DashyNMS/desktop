@@ -846,6 +846,9 @@ public sealed class DashboardWidget
     /// <summary>For a "Graph" widget: the graph name (from that device's /graphs or /health listing), null until chosen.</summary>
     public string? GraphName { get; set; }
 
+    /// <summary>For a "Graph" widget showing a port's graph (#285): the port's ifName, with <see cref="GraphName"/> its graph type ("port_bits" and so on). Null for one of the device's own graphs.</summary>
+    public string? GraphPortIfName { get; set; }
+
     public GraphTimeRangePreset GraphTimeRangePreset { get; set; } = GraphTimeRangePreset.Day;
 
     /// <summary>For a "Graph" widget with a Custom time range.</summary>
@@ -916,6 +919,7 @@ public sealed class DashboardWidget
         AlertsIncludeAcknowledged = AlertsIncludeAcknowledged,
         GraphDeviceId = GraphDeviceId,
         GraphName = GraphName,
+        GraphPortIfName = GraphPortIfName,
         GraphTimeRangePreset = GraphTimeRangePreset,
         GraphCustomFrom = GraphCustomFrom,
         GraphCustomTo = GraphCustomTo,
