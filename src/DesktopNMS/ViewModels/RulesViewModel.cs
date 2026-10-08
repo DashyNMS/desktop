@@ -26,6 +26,8 @@ public sealed class RulesViewModel : ObservableObject
     private readonly IWindowService _windows;
     private readonly AlertMonitor _monitor;
     private readonly ILogger<RulesViewModel> _logger;
+    private readonly NotificationRuleService _notificationRules;
+    private NotificationMenuItem? _notificationChoice;
 
     /// <summary>Latest per-rule count of active + acknowledged alerts, kept between rule reloads so a fresh row can be stamped immediately.</summary>
     private Dictionary<int, int> _alertCounts = new();
@@ -37,8 +39,9 @@ public sealed class RulesViewModel : ObservableObject
     private bool _showWarning = true;
     private bool _showOk = true;
 
-    public RulesViewModel(ILibreNmsClient client, ISessionService session, IWindowService windows, AlertMonitor monitor, ILogger<RulesViewModel> logger)
+    public RulesViewModel(ILibreNmsClient client, ISessionService session, IWindowService windows, AlertMonitor monitor, NotificationRuleService notificationRules, ILogger<RulesViewModel> logger)
     {
+        _notificationRules = notificationRules;
         _client = client;
         _session = session;
         _windows = windows;
@@ -104,6 +107,18 @@ public sealed class RulesViewModel : ObservableObject
     public bool HasMultipleSelection => _selectedRules.Count > 1;
 
     public string SelectionText => $"{_selectedRules.Count} selected";
+
+    /// <summary>The right-click menu's notifications choice for the one selected rule, on every device (#268).</summary>
+    public NotificationMenuItem? NotificationChoice
+    {
+        get => _notificationChoice;
+        private set => SetProperty(ref _notificationChoice, value);
+    }
+
+    /// <summary>Called as the rule's right-click menu opens, so it reflects what's already chosen.</summary>
+    public void RefreshNotificationMenu() => NotificationChoice = _selectedRules is [var rule]
+        ? _notificationRules.ChoiceFor(rule.Id, rule.Name)
+        : null;
 
     /// <summary>The grid's selection changed - set by the view.</summary>
     public void SetSelection(IEnumerable<RuleItemViewModel> rules)

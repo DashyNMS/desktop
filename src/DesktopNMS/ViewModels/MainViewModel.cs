@@ -29,6 +29,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly ILibreNmsClient _client;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
+    private readonly NotificationRuleService _notificationRules;
+    private NotificationMenuItem? _notificationChoice;
     private readonly AlertMonitor _monitor;
     private readonly IDeviceCache _devices;
     private readonly IAlertRuleCache _rules;
@@ -119,8 +121,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ISelfActionTracker selfActions,
         IUpdateCheckService updates,
         DemoMode demo,
+        NotificationRuleService notificationRules,
         ILogger<MainViewModel> logger)
     {
+        _notificationRules = notificationRules;
         _client = client;
         _session = session;
         _settings = settings;
@@ -780,6 +784,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public bool HasSelection => SelectedAlert is not null;
 
+    /// <summary>The right-click menu's notifications choice for the selected alert (#268) - built as the menu opens, see <see cref="RefreshNotificationMenu"/>.</summary>
+    public NotificationMenuItem? NotificationChoice
+    {
+        get => _notificationChoice;
+        private set => SetProperty(ref _notificationChoice, value);
+    }
+
+    /// <summary>Called as the alert's right-click menu opens, so it reflects what's already chosen.</summary>
+    public void RefreshNotificationMenu() => NotificationChoice = SelectedAlert is { } alert
+        ? _notificationRules.ChoiceFor(alert.RuleId, alert.RuleName, alert.DeviceId, alert.DeviceName)
+        : null;
+
     /// <summary>
     /// Every row currently highlighted in the grid (Ctrl/Shift-click), kept in
     /// sync by the view's SelectionChanged handler since DataGrid.SelectedItems
@@ -944,19 +960,25 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public int TotalCount => Alerts.Count;
 
     /// <summary>
-    /// What the Alerts tab's count badge counts: active alerts, plus
-    /// acknowledged ones unless Settings says otherwise - never recovered
-    /// ones, and regardless of the tab's own filters, so the badge always
-    /// reflects everything that's wrong.
+    /// What the Alerts tab's count badge and the tray count (#269): active
+    /// alerts, plus acknowledged ones unless Settings says otherwise, of the
+    /// severities Settings counts - never recovered ones, and regardless of
+    /// the tab's own filters. Core's <see cref="AlertCounting"/> decides, so
+    /// the tray and the badge always agree.
     /// </summary>
-    private IEnumerable<AlertItemViewModel> BadgeAlerts => Alerts.Where(a =>
-        a.State == AlertState.Active
-        || (a.State == AlertState.Acknowledged && _settings.Current.AlertTabBadgeIncludesAcknowledged));
+    private IEnumerable<AlertItemViewModel> BadgeAlerts => Alerts.Where(a => AlertCounting.Counts(
+        a.State,
+        a.Severity,
+        _settings.Current.Notifications.CountFrom,
+        _settings.Current.AlertTabBadgeIncludesAcknowledged));
 
     public int AlertBadgeCount => BadgeAlerts.Count();
 
     /// <summary>Red while any counted alert is critical; orange otherwise.</summary>
     public bool AlertBadgeIsCritical => BadgeAlerts.Any(a => a.Severity == AlertSeverity.Critical);
+
+    /// <summary>The severity the badge and tray count from - see <see cref="NotificationSettings.CountFrom"/>.</summary>
+    public AlertSeverity CountFrom => _settings.Current.Notifications.CountFrom;
 
     /// <summary>"99+" past 99, so the badge stays small.</summary>
     public string AlertBadgeText => AlertBadgeCount > 99 ? "99+" : AlertBadgeCount.ToString(System.Globalization.CultureInfo.CurrentCulture);
@@ -970,7 +992,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             var critical = BadgeAlerts.Count(a => a.Severity == AlertSeverity.Critical);
             var others = AlertBadgeCount - critical;
             var scope = _settings.Current.AlertTabBadgeIncludesAcknowledged ? "active or acknowledged" : "active";
-            return $"{AlertBadgeCount} {scope} alert{(AlertBadgeCount == 1 ? string.Empty : "s")}: {critical} critical, {others} other";
+            var text = $"{AlertBadgeCount} {scope} alert{(AlertBadgeCount == 1 ? string.Empty : "s")}: {critical} critical, {others} other";
+            return CountFrom == AlertSeverity.Ok ? text : $"{text} ({AlertCounting.Describe(CountFrom).ToLowerInvariant()})";
         }
     }
 

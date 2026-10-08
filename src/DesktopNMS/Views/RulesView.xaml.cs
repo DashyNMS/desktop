@@ -31,6 +31,15 @@ public partial class RulesView : UserControl
         e.Handled = true;
     }
 
+    /// <summary>The Notifications choices depend on what's already chosen, so they're built as the menu opens (#268).</summary>
+    private void OnRulesContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (DataContext is RulesViewModel vm)
+        {
+            vm.RefreshNotificationMenu();
+        }
+    }
+
     // The selection drives the toolbar's Enable / Disable for several rules (#144).
     private void OnRulesSelectionChanged(object sender, SelectionChangedEventArgs e)
     {

@@ -234,17 +234,24 @@
                                 Padding="14,12"
                                 Margin="0,0,0,16">
                             <StackPanel>
-                                <TextBlock Text="Alerts tab count" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <TextBlock Text="Tray and Alerts tab count" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
                                 <CheckBox Content="Show an alert count on the Alerts tab"
                                           IsChecked="{Binding ShowAlertTabBadge}" />
+                                <!-- Which severities count (#269): the tray icon and the badge both. -->
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                    <TextBlock Text="Count" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <ComboBox ItemsSource="{Binding CountFromOptions}"
+                                              SelectedItem="{Binding SelectedCountFrom}"
+                                              DisplayMemberPath="Label"
+                                              MinWidth="200" />
+                                </StackPanel>
                                 <CheckBox Content="Include acknowledged alerts in the count"
                                           IsChecked="{Binding AlertTabBadgeIncludesAcknowledged}"
-                                          IsEnabled="{Binding ShowAlertTabBadge}"
-                                          Margin="0,8,0,0" />
+                                          Margin="0,10,0,0" />
                                 <TextBlock Style="{StaticResource SubtleTextStyle}"
                                            TextWrapping="Wrap"
                                            Margin="0,6,0,0"
-                                           Text="Red while any counted alert is critical, orange otherwise. Counts every alert, whatever the Alerts tab's own filters are showing." />
+                                           Text="The tray icon and the Alerts tab count the same alerts: red while any counted alert is critical, amber otherwise. The Alerts page still lists every alert, whatever is counted." />
                             </StackPanel>
                         </Border>
 
@@ -426,6 +433,80 @@
                         <CheckBox Content="Show Windows notifications"
                                   IsChecked="{Binding NotificationsEnabled}"
                                   Margin="0,0,0,16" />
+
+                        <!-- Which alerts notify, by rule (#268). Only notifications:
+                             every alert still lists and counts. -->
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="6"
+                                Padding="14,12"
+                                Margin="0,0,0,16"
+                                IsEnabled="{Binding NotificationsEnabled}">
+                            <StackPanel>
+                                <TextBlock Text="Which alerts" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding RuleModeOptions}"
+                                          SelectedItem="{Binding SelectedRuleMode}"
+                                          DisplayMemberPath="Label" />
+                                <TextBlock Text="{Binding SelectedRuleMode.Description}"
+                                           Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0" />
+
+                                <StackPanel Visibility="{Binding ShowsNotificationRuleList, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="{Binding NotificationRuleListHeading}" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                    <ItemsControl ItemsSource="{Binding NotificationRuleRows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,0,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Description}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                    <Button Grid.Column="1"
+                                                            Content="Remove"
+                                                            Command="{Binding RemoveCommand}"
+                                                            Padding="10,3"
+                                                            Margin="12,0,0,0" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="No rules yet. Add one below, or right-click an alert on the Alerts page or a rule on the Rules page."
+                                               Style="{StaticResource SubtleTextStyle}"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding HasNoNotificationRules, Converter={StaticResource BoolToVisibility}}" />
+                                    <Border Background="{DynamicResource AccentSubtleBrush}"
+                                            CornerRadius="4"
+                                            Padding="10,6"
+                                            Margin="0,8,0,0"
+                                            Visibility="{Binding ShowsNothingWillNotify, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="With nothing listed, no alert will notify you."
+                                                   TextWrapping="Wrap"
+                                                   FontWeight="SemiBold" />
+                                    </Border>
+
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox ItemsSource="{Binding RulePickerOptions}"
+                                                  SelectedItem="{Binding RuleToAdd}"
+                                                  IsTextSearchEnabled="True"
+                                                  ToolTip="An alert rule, on every device" />
+                                        <Button Grid.Column="1"
+                                                Content="Add rule"
+                                                Command="{Binding AddNotificationRuleCommand}"
+                                                Padding="10,4"
+                                                Margin="8,0,0,0" />
+                                    </Grid>
+                                    <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,6,0,0"
+                                               Text="Added here, a rule counts on every device. To choose one device, right-click its alert on the Alerts page. Alerts left out still list on the Alerts page and still count on the tray icon." />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
 
                         <Border Background="{StaticResource SurfaceAltBrush}"
                                 CornerRadius="6"

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Models;
 
 namespace DesktopNMS.Core.Configuration;
@@ -1080,6 +1081,62 @@ public sealed class NotificationSettings
     /// <summary>Critical alerts still toast during quiet hours.</summary>
     public bool QuietHoursAllowCritical { get; set; } = true;
 
+    /// <summary>Which alerts notify: every one, every one except <see cref="ExceptRules"/>, or only <see cref="OnlyRules"/> (#268). Only notifications - every alert still lists and counts.</summary>
+    [JsonIgnore]
+    public NotificationRuleMode RuleMode
+    {
+        get => Enum.TryParse<NotificationRuleMode>(RuleModeName, ignoreCase: true, out var mode) && Enum.IsDefined(mode) ? mode : NotificationRuleMode.All;
+        set => RuleModeName = value.ToString();
+    }
+
+    /// <summary><see cref="RuleMode"/> as stored - text, so a value this version doesn't know reads as All rather than failing the settings file.</summary>
+    [JsonPropertyName("ruleMode")]
+    public string RuleModeName { get; set; } = nameof(NotificationRuleMode.All);
+
+    /// <summary>The rules "All except…" leaves out. Kept while another mode is chosen, so switching loses nothing.</summary>
+    [JsonConverter(typeof(TolerantRuleListConverter))]
+    public List<NotificationRuleEntry> ExceptRules { get; set; } = new();
+
+    /// <summary>The rules "Only…" notifies about. Kept while another mode is chosen, so switching loses nothing.</summary>
+    [JsonConverter(typeof(TolerantRuleListConverter))]
+    public List<NotificationRuleEntry> OnlyRules { get; set; } = new();
+
+    /// <summary>
+    /// The least serious alert the tray icon and the Alerts badge count (#269):
+    /// <see cref="AlertSeverity.Ok"/> (every alert, the default and how it
+    /// always worked), Warning, or Critical. See <see cref="AlertCounting"/>.
+    /// </summary>
+    [JsonIgnore]
+    public AlertSeverity CountFrom
+    {
+        get => Enum.TryParse<AlertSeverity>(CountFromName, ignoreCase: true, out var value) && AlertCounting.Choices.Contains(value) ? value : AlertSeverity.Ok;
+        set => CountFromName = value.ToString();
+    }
+
+    /// <summary><see cref="CountFrom"/> as stored, as text for the same reason as <see cref="RuleModeName"/>.</summary>
+    [JsonPropertyName("countFrom")]
+    public string CountFromName { get; set; } = nameof(AlertSeverity.Ok);
+
+    /// <summary>The list <paramref name="mode"/> uses - empty for <see cref="NotificationRuleMode.All"/>, which has none.</summary>
+    public List<NotificationRuleEntry> RulesFor(NotificationRuleMode mode) => mode switch
+    {
+        NotificationRuleMode.AllExcept => ExceptRules,
+        NotificationRuleMode.Only => OnlyRules,
+        _ => new List<NotificationRuleEntry>(),
+    };
+
+    /// <summary>Whether <paramref name="alert"/> may notify at all under <see cref="RuleMode"/> - before severity and quiet hours.</summary>
+    public bool AllowsRule(Alert alert)
+    {
+        ArgumentNullException.ThrowIfNull(alert);
+        return RuleMode switch
+        {
+            NotificationRuleMode.AllExcept => !ExceptRules.Any(e => e.Covers(alert)),
+            NotificationRuleMode.Only => OnlyRules.Any(e => e.Covers(alert)),
+            _ => true,
+        };
+    }
+
     public SeverityNotificationSettings ForSeverity(AlertSeverity severity) => severity switch
     {
         AlertSeverity.Critical => Critical,
@@ -1118,6 +1175,13 @@ public sealed class NotificationSettings
         if (MaxToastsPerPoll > 25) MaxToastsPerPoll = 25;
         if (QuietHoursStartHour is < 0 or > 23) QuietHoursStartHour = 22;
         if (QuietHoursEndHour is < 0 or > 23) QuietHoursEndHour = 7;
+
+        ExceptRules ??= new List<NotificationRuleEntry>();
+        OnlyRules ??= new List<NotificationRuleEntry>();
+        ExceptRules.RemoveAll(e => e is null || string.IsNullOrEmpty(e.RuleName));
+        OnlyRules.RemoveAll(e => e is null || string.IsNullOrEmpty(e.RuleName));
+        RuleMode = RuleMode;
+        CountFrom = CountFrom;
     }
 
     public NotificationSettings Clone() => new()
@@ -1134,6 +1198,10 @@ public sealed class NotificationSettings
         QuietHoursStartHour = QuietHoursStartHour,
         QuietHoursEndHour = QuietHoursEndHour,
         QuietHoursAllowCritical = QuietHoursAllowCritical,
+        RuleModeName = RuleModeName,
+        ExceptRules = ExceptRules.ToList(),
+        OnlyRules = OnlyRules.ToList(),
+        CountFromName = CountFromName,
     };
 }
 

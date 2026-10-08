@@ -557,6 +557,7 @@ public partial class App : Application
         services.AddSingleton<WindowService>();
         services.AddSingleton<IWindowService>(sp => sp.GetRequiredService<WindowService>());
         services.AddSingleton<ISelfActionTracker, SelfActionTracker>();
+        services.AddSingleton<NotificationRuleService>();
         services.AddSingleton<IDashboardLayoutService, DashboardLayoutService>();
 
         services.AddSingleton<MainViewModel>();
@@ -635,7 +636,7 @@ public partial class App : Application
         };
         tray.SignInOrOutRequested += (_, _) =>
         {
-            // The same item reads "Sign in…" while signed out.
+            // The same item reads "Sign inâ€¦" while signed out.
             if (_mainViewModel?.SignOutCommand.CanExecute(null) != true)
             {
                 ShowMainOrSignIn();
@@ -802,14 +803,16 @@ public partial class App : Application
             connection,
             main.IsOnBackupAddress,
             main.CriticalCount,
-            main.WarningCount,
+            // Warnings only count when Settings counts them (#269).
+            main.CountFrom == DesktopNMS.Core.Models.AlertSeverity.Critical ? 0 : main.WarningCount,
             main.AcknowledgedCount,
             main.AlertBadgeCount,
             main.AlertBadgeIsCritical,
             main.LastUpdatedAt is { } at ? DateTimeOffset.Now - at : null,
             main.NextRefreshText,
             main.Alerts.ToList(),
-            main.IsUpdateReady ? main.UpdateReadyText : null));
+            main.IsUpdateReady ? main.UpdateReadyText : null,
+            main.CountFrom));
     }
 
     private bool _trayUpdatePending;

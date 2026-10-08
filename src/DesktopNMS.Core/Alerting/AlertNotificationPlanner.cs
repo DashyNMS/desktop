@@ -19,9 +19,10 @@ public sealed class AlertNotificationPlan
 {
     public static readonly AlertNotificationPlan Nothing = new(Array.Empty<PlannedNotification>(), isSummary: false, notifiableCount: 0, suppressionReason: null);
 
-    public AlertNotificationPlan(IReadOnlyList<PlannedNotification> notifications, bool isSummary, int notifiableCount, string? suppressionReason)
+    public AlertNotificationPlan(IReadOnlyList<PlannedNotification> notifications, bool isSummary, int notifiableCount, string? suppressionReason, int leftOutByRuleCount = 0)
     {
         Notifications = notifications;
+        LeftOutByRuleCount = leftOutByRuleCount;
         IsSummary = isSummary;
         NotifiableCount = notifiableCount;
         SuppressionReason = suppressionReason;
@@ -37,6 +38,9 @@ public sealed class AlertNotificationPlan
 
     /// <summary>Why nothing is shown, in one line for the log - "Why did nothing pop up?" is the most common question about notifications.</summary>
     public string? SuppressionReason { get; }
+
+    /// <summary>How many changes the rules chosen in <see cref="NotificationSettings.RuleMode"/> left out (#268), before severity and quiet hours were weighed.</summary>
+    public int LeftOutByRuleCount { get; }
 }
 
 /// <summary>
@@ -82,19 +86,35 @@ public static class AlertNotificationPlanner
             return Suppressed("this was the first poll after starting");
         }
 
-        var notifiable = changes.Where(change => ShouldNotify(change, settings, localNow, wasSelfInitiated)).ToList();
+        // The rules chosen to notify about (#268) come first: a left-out alert
+        // is quiet whatever its severity or the time of day.
+        var allowed = changes.Where(change => settings.AllowsRule(change.Alert)).ToList();
+        var leftOut = changes.Count - allowed.Count;
+
+        var notifiable = allowed.Where(change => ShouldNotify(change, settings, localNow, wasSelfInitiated)).ToList();
         if (notifiable.Count == 0)
         {
-            return Suppressed("none notifiable (" + DescribeSuppression(changes, settings, localNow) + ")");
+            var reasons = new List<string>();
+            if (leftOut > 0)
+            {
+                reasons.Add($"{leftOut} left out by the alert rules chosen in settings");
+            }
+
+            if (allowed.Count > 0)
+            {
+                reasons.Add(DescribeSuppression(allowed, settings, localNow));
+            }
+
+            return Suppressed("none notifiable (" + string.Join("; ", reasons) + ")", leftOut);
         }
 
         if (notifiable.Count > settings.MaxToastsPerPoll)
         {
-            return new AlertNotificationPlan(new[] { Summary(notifiable, settings, deviceName, deviceLocation) }, isSummary: true, notifiable.Count, suppressionReason: null);
+            return new AlertNotificationPlan(new[] { Summary(notifiable, settings, deviceName, deviceLocation) }, isSummary: true, notifiable.Count, suppressionReason: null, leftOut);
         }
 
         var planned = notifiable.Select(change => ForChange(change, settings, deviceName)).ToList();
-        return new AlertNotificationPlan(planned, isSummary: false, notifiable.Count, suppressionReason: null);
+        return new AlertNotificationPlan(planned, isSummary: false, notifiable.Count, suppressionReason: null, leftOut);
     }
 
     /// <summary>Whether one change deserves a notification of its own.</summary>
@@ -107,6 +127,11 @@ public static class AlertNotificationPlanner
         // must not notify you about your own action.
         if (change.Kind is AlertChangeKind.Acknowledged or AlertChangeKind.Unacknowledged
             && wasSelfInitiated?.Invoke(change) == true)
+        {
+            return false;
+        }
+
+        if (!settings.AllowsRule(change.Alert))
         {
             return false;
         }
@@ -239,6 +264,6 @@ public static class AlertNotificationPlanner
             Change: null);
     }
 
-    private static AlertNotificationPlan Suppressed(string reason)
-        => new(Array.Empty<PlannedNotification>(), isSummary: false, notifiableCount: 0, reason);
+    private static AlertNotificationPlan Suppressed(string reason, int leftOutByRuleCount = 0)
+        => new(Array.Empty<PlannedNotification>(), isSummary: false, notifiableCount: 0, reason, leftOutByRuleCount);
 }
