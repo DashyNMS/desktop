@@ -66,16 +66,14 @@ public sealed class LogsViewModel : ObservableObject
             OnPropertyChanged(nameof(IsGraylogSelected));
             OnPropertyChanged(nameof(IsFleetLogSelected));
 
+            // OnShown, which follows, loads what's now showing.
             if (value == LogsSection.Graylog)
             {
-                Graylog.Activate();
+                return;
             }
-            else
-            {
-                Graylog.Deactivate();
-                Fleet.ShowingEventLog = value == LogsSection.EventLog;
-                Fleet.Activate();
-            }
+
+            Graylog.Deactivate();
+            Fleet.ShowingEventLog = value == LogsSection.EventLog;
         }
     }
 

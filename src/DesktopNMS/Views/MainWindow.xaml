@@ -399,15 +399,35 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!-- Logs: Graylog is its only source so far, and
-                                 it only shows while Graylog is set up. -->
-                            <ToggleButton Content="Logs"
+                            <!-- Logs' own click opens the Default log (Settings), as Maps
+                                 does (#287); Graylog joins the list once it's set up. -->
+                            <ToggleButton x:Name="LogsTabButton"
+                                          Content="Logs"
                                           Tag="&#xE8FD;"
-                                          ToolTip="Logs"
-                                          Style="{StaticResource MainRailItemStyle}"
+                                          Style="{StaticResource RailItemStyle}"
                                           IsChecked="{Binding IsLogsFamilyTabSelected, Mode=OneWay}"
                                           Command="{Binding SelectLogsTabCommand}"
+                                          MouseEnter="LogsTabButton_MouseEnter"
+                                          MouseLeave="LogsTabButton_MouseLeave"
                                           Visibility="{Binding ShowLogsTab, Converter={StaticResource BoolToVisibility}}" />
+                            <Grid Visibility="{Binding IsNavExpanded, Converter={StaticResource BoolToVisibility}}">
+                                <StackPanel Style="{StaticResource RailSubListStyle}"
+                                            Visibility="{Binding IsLogsFamilyTabSelected, Converter={StaticResource BoolToVisibility}}">
+                                    <ToggleButton Content="Event log"
+                                                  Style="{StaticResource RailSubItemStyle}"
+                                                  IsChecked="{Binding IsEventLogTabSelected, Mode=OneWay}"
+                                                  Command="{Binding SelectEventLogTabCommand}" />
+                                    <ToggleButton Content="Alert log"
+                                                  Style="{StaticResource RailSubItemStyle}"
+                                                  IsChecked="{Binding IsAlertLogTabSelected, Mode=OneWay}"
+                                                  Command="{Binding SelectAlertLogTabCommand}" />
+                                    <ToggleButton Content="Graylog"
+                                                  Style="{StaticResource RailSubItemStyle}"
+                                                  IsChecked="{Binding IsGraylogLogsTabSelected, Mode=OneWay}"
+                                                  Command="{Binding SelectGraylogTabCommand}"
+                                                  Visibility="{Binding ShowGraylogLog, Converter={StaticResource BoolToVisibility}}" />
+                                </StackPanel>
+                            </Grid>
 
                             <ToggleButton Content="Health"
                                           Tag="&#xE95E;"
@@ -534,6 +554,24 @@
                 </Border>
             </Popup>
 
+            <Popup x:Name="LogsFlyout" Placement="Right" AllowsTransparency="True" StaysOpen="True">
+                <Border x:Name="LogsFlyoutContent"
+                        Style="{StaticResource FlyoutBorderStyle}"
+                        MouseEnter="LogsFlyoutContent_MouseEnter"
+                        MouseLeave="LogsFlyoutContent_MouseLeave">
+                    <StackPanel MinWidth="150">
+                        <TextBlock Text="LOGS" Style="{StaticResource FlyoutHeaderStyle}" />
+                        <Button Content="Event log" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectEventLogTabCommand}" Click="LogsFlyoutItem_Click" />
+                        <Button Content="Alert log" Style="{StaticResource FlyoutMenuItemStyle}" Command="{Binding SelectAlertLogTabCommand}" Click="LogsFlyoutItem_Click" />
+                        <Button Content="Graylog"
+                                Style="{StaticResource FlyoutMenuItemStyle}"
+                                Command="{Binding SelectGraylogTabCommand}"
+                                Click="LogsFlyoutItem_Click"
+                                Visibility="{Binding ShowGraylogLog, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                </Border>
+            </Popup>
+
             <Popup x:Name="AlertsFlyout" Placement="Right" AllowsTransparency="True" StaysOpen="True">
                 <Border x:Name="AlertsFlyoutContent"
                         Style="{StaticResource FlyoutBorderStyle}"
@@ -594,7 +632,7 @@
                     <views:CustomMapsView x:Name="CustomMapsViewControl" DataContext="{Binding CustomMaps}" />
                 </Grid>
     
-                <Grid Visibility="{Binding IsGraylogLogsTabSelected, Converter={StaticResource BoolToVisibility}}">
+                <Grid Visibility="{Binding IsLogsFamilyTabSelected, Converter={StaticResource BoolToVisibility}}">
                     <views:LogsView x:Name="LogsViewControl" DataContext="{Binding Logs}" />
                 </Grid>
     

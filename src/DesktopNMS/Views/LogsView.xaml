@@ -11,23 +11,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,14">
-            <RadioButton Content="Event log"
-                         GroupName="LogsSection"
-                         IsChecked="{Binding IsEventLogSelected}"
-                         Style="{StaticResource ChipToggleStyle}"
-                         Margin="0,0,6,0" />
-            <RadioButton Content="Alert log"
-                         GroupName="LogsSection"
-                         IsChecked="{Binding IsAlertLogSelected}"
-                         Style="{StaticResource ChipToggleStyle}"
-                         Margin="0,0,6,0" />
-            <RadioButton Content="Graylog"
-                         GroupName="LogsSection"
-                         IsChecked="{Binding IsGraylogSelected}"
-                         Style="{StaticResource ChipToggleStyle}" />
-        </StackPanel>
-
+        <!-- Which log is chosen in the sidebar - Logs' menu, or its list when expanded. -->
         <Grid Grid.Row="1" Visibility="{Binding IsFleetLogSelected, Converter={StaticResource BoolToVisibility}}">
             <views:FleetLogsView DataContext="{Binding Fleet}" />
         </Grid>

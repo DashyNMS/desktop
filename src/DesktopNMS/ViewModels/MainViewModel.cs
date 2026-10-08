@@ -215,7 +215,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectNetworkMapTabCommand = new RelayCommand(() => SelectedTab = MainTab.MapsNetwork);
         SelectGeoMapTabCommand = new RelayCommand(() => SelectedTab = MainTab.MapsGeographical);
         SelectCustomMapsTabCommand = new RelayCommand(() => SelectedTab = MainTab.MapsCustom);
-        SelectLogsTabCommand = new RelayCommand(() => SelectedTab = MainTab.LogsGraylog);
+        SelectLogsTabCommand = new RelayCommand(SelectDefaultLog);
+        SelectEventLogTabCommand = new RelayCommand(() => SelectedTab = MainTab.LogsEvents);
+        SelectAlertLogTabCommand = new RelayCommand(() => SelectedTab = MainTab.LogsAlerts);
+        SelectGraylogTabCommand = new RelayCommand(() => SelectedTab = MainTab.LogsGraylog);
         RefreshCurrentTabCommand = new RelayCommand(RefreshCurrentTab);
         ClearCurrentTabFiltersCommand = new RelayCommand(ClearCurrentTabFilters);
         SettingsCommand = new RelayCommand(OpenSettings);
@@ -323,7 +326,24 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectCustomMapsTabCommand { get; }
 
+    /// <summary>Logs' own click: the Default log from Settings (#287), as Maps opens the Default map.</summary>
     public RelayCommand SelectLogsTabCommand { get; }
+
+    public RelayCommand SelectEventLogTabCommand { get; }
+
+    public RelayCommand SelectAlertLogTabCommand { get; }
+
+    public RelayCommand SelectGraylogTabCommand { get; }
+
+    /// <summary>Graylog is in Logs' menu once it's set up.</summary>
+    public bool ShowGraylogLog => _graylog.IsConfigured;
+
+    private void SelectDefaultLog() => SelectedTab = _settings.Current.DefaultLog switch
+    {
+        AppSettings.DefaultLogAlerts => MainTab.LogsAlerts,
+        AppSettings.DefaultLogGraylog when _graylog.IsConfigured => MainTab.LogsGraylog,
+        _ => MainTab.LogsEvents,
+    };
 
     /// <summary>F5: refreshes whichever tab is currently showing.</summary>
     public RelayCommand RefreshCurrentTabCommand { get; }
@@ -553,6 +573,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsCustomMapsTabSelected));
                 OnPropertyChanged(nameof(IsLogsFamilyTabSelected));
                 OnPropertyChanged(nameof(IsGraylogLogsTabSelected));
+                OnPropertyChanged(nameof(IsEventLogTabSelected));
+                OnPropertyChanged(nameof(IsAlertLogTabSelected));
 
                 // Loaded once, lazily, the first time a tab is actually looked at.
                 if (value == MainTab.Devices)
@@ -602,8 +624,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
                 // Unlike the others, Logs also needs telling when it's left -
                 // its auto-update only runs while it's on screen.
-                if (value == MainTab.LogsGraylog)
+                if (LogsSectionFor(value) is { } section)
                 {
+                    _logs.SelectedView = section;
                     _logs.OnShown();
                 }
                 else
@@ -614,6 +637,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    private static LogsSection? LogsSectionFor(MainTab tab) => tab switch
+    {
+        MainTab.LogsEvents => LogsSection.EventLog,
+        MainTab.LogsAlerts => LogsSection.AlertLog,
+        MainTab.LogsGraylog => LogsSection.Graylog,
+        _ => null,
+    };
+
     /// <summary>Graylog switched on or off in Settings: show or hide the Logs tab, leaving it first if it's the one showing.</summary>
     private void OnGraylogConfigurationChanged(object? sender, EventArgs e)
     {
@@ -621,10 +652,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             if (!_graylog.IsConfigured && SelectedTab == MainTab.LogsGraylog)
             {
-                SelectedTab = MainTab.Dashboard;
+                SelectedTab = MainTab.LogsEvents;
             }
 
             OnPropertyChanged(nameof(ShowLogsTab));
+            OnPropertyChanged(nameof(ShowGraylogLog));
         });
     }
 
@@ -635,7 +667,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     public void OnWindowVisibilityChanged(bool isVisible)
     {
-        if (isVisible && SelectedTab == MainTab.LogsGraylog)
+        if (isVisible && IsLogsFamilyTabSelected)
         {
             _logs.OnShown();
         }
@@ -678,10 +710,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public bool IsCustomMapsTabSelected => SelectedTab == MainTab.MapsCustom;
 
-    /// <summary>True for any Logs view (only Graylog so far) - keeps the Logs nav button highlighted, same "family" pattern as Maps.</summary>
-    public bool IsLogsFamilyTabSelected => SelectedTab is MainTab.LogsGraylog;
+    /// <summary>True for any Logs view - keeps the Logs nav button highlighted, same "family" pattern as Maps.</summary>
+    public bool IsLogsFamilyTabSelected => SelectedTab is MainTab.LogsGraylog or MainTab.LogsEvents or MainTab.LogsAlerts;
 
     public bool IsGraylogLogsTabSelected => SelectedTab == MainTab.LogsGraylog;
+
+    public bool IsEventLogTabSelected => SelectedTab == MainTab.LogsEvents;
+
+    public bool IsAlertLogTabSelected => SelectedTab == MainTab.LogsAlerts;
 
     // -------------------------------------------------------------- filtering
 
@@ -1163,7 +1199,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             _customMaps.OnShown();
         }
-        else if (SelectedTab == MainTab.LogsGraylog)
+        else if (IsLogsFamilyTabSelected)
         {
             _logs.OnShown();
         }
@@ -1984,6 +2020,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 break;
 
             case MainTab.LogsGraylog:
+            case MainTab.LogsEvents:
+            case MainTab.LogsAlerts:
                 if (_logs.RefreshCommand.CanExecute(null))
                 {
                     _logs.RefreshCommand.Execute(null);
@@ -2041,6 +2079,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 break;
 
             case MainTab.LogsGraylog:
+            case MainTab.LogsEvents:
+            case MainTab.LogsAlerts:
                 _logs.ClearFiltersCommand.Execute(null);
                 break;
 
