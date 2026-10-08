@@ -17,6 +17,7 @@ public static class BugReportLink
             "**What happened?**\n\n\n" +
             "**What did you expect to happen?**\n\n\n" +
             "**Steps to reproduce**\n1. \n\n" +
+            "**Logs**\nDashyNMS keeps a log: Settings › About › Open log folder. Attaching the latest one helps - check it for anything private (server addresses, device names) first.\n\n" +
             "---\n" +
             $"DashyNMS: {Clean(appVersion)}\n" +
             $"Windows: {Clean(windowsVersion)}\n" +

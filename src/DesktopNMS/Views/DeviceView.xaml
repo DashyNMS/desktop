@@ -1713,6 +1713,15 @@
                          Width="320"
                          HorizontalAlignment="Left"
                          Margin="0,0,0,10" />
+                <!-- #272: group the ports; remembered for every device. -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="336,0,0,0">
+                    <TextBlock Text="Group by" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox ItemsSource="{Binding PortGroupingOptions}"
+                              SelectedItem="{Binding SelectedPortGrouping}"
+                              DisplayMemberPath="Label"
+                              MinWidth="110"
+                              VerticalAlignment="Center" />
+                </StackPanel>
                 <views:CsvExportButton Grid.Row="0" Export="{Binding PortsCsv}" HorizontalAlignment="Right" VerticalAlignment="Top" />
 
                 <Grid Grid.Row="1">
@@ -1722,7 +1731,57 @@
                           SelectionMode="Single"
                           Visibility="{Binding HasVisiblePorts, Converter={StaticResource BoolToVisibility}}"
                           IsReadOnly="True"
+                          VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                           HeadersVisibility="Column">
+                    <!-- A group's header folds its ports away (#272). -->
+                    <DataGrid.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.ContainerStyle>
+                                <Style TargetType="GroupItem">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="GroupItem">
+                                                <StackPanel>
+                                                    <ToggleButton x:Name="Fold"
+                                                                  IsChecked="True"
+                                                                  Cursor="Hand"
+                                                                  Focusable="False"
+                                                                  Padding="8,8,8,6">
+                                                        <ToggleButton.Template>
+                                                            <ControlTemplate TargetType="ToggleButton">
+                                                                <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock x:Name="Chevron"
+                                                                                   Text="&#xE70D;"
+                                                                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                                   FontSize="10"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Margin="0,0,8,0"
+                                                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                                                        <ContentPresenter VerticalAlignment="Center" />
+                                                                    </StackPanel>
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsChecked" Value="False">
+                                                                        <Setter TargetName="Chevron" Property="Text" Value="&#xE76C;" />
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </ToggleButton.Template>
+                                                        <TextBlock>
+                                                            <Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                                                            <Run Text="{Binding ItemCount, Mode=OneWay, StringFormat={} · {0}}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        </TextBlock>
+                                                    </ToggleButton>
+                                                    <ItemsPresenter Visibility="{Binding IsChecked, ElementName=Fold, Converter={StaticResource BoolToVisibility}}" />
+                                                </StackPanel>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </GroupStyle.ContainerStyle>
+                        </GroupStyle>
+                    </DataGrid.GroupStyle>
                     <DataGrid.Columns>
 
                         <DataGridTemplateColumn Header="Status" Width="90" SortMemberPath="IsUp">

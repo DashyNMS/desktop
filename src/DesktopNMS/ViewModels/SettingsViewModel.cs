@@ -208,6 +208,8 @@ public sealed partial class SettingsViewModel : ObservableObject
                 System.Runtime.InteropServices.RuntimeInformation.OSDescription,
                 _serverInfo?.LocalVersion)));
 
+        OpenLogFolderCommand = new RelayCommand(OpenLogFolder);
+
         TestUnimusConnectionCommand = new AsyncRelayCommand(TestUnimusConnectionAsync, () => !IsTestingUnimusConnection && !string.IsNullOrWhiteSpace(UnimusUrl));
         ClearUnimusTokenCommand = new RelayCommand(ClearUnimusToken, () => HasStoredUnimusToken || !string.IsNullOrEmpty(UnimusTokenInput));
         TestGraylogConnectionCommand = new AsyncRelayCommand(TestGraylogConnectionAsync, () => !IsTestingGraylogConnection && !string.IsNullOrWhiteSpace(GraylogServer));
@@ -1302,6 +1304,23 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Opens a new GitHub issue with the app, Windows and LibreNMS versions filled in (#149) - see <see cref="BugReportLink"/>.</summary>
     public RelayCommand ReportBugCommand { get; }
+
+    /// <summary>Opens the log folder in File Explorer (#273).</summary>
+    public RelayCommand OpenLogFolderCommand { get; }
+
+    private void OpenLogFolder()
+    {
+        try
+        {
+            var folder = AppPaths.LogDirectory;
+            System.IO.Directory.CreateDirectory(folder);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _windows.ShowError("Open log folder", "Couldn't open the log folder: " + ex.Message);
+        }
+    }
 
     public string CurrentVersionText => $"Version {_updates.CurrentVersion}";
 

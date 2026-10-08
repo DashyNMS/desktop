@@ -231,6 +231,9 @@ public sealed class AppSettings
     /// <summary>The port graphs panel (Device Details' Ports, the Neighbours tab) is folded down, leaving the table the full height.</summary>
     public bool PortGraphsCollapsed { get; set; }
 
+    /// <summary>Device Details' Ports table groups by this (#272): None, Status, Vlan, Type or Speed - text, so an unknown value reads as None. The same for every device.</summary>
+    public string PortGroupBy { get; set; } = "None";
+
     /// <summary>Map nodes wobble like jelly when dragged, and their links bow and settle (#207). Purely visual - the saved layout is always where a node is dropped. On by default (#222), and does nothing while Windows animations are off.</summary>
     public bool JigglePhysicsOnMaps { get; set; } = true;
 
@@ -324,6 +327,7 @@ public sealed class AppSettings
         CollapsedDeviceNavGroups = CollapsedDeviceNavGroups.ToList(),
         NeighbourViews = NeighbourViews.Select(v => v.Clone()).ToList(),
         PortGraphsCollapsed = PortGraphsCollapsed,
+        PortGroupBy = PortGroupBy,
         JigglePhysicsOnMaps = JigglePhysicsOnMaps,
         AccentColor = AccentColor,
         Theme = Theme,

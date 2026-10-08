@@ -310,6 +310,10 @@
                                       Command="{Binding UnpinSelectedCommand}"
                                       Visibility="{Binding ShowUnpinSelectedAction, Converter={StaticResource BoolToVisibility}}" />
                             <MenuItem Header="{Binding RediscoverSelectedLabel}" Command="{Binding RediscoverSelectedCommand}" />
+                            <!-- #271: one maintenance window for every selected device. -->
+                            <MenuItem Header="{Binding MaintenanceSelectedLabel}"
+                                      Command="{Binding MaintenanceSelectedCommand}"
+                                      views:PermissionGate.Requires="EditDevices" />
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                 </DataGrid>

@@ -295,6 +295,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
         PortsView = CollectionViewSource.GetDefaultView(Ports);
         PortsView.Filter = FilterPortEntry;
+        ApplyPortGrouping();
 
         VlansView = CollectionViewSource.GetDefaultView(VlanEntries);
         VlansView.Filter = FilterVlanEntry;
@@ -629,6 +630,81 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>Saves whichever Edit fields actually changed - see <see cref="SaveEditAsync"/>.</summary>
     public AsyncRelayCommand SaveEditCommand { get; }
+
+    public IReadOnlyList<PortGroupingOption> PortGroupingOptions { get; } = new[]
+    {
+        new PortGroupingOption(PortGrouping.None, "None"),
+        new PortGroupingOption(PortGrouping.Status, "Status"),
+        new PortGroupingOption(PortGrouping.Vlan, "VLAN"),
+        new PortGroupingOption(PortGrouping.Type, "Type"),
+        new PortGroupingOption(PortGrouping.Speed, "Speed"),
+    };
+
+    private PortGrouping CurrentPortGrouping =>
+        Enum.TryParse<PortGrouping>(_settings.Current.PortGroupBy, ignoreCase: true, out var grouping) && Enum.IsDefined(grouping)
+            ? grouping
+            : PortGrouping.None;
+
+    /// <summary>The Ports table's Group by (#272) - remembered, the same for every device.</summary>
+    public PortGroupingOption SelectedPortGrouping
+    {
+        get => PortGroupingOptions.First(o => o.Value == CurrentPortGrouping);
+        set
+        {
+            if (value is null || value.Value == CurrentPortGrouping)
+            {
+                return;
+            }
+
+            _settings.Current.PortGroupBy = value.Value.ToString();
+            _settings.SaveQuietly();
+            ApplyPortGrouping();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Groups <see cref="PortsView"/> by the chosen key; search and column sorting still work inside each group.</summary>
+    private void ApplyPortGrouping()
+    {
+        var grouping = CurrentPortGrouping;
+        PortsView.GroupDescriptions.Clear();
+        if (grouping == PortGrouping.None)
+        {
+            return;
+        }
+
+        var property = grouping switch
+        {
+            PortGrouping.Status => nameof(PortItemViewModel.StatusGroup),
+            PortGrouping.Vlan => nameof(PortItemViewModel.VlanGroup),
+            PortGrouping.Type => nameof(PortItemViewModel.TypeGroup),
+            _ => nameof(PortItemViewModel.SpeedGroup),
+        };
+
+        PortsView.GroupDescriptions.Add(new PropertyGroupDescription(property) { CustomSort = new PortGroupOrder(grouping) });
+    }
+
+    /// <summary>Up before Down, VLANs and speeds by number, types by name - whatever the rows are sorted by.</summary>
+    private sealed class PortGroupOrder : System.Collections.IComparer
+    {
+        private readonly PortGrouping _grouping;
+
+        public PortGroupOrder(PortGrouping grouping) => _grouping = grouping;
+
+        public int Compare(object? x, object? y)
+        {
+            if (x is not CollectionViewGroup a || y is not CollectionViewGroup b)
+            {
+                return 0;
+            }
+
+            var byKey = Key(a).CompareTo(Key(b));
+            return byKey != 0 ? byKey : string.Compare(a.Name?.ToString(), b.Name?.ToString(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private long Key(CollectionViewGroup group) =>
+            group.Items.Count > 0 && group.Items[0] is PortItemViewModel port ? port.GroupSortKey(_grouping) : 0;
+    }
 
     /// <summary>Free-text filter over a port's name, description and alias.</summary>
     public string PortSearchText
@@ -4629,6 +4705,22 @@ public sealed class EventLogItemViewModel
 }
 
 /// <summary>One row in a device's Ports tab - one network interface.</summary>
+/// <summary>How the Ports table groups its rows (#272).</summary>
+public enum PortGrouping
+{
+    None,
+    Status,
+    Vlan,
+    Type,
+    Speed,
+}
+
+/// <summary>A choice in the Ports table's Group by.</summary>
+public sealed record PortGroupingOption(PortGrouping Value, string Label)
+{
+    public override string ToString() => Label;
+}
+
 public sealed class PortItemViewModel
 {
     private readonly Port _port;
@@ -4694,6 +4786,25 @@ public sealed class PortItemViewModel
     public string StatusText => HasKnownStatus ? Capitalise(_port.IfOperStatus!) : "Unknown";
 
     public string SpeedText => FormatBitsPerSecond(_port.IfSpeed);
+
+    // Group headers for the Ports table's Group by (#272).
+
+    public string StatusGroup => !HasKnownStatus ? "Unknown status" : IsUp ? "Up" : "Down";
+
+    public string VlanGroup => _port.IfVlan is > 0 and var vlan ? $"VLAN {vlan}" : "No VLAN";
+
+    public string TypeGroup => string.IsNullOrWhiteSpace(MediaText) ? "Unknown type" : MediaText;
+
+    public string SpeedGroup => _port.IfSpeed is > 0 ? SpeedText : "Unknown speed";
+
+    /// <summary>Orders groups sensibly: Up before Down, VLANs and speeds by number.</summary>
+    public long GroupSortKey(PortGrouping grouping) => grouping switch
+    {
+        PortGrouping.Status => !HasKnownStatus ? 2 : IsUp ? 0 : 1,
+        PortGrouping.Vlan => _port.IfVlan is > 0 and var vlan ? vlan : long.MaxValue,
+        PortGrouping.Speed => _port.IfSpeed is > 0 and var speed ? -speed : long.MaxValue,
+        _ => 0,
+    };
 
     /// <summary>In and out together, in octets a second - ranks the Overview's busiest ports.</summary>
     public double TotalRate => (_port.IfInOctetsRate ?? 0) + (_port.IfOutOctetsRate ?? 0);

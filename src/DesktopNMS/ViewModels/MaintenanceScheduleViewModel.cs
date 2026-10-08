@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Models;
@@ -17,6 +19,9 @@ public sealed class MaintenanceBehaviorOption
 
     public override string ToString() => Value.ToDisplayString();
 }
+
+/// <summary>A device the maintenance dialog schedules.</summary>
+public sealed record MaintenanceTarget(int DeviceId, string Name);
 
 /// <summary>
 /// Backs the "Schedule maintenance" dialog (issue #38) - create-only, since
@@ -38,8 +43,7 @@ public sealed class MaintenanceScheduleViewModel : ObservableObject
     private readonly ILibreNmsClient _client;
     private readonly ILogger<MaintenanceScheduleViewModel> _logger;
 
-    private int _deviceId;
-    private string _deviceName = string.Empty;
+    private IReadOnlyList<MaintenanceTarget> _devices = Array.Empty<MaintenanceTarget>();
     private string? _title;
     private string? _notes;
     private bool _startNow = true;
@@ -60,18 +64,21 @@ public sealed class MaintenanceScheduleViewModel : ObservableObject
     }
 
     /// <summary>Called by <see cref="Services.WindowService.ShowScheduleMaintenanceDialog"/> before the dialog is shown.</summary>
-    public void Initialize(int deviceId, string deviceName)
-    {
-        _deviceId = deviceId;
-        _deviceName = deviceName;
-    }
+    public void Initialize(int deviceId, string deviceName) => Initialize(new[] { new MaintenanceTarget(deviceId, deviceName) });
 
-    public string Title => $"Schedule maintenance - {_deviceName}";
+    /// <summary>Several devices at once (#271): each is scheduled with the same window.</summary>
+    public void Initialize(IReadOnlyList<MaintenanceTarget> devices) => _devices = devices;
+
+    public bool IsSeveral => _devices.Count > 1;
+
+    public string Title => IsSeveral
+        ? $"Schedule maintenance - {_devices.Count} devices"
+        : $"Schedule maintenance - {_devices.FirstOrDefault()?.Name}";
 
     public event EventHandler<bool>? RequestClose;
 
-    /// <summary>Placeholder text for the name field - blank sends nothing, and LibreNMS falls back to the device's own display name.</summary>
-    public string TitlePlaceholder => _deviceName;
+    /// <summary>Placeholder text for the name field - blank sends nothing, and LibreNMS falls back to each device's own display name.</summary>
+    public string TitlePlaceholder => IsSeveral ? "Each device's own name" : _devices.FirstOrDefault()?.Name ?? string.Empty;
 
     public string? MaintenanceTitle
     {
@@ -223,13 +230,54 @@ public sealed class MaintenanceScheduleViewModel : ObservableObject
                 Behavior = (int)SelectedBehavior.Value,
             };
 
-            var message = await _client.Devices.ScheduleMaintenanceAsync(_deviceId, request).ConfigureAwait(true);
-            ConfirmationMessage = message;
+            if (!IsSeveral)
+            {
+                var device = _devices[0];
+                ConfirmationMessage = await _client.Devices.ScheduleMaintenanceAsync(device.DeviceId, request).ConfigureAwait(true);
+                RequestClose?.Invoke(this, true);
+                return;
+            }
+
+            // Several (#271): the same call for each, four at a time; one
+            // failing doesn't stop the rest, and the failures are listed.
+            var failures = new List<string>();
+            using var gate = new SemaphoreSlim(4);
+            await Task.WhenAll(_devices.Select(async device =>
+            {
+                await gate.WaitAsync().ConfigureAwait(true);
+                try
+                {
+                    await _client.Devices.ScheduleMaintenanceAsync(device.DeviceId, request).ConfigureAwait(true);
+                }
+                catch (LibreNmsApiException ex)
+                {
+                    _logger.LogWarning(ex, "Could not schedule maintenance for device {DeviceId}", device.DeviceId);
+                    lock (failures)
+                    {
+                        failures.Add($"{device.Name}: {ex.ToUserMessage()}");
+                    }
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            })).ConfigureAwait(true);
+
+            var scheduled = _devices.Count - failures.Count;
+            if (scheduled == 0)
+            {
+                ErrorMessage = "Maintenance couldn't be scheduled for any of them:\n" + string.Join("\n", failures);
+                return;
+            }
+
+            ConfirmationMessage = failures.Count == 0
+                ? $"Maintenance scheduled for all {_devices.Count} devices."
+                : $"Maintenance scheduled for {scheduled} of {_devices.Count} devices. Not scheduled:\n" + string.Join("\n", failures);
             RequestClose?.Invoke(this, true);
         }
         catch (LibreNmsApiException ex)
         {
-            _logger.LogWarning(ex, "Could not schedule maintenance for device {DeviceId}", _deviceId);
+            _logger.LogWarning(ex, "Could not schedule maintenance for device {DeviceId}", _devices.FirstOrDefault()?.DeviceId);
             ErrorMessage = ex.ToUserMessage();
         }
         finally

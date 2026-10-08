@@ -221,6 +221,17 @@ public sealed class WindowService : IWindowService
         return true;
     }
 
+    public void ShowDeviceAlerts(int deviceId)
+    {
+        ShowDeviceDetail(deviceId);
+
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window)
+            && window.DataContext is DeviceDetailViewModel viewModel)
+        {
+            viewModel.SelectAlertsCommand.Execute(null);
+        }
+    }
+
     public void ShowDeviceEventLog(int deviceId)
     {
         ShowDeviceDetail(deviceId);
@@ -736,9 +747,12 @@ public sealed class WindowService : IWindowService
     }
 
     public string? ShowScheduleMaintenanceDialog(int deviceId, string deviceName)
+        => ShowScheduleMaintenanceDialog(new[] { new MaintenanceTarget(deviceId, deviceName) });
+
+    public string? ShowScheduleMaintenanceDialog(IReadOnlyList<MaintenanceTarget> devices)
     {
         var viewModel = _services.GetRequiredService<MaintenanceScheduleViewModel>();
-        viewModel.Initialize(deviceId, deviceName);
+        viewModel.Initialize(devices);
 
         var window = new MaintenanceScheduleWindow(viewModel);
         RememberPlacement(window);
