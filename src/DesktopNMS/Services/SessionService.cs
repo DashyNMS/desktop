@@ -72,6 +72,16 @@ public sealed class SessionService : ISessionService
         _settings = settings;
         _tokens = tokens;
         _logger = logger;
+
+        // Settings' Request timeout applies straight away, not just after the
+        // next sign-in - the connection used to keep the one it started with.
+        _settings.Changed += (_, current) =>
+        {
+            if (_client.IsConnected)
+            {
+                _client.SetTimeout(current.TimeoutSeconds);
+            }
+        };
     }
 
     public bool IsConnected => _client.IsConnected;

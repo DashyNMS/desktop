@@ -60,6 +60,23 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
     }
 
     /// <summary>
+    /// Applies a new request timeout to the connection in use, straight away -
+    /// an HttpClient's timeout is fixed once it's sent anything, so the client
+    /// is rebuilt, keeping the address it's on and everything else.
+    /// </summary>
+    public void SetTimeout(int timeoutSeconds)
+    {
+        var connection = Connection;
+        if (connection is null || connection.WithTimeout(timeoutSeconds) is var updated && updated.TimeoutSeconds == connection.TimeoutSeconds)
+        {
+            return;
+        }
+
+        Install(updated);
+        _logger.LogInformation("Request timeout now {Seconds}s", updated.TimeoutSeconds);
+    }
+
+    /// <summary>
     /// Whether a struggling or unreachable server gets the usual few retries
     /// with growing waits (see <see cref="TransientRetryPolicy"/>). Off for a
     /// connection test, which should answer quickly - one try at the server

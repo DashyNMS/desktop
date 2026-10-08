@@ -90,6 +90,8 @@ public sealed class LibreNmsClient : ILibreNmsClient, IDisposable
 
     public void TrustCertificate(string fingerprint) => _transport.TrustCertificate(fingerprint);
 
+    public void SetTimeout(int timeoutSeconds) => _transport.SetTimeout(timeoutSeconds);
+
     public async Task<ConnectionTestResult> TestAsync(LibreNmsConnection connection, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(connection);
