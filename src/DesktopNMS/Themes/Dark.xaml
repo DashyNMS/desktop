@@ -1373,7 +1373,40 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="22" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
+
+                            <!-- A submenu's items open beside it (#268's Notifications,
+                                 the dashboard's Size) - the template had no popup, so
+                                 a submenu header silently did nothing. -->
+                            <TextBlock x:Name="SubmenuArrow"
+                                       Grid.Column="2"
+                                       Text="&#xE76C;"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="10"
+                                       Margin="14,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Visibility="Collapsed" />
+                            <Popup x:Name="PART_Popup"
+                                   Grid.Column="2"
+                                   Placement="Right"
+                                   HorizontalOffset="6"
+                                   VerticalOffset="-5"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="None"
+                                   IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}">
+                                <Border Background="{StaticResource SurfaceAltBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="4"
+                                        SnapsToDevicePixels="True">
+                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
+                                                    KeyboardNavigation.TabNavigation="Cycle"
+                                                    Grid.IsSharedSizeScope="True" />
+                                </Border>
+                            </Popup>
 
                             <TextBlock x:Name="CheckGlyph"
                                        Grid.Column="0"
@@ -1398,6 +1431,9 @@
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="Role" Value="SubmenuHeader">
+                            <Setter TargetName="SubmenuArrow" Property="Visibility" Value="Visible" />
+                        </Trigger>
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
                         </Trigger>
