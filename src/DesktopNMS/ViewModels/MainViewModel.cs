@@ -521,7 +521,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public LogsViewModel Logs => _logs;
 
     /// <summary>The Logs tab only shows while Graylog - its only source so far - is set up.</summary>
-    public bool ShowLogsTab => _graylog.IsConfigured;
+    /// <summary>Always: the event and alert logs are there without Graylog (#287); Graylog joins them once it's set up.</summary>
+    public bool ShowLogsTab => true;
 
     /// <summary>DashyNMS's own icon, in the title bar.</summary>
     public BitmapImage AppLogo => AppIconLogo.Value;

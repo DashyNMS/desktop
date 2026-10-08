@@ -33,6 +33,10 @@ public sealed class LogsViewModel : ObservableObject
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         Graylog = GraylogMessagesViewModel.ForFleet(graylog, client, deviceCache, settings, windows, logger);
+        Fleet = new FleetLogsViewModel(client, deviceCache, settings, windows, logger);
+        ShowEventLogCommand = new RelayCommand(() => SelectedView = LogsSection.EventLog);
+        ShowAlertLogCommand = new RelayCommand(() => SelectedView = LogsSection.AlertLog);
+        ShowGraylogCommand = new RelayCommand(() => SelectedView = LogsSection.Graylog);
 
         // The device filter follows the shared device poll rather than
         // fetching its own list.
@@ -41,9 +45,69 @@ public sealed class LogsViewModel : ObservableObject
 
     public GraylogMessagesViewModel Graylog { get; }
 
-    public RelayCommand ClearFiltersCommand => Graylog.ClearFiltersCommand;
+    /// <summary>LibreNMS's event log and alert log for every device (#287).</summary>
+    public FleetLogsViewModel Fleet { get; }
 
-    public AsyncRelayCommand RefreshCommand => Graylog.RefreshCommand;
+    private LogsSection _selectedView = LogsSection.EventLog;
+
+    /// <summary>Event log, Alert log or Graylog - the switch across the top.</summary>
+    public LogsSection SelectedView
+    {
+        get => _selectedView;
+        set
+        {
+            if (!SetProperty(ref _selectedView, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(IsEventLogSelected));
+            OnPropertyChanged(nameof(IsAlertLogSelected));
+            OnPropertyChanged(nameof(IsGraylogSelected));
+            OnPropertyChanged(nameof(IsFleetLogSelected));
+
+            if (value == LogsSection.Graylog)
+            {
+                Graylog.Activate();
+            }
+            else
+            {
+                Graylog.Deactivate();
+                Fleet.ShowingEventLog = value == LogsSection.EventLog;
+                Fleet.Activate();
+            }
+        }
+    }
+
+    public bool IsEventLogSelected
+    {
+        get => _selectedView == LogsSection.EventLog;
+        set { if (value) SelectedView = LogsSection.EventLog; }
+    }
+
+    public bool IsAlertLogSelected
+    {
+        get => _selectedView == LogsSection.AlertLog;
+        set { if (value) SelectedView = LogsSection.AlertLog; }
+    }
+
+    public bool IsGraylogSelected
+    {
+        get => _selectedView == LogsSection.Graylog;
+        set { if (value) SelectedView = LogsSection.Graylog; }
+    }
+
+    public bool IsFleetLogSelected => _selectedView != LogsSection.Graylog;
+
+    public RelayCommand ShowEventLogCommand { get; }
+
+    public RelayCommand ShowAlertLogCommand { get; }
+
+    public RelayCommand ShowGraylogCommand { get; }
+
+    public RelayCommand ClearFiltersCommand => IsGraylogSelected ? Graylog.ClearFiltersCommand : Fleet.ClearFiltersCommand;
+
+    public AsyncRelayCommand RefreshCommand => IsGraylogSelected ? Graylog.RefreshCommand : Fleet.RefreshCommand;
 
     /// <summary>The tab has been shown (or the window brought back while it's showing).</summary>
     public void OnShown()
@@ -57,7 +121,14 @@ public sealed class LogsViewModel : ObservableObject
             _deviceMonitor.RequestRefresh();
         }
 
-        Graylog.Activate();
+        if (IsGraylogSelected)
+        {
+            Graylog.Activate();
+        }
+        else
+        {
+            Fleet.Activate();
+        }
     }
 
     /// <summary>The tab has been left, or the window hidden - auto-update stops until it's shown again.</summary>
@@ -70,6 +141,18 @@ public sealed class LogsViewModel : ObservableObject
             return;
         }
 
-        _dispatcher.InvokeAsync(() => Graylog.UpdateDevices(result.Devices));
+        _dispatcher.InvokeAsync(() =>
+        {
+            Graylog.UpdateDevices(result.Devices);
+            Fleet.SetDevices(result.Devices);
+        });
     }
+}
+
+/// <summary>The Logs tab's views (#287).</summary>
+public enum LogsSection
+{
+    EventLog,
+    AlertLog,
+    Graylog,
 }
