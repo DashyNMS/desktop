@@ -6,7 +6,7 @@
         xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:WidgetPickerViewModel}"
-        Title="Add widget"
+        Title="Add widgets"
         Width="720"
         Height="520"
         MinWidth="560"
@@ -73,11 +73,14 @@
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}" />
                             </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsChosen}" Value="True">
+                                <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                 <Setter TargetName="Card" Property="BorderThickness" Value="2" />
                                 <Setter TargetName="Card" Property="Padding" Value="9" />
-                            </Trigger>
+                            </DataTrigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Card" Property="Opacity" Value="0.55" />
                             </Trigger>
@@ -139,13 +142,48 @@
                         </StackPanel>
                     </Grid>
                 </Border>
-                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                <DockPanel>
+                    <!-- Ticked to add with the others (#277). -->
+                    <Border x:Name="Tick"
+                            DockPanel.Dock="Right"
+                            Width="18"
+                            Height="18"
+                            CornerRadius="4"
+                            BorderThickness="1.5"
+                            BorderBrush="{StaticResource TextSecondaryBrush}"
+                            VerticalAlignment="Center">
+                        <TextBlock x:Name="TickGlyph"
+                                   Text="&#xE73E;"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="10"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Visibility="Collapsed" />
+                    </Border>
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </DockPanel>
                 <TextBlock x:Name="Subtitle"
                            Text="{Binding Subtitle}"
                            TextWrapping="Wrap"
                            FontSize="11.5"
                            Margin="0,2,0,0"
                            Style="{StaticResource SubtleTextStyle}" />
+                <!-- What's there already, and why it's suggested (#277). -->
+                <WrapPanel Margin="0,6,0,0">
+                    <Border CornerRadius="8" Padding="7,1" Margin="0,0,4,4" Background="{StaticResource SurfaceAltBrush}"
+                            Visibility="{Binding HasOnDashboardText, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding OnDashboardText}" FontSize="11" Style="{StaticResource SubtleTextStyle}" />
+                    </Border>
+                    <Border CornerRadius="8" Padding="7,1" Margin="0,0,4,4" Background="{DynamicResource AccentSubtleBrush}"
+                            Visibility="{Binding IsSuggested, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding SuggestedBecause}" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
+                    </Border>
+                    <Border CornerRadius="8" Padding="7,1" Margin="0,0,4,4" Background="{StaticResource SurfaceAltBrush}"
+                            Visibility="{Binding AllowsSeveral, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Add as many as you like" FontSize="11" Style="{StaticResource SubtleTextStyle}" />
+                    </Border>
+                </WrapPanel>
             </StackPanel>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding Preview}" Value="List">
@@ -171,6 +209,12 @@
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsAvailable}" Value="False">
                     <Setter TargetName="Subtitle" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                    <Setter TargetName="Tick" Property="Visibility" Value="Hidden" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsChosen}" Value="True">
+                    <Setter TargetName="Tick" Property="Background" Value="{DynamicResource AccentBrush}" />
+                    <Setter TargetName="Tick" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                    <Setter TargetName="TickGlyph" Property="Visibility" Value="Visible" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
@@ -217,6 +261,7 @@
                          ItemContainerStyle="{StaticResource WidgetCardStyle}"
                          ItemTemplate="{StaticResource WidgetCardTemplate}"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         PreviewMouseLeftButtonUp="OnWidgetClick"
                          MouseDoubleClick="OnWidgetDoubleClick"
                          KeyDown="OnWidgetKeyDown">
                     <ListBox.ItemsPanel>
@@ -239,13 +284,15 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="16,12">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Cancel" IsCancel="True" Margin="0,0,8,0" />
-                <Button Content="Add widget"
-                        Command="{Binding AddCommand}"
-                        Style="{StaticResource PrimaryButtonStyle}"
-                        IsDefault="True" />
-            </StackPanel>
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="Cancel" IsCancel="True" Margin="0,0,8,0" />
+                    <Button Content="{Binding AddText}"
+                            Command="{Binding AddCommand}"
+                            Style="{StaticResource PrimaryButtonStyle}" />
+                </StackPanel>
+                <TextBlock Text="{Binding ChosenText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+            </DockPanel>
         </Border>
     </Grid>
 </Window>

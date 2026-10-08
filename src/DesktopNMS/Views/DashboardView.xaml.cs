@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.ViewModels;
@@ -177,13 +179,15 @@ public partial class DashboardView : UserControl
         _draggingWidget.Column = targetColumn;
         _draggingWidget.Row = targetRow;
 
-        ReflowFrom(_draggingWidget);
+        ViewModel?.Reflow(_draggingWidget);
+        ShowGuides(_draggingWidget);
         UpdateCanvasExtent();
     }
 
     private void OnHeaderDragCompleted(object sender, DragCompletedEventArgs e)
     {
         _draggingWidget = null;
+        GuideLayer.Children.Clear();
 
         if (DataContext is DashboardViewModel viewModel)
         {
@@ -224,13 +228,15 @@ public partial class DashboardView : UserControl
         _resizingWidget.ColumnSpan = targetColumnSpan;
         _resizingWidget.RowSpan = targetRowSpan;
 
-        ReflowFrom(_resizingWidget);
+        ViewModel?.Reflow(_resizingWidget);
+        ShowGuides(_resizingWidget);
         UpdateCanvasExtent();
     }
 
     private void OnResizeDragCompleted(object sender, DragCompletedEventArgs e)
     {
         _resizingWidget = null;
+        GuideLayer.Children.Clear();
 
         if (DataContext is DashboardViewModel viewModel)
         {
@@ -241,61 +247,171 @@ public partial class DashboardView : UserControl
     /// <summary>A generous ceiling on column/row/span, just to stop a wild mouse movement from growing the canvas without bound.</summary>
     private const int MaxGridExtent = 500;
 
-    /// <summary>Safety cap on the reflow cascade below - see its remarks.</summary>
-    private const int MaxReflowIterations = 2000;
+    private DashboardViewModel? ViewModel => DataContext as DashboardViewModel;
 
     /// <summary>
-    /// Pushes anything <paramref name="anchor"/> now overlaps straight down to
-    /// clear it, then re-checks whatever was just pushed against everyone else
-    /// (its new position may overlap something new), cascading outward.
-    /// Terminates because a widget is only ever pushed to a strictly larger
-    /// row than it already had, so the total displacement is bounded; the
-    /// iteration cap is a backstop, not something normal use should ever hit.
+    /// Alignment guides (#278): dashed lines where the widget being dragged
+    /// or resized lines up with another's edges - see DashboardGrid.AlignedEdges.
     /// </summary>
-    private void ReflowFrom(DashboardWidgetViewModel anchor)
+    private void ShowGuides(DashboardWidgetViewModel moving)
     {
-        if (DataContext is not DashboardViewModel viewModel)
+        GuideLayer.Children.Clear();
+        if (ViewModel is not { } viewModel || FindWidgetsCanvas() is not { } canvas)
         {
             return;
         }
 
-        var all = viewModel.Widgets;
-        var queue = new Queue<DashboardWidgetViewModel>();
-        queue.Enqueue(anchor);
+        static GridItem Item(DashboardWidgetViewModel w) => new(w.Id, w.Column, w.Row, w.ColumnSpan, w.RowSpan);
+        var (columns, rows) = DashboardGrid.AlignedEdges(Item(moving), viewModel.Widgets.Select(Item));
+        var accent = (Brush)FindResource("AccentBrush");
 
-        var iterations = 0;
-
-        while (queue.Count > 0 && iterations++ < MaxReflowIterations)
+        Line Guide(double x1, double y1, double x2, double y2) => new()
         {
-            var current = queue.Dequeue();
+            X1 = x1, Y1 = y1, X2 = x2, Y2 = y2,
+            Stroke = accent,
+            StrokeThickness = 1,
+            StrokeDashArray = new DoubleCollection { 4, 3 },
+            SnapsToDevicePixels = true,
+        };
 
-            foreach (var other in all)
-            {
-                if (ReferenceEquals(other, current) || ReferenceEquals(other, anchor))
-                {
-                    continue;
-                }
+        foreach (var column in columns)
+        {
+            var x = column * DashboardWidget.CellSize;
+            GuideLayer.Children.Add(Guide(x, 0, x, canvas.ActualHeight));
+        }
 
-                if (!Overlaps(current, other))
-                {
-                    continue;
-                }
-
-                var newRow = current.Row + current.RowSpan;
-                if (other.Row < newRow)
-                {
-                    other.Row = newRow;
-                    queue.Enqueue(other);
-                }
-            }
+        foreach (var row in rows)
+        {
+            var y = row * DashboardWidget.CellSize;
+            GuideLayer.Children.Add(Guide(0, y, canvas.ActualWidth, y));
         }
     }
 
-    private static bool Overlaps(DashboardWidgetViewModel a, DashboardWidgetViewModel b)
-        => a.Column < b.Column + b.ColumnSpan
-        && a.Column + a.ColumnSpan > b.Column
-        && a.Row < b.Row + b.RowSpan
-        && a.Row + a.RowSpan > b.Row;
+    /// <summary>In edit mode, clicking a widget selects it - the keys act on it (#278).</summary>
+    private void OnWidgetMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (ViewModel is { IsEditMode: true } viewModel && ((FrameworkElement)sender).DataContext is DashboardWidgetViewModel widget)
+        {
+            viewModel.SelectedWidget = widget;
+            Focus();
+        }
+    }
+
+    /// <summary>The ⋯ opens its menu on a plain click, as a menu button does (#274).</summary>
+    private void OnMoreClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu } button)
+        {
+            menu.DataContext = button.DataContext;
+            menu.PlacementTarget = button;
+            menu.Placement = PlacementMode.Bottom;
+            menu.IsOpen = true;
+        }
+    }
+
+    private void OnRenameBoxVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is TextBox { IsVisible: true } box)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                box.Focus();
+                box.SelectAll();
+            }, System.Windows.Threading.DispatcherPriority.Input);
+        }
+    }
+
+    /// <summary>Enter keeps the new title, Esc the old one; either way renaming ends.</summary>
+    private void OnRenameBoxKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox { DataContext: DashboardWidgetViewModel widget } box || e.Key is not (Key.Enter or Key.Escape))
+        {
+            return;
+        }
+
+        var binding = box.GetBindingExpression(TextBox.TextProperty);
+        if (e.Key == Key.Enter)
+        {
+            binding?.UpdateSource();
+        }
+        else
+        {
+            binding?.UpdateTarget();
+        }
+
+        widget.IsRenaming = false;
+        e.Handled = true;
+    }
+
+    private void OnRenameBoxLostFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is TextBox { DataContext: DashboardWidgetViewModel widget })
+        {
+            widget.IsRenaming = false;
+        }
+    }
+
+    /// <summary>
+    /// The keys in edit mode (#278): arrows move the selected widget a cell,
+    /// Shift + arrows resize it, Del removes it, F2 renames it, Ctrl+D
+    /// duplicates it, Ctrl+Z undoes and Esc lets go of it. Typing in a box
+    /// (renaming, the set-up panel) is left alone.
+    /// </summary>
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (ViewModel is not { IsEditMode: true } viewModel || e.OriginalSource is TextBoxBase)
+        {
+            return;
+        }
+
+        var ctrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+        var shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+
+        if (ctrl && e.Key == Key.Z)
+        {
+            viewModel.UndoCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        if (viewModel.SelectedWidget is not { } widget)
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.Left:
+                viewModel.Nudge(-1, 0, shift);
+                break;
+            case Key.Right:
+                viewModel.Nudge(1, 0, shift);
+                break;
+            case Key.Up:
+                viewModel.Nudge(0, -1, shift);
+                break;
+            case Key.Down:
+                viewModel.Nudge(0, 1, shift);
+                break;
+            case Key.Delete:
+                widget.RemoveCommand.Execute(null);
+                break;
+            case Key.F2:
+                widget.RenameCommand.Execute(null);
+                break;
+            case Key.D when ctrl:
+                widget.DuplicateCommand.Execute(null);
+                break;
+            case Key.Escape:
+                viewModel.SelectedWidget = null;
+                break;
+            default:
+                return;
+        }
+
+        UpdateCanvasExtent();
+        e.Handled = true;
+    }
 
     /// <summary>
     /// Shift-clicking a severity chip on an Alerts widget isolates that

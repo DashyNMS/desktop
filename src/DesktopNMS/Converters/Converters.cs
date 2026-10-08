@@ -78,7 +78,7 @@ public sealed class StringToVisibilityConverter : IValueConverter
 public sealed class NullToVisibilityConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is null ? Visibility.Collapsed : Visibility.Visible;
+        => (value is null) != (parameter is "invert") ? Visibility.Collapsed : Visibility.Visible;
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => Binding.DoNothing;

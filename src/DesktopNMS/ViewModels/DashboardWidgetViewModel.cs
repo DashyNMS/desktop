@@ -4,21 +4,39 @@ using DesktopNMS.Services;
 
 namespace DesktopNMS.ViewModels;
 
+/// <summary>What a widget's ⋯ menu asks the dashboard to do - the dashboard owns Undo, the set-up panel and the grid (#274-#279).</summary>
+internal interface IWidgetActions
+{
+    void SetUp(DashboardWidgetViewModel widget);
+
+    void Remove(DashboardWidgetViewModel widget);
+
+    void Duplicate(DashboardWidgetViewModel widget);
+
+    void Resize(DashboardWidgetViewModel widget, WidgetSize size);
+}
+
 /// <summary>
 /// A widget placed on the Dashboard's grid. Holds the chrome everything
-/// shares - title, grid position/span, remove, and a per-widget "editing"
-/// state (see <see cref="IsEditingWidget"/>) - while a subclass supplies the
+/// shares - title, grid position/span, and the ⋯ menu's Set up…, Rename,
+/// Size, Duplicate and Remove (#274) - while a subclass supplies the
 /// type-specific content (e.g. <see cref="SensorWidgetViewModel"/>).
 /// <see cref="Column"/>/<see cref="Row"/>/<see cref="ColumnSpan"/>/
 /// <see cref="RowSpan"/> change locally while the user drags/resizes, live
 /// reflowing other widgets out of the way; the view commits the whole
 /// affected set in one shot once the gesture ends (see
 /// <see cref="DashboardViewModel.CommitLayout"/>), since a drag can move more
-/// than just this one widget. The title commits immediately since it is
-/// edited via a text box rather than a drag.
+/// than just this one widget.
 /// </summary>
 public abstract class DashboardWidgetViewModel : ObservableObject
 {
+    /// <summary>The kinds a dashboard can hold several of - and so the ones Duplicate is offered for (#279).</summary>
+    private static readonly HashSet<string> Several = new(StringComparer.Ordinal)
+    {
+        DashboardWidgetTypes.Sensors, DashboardWidgetTypes.Graph, DashboardWidgetTypes.TopInterfaces, DashboardWidgetTypes.TopErrors,
+        DashboardWidgetTypes.TopDevices, DashboardWidgetTypes.EventLog, DashboardWidgetTypes.Graylog,
+    };
+
     private readonly IDashboardLayoutService _layout;
     private string _title;
     private int _column;
@@ -26,43 +44,58 @@ public abstract class DashboardWidgetViewModel : ObservableObject
     private int _columnSpan;
     private int _rowSpan;
     private bool _isEditingWidget;
+    private bool _isRenaming;
+    private bool _isSelected;
     private bool _isHighlighted;
 
     protected DashboardWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model)
     {
         _layout = layout;
         Id = model.Id;
+        WidgetType = model.WidgetType;
         _title = model.Title;
         _column = model.Column;
         _row = model.Row;
         _columnSpan = model.ColumnSpan;
         _rowSpan = model.RowSpan;
 
-        RemoveCommand = new RelayCommand(Remove);
-        ToggleEditCommand = new RelayCommand(() => IsEditingWidget = !IsEditingWidget);
-    }
-
-    /// <summary>
-    /// Asked before the widget is deleted (#66) - set by the dashboard, which
-    /// owns the window service. A widget's settings (its sensors, graph,
-    /// filters) go with it, so it's a destructive confirmation.
-    /// </summary>
-    internal Func<DashboardWidgetViewModel, bool>? ConfirmRemove { get; set; }
-
-    private void Remove()
-    {
-        if (ConfirmRemove is { } confirm && !confirm(this))
+        SetUpCommand = new RelayCommand(() => Actions?.SetUp(this));
+        RemoveCommand = new RelayCommand(() =>
         {
-            return;
-        }
-
-        _layout.RemoveWidget(Id);
+            if (Actions is { } actions)
+            {
+                actions.Remove(this);
+            }
+            else
+            {
+                _layout.RemoveWidget(Id);
+            }
+        });
+        DuplicateCommand = new RelayCommand(() => Actions?.Duplicate(this), () => AllowsSeveral);
+        RenameCommand = new RelayCommand(() => IsRenaming = true);
+        FinishRenameCommand = new RelayCommand(() => IsRenaming = false);
+        SetSizeCommand = new RelayCommand(parameter =>
+        {
+            if (parameter is WidgetSize size || (parameter is string text && Enum.TryParse(text, out size)))
+            {
+                Actions?.Resize(this, size);
+            }
+        });
     }
+
+    /// <summary>Set by the dashboard: where the ⋯ menu's actions go.</summary>
+    internal IWidgetActions? Actions { get; set; }
 
     /// <summary>For subclasses that need to call other layout operations scoped to this widget's <see cref="Id"/>.</summary>
     protected IDashboardLayoutService Layout => _layout;
 
     public string Id { get; }
+
+    /// <summary>The <see cref="DashboardWidget.WidgetType"/> - which kind of widget this is.</summary>
+    public string WidgetType { get; }
+
+    /// <summary>A dashboard can hold several of this kind, so it can be duplicated (#279).</summary>
+    public bool AllowsSeveral => Several.Contains(WidgetType);
 
     public string Title
     {
@@ -94,17 +127,32 @@ public abstract class DashboardWidgetViewModel : ObservableObject
     public int ColumnSpan
     {
         get => _columnSpan;
-        set => SetProperty(ref _columnSpan, value);
+        set
+        {
+            if (SetProperty(ref _columnSpan, value))
+            {
+                OnPropertyChanged(nameof(CurrentSize));
+            }
+        }
     }
 
     /// <summary>Height in grid cells. Updated live while resizing.</summary>
     public int RowSpan
     {
         get => _rowSpan;
-        set => SetProperty(ref _rowSpan, value);
+        set
+        {
+            if (SetProperty(ref _rowSpan, value))
+            {
+                OnPropertyChanged(nameof(CurrentSize));
+            }
+        }
     }
 
-    /// <summary>Briefly true after the widget is added from the picker, so it stands out where it landed (#204).</summary>
+    /// <summary>Which of the sizes it is now, if any - ticked in the Size menu (#278).</summary>
+    public WidgetSize? CurrentSize => DashboardGrid.SizeOf(ColumnSpan, RowSpan);
+
+    /// <summary>Briefly true after the widget is added or duplicated, so it stands out where it landed (#204).</summary>
     public bool IsHighlighted
     {
         get => _isHighlighted;
@@ -124,17 +172,40 @@ public abstract class DashboardWidgetViewModel : ObservableObject
         timer.Start();
     }
 
-    /// <summary>Widget-specific controls for the title bar, beside the edit button - templated by type. Null for a widget with none.</summary>
+    /// <summary>Widget-specific controls for the title bar - templated by type, and shown in the set-up panel too. Null for a widget with none.</summary>
     public virtual object? HeaderOptions => null;
+
+    public RelayCommand SetUpCommand { get; }
 
     public RelayCommand RemoveCommand { get; }
 
-    public RelayCommand ToggleEditCommand { get; }
+    public RelayCommand DuplicateCommand { get; }
+
+    public RelayCommand RenameCommand { get; }
+
+    public RelayCommand FinishRenameCommand { get; }
+
+    /// <summary>Size ▸ Small, Medium, Large or Wide (#278).</summary>
+    public RelayCommand SetSizeCommand { get; }
+
+    /// <summary>The title is a text box: ⋯ › Rename, or F2.</summary>
+    public bool IsRenaming
+    {
+        get => _isRenaming;
+        set => SetProperty(ref _isRenaming, value);
+    }
+
+    /// <summary>The widget the keys act on in edit mode - outlined (#278).</summary>
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
 
     /// <summary>
-    /// True while this widget's own edit icon is toggled on: its title becomes
-    /// renameable and its remove button appears. Independent of the
-    /// Dashboard-wide "Edit layout" mode, which only governs dragging/resizing.
+    /// True while this widget is open in the set-up panel (#275): it's marked
+    /// "Live preview", and a subclass's set-up state (an open picker) is
+    /// reset once it closes.
     /// </summary>
     public bool IsEditingWidget
     {
@@ -148,7 +219,7 @@ public abstract class DashboardWidgetViewModel : ObservableObject
         }
     }
 
-    /// <summary>Lets a subclass reset any edit-only state (e.g. an open picker) when editing closes.</summary>
+    /// <summary>Lets a subclass reset any set-up-only state (e.g. an open picker) when the panel closes.</summary>
     protected virtual void OnEditingClosed()
     {
     }

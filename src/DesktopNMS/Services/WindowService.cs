@@ -157,7 +157,7 @@ public sealed class WindowService : IWindowService
         }
     }
 
-    public WidgetCatalogEntry? ShowWidgetPicker(IReadOnlyList<WidgetCatalogEntry> catalog)
+    public IReadOnlyList<WidgetCatalogEntry> ShowWidgetPicker(IReadOnlyList<WidgetCatalogEntry> catalog)
     {
         var viewModel = new WidgetPickerViewModel(catalog);
         var window = new WidgetPickerWindow(viewModel);
@@ -168,7 +168,7 @@ public sealed class WindowService : IWindowService
             OwnByMain(window);
         }
 
-        return window.ShowDialog() == true ? viewModel.Chosen : null;
+        return window.ShowDialog() == true ? viewModel.Chosen : Array.Empty<WidgetCatalogEntry>();
     }
 
     public void ShowLicences()

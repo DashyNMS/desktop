@@ -60,8 +60,8 @@ public interface IWindowService
     /// <summary>Shows the main window on the Logs tab - a Graylog widget message from a source that isn't a known device (#203).</summary>
     void ShowLogsTab();
 
-    /// <summary>The Dashboard's "Add widget" picker (#204). Returns the widget chosen, or null if cancelled.</summary>
-    DesktopNMS.ViewModels.WidgetCatalogEntry? ShowWidgetPicker(IReadOnlyList<DesktopNMS.ViewModels.WidgetCatalogEntry> catalog);
+    /// <summary>The Dashboard's "Add widget" picker (#204, #277). Returns the widgets chosen - several at once - or none if cancelled.</summary>
+    IReadOnlyList<DesktopNMS.ViewModels.WidgetCatalogEntry> ShowWidgetPicker(IReadOnlyList<DesktopNMS.ViewModels.WidgetCatalogEntry> catalog);
 
     /// <summary>This release's "What's new" (#227), which then counts as seen. False when this build has none.</summary>
     bool ShowWhatsNew();

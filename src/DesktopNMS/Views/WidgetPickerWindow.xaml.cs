@@ -34,12 +34,28 @@ public partial class WidgetPickerWindow : Window
         }
     }
 
+    /// <summary>Space ticks the focused card; Enter adds what's ticked, or the focused card if nothing is (#277).</summary>
     private void OnWidgetKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && WidgetList.SelectedItem is WidgetCatalogEntry entry)
+        if (e.Key == Key.Space && WidgetList.SelectedItem is WidgetCatalogEntry entry)
         {
-            _viewModel.AddNow(entry);
+            _viewModel.Toggle(entry);
             e.Handled = true;
+        }
+        else if (e.Key == Key.Enter)
+        {
+            _viewModel.AddChosenOrFocused();
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>A click on a card ticks or unticks it, to add several together.</summary>
+    private void OnWidgetClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source
+            && ItemsControl.ContainerFromElement(WidgetList, source) is ListBoxItem { DataContext: WidgetCatalogEntry entry })
+        {
+            _viewModel.Toggle(entry);
         }
     }
 
