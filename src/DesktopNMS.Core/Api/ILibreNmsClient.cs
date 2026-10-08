@@ -73,6 +73,9 @@ public interface ILibreNmsClient
     /// <summary>Accept this certificate from now on, without signing in again.</summary>
     void TrustCertificate(string fingerprint);
 
+    /// <summary>Use this request timeout from now on, without signing in again.</summary>
+    void SetTimeout(int timeoutSeconds);
+
     /// <summary>
     /// Verifies the address and token by calling /api/v0/system.
     /// Never throws; inspect the result.

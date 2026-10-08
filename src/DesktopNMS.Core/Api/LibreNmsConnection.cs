@@ -38,6 +38,10 @@ public sealed class LibreNmsConnection
     public LibreNmsConnection WithTrustedCertificate(string fingerprint)
         => new(WebRoot, ApiToken, AllowUntrustedCertificate, TimeoutSeconds, BackupWebRoot, TrustedCertificates.Append(fingerprint).ToArray());
 
+    /// <summary>The same connection with another request timeout.</summary>
+    public LibreNmsConnection WithTimeout(int timeoutSeconds)
+        => new(WebRoot, ApiToken, AllowUntrustedCertificate, timeoutSeconds, BackupWebRoot, TrustedCertificates);
+
     public int TimeoutSeconds { get; }
 
     /// <summary>
