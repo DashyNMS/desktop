@@ -57,7 +57,10 @@ public interface IDashboardLayoutService
     void SetAlertsFilter(string widgetId, bool showCritical, bool showWarning, bool includeAcknowledged);
 
     /// <summary>Sets a Graph widget's device and graph name (issue #12). Passing a null graphName leaves the device chosen but the graph itself unpicked.</summary>
-    void SetGraph(string widgetId, int? deviceId, string? graphName);
+    void SetGraph(string widgetId, int? deviceId, string? graphName, string? portIfName = null);
+
+    /// <summary>Adds a Graph widget already set to one port's graph (#285), where there's room.</summary>
+    DashboardWidget AddPortGraph(int deviceId, string ifName, string graphType, string title);
 
     void SetGraphTimeRange(string widgetId, GraphTimeRangePreset preset, DateTime? customFrom, DateTime? customTo);
 
@@ -293,16 +296,39 @@ public sealed class DashboardLayoutService : IDashboardLayoutService
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    public void SetGraph(string widgetId, int? deviceId, string? graphName)
+    public DashboardWidget AddPortGraph(int deviceId, string ifName, string graphType, string title)
+    {
+        var list = _settings.Current.DashboardWidgets;
+        var (column, row) = DashboardGrid.FindFreeSpot(list.Select(GridItem.From), DashboardWidget.DefaultColumnSpan, DashboardWidget.DefaultRowSpan);
+
+        var widget = new DashboardWidget
+        {
+            WidgetType = DashboardWidgetTypes.Graph,
+            Title = title,
+            Column = column,
+            Row = row,
+            GraphDeviceId = deviceId,
+            GraphName = graphType,
+            GraphPortIfName = ifName,
+        };
+
+        list.Add(widget);
+        _settings.Save();
+        Changed?.Invoke(this, EventArgs.Empty);
+        return widget;
+    }
+
+    public void SetGraph(string widgetId, int? deviceId, string? graphName, string? portIfName = null)
     {
         var widget = Find(widgetId);
-        if (widget is null || (widget.GraphDeviceId == deviceId && widget.GraphName == graphName))
+        if (widget is null || (widget.GraphDeviceId == deviceId && widget.GraphName == graphName && widget.GraphPortIfName == portIfName))
         {
             return;
         }
 
         widget.GraphDeviceId = deviceId;
         widget.GraphName = graphName;
+        widget.GraphPortIfName = portIfName;
         _settings.Save();
         Changed?.Invoke(this, EventArgs.Empty);
     }

@@ -1200,7 +1200,6 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-
                 <Grid Grid.Row="1">
                     <!-- Click to open this graph full size in the device's
                          Device Details (issue #161). A chrome-less Button
@@ -1969,6 +1968,15 @@
                                                 </Button>
 
                                                 <StackPanel Visibility="{Binding HasSelectedDevice, Converter={StaticResource BoolToVisibility}}">
+                                                    <!-- The device's graphs, or one of its ports' (#285). -->
+                                                    <StackPanel Visibility="{Binding HasSources, Converter={StaticResource BoolToVisibility}}">
+                                                        <TextBlock Text="SHOW" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                                        <ComboBox ItemsSource="{Binding Sources}"
+                                                                  SelectedItem="{Binding SelectedSource}"
+                                                                  DisplayMemberPath="Name"
+                                                                  IsTextSearchEnabled="True"
+                                                                  ToolTip="The device's own graphs, or one of its ports" />
+                                                    </StackPanel>
                                                     <TextBlock Text="GRAPH" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
                                                     <ComboBox ItemsSource="{Binding AvailableGraphs}"
                                                               SelectedItem="{Binding SelectedGraph}"

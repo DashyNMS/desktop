@@ -34,6 +34,10 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
     private readonly ILogger _logger;
     private readonly Dispatcher _dispatcher;
     private readonly Action<int, string> _openGraph;
+    private readonly Action<int, string, string>? _openPortGraph;
+    private readonly List<GraphType> _deviceGraphs = new();
+    private GraphSource? _selectedSource;
+    private string? _wantedPortIfName;
 
     private IReadOnlyList<Device> _fleet = Array.Empty<Device>();
     private int? _selectedDeviceId;
@@ -48,7 +52,8 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
     private int _loadVersion;
 
     /// <param name="openGraph">Opens this device's Device Details on the given graph - a callback (like the other device-shaped widgets' own) rather than an IWindowService dependency.</param>
-    public GraphWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model, DeviceMonitor deviceMonitor, ILibreNmsClient client, ILogger logger, Action<int, string> openGraph)
+    /// <param name="openPortGraph">Opens a port's graph full size in Device Details' Graphs (#285): device, ifName, graph type.</param>
+    public GraphWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model, DeviceMonitor deviceMonitor, ILibreNmsClient client, ILogger logger, Action<int, string> openGraph, Action<int, string, string>? openPortGraph = null)
         : base(layout, model)
     {
         _deviceMonitor = deviceMonitor;
@@ -56,9 +61,11 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
         _openGraph = openGraph;
+        _openPortGraph = openPortGraph;
 
         _selectedDeviceId = model.GraphDeviceId;
         _wantedGraphName = model.GraphName;
+        _wantedPortIfName = model.GraphPortIfName;
         TimeRange = new GraphTimeRangeViewModel(model.GraphTimeRangePreset, model.GraphCustomFrom, model.GraphCustomTo);
         TimeRange.Changed += OnTimeRangeChanged;
 
@@ -88,7 +95,16 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         // one has rendered anyway; this just guards the (unlikely) gap.
         OpenGraphCommand = new RelayCommand(() =>
         {
-            if (_selectedDeviceId is { } deviceId && _selectedGraph is { } graph)
+            if (_selectedDeviceId is not { } deviceId || _selectedGraph is not { } graph)
+            {
+                return;
+            }
+
+            if (_selectedSource?.IfName is { } ifName && _openPortGraph is not null)
+            {
+                _openPortGraph(deviceId, ifName, graph.Name);
+            }
+            else
             {
                 _openGraph(deviceId, graph.Name);
             }
@@ -103,11 +119,45 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
 
         if (_selectedDeviceId is { } deviceId)
         {
-            _ = LoadGraphTypesAsync(deviceId, model.GraphName);
+            _ = LoadGraphTypesAsync(deviceId, model.GraphName, model.GraphPortIfName);
         }
     }
 
     public ObservableCollection<GraphType> AvailableGraphs { get; }
+
+    /// <summary>The device's own graphs, then each of its ports (#285) - as Device Details' Graphs offers them.</summary>
+    public ObservableCollection<GraphSource> Sources { get; } = new();
+
+    public bool HasSources => Sources.Count > 1;
+
+    /// <summary>Device graphs or a port: switching swaps the graph list, keeping the same graph where the new list has it.</summary>
+    public GraphSource? SelectedSource
+    {
+        get => _selectedSource;
+        set
+        {
+            if (value is null || ReferenceEquals(value, _selectedSource))
+            {
+                return;
+            }
+
+            var keep = _selectedGraph?.Name;
+            _selectedSource = value;
+            OnPropertyChanged();
+            FillGraphs(value);
+            SelectedGraph = AvailableGraphs.FirstOrDefault(g => g.Name == keep) ?? AvailableGraphs.FirstOrDefault();
+        }
+    }
+
+    private void FillGraphs(GraphSource source)
+    {
+        _selectedGraph = null;
+        AvailableGraphs.Clear();
+        foreach (var type in source.IsPort ? PortGraphsPanelViewModel.Types : _deviceGraphs)
+        {
+            AvailableGraphs.Add(type);
+        }
+    }
 
     public GraphTimeRangeViewModel TimeRange { get; }
 
@@ -158,7 +208,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
             {
                 _wantedGraphName = value?.Name ?? _wantedGraphName;
                 OnPropertyChanged(nameof(IsConfigured));
-                Layout.SetGraph(Id, _selectedDeviceId, value?.Name);
+                Layout.SetGraph(Id, _selectedDeviceId, value?.Name, _selectedSource?.IfName);
                 _ = LoadGraphAsync();
             }
         }
@@ -218,7 +268,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         {
             // Its graph list never loaded (the server wasn't answering at the
             // time) - try again, and pick up the graph it was set to.
-            _ = LoadGraphTypesAsync(deviceId, _wantedGraphName);
+            _ = LoadGraphTypesAsync(deviceId, _wantedGraphName, _wantedPortIfName);
         }
     }
 
@@ -227,20 +277,26 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         _selectedDeviceId = deviceId;
         SelectedDeviceName = displayName;
         _selectedGraph = null;
+        _selectedSource = null;
+        _wantedPortIfName = null;
         AvailableGraphs.Clear();
+        Sources.Clear();
         Svg = null;
         ErrorMessage = null;
         IsDevicePickerOpen = false;
 
         OnPropertyChanged(nameof(HasSelectedDevice));
         OnPropertyChanged(nameof(SelectedGraph));
+        OnPropertyChanged(nameof(SelectedSource));
+        OnPropertyChanged(nameof(HasSources));
         OnPropertyChanged(nameof(IsConfigured));
 
         Layout.SetGraph(Id, deviceId, null);
-        _ = LoadGraphTypesAsync(deviceId, selectGraphName: null);
+        _ = LoadGraphTypesAsync(deviceId, selectGraphName: null, selectPortIfName: null);
     }
 
-    private async Task LoadGraphTypesAsync(int deviceId, string? selectGraphName)
+    /// <param name="selectPortIfName">Shows this port's graphs (#285) rather than the device's, if the device still has the port.</param>
+    private async Task LoadGraphTypesAsync(int deviceId, string? selectGraphName, string? selectPortIfName)
     {
         IsLoading = true;
         ErrorMessage = null;
@@ -250,13 +306,24 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
             var deviceWideTask = _client.Graphs.ListAsync(deviceId);
             var healthTask = _client.Graphs.ListHealthAsync(deviceId);
             var wirelessTask = GraphsSectionViewModel.ListWirelessGraphsAsync(_client, deviceId, _logger);
-            await Task.WhenAll(deviceWideTask, healthTask, wirelessTask).ConfigureAwait(true);
+            var portsTask = ListPortsAsync(deviceId);
+            await Task.WhenAll(deviceWideTask, healthTask, wirelessTask, portsTask).ConfigureAwait(true);
 
-            AvailableGraphs.Clear();
-            foreach (var type in deviceWideTask.Result.Concat(healthTask.Result).Concat(wirelessTask.Result).OrderBy(t => t.Description, StringComparer.OrdinalIgnoreCase))
+            _deviceGraphs.Clear();
+            _deviceGraphs.AddRange(deviceWideTask.Result.Concat(healthTask.Result).Concat(wirelessTask.Result).OrderBy(t => t.Description, StringComparer.OrdinalIgnoreCase));
+
+            Sources.Clear();
+            var deviceSource = new GraphSource("Device graphs", null);
+            Sources.Add(deviceSource);
+            foreach (var port in portsTask.Result)
             {
-                AvailableGraphs.Add(type);
+                Sources.Add(new GraphSource(GraphsSectionViewModel.PortLabel(port), port));
             }
+
+            _selectedSource = (selectPortIfName is not null ? Sources.FirstOrDefault(s => s.IfName == selectPortIfName) : null) ?? deviceSource;
+            OnPropertyChanged(nameof(SelectedSource));
+            OnPropertyChanged(nameof(HasSources));
+            FillGraphs(_selectedSource);
 
             var toSelect = (selectGraphName is not null ? AvailableGraphs.FirstOrDefault(g => g.Name == selectGraphName) : null)
                 ?? AvailableGraphs.FirstOrDefault();
@@ -297,7 +364,9 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
             // Overview ping-graph thumbnail, issue #11), but starting from
             // too small a fetch leaves LibreNMS's own legend/axis text too
             // sparse to be legible once stretched up.
-            var rawSvg = await _client.Graphs.GetSvgAsync(deviceId, graph.Name, TimeRange.ToTimeRange(), width: 500, height: 220, legend: false).ConfigureAwait(true);
+            var rawSvg = _selectedSource?.IfName is { } ifName
+                ? await _client.Graphs.GetPortSvgAsync(deviceId, ifName, graph.Name, TimeRange.ToTimeRange(), width: 500, height: 220, legend: false).ConfigureAwait(true)
+                : await _client.Graphs.GetSvgAsync(deviceId, graph.Name, TimeRange.ToTimeRange(), width: 500, height: 220, legend: false).ConfigureAwait(true);
 
             if (version != _loadVersion)
             {
@@ -323,6 +392,24 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
             {
                 IsLoading = false;
             }
+        }
+    }
+
+    /// <summary>The device's ports with a name, in interface order - empty, rather than failing the widget, when they can't be listed.</summary>
+    private async Task<IReadOnlyList<Port>> ListPortsAsync(int deviceId)
+    {
+        try
+        {
+            return (await _client.Ports.ListForDeviceAsync(deviceId).ConfigureAwait(true))
+                .Where(p => !p.Deleted && !string.IsNullOrEmpty(p.IfName))
+                .OrderBy(p => p.IfIndex ?? int.MaxValue)
+                .ThenBy(p => p.IfName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogDebug(ex, "Could not list the ports of device {DeviceId} (Graph widget {WidgetId})", deviceId, Id);
+            return Array.Empty<Port>();
         }
     }
 

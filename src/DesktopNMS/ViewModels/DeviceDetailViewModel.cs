@@ -267,6 +267,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Graphs = new GraphsSectionViewModel(deviceId, client, settings, logger);
         PortGraphs = new PortGraphsPanelViewModel(client, settings, logger);
         PortGraphs.OpenRequested += (_, request) => ShowPortGraph(request.IfName, request.GraphType);
+        PortGraphs.AddToDashboardRequested += (_, request) => _windows.AddPortGraphToDashboard(request.DeviceId, request.IfName, request.GraphType, request.Title);
         Graylog = GraylogMessagesViewModel.ForDevice(deviceId, () => _device, graylog, client, deviceCache, settings, windows, logger, _loadCts.Token);
         Graylog.PropertyChanged += OnGraylogPropertyChanged;
         Inventory = new InventorySectionViewModel(deviceId, client, logger, _loadCts.Token);

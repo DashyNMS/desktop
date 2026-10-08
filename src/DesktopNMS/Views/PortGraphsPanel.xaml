@@ -42,6 +42,17 @@
                     <Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold" />
                     <Run Text="{Binding Subtitle, Mode=OneWay}" Foreground="{StaticResource TextSecondaryBrush}" />
                 </TextBlock>
+                <!-- After Add to dashboard (#285), for a few seconds. -->
+                <Border Grid.Column="1"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Margin="0,0,12,0"
+                        Padding="10,2"
+                        CornerRadius="9"
+                        Background="{DynamicResource AccentSubtleBrush}"
+                        Visibility="{Binding HasNotice, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{Binding Notice}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" />
+                </Border>
                 <Border Grid.Column="2"
                         VerticalAlignment="Center"
                         Visibility="{Binding IsCollapsed, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
@@ -66,8 +77,16 @@
                         <Button Command="{Binding OpenCommand}"
                                 Margin="0,0,10,0"
                                 Cursor="Hand"
-                                ToolTip="Open in Graphs"
+                                ToolTip="Open in Graphs - right-click to add it to the dashboard"
                                 AutomationProperties.Name="{Binding Title}">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Open in Graphs" Command="{Binding OpenCommand}" FontWeight="SemiBold" />
+                                    <MenuItem Header="Add to dashboard" Command="{Binding AddToDashboardCommand}">
+                                        <MenuItem.Icon><TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" /></MenuItem.Icon>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </Button.ContextMenu>
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="Card"

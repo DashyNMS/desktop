@@ -57,6 +57,9 @@ public interface IWindowService
     /// <summary>Opens Device Details on its Alerts section - current alerts and the alert history (#270).</summary>
     void ShowDeviceAlerts(int deviceId);
 
+    /// <summary>Puts a port's graph on the dashboard as a Graph widget (#285).</summary>
+    void AddPortGraphToDashboard(int deviceId, string ifName, string graphType, string title);
+
     /// <summary>Opens Device Details on its Graylog section - from the Graylog widget (#203).</summary>
     void ShowDeviceGraylog(int deviceId);
 

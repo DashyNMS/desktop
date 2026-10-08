@@ -754,6 +754,16 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
                 widget.ApplyFleet(_lastFleet, _lastDeviceNameFor, _session.Connection, _settings.Current);
             }
         }
+
+        // One added from elsewhere (a port graph's Add to dashboard, #285)
+        // stands out where it lands, as one added here does.
+        if (previousIds.Count > 0)
+        {
+            foreach (var widget in Widgets.Where(w => !previousIds.Contains(w.Id) && !w.IsHighlighted))
+            {
+                widget.Flash();
+            }
+        }
     }
 
     /// <summary>Adds/removes/updates <see cref="Widgets"/> to match the persisted layout.</summary>
@@ -866,7 +876,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         "DeviceStatus" => new DeviceStatusWidgetViewModel(_layout, model, _deviceMonitor, _windows),
         "RecentlyViewed" => new RecentlyViewedWidgetViewModel(_layout, model, _settings, _devices, _deviceMonitor, deviceId => _windows.ShowDeviceDetail(deviceId)),
         "PinnedDevices" => new PinnedDevicesWidgetViewModel(_layout, model, _settings, _devices, _deviceMonitor, deviceId => _windows.ShowDeviceDetail(deviceId)),
-        "Graph" => new GraphWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger, (deviceId, graphName) => _windows.ShowDeviceGraph(deviceId, graphName)),
+        "Graph" => new GraphWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger, (deviceId, graphName) => _windows.ShowDeviceGraph(deviceId, graphName), (deviceId, ifName, graphType) => _windows.ShowDevicePortGraph(deviceId, ifName, graphType)),
         "Wireless" => new WirelessWidgetViewModel(_layout, model, _deviceMonitor, _client, _logger, deviceId => _windows.ShowDeviceWireless(deviceId)),
         DashboardWidgetTypes.TopInterfaces => new TopInterfacesWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
         DashboardWidgetTypes.TopErrors => new TopErrorsWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
