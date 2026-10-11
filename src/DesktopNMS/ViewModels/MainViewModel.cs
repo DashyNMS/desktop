@@ -622,8 +622,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                     _customMaps.OnShown();
                 }
 
-                // Unlike the others, Logs also needs telling when it's left -
-                // its auto-update only runs while it's on screen.
+                // Unlike the others, Neighbours and Logs also need telling
+                // when they're left - they only refresh while on screen.
+                if (value != MainTab.Neighbours)
+                {
+                    _neighbours.OnHidden();
+                }
+
                 if (LogsSectionFor(value) is { } section)
                 {
                     _logs.SelectedView = section;
@@ -663,10 +668,19 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>
     /// The main window was shown or hidden (to the tray, or minimised) -
     /// pauses or resumes anything that only runs while it's on screen (the
-    /// Logs tab's auto-update).
+    /// Neighbours and Logs tabs' auto-update).
     /// </summary>
     public void OnWindowVisibilityChanged(bool isVisible)
     {
+        if (isVisible && SelectedTab == MainTab.Neighbours)
+        {
+            _neighbours.OnShown();
+        }
+        else
+        {
+            _neighbours.OnHidden();
+        }
+
         if (isVisible && IsLogsFamilyTabSelected)
         {
             _logs.OnShown();
