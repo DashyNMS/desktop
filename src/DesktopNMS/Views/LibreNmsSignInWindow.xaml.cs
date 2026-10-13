@@ -113,9 +113,22 @@ public partial class LibreNmsSignInWindow : Window
     private static string Describe(string? address) =>
         Uri.TryCreate(address, UriKind.Absolute, out var uri) ? uri.GetLeftPart(UriPartial.Path) : "(none)";
 
-    /// <summary>The probe's answer for the log, with a token's value left out.</summary>
-    private static string Redact(string answer) =>
-        answer.StartsWith("token:", StringComparison.Ordinal) ? $"token ({answer.Length - "token:".Length} characters)" : answer;
+    /// <summary>
+    /// What a page script answered, for the log - only ever one of a fixed set
+    /// of words, never text from the page, so a token can't reach the log.
+    /// </summary>
+    private static string Classify(string? answer) => answer switch
+    {
+        null or "" => "nothing",
+        _ when answer.StartsWith("token:", StringComparison.Ordinal) => "token",
+        "form" => "form",
+        "login" => "login",
+        "signed-in" => "signed-in",
+        "other" => "other",
+        "submitted" => "submitted",
+        "no-form" => "no-form",
+        _ => "unrecognised",
+    };
 
     /// <summary>
     /// The server's pages' responses (not its scripts or styles), for the
@@ -236,7 +249,7 @@ public partial class LibreNmsSignInWindow : Window
             step = new WebSignInStep(WebSignInAction.Failed);
         }
 
-        var answer = probe is null ? "(not run - not the server)" : Redact(WebTokenSignIn.Unwrap(probe));
+        var answer = probe is null ? "(not run - not the server)" : Classify(WebTokenSignIn.Unwrap(probe));
         _logger.LogDebug("Web sign-in: page is {Answer}, next step {Step}", answer, step.Action);
 
         switch (step.Action)
@@ -298,7 +311,7 @@ public partial class LibreNmsSignInWindow : Window
         _logger.Log(
             submitted == "submitted" ? LogLevel.Debug : LogLevel.Information,
             "Web sign-in: submit script answered {Answer}",
-            submitted);
+            Classify(submitted));
 
         if (submitted != "submitted")
         {
