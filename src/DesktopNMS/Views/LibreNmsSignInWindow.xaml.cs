@@ -77,7 +77,25 @@ public partial class LibreNmsSignInWindow : Window
             };
 
             core.NavigationStarting += (_, e) =>
-                _logger.LogInformation("Web sign-in: loading {Page} (redirect: {Redirect})", Describe(e.Uri), e.IsRedirected);
+                _logger.LogInformation(
+                    "Web sign-in: loading {Page} (navigation {Id}, redirect: {Redirect}, user: {User}, kind: {Kind})",
+                    Describe(e.Uri), e.NavigationId, e.IsRedirected, e.IsUserInitiated, e.NavigationKind);
+
+            // Every response for the server's pages (not its scripts or
+            // styles), with the method - shows what the token form's POST got.
+            core.WebResourceResponseReceived += (_, e) =>
+            {
+                if (Uri.TryCreate(e.Request.Uri, UriKind.Absolute, out var uri)
+                    && _request.Flow.IsOnServer(uri)
+                    && Path.GetExtension(uri.AbsolutePath).Length == 0)
+                {
+                    var location = e.Response.Headers.Contains("Location") ? e.Response.Headers.GetHeader("Location") : null;
+                    _logger.LogInformation(
+                        "Web sign-in: {Method} {Page} answered HTTP {Status}{Location}",
+                        e.Request.Method, Describe(uri.AbsoluteUri), e.Response.StatusCode,
+                        location is null ? string.Empty : " -> " + Describe(new Uri(uri, location).AbsoluteUri));
+                }
+            };
 
             core.Navigate(_request.Flow.TokensPage.AbsoluteUri);
         }
@@ -99,8 +117,8 @@ public partial class LibreNmsSignInWindow : Window
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
         _logger.LogInformation(
-            "Web sign-in: loaded {Page} - success {Success}, HTTP {Status}, error {Error}",
-            Describe(Web.CoreWebView2?.Source), e.IsSuccess, e.HttpStatusCode, e.WebErrorStatus);
+            "Web sign-in: loaded {Page} (navigation {Id}) - success {Success}, HTTP {Status}, error {Error}",
+            Describe(Web.CoreWebView2?.Source), e.NavigationId, e.IsSuccess, e.HttpStatusCode, e.WebErrorStatus);
 
         if (_result.Task.IsCompleted || _handling)
         {
