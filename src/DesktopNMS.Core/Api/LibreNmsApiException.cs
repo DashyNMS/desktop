@@ -52,6 +52,14 @@ public sealed class LibreNmsApiException : Exception
     /// <summary>The token was accepted, but its user isn't allowed this action (403) - see <see cref="ApiPermissions"/>.</summary>
     public bool IsPermissionDenied => StatusCode is HttpStatusCode.Forbidden;
 
+    /// <summary>
+    /// A refusal that's LibreNMS's API, not the token: its permission check
+    /// for this write crashes for anyone who isn't an admin (#294) - see
+    /// <see cref="ApiPermissions.IsCrashedPermissionCheck"/>. The message
+    /// then says so, and that the website can still do it.
+    /// </summary>
+    public bool IsAdminOnlyInApi { get; init; }
+
     /// <summary>What a 403 means, in place of LibreNMS's own "This action is unauthorized."</summary>
     public const string PermissionDeniedMessage =
         "Your API token isn't allowed to do this in LibreNMS. A LibreNMS admin can give its user more permissions.";
@@ -59,6 +67,11 @@ public sealed class LibreNmsApiException : Exception
     /// <summary>A single line suitable for a status bar or a toast.</summary>
     public string ToUserMessage()
     {
+        if (IsAdminOnlyInApi)
+        {
+            return Message;
+        }
+
         if (IsPermissionDenied)
         {
             return PermissionDeniedMessage;

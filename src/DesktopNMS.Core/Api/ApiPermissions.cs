@@ -95,6 +95,9 @@ public sealed class ApiPermissions
     private readonly object _sync = new();
     private readonly HashSet<ApiPermission> _refused = new();
 
+    // Refused by LibreNMS's API's crashed check rather than the token (#294).
+    private readonly HashSet<ApiPermission> _adminOnly = new();
+
     /// <summary>Raised, on whichever thread made the request, when a permission is first refused or the list is forgotten.</summary>
     public event EventHandler? Changed;
 
@@ -120,6 +123,11 @@ public sealed class ApiPermissions
 
         lock (_sync)
         {
+            if (exception.IsAdminOnlyInApi)
+            {
+                _adminOnly.Add(permission);
+            }
+
             if (!_refused.Add(permission))
             {
                 return false;
@@ -128,6 +136,18 @@ public sealed class ApiPermissions
 
         Changed?.Invoke(this, EventArgs.Empty);
         return true;
+    }
+
+    /// <summary>
+    /// Why a refused action is off - the token's permissions, or LibreNMS's
+    /// API allowing it only for admins (#294).
+    /// </summary>
+    public string Reason(ApiPermission permission)
+    {
+        lock (_sync)
+        {
+            return _adminOnly.Contains(permission) ? DescribeAdminOnly(permission) : Describe(permission);
+        }
     }
 
     /// <summary>Starts over - a new connection may be a different token, with different permissions.</summary>
@@ -141,6 +161,7 @@ public sealed class ApiPermissions
             }
 
             _refused.Clear();
+            _adminOnly.Clear();
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
@@ -179,6 +200,14 @@ public sealed class ApiPermissions
     /// <summary>Why a button is off: "Your API token isn't allowed to delete devices in LibreNMS."</summary>
     public static string Describe(ApiPermission permission) =>
         $"Your API token isn't allowed to {Verb(permission)} in LibreNMS.";
+
+    /// <summary>
+    /// Why a button is off when LibreNMS's API, not the token, refused it
+    /// (#294): "LibreNMS's API only lets admins acknowledge alerts. You can
+    /// still acknowledge alerts on the LibreNMS website."
+    /// </summary>
+    public static string DescribeAdminOnly(ApiPermission permission) =>
+        $"LibreNMS's API only lets admins {Verb(permission)}. You can still {Verb(permission)} on the LibreNMS website.";
 
     private static string Verb(ApiPermission permission) => permission switch
     {

@@ -111,7 +111,7 @@ public static class PermissionGate
             element.SetValue(SavedToolTipProperty, own == DependencyProperty.UnsetValue ? NoToolTip : own);
             element.SetValue(IsGatedProperty, true);
             element.IsEnabled = false;
-            element.ToolTip = ApiPermissions.Describe(GetRequires(element)!.Value);
+            element.ToolTip = Source!.Reason(GetRequires(element)!.Value);
             ToolTipService.SetShowOnDisabled(element, true);
         }
         else if (!refused && gated)
@@ -138,7 +138,7 @@ public static class PermissionGate
         else if (refused)
         {
             // The rule editor swaps between create and edit: keep the reason current.
-            element.ToolTip = ApiPermissions.Describe(GetRequires(element)!.Value);
+            element.ToolTip = Source!.Reason(GetRequires(element)!.Value);
         }
     }
 }

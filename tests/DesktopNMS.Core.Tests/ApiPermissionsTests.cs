@@ -142,9 +142,39 @@ public class ApiPermissionsTests
 
         var ex = await Assert.ThrowsAsync<LibreNmsApiException>(() => transport.SendAsync(HttpMethod.Put, "alerts/12", new { note = "x" }));
 
+        // Still turned off - but blamed on LibreNMS's API, not the token (#294).
         Assert.True(ex.IsPermissionDenied);
-        Assert.Equal(LibreNmsApiException.PermissionDeniedMessage, ex.ToUserMessage());
+        Assert.True(ex.IsAdminOnlyInApi);
+        Assert.Equal(ApiPermissions.DescribeAdminOnly(ApiPermission.AcknowledgeAlerts), ex.ToUserMessage());
         Assert.True(transport.Permissions.IsRefused(ApiPermission.AcknowledgeAlerts));
+        Assert.Equal(
+            "LibreNMS's API only lets admins acknowledge alerts. You can still acknowledge alerts on the LibreNMS website.",
+            transport.Permissions.Reason(ApiPermission.AcknowledgeAlerts));
+    }
+
+    [Fact]
+    public async Task A_real_refusal_still_blames_the_token()
+    {
+        using var server = new RefusingLibreNms();
+        using var transport = new LibreNmsTransport(NullLogger<LibreNmsTransport>.Instance) { RetryTransientFailures = false };
+        transport.Configure(new LibreNmsConnection(new Uri($"http://127.0.0.1:{server.Port}/"), "token", timeoutSeconds: 5));
+
+        var ex = await Assert.ThrowsAsync<LibreNmsApiException>(() => transport.SendAsync(HttpMethod.Put, "alerts/12", new { note = "x" }));
+
+        Assert.False(ex.IsAdminOnlyInApi);
+        Assert.Equal(LibreNmsApiException.PermissionDeniedMessage, ex.ToUserMessage());
+        Assert.Equal(ApiPermissions.Describe(ApiPermission.AcknowledgeAlerts), transport.Permissions.Reason(ApiPermission.AcknowledgeAlerts));
+    }
+
+    [Fact]
+    public void Forgetting_clears_admin_only_refusals_too()
+    {
+        var permissions = new ApiPermissions();
+        permissions.Learn(HttpMethod.Put, "alerts/12", new LibreNmsApiException("x", HttpStatusCode.Forbidden) { IsAdminOnlyInApi = true });
+        permissions.Forget();
+        permissions.Learn(HttpMethod.Put, "alerts/12", Forbidden);
+
+        Assert.Equal(ApiPermissions.Describe(ApiPermission.AcknowledgeAlerts), permissions.Reason(ApiPermission.AcknowledgeAlerts));
     }
 
     /// <summary>A loopback LibreNMS that answers every request the same way - Laravel's 403 by default.</summary>
