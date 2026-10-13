@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using DesktopNMS.Core.SignIn;
 using DesktopNMS.Views;
+using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
 
 namespace DesktopNMS.Services;
@@ -35,11 +36,18 @@ public sealed class WebView2SignIn : IWebSignIn
         }
     }
 
+    private readonly ILogger<WebView2SignIn> _logger;
+
+    public WebView2SignIn(ILogger<WebView2SignIn> logger)
+    {
+        _logger = logger;
+    }
+
     public string DeviceName => Environment.MachineName;
 
     public async Task<WebSignInResult> SignInAsync(WebSignInRequest request)
     {
-        var window = new LibreNmsSignInWindow(request)
+        var window = new LibreNmsSignInWindow(request, _logger)
         {
             Owner = Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive),
         };
