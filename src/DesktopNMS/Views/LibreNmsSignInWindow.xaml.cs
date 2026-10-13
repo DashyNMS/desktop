@@ -286,7 +286,7 @@ public partial class LibreNmsSignInWindow : Window
         if (navigation != _latestNavigation)
         {
             _logger.LogInformation("Web sign-in: the page reloaded before the form was submitted - submitting on the new page");
-            _request.Flow.SubmitNotSent();
+            _request.Flow.SubmitSkipped();
             return;
         }
 

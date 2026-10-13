@@ -73,6 +73,20 @@ public sealed class WebTokenSignInTests
     }
 
     [Fact]
+    public void A_submit_dropped_before_it_ran_doesnt_count()
+    {
+        // LibreNMS can reload several times while the page settles (#293).
+        var flow = NewFlow();
+        for (var i = 0; i < 4; i++)
+        {
+            flow.Next(At("api-access"), "form");
+            flow.SubmitSkipped();
+        }
+
+        Assert.Equal(WebSignInAction.Submit, flow.Next(At("api-access"), "form").Action);
+    }
+
+    [Fact]
     public void Goes_to_the_tokens_page_when_signing_in_lands_on_the_dashboard() =>
         Assert.Equal(WebSignInAction.GoToTokensPage, NewFlow().Next(At("overview"), "signed-in").Action);
 

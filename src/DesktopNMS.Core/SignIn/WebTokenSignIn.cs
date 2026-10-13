@@ -103,6 +103,20 @@ public sealed class WebTokenSignIn
     /// </summary>
     public void SubmitNotSent() => _submitted = false;
 
+    /// <summary>
+    /// The last <see cref="WebSignInAction.Submit"/> was dropped before the
+    /// submit script ran - the page reloaded while it settled - so it doesn't
+    /// count towards the two submits.
+    /// </summary>
+    public void SubmitSkipped()
+    {
+        _submitted = false;
+        if (_submits > 0)
+        {
+            _submits--;
+        }
+    }
+
     /// <summary>Where the web view starts: LibreNMS sends it to log in first, then back here.</summary>
     public Uri TokensPage => new(_webRoot, TokensPath);
 
