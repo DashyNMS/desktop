@@ -197,6 +197,16 @@ public sealed class ApiPermissions
         return null;
     }
 
+    /// <summary>
+    /// Why the sensor list (<c>resources/sensors</c>) came back 403. Its
+    /// check (SensorPolicy::viewAny) passes only LibreNMS's built-in user or
+    /// admin role, or sensor.view/viewAll/update permissions LibreNMS doesn't
+    /// define - so a custom role can't be given anything that lets it through
+    /// (#294).
+    /// </summary>
+    public const string SensorsNeedUserRole =
+        "LibreNMS's API only lets accounts with its built-in user or admin role load sensors. A LibreNMS admin can add the user role to this account.";
+
     /// <summary>Why a button is off: "Your API token isn't allowed to delete devices in LibreNMS."</summary>
     public static string Describe(ApiPermission permission) =>
         $"Your API token isn't allowed to {Verb(permission)} in LibreNMS.";

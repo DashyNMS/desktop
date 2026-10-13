@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Threading;
+using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
@@ -223,7 +224,9 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
 
         if (!result.Succeeded)
         {
-            ErrorMessage = result.ErrorMessage;
+            // A refusal here isn't something more permissions fix - LibreNMS
+            // wants a role (#294), so say which.
+            ErrorMessage = result.IsPermissionDenied ? ApiPermissions.SensorsNeedUserRole : result.ErrorMessage;
             StatusMessage = "Last refresh failed.";
             return;
         }
