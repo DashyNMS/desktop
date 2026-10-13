@@ -49,6 +49,44 @@ public sealed class WebTokenSignInTests
     }
 
     [Fact]
+    public void Submits_again_when_a_reload_beat_the_submit()
+    {
+        // LibreNMS's timezone check reloads the page on top of the submit (#293).
+        var flow = NewFlow();
+        flow.Next(At("api-access"), "form");
+        flow.SubmitNotSent();
+
+        Assert.Equal(WebSignInAction.Submit, flow.Next(At("api-access"), "form").Action);
+        Assert.Equal(WebSignInAction.Done, flow.Next(At("api-access"), "token:" + SanctumToken).Action);
+    }
+
+    [Fact]
+    public void Submits_at_most_twice()
+    {
+        var flow = NewFlow();
+        flow.Next(At("api-access"), "form");
+        flow.SubmitNotSent();
+        flow.Next(At("api-access"), "form");
+        flow.SubmitNotSent();
+
+        Assert.Equal(WebSignInAction.Failed, flow.Next(At("api-access"), "form").Action);
+    }
+
+    [Fact]
+    public void A_submit_dropped_before_it_ran_doesnt_count()
+    {
+        // LibreNMS can reload several times while the page settles (#293).
+        var flow = NewFlow();
+        for (var i = 0; i < 4; i++)
+        {
+            flow.Next(At("api-access"), "form");
+            flow.SubmitSkipped();
+        }
+
+        Assert.Equal(WebSignInAction.Submit, flow.Next(At("api-access"), "form").Action);
+    }
+
+    [Fact]
     public void Goes_to_the_tokens_page_when_signing_in_lands_on_the_dashboard() =>
         Assert.Equal(WebSignInAction.GoToTokensPage, NewFlow().Next(At("overview"), "signed-in").Action);
 
