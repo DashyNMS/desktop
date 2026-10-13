@@ -25,16 +25,30 @@ public partial class LibreNmsSignInWindow : Window
     private readonly WebSignInRequest _request;
     private readonly string _profileFolder = Path.Combine(Path.GetTempPath(), "DashyNMS-SignIn-" + Guid.NewGuid().ToString("N"));
     private readonly TaskCompletionSource<WebSignInResult> _result = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private bool _handling;
+    /// <summary>
+    /// How long the tokens page is left before the form is submitted, for
+    /// LibreNMS's own scripts to finish - its timezone check can reload the
+    /// page straight after signing in (#293).
+    /// </summary>
+    private static readonly TimeSpan SettleTime = TimeSpan.FromSeconds(1);
+
     private readonly ILogger _logger;
 
-    /// <summary>
-    /// The page's title and the start of its text, for the log when a page on
-    /// the server is neither the form nor the token - an error page, say.
-    /// </summary>
-    private const string DescribeScript =
-        "(function(){var b=document.body?document.body.innerText:'';" +
-        "return (document.title||'(no title)')+' | '+b.replace(/\\s+/g,' ').trim().substring(0,200);})()";
+    // One page is handled at a time; one that finishes loading meanwhile is
+    // picked up straight after, not dropped.
+    private bool _handling;
+    private bool _recheck;
+
+    // The newest navigation started, and the newest that finished loading:
+    // a page an older navigation left is never acted on.
+    private ulong _latestNavigation;
+    private ulong _lastLoaded;
+
+    // Whether the token form's POST went out after the last submit, and
+    // what LibreNMS answered it.
+    private bool _awaitingPost;
+    private bool _postSent;
+    private int _postStatus;
 
     public LibreNmsSignInWindow(WebSignInRequest request, ILogger logger)
     {
@@ -77,25 +91,14 @@ public partial class LibreNmsSignInWindow : Window
             };
 
             core.NavigationStarting += (_, e) =>
-                _logger.LogInformation(
-                    "Web sign-in: loading {Page} (navigation {Id}, redirect: {Redirect}, user: {User}, kind: {Kind})",
-                    Describe(e.Uri), e.NavigationId, e.IsRedirected, e.IsUserInitiated, e.NavigationKind);
-
-            // Every response for the server's pages (not its scripts or
-            // styles), with the method - shows what the token form's POST got.
-            core.WebResourceResponseReceived += (_, e) =>
             {
-                if (Uri.TryCreate(e.Request.Uri, UriKind.Absolute, out var uri)
-                    && _request.Flow.IsOnServer(uri)
-                    && Path.GetExtension(uri.AbsolutePath).Length == 0)
-                {
-                    var location = e.Response.Headers.Contains("Location") ? e.Response.Headers.GetHeader("Location") : null;
-                    _logger.LogInformation(
-                        "Web sign-in: {Method} {Page} answered HTTP {Status}{Location}",
-                        e.Request.Method, Describe(uri.AbsoluteUri), e.Response.StatusCode,
-                        location is null ? string.Empty : " -> " + Describe(new Uri(uri, location).AbsoluteUri));
-                }
+                _latestNavigation = e.NavigationId;
+                _logger.LogInformation(
+                    "Web sign-in: loading {Page} (navigation {Id}, redirect: {Redirect}, kind: {Kind})",
+                    Describe(e.Uri), e.NavigationId, e.IsRedirected, e.NavigationKind);
             };
+
+            core.WebResourceResponseReceived += OnResponseReceived;
 
             core.Navigate(_request.Flow.TokensPage.AbsoluteUri);
         }
@@ -114,15 +117,49 @@ public partial class LibreNmsSignInWindow : Window
     private static string Redact(string answer) =>
         answer.StartsWith("token:", StringComparison.Ordinal) ? $"token ({answer.Length - "token:".Length} characters)" : answer;
 
+    /// <summary>
+    /// The server's pages' responses (not its scripts or styles), for the
+    /// log - and to see whether the token form's POST went out, and how
+    /// LibreNMS answered it.
+    /// </summary>
+    private void OnResponseReceived(object? sender, CoreWebView2WebResourceResponseReceivedEventArgs e)
+    {
+        if (!Uri.TryCreate(e.Request.Uri, UriKind.Absolute, out var uri)
+            || !_request.Flow.IsOnServer(uri)
+            || Path.GetExtension(uri.AbsolutePath).Length != 0)
+        {
+            return;
+        }
+
+        var location = e.Response.Headers.Contains("Location") ? e.Response.Headers.GetHeader("Location") : null;
+        _logger.LogInformation(
+            "Web sign-in: {Method} {Page} answered HTTP {Status}{Location}",
+            e.Request.Method, Describe(uri.AbsoluteUri), e.Response.StatusCode,
+            location is null ? string.Empty : " -> " + Describe(new Uri(uri, location).AbsoluteUri));
+
+        if (string.Equals(e.Request.Method, "POST", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(uri.AbsolutePath.TrimEnd('/'), _request.Flow.TokensPage.AbsolutePath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+        {
+            _postSent = true;
+            _postStatus = e.Response.StatusCode;
+        }
+    }
+
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
         _logger.LogInformation(
             "Web sign-in: loaded {Page} (navigation {Id}) - success {Success}, HTTP {Status}, error {Error}",
             Describe(Web.CoreWebView2?.Source), e.NavigationId, e.IsSuccess, e.HttpStatusCode, e.WebErrorStatus);
 
-        if (_result.Task.IsCompleted || _handling)
+        if (_result.Task.IsCompleted)
         {
-            _logger.LogInformation("Web sign-in: page ignored ({Reason})", _handling ? "still handling the previous page" : "already finished");
+            return;
+        }
+
+        // Another page is already on its way - it reports in when it's loaded.
+        if (e.NavigationId != _latestNavigation)
+        {
+            _logger.LogInformation("Web sign-in: navigation {Id} was overtaken by {Latest}", e.NavigationId, _latestNavigation);
             return;
         }
 
@@ -137,63 +174,139 @@ public partial class LibreNmsSignInWindow : Window
             return;
         }
 
+        _lastLoaded = e.NavigationId;
+        if (_handling)
+        {
+            _recheck = true;
+            return;
+        }
+
         _handling = true;
         try
         {
-            Uri.TryCreate(Web.CoreWebView2.Source, UriKind.Absolute, out var location);
-
-            // Scripts run on the server's own pages only, never a sign-on provider's.
-            string? probe = null;
-            if (_request.Flow.IsOnServer(location))
+            do
             {
-                probe = await RunScriptAsync(WebTokenSignIn.ProbeScript);
+                _recheck = false;
+                await HandlePageAsync(_lastLoaded);
             }
-
-            var step = _request.Flow.Next(location, probe);
-
-            var answer = probe is null ? "(not run - not the server)" : Redact(WebTokenSignIn.Unwrap(probe));
-            _logger.LogInformation("Web sign-in: page is {Answer}, next step {Step}", answer, step.Action);
-
-            // Neither the form nor the token, on the server: what is it? An
-            // error page shows its status in the title or first line.
-            if (probe is not null && step.Action is WebSignInAction.NotAllowed or WebSignInAction.Failed or WebSignInAction.Wait)
-            {
-                _logger.LogInformation("Web sign-in: page says {Text}", WebTokenSignIn.Unwrap(await RunScriptAsync(DescribeScript)));
-            }
-
-            switch (step.Action)
-            {
-                case WebSignInAction.Wait:
-                    ShowPage();
-                    break;
-
-                case WebSignInAction.GoToTokensPage:
-                    Working("Opening API Tokens…");
-                    Web.CoreWebView2.Navigate(_request.Flow.TokensPage.AbsoluteUri);
-                    break;
-
-                case WebSignInAction.Submit:
-                    Working("Creating a token for DashyNMS…");
-                    var submitted = await RunScriptAsync(_request.Flow.SubmitScript);
-                    _logger.LogInformation("Web sign-in: submit script answered {Answer}", WebTokenSignIn.Unwrap(submitted));
-                    break;
-
-                case WebSignInAction.Done:
-                    Finish(new WebSignInResult(WebSignInOutcome.Token, step.Token));
-                    break;
-
-                case WebSignInAction.NotAllowed:
-                    Finish(new WebSignInResult(WebSignInOutcome.NotAllowed));
-                    break;
-
-                case WebSignInAction.Failed:
-                    Finish(new WebSignInResult(WebSignInOutcome.Failed));
-                    break;
-            }
+            while (_recheck && !_result.Task.IsCompleted);
         }
         finally
         {
             _handling = false;
+        }
+    }
+
+    private async Task HandlePageAsync(ulong navigation)
+    {
+        Uri.TryCreate(Web.CoreWebView2.Source, UriKind.Absolute, out var location);
+
+        // Scripts run on the server's own pages only, never a sign-on provider's.
+        string? probe = null;
+        if (_request.Flow.IsOnServer(location))
+        {
+            probe = await RunScriptAsync(WebTokenSignIn.ProbeScript);
+        }
+
+        if (navigation != _latestNavigation)
+        {
+            _logger.LogInformation("Web sign-in: the page changed while it was being checked");
+            return;
+        }
+
+        // A submit with no POST before this page: a reload landed on top of
+        // it (#293), so the form gets submitted again.
+        if (_awaitingPost)
+        {
+            _awaitingPost = false;
+            if (!_postSent)
+            {
+                _logger.LogInformation("Web sign-in: the form's submit never went out");
+                _request.Flow.SubmitNotSent();
+            }
+        }
+
+        var step = _request.Flow.Next(location, probe);
+
+        // Neither the form nor the token after LibreNMS turned the POST down
+        // (an expired session, a server error): that's a failure, not a
+        // missing permission.
+        if (step.Action == WebSignInAction.NotAllowed && _postSent && _postStatus >= 400)
+        {
+            step = new WebSignInStep(WebSignInAction.Failed);
+        }
+
+        var answer = probe is null ? "(not run - not the server)" : Redact(WebTokenSignIn.Unwrap(probe));
+        _logger.LogInformation("Web sign-in: page is {Answer}, next step {Step}", answer, step.Action);
+
+        switch (step.Action)
+        {
+            case WebSignInAction.Wait:
+                ShowPage();
+                break;
+
+            case WebSignInAction.GoToTokensPage:
+                Working("Opening API Tokens…");
+                Web.CoreWebView2.Navigate(_request.Flow.TokensPage.AbsoluteUri);
+                break;
+
+            case WebSignInAction.Submit:
+                await SubmitAsync(navigation);
+                break;
+
+            case WebSignInAction.Done:
+                Finish(new WebSignInResult(WebSignInOutcome.Token, step.Token));
+                break;
+
+            case WebSignInAction.NotAllowed:
+                Finish(new WebSignInResult(WebSignInOutcome.NotAllowed));
+                break;
+
+            case WebSignInAction.Failed:
+                Finish(new WebSignInResult(WebSignInOutcome.Failed));
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Submits the token form once the page has settled. If LibreNMS reloads
+    /// it first, or the submit doesn't run, it's left for the next load to
+    /// submit again (#293).
+    /// </summary>
+    private async Task SubmitAsync(ulong navigation)
+    {
+        Working("Creating a token for DashyNMS…");
+        await Task.Delay(SettleTime);
+
+        if (_result.Task.IsCompleted)
+        {
+            return;
+        }
+
+        if (navigation != _latestNavigation)
+        {
+            _logger.LogInformation("Web sign-in: the page reloaded before the form was submitted - submitting on the new page");
+            _request.Flow.SubmitNotSent();
+            return;
+        }
+
+        _postSent = false;
+        _postStatus = 0;
+        _awaitingPost = true;
+
+        var submitted = WebTokenSignIn.Unwrap(await RunScriptAsync(_request.Flow.SubmitScript));
+        _logger.LogInformation("Web sign-in: submit script answered {Answer}", submitted);
+
+        if (submitted != "submitted")
+        {
+            _awaitingPost = false;
+            _request.Flow.SubmitNotSent();
+
+            // Nothing else is loading, so no page will come to try again on.
+            if (navigation == _latestNavigation)
+            {
+                Finish(new WebSignInResult(WebSignInOutcome.Failed));
+            }
         }
     }
 

@@ -77,8 +77,13 @@ public sealed class WebTokenSignIn
     // redirecting away (a policy, a broken install) can't loop for ever.
     private const int MaxTokensPageVisits = 3;
 
+    // The form is submitted at most this often - again only when the last
+    // submit never went out (see SubmitNotSent).
+    private const int MaxSubmits = 2;
+
     private readonly Uri _webRoot;
     private bool _submitted;
+    private int _submits;
     private int _visits;
 
     public WebTokenSignIn(Uri webRoot, string tokenName)
@@ -86,6 +91,17 @@ public sealed class WebTokenSignIn
         _webRoot = webRoot ?? throw new ArgumentNullException(nameof(webRoot));
         TokenName = tokenName;
     }
+
+    /// <summary>
+    /// The last <see cref="WebSignInAction.Submit"/> never reached LibreNMS:
+    /// the submit script didn't answer <c>submitted</c>, or no POST went out
+    /// before the next page loaded. LibreNMS reloads a page straight after
+    /// signing in when the account's timezone follows the browser
+    /// (<c>librenms.js</c>'s <c>updateTimezone</c>), which can land on top
+    /// of the submit (#293). The form is then submitted again when it next
+    /// loads - up to twice in all - instead of being taken as turned down.
+    /// </summary>
+    public void SubmitNotSent() => _submitted = false;
 
     /// <summary>Where the web view starts: LibreNMS sends it to log in first, then back here.</summary>
     public Uri TokensPage => new(_webRoot, TokensPath);
@@ -157,13 +173,14 @@ public sealed class WebTokenSignIn
         switch (answer)
         {
             case "form":
-                if (_submitted)
+                if (_submitted || _submits >= MaxSubmits)
                 {
                     // Back on the form with no token: LibreNMS turned it down.
                     return new(WebSignInAction.Failed);
                 }
 
                 _submitted = true;
+                _submits++;
                 return new(WebSignInAction.Submit);
 
             case "login":
