@@ -93,7 +93,7 @@ public partial class LibreNmsSignInWindow : Window
             core.NavigationStarting += (_, e) =>
             {
                 _latestNavigation = e.NavigationId;
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "Web sign-in: loading {Page} (navigation {Id}, redirect: {Redirect}, kind: {Kind})",
                     Describe(e.Uri), e.NavigationId, e.IsRedirected, e.NavigationKind);
             };
@@ -132,7 +132,7 @@ public partial class LibreNmsSignInWindow : Window
         }
 
         var location = e.Response.Headers.Contains("Location") ? e.Response.Headers.GetHeader("Location") : null;
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Web sign-in: {Method} {Page} answered HTTP {Status}{Location}",
             e.Request.Method, Describe(uri.AbsoluteUri), e.Response.StatusCode,
             location is null ? string.Empty : " -> " + Describe(new Uri(uri, location).AbsoluteUri));
@@ -147,7 +147,7 @@ public partial class LibreNmsSignInWindow : Window
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Web sign-in: loaded {Page} (navigation {Id}) - success {Success}, HTTP {Status}, error {Error}",
             Describe(Web.CoreWebView2?.Source), e.NavigationId, e.IsSuccess, e.HttpStatusCode, e.WebErrorStatus);
 
@@ -159,7 +159,7 @@ public partial class LibreNmsSignInWindow : Window
         // Another page is already on its way - it reports in when it's loaded.
         if (e.NavigationId != _latestNavigation)
         {
-            _logger.LogInformation("Web sign-in: navigation {Id} was overtaken by {Latest}", e.NavigationId, _latestNavigation);
+            _logger.LogDebug("Web sign-in: navigation {Id} was overtaken by {Latest}", e.NavigationId, _latestNavigation);
             return;
         }
 
@@ -210,7 +210,7 @@ public partial class LibreNmsSignInWindow : Window
 
         if (navigation != _latestNavigation)
         {
-            _logger.LogInformation("Web sign-in: the page changed while it was being checked");
+            _logger.LogDebug("Web sign-in: the page changed while it was being checked");
             return;
         }
 
@@ -237,7 +237,7 @@ public partial class LibreNmsSignInWindow : Window
         }
 
         var answer = probe is null ? "(not run - not the server)" : Redact(WebTokenSignIn.Unwrap(probe));
-        _logger.LogInformation("Web sign-in: page is {Answer}, next step {Step}", answer, step.Action);
+        _logger.LogDebug("Web sign-in: page is {Answer}, next step {Step}", answer, step.Action);
 
         switch (step.Action)
         {
@@ -295,7 +295,10 @@ public partial class LibreNmsSignInWindow : Window
         _awaitingPost = true;
 
         var submitted = WebTokenSignIn.Unwrap(await RunScriptAsync(_request.Flow.SubmitScript));
-        _logger.LogInformation("Web sign-in: submit script answered {Answer}", submitted);
+        _logger.Log(
+            submitted == "submitted" ? LogLevel.Debug : LogLevel.Information,
+            "Web sign-in: submit script answered {Answer}",
+            submitted);
 
         if (submitted != "submitted")
         {
