@@ -44,6 +44,19 @@ public sealed class WindowService : IWindowService
     private void OwnByMain(Window window)
     {
         window.Owner = _mainWindow;
+
+        // When an owned window closes, Windows activates the next window in
+        // its own z-order - often another app's - so the main window drops
+        // behind it and looks closed (#290). Activating the owner while this
+        // window is still open hands focus back to DashyNMS instead.
+        window.Closing += (_, e) =>
+        {
+            if (!e.Cancel && window.IsActive && _mainWindow is { IsVisible: true } main && main.WindowState != WindowState.Minimized)
+            {
+                main.Activate();
+            }
+        };
+
         window.Closed += (_, _) =>
         {
             if (_mainWindow is not { IsVisible: true, WindowState: WindowState.Minimized } main)

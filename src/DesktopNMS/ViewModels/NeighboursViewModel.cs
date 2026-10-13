@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Data;
+using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.CustomMaps;
@@ -46,6 +47,8 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     private bool _showOther = true;
     private NeighbourItemViewModel? _selected;
     private (string Name, string? Mac)? _pendingSelection;
+    private readonly DispatcherTimer _autoRefreshTimer;
+    private bool _isShowing;
 
     public NeighboursViewModel(
         INeighbourDirectory directory,
@@ -115,9 +118,15 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
             }
         });
 
+        // Refreshes at the Settings interval, only while the tab is showing (#291).
+        _autoRefreshTimer = new DispatcherTimer { Interval = AutoRefreshInterval };
+        _autoRefreshTimer.Tick += OnAutoRefreshTick;
+
         LoadViewsFromSettings();
         _settings.Changed += OnSettingsChanged;
     }
+
+    private TimeSpan AutoRefreshInterval => TimeSpan.FromSeconds(Math.Max(15, _settings.Current.PollIntervalSeconds));
 
     /// <summary>The user's views, in the order they made them - also the Neighbours tab's hover menu.</summary>
     public ObservableCollection<NeighbourViewDefinition> Views { get; }
@@ -290,16 +299,49 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         PortGraphs.Show(item.SwitchDeviceId, item.PortIfName, item.Name, $" - port {item.PortText} on {item.SwitchName}", "LibreNMS doesn't know this neighbour's switch port.");
     }
 
-    /// <summary>Loads once, lazily, the first time the tab is shown - same convention as every other tab.</summary>
+    /// <summary>
+    /// Loads lazily the first time the tab is shown - same convention as
+    /// every other tab - then keeps it up to date while it's showing (#291).
+    /// Coming back to it after longer than the refresh interval refreshes
+    /// straight away.
+    /// </summary>
     public void OnShown()
     {
-        if (_hasLoadedOnce)
-        {
-            return;
-        }
+        _isShowing = true;
+        _autoRefreshTimer.Start();
 
-        _hasLoadedOnce = true;
-        _ = LoadAsync(refresh: false);
+        if (!_hasLoadedOnce)
+        {
+            _hasLoadedOnce = true;
+            _ = LoadAsync(refresh: false);
+        }
+        else if (_snapshot is { } snapshot && DateTimeOffset.Now - snapshot.LoadedAt >= AutoRefreshInterval)
+        {
+            RefreshInBackground();
+        }
+    }
+
+    /// <summary>Another tab is showing, or the main window is hidden - stops refreshing until it's back.</summary>
+    public void OnHidden()
+    {
+        _isShowing = false;
+        _autoRefreshTimer.Stop();
+    }
+
+    private void OnAutoRefreshTick(object? sender, EventArgs e)
+    {
+        if (_isShowing)
+        {
+            RefreshInBackground();
+        }
+    }
+
+    private void RefreshInBackground()
+    {
+        if (_session.IsConnected && !IsBusy)
+        {
+            _ = LoadAsync(refresh: true, background: true);
+        }
     }
 
     /// <summary>Opens a view on a neighbour, by name - the MAC picks out which of several unnamed ones.</summary>
@@ -368,13 +410,22 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         {
             LoadViewsFromSettings();
         }
+
+        _autoRefreshTimer.Interval = AutoRefreshInterval;
     }
 
-    private async Task LoadAsync(bool refresh)
+    /// <summary>
+    /// A background refresh skips the loading overlay, so the table stays
+    /// on screen - with its selection and scroll position - while it updates.
+    /// </summary>
+    private async Task LoadAsync(bool refresh, bool background = false)
     {
         IsBusy = true;
         ErrorMessage = null;
-        LoadState.BeginLoad();
+        if (!background)
+        {
+            LoadState.BeginLoad();
+        }
 
         try
         {
@@ -594,7 +645,12 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         LoadState.UpdateVisibleCount(ItemsView.Cast<object>().Count());
     }
 
-    public void Dispose() => _settings.Changed -= OnSettingsChanged;
+    public void Dispose()
+    {
+        _autoRefreshTimer.Stop();
+        _autoRefreshTimer.Tick -= OnAutoRefreshTick;
+        _settings.Changed -= OnSettingsChanged;
+    }
 }
 
 /// <summary>How a neighbour reads at a glance - drives its status dot and the Up/Down pills.</summary>
