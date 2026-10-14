@@ -55,6 +55,7 @@ internal sealed class ScreenshotTour
         _main.Health.SelectedCategory = HealthCategory.Temperature;
         await TabAsync(mainWindow, MainTab.Health, "health", 3).ConfigureAwait(true);
         await TabAsync(mainWindow, MainTab.Neighbours, "neighbours", 4).ConfigureAwait(true);
+        await TabAsync(mainWindow, MainTab.LogsEvents, "logs", 4).ConfigureAwait(true);
         await TabAsync(mainWindow, MainTab.MapsNetwork, "network-map", 8).ConfigureAwait(true);
 
         _windows.ShowDeviceDetail(_fleet.FeaturedDeviceId);

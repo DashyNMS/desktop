@@ -4,10 +4,11 @@ Released 18 October 2026
 ## New
 - **Sign in with LibreNMS.** Sign in on your server's own page and DashyNMS creates its API token for you, so there's no token to find and paste. {lock}
 - **Choose which alerts notify you.** Leave out noisy rules, or only hear about the ones that matter, on every device or just one. {bell}
+- **Logs for your whole network.** The event log, alert log and Graylog for every device, each a click away under Logs. {logs}
 - **Maps.** Network, geographical and custom maps, with an editor to draw your own. {map}
 - **Neighbours.** Every neighbour at a glance, filtered down with Neighbourhoods. {link}
-- **Logs for your whole network.** The event log, alert log and Graylog for every device, each a click away under Logs. {logs}
 - **More for your dashboard.** Top interfaces, errors and devices, the event log, Graylog, and any port's traffic graph. {chart}
+- **More in Device Details.** Inventory, routing, PoE and wireless, and ports grouped by status, VLAN, type or speed. {device}
 - **Unimus config backups.** See a device's config backups, compare them, and save either to a file. {copy}
 - **Bulk add devices.** Paste a list or import a CSV to add many devices at once. {add}
 - **Maintenance for several devices.** Select them in Devices and put them all into maintenance in one go. {wrench}
@@ -21,10 +22,12 @@ Released 18 October 2026
 - **Alerts.** See how often an alert has fired before, and get a clear confirmation, with Undo, when you acknowledge. {bell}
 - **Tray.** A quick look on left-click, an icon that shows the alert state, and your choice of which severities it counts. {tray}
 - **Read-only tokens.** Buttons for changes your API token can't make are turned off, with the reason. {lock}
+- **Sign out.** Signing out clears everything DashyNMS saved and goes straight to sign-in. {signout}
+- **Uninstall.** Uninstalling removes everything DashyNMS added. {package}
 
 ## Fixed
-- **Time zones.** Timestamps with a time zone are no longer shifted twice. {clock}
-- **Request timeout.** A new timeout in Settings applies straight away, not after a restart. {clock}
+- **Untrusted certificates.** "Allow untrusted certificate" now shows you the certificate and trusts only that one. {shield}
 - **Redirects.** The API token is never sent to a host a redirect points at. {shield}
-- **Sign out.** Signing out clears everything and goes straight to sign-in. {signout}
-- **Uninstall.** Uninstalling removes everything DashyNMS added. {package}
+- **Request timeout.** A new timeout in Settings applies straight away, not after a restart. {clock}
+- **Time zones.** Timestamps with a time zone are no longer shifted twice. {clock}
+- **Device Details.** Closing it no longer sends the main window behind other apps. {device}

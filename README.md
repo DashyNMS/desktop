@@ -28,7 +28,7 @@ No server to hand? Choose **Try the demo** on the sign-in window to look around 
 ## What you can do
 
 **Know when something's wrong**
-A Windows notification when an alert fires or clears, with Acknowledge right on it. Choose how insistent each severity is, and set quiet hours. The tray icon turns amber or red with the number of open alerts, and a click on it shows the worst of them without opening the app.
+A Windows notification when an alert fires or clears, with Acknowledge right on it. Choose which alerts notify you: leave out the noisy rules, or only hear about the ones that matter, on every device or just one. Choose how insistent each severity is, and set quiet hours. The tray icon turns amber or red with the number of open alerts, and a click on it shows the worst of them without opening the app.
 
 **See what matters first**
 Build your own dashboard from widgets: open alerts, device status, sensor readings, graphs, the event log, Graylog messages, pinned and recently viewed devices. Drag and resize them however you like, or start from a ready-made one.
@@ -45,11 +45,14 @@ Add devices one at a time or in bulk, put them into maintenance, ask LibreNMS to
 **Manage your alerting**
 A full alert rule editor, as on the LibreNMS website: build conditions, import from another rule or an SQL query, and choose which devices, groups and locations a rule covers. Edit alert templates and see which rules use each one.
 
+**Every log in one place**
+The Logs tab brings LibreNMS's event log and alert log for your whole network together with Graylog. Search and filter them, go back up to 1,000 entries, and open any entry's device.
+
 **See how it all connects**
 Network and geographical maps, maps of your own, and a view of each device's neighbours. Health brings temperature, fan, optical power and signal readings from across your network into one place.
 
 **More when you need it**
-Connect Graylog to search your logs alongside your devices, and Unimus to see each device's configuration backups. If your server has a backup address, DashyNMS switches to it when the main one stops answering.
+Connect Graylog to search its messages under Logs and alongside each device, and Unimus to see each device's configuration backups. If your server has a backup address, DashyNMS switches to it when the main one stops answering.
 
 **Made for Windows**
 Dark or light, with your choice of accent colour. It updates itself when a new version is ready.
@@ -61,11 +64,15 @@ Dark or light, with your choice of accent colour. It updates itself when a new v
   </tr>
   <tr>
     <td><img src="docs/screenshots/device-overview.png" alt="A device's overview: availability, uptime, ping graph, resources, sensors, neighbours and busiest ports"></td>
-    <td><img src="docs/screenshots/device-graphs.png" alt="A device's traffic graph over the last day"></td>
+    <td><img src="docs/screenshots/device-graphs-temperature.png" alt="A device's temperature graph over the last day, each sensor in its own colour with its current reading beside it"></td>
   </tr>
   <tr>
     <td><img src="docs/screenshots/network-map.png" alt="The network map, drawn from each device's neighbours"></td>
     <td><img src="docs/screenshots/alert-rules.png" alt="Alert rules, with how many alerts each has raised and its condition"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/logs.png" alt="Logs: the event log for the whole network, with search and filters"></td>
+    <td><img src="docs/screenshots/health.png" alt="Health: temperature readings from across the network"></td>
   </tr>
 </table>
 
@@ -82,14 +89,17 @@ Download the installer from the [latest release](https://github.com/DashyNMS/des
 ## What you need
 
 - Windows 10 (version 1809 or later) or Windows 11.
-- A LibreNMS server you can reach from your computer, with its API turned on.
-- An API token from it. In LibreNMS, open your user menu, then **API → API Settings → Create API access token**. If you don't have access, your LibreNMS administrator can make one for you in a couple of minutes.
+- A LibreNMS server you can reach from your computer, with its API turned on, and an account on it with API access.
 
-Open DashyNMS, enter your server's address and paste the token. That's it. Closing the window keeps DashyNMS running in the notification area, so it can still tell you when something needs attention.
+Open DashyNMS, enter your server's address and choose **Sign in with LibreNMS**. You sign in on your server's own page, however it signs people in, and DashyNMS creates its API token for you. That's it. This needs LibreNMS 26.4 or later and an https address.
+
+You can paste an API token instead: in LibreNMS, open the settings menu, then **API → API Tokens**, and create one. If you don't have access, your LibreNMS administrator can make one for you in a couple of minutes.
+
+Closing the window keeps DashyNMS running in the notification area, so it can still tell you when something needs attention.
 
 ## Help and feedback
 
-- Found a bug or have an idea? [Open an issue](https://github.com/DashyNMS/desktop/issues). Planned work is tracked there too, under the [1.1.0](https://github.com/DashyNMS/desktop/milestone/2) and [1.2.0](https://github.com/DashyNMS/desktop/milestone/3) milestones.
+- Found a bug or have an idea? [Open an issue](https://github.com/DashyNMS/desktop/issues). Planned work is tracked there too, under the [milestones](https://github.com/DashyNMS/desktop/milestones).
 
 ---
 
