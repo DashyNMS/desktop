@@ -76,8 +76,6 @@ Dark or light, with your choice of accent colour. It updates itself when a new v
   </tr>
 </table>
 
-<sub>Screenshots are of demo mode's example network, rendered with <code>tools/Render-Screenshots.ps1</code>.</sub>
-
 ## Private by design
 
 DashyNMS talks to your own LibreNMS server, and to Graylog and Unimus only if you set them up. There's no account to create, no analytics and no tracking. Your API token is encrypted for your Windows account and never leaves your computer except to go to your server. Signing out removes everything DashyNMS has saved. Read the full [privacy notes](PRIVACY.md).
