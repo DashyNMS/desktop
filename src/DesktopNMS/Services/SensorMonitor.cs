@@ -21,12 +21,16 @@ public sealed class SensorPollResult
 
     public string? ErrorMessage { get; init; }
 
-    public static SensorPollResult Failed(string message) => new()
+    /// <summary>LibreNMS refused the token the sensors (403) - see <see cref="LibreNmsApiException.IsPermissionDenied"/>.</summary>
+    public bool IsPermissionDenied { get; init; }
+
+    public static SensorPollResult Failed(string message, bool isPermissionDenied = false) => new()
     {
         Succeeded = false,
         Sensors = Array.Empty<Sensor>(),
         CompletedAt = DateTimeOffset.Now,
         ErrorMessage = message,
+        IsPermissionDenied = isPermissionDenied,
     };
 }
 
@@ -212,7 +216,7 @@ public sealed class SensorMonitor : IDisposable
         catch (LibreNmsApiException ex)
         {
             _logger.LogWarning(ex, "Sensor poll failed");
-            Polled?.Invoke(this, SensorPollResult.Failed(ex.ToUserMessage()));
+            Polled?.Invoke(this, SensorPollResult.Failed(ex.ToUserMessage(), ex.IsPermissionDenied));
         }
         catch (Exception ex)
         {

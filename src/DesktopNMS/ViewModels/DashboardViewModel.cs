@@ -666,8 +666,11 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
 
         if (!result.Succeeded)
         {
-            ErrorMessage = result.ErrorMessage;
-            StatusMessage = "Last refresh failed.";
+            // A token that can't read sensors isn't an error worth a banner
+            // on every refresh here (#294) - the Sensors widgets just stay
+            // empty, and the Health tab says why.
+            ErrorMessage = result.IsPermissionDenied ? null : result.ErrorMessage;
+            StatusMessage = result.IsPermissionDenied ? string.Empty : "Last refresh failed.";
             return;
         }
 

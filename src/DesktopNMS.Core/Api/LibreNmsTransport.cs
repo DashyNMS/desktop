@@ -287,11 +287,19 @@ public sealed class LibreNmsTransport : ILibreNmsTransport, IDisposable
         {
             // LibreNMS's own permission check crashed for a user who isn't an
             // admin - see ApiPermissions.IsCrashedPermissionCheck. Nothing was
-            // written; report it as the refusal it is.
-            var refused = new LibreNmsApiException(LibreNmsApiException.PermissionDeniedMessage, HttpStatusCode.Forbidden, innerException: ex);
+            // written; report it as a refusal, but LibreNMS's API's, not the
+            // token's (#294).
+            var refused = new LibreNmsApiException(
+                ApiPermissions.DescribeAdminOnly(ApiPermissions.For(method, relativeUrl)!.Value),
+                HttpStatusCode.Forbidden,
+                innerException: ex)
+            {
+                IsAdminOnlyInApi = true,
+            };
+
             if (Permissions.Learn(method, relativeUrl, refused))
             {
-                _logger.LogInformation("LibreNMS's permission check for {Method} {Url} failed with a 500 - treating it as refused and turning that action off for this session", method, relativeUrl);
+                _logger.LogInformation("LibreNMS's permission check for {Method} {Url} failed with a 500 (its API only allows admins this) - turning that action off for this session", method, relativeUrl);
             }
 
             throw refused;
