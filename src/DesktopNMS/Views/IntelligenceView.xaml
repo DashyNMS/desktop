@@ -29,19 +29,6 @@
                 Padding="18,10">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Brings the context sidebar back once it's been collapsed
-                         (shown only then, and only when there's room for it). -->
-                    <Button x:Name="ShowContextButton"
-                            Style="{StaticResource ChipButtonStyle}"
-                            ToolTip="Show the context sidebar"
-                            Command="{Binding ToggleSidebarCommand}"
-                            Margin="0,0,8,0"
-                            Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE8A0;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <TextBlock Text="Context" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
                     <Button Style="{StaticResource IconButtonStyle}"
                             ToolTip="New conversation"
                             Command="{Binding ClearCommand}"
@@ -53,6 +40,20 @@
                             Command="{Binding OpenSettingsCommand}"
                             Margin="4,0,0,0">
                         <TextBlock Text="&#xE713;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                    </Button>
+                    <!-- Brings the context sidebar back once it's been collapsed
+                         (shown only then, and only when there's room for it) -
+                         at the far right, by the edge it opens from. -->
+                    <Button x:Name="ShowContextButton"
+                            Style="{StaticResource ChipButtonStyle}"
+                            ToolTip="Show the context sidebar"
+                            Command="{Binding ToggleSidebarCommand}"
+                            Margin="8,0,0,0"
+                            Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE8A0;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Context" VerticalAlignment="Center" />
+                        </StackPanel>
                     </Button>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
