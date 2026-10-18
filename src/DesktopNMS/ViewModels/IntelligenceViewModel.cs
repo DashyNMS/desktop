@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net.Http;
@@ -447,9 +448,9 @@ public sealed class IntelligenceViewModel : ObservableObject
 
         public void OnText(string delta) => _owner._dispatcher.InvokeAsync(() => _answer.Text += delta);
 
-        public void OnToolStarted(string name, string arguments) => _owner._dispatcher.InvokeAsync(() => _answer.AddActivity(IntelligenceMessageViewModel.DescribeTool(name)));
+        public void OnToolStarted(string name, string arguments) => _owner._dispatcher.InvokeAsync(() => _answer.ToolStarted(name));
 
-        public void OnToolFinished(string name, bool isError) => _owner._dispatcher.InvokeAsync(() => _answer.FinishActivity(IntelligenceMessageViewModel.DescribeTool(name), isError));
+        public void OnToolFinished(string name, bool isError) => _owner._dispatcher.InvokeAsync(() => _answer.ToolFinished(name, isError));
     }
 }
 
@@ -485,25 +486,65 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         set => SetProperty(ref _isStreaming, value);
     }
 
-    /// <summary>What was looked up for this answer: "Checking open alerts… done".</summary>
-    public ObservableCollection<string> Activity { get; } = new();
+    // What was looked up for this answer, in the order first looked at.
+    private readonly List<string> _lookedAt = new();
+    private string? _currentStep;
+    private int _failedLookups;
 
-    public void AddActivity(string description) => Activity.Add(description + "…");
+    /// <summary>
+    /// One quiet line above the answer: the step in hand while it works
+    /// ("Checking alerts…"), then what it looked at ("Looked at alerts and
+    /// device health").
+    /// </summary>
+    public string? ActivityText => _currentStep is { } step
+        ? step + "…"
+        : _lookedAt.Count == 0
+            ? null
+            : "Looked at " + JoinNames(_lookedAt) + (_failedLookups > 0 ? $" ({_failedLookups} couldn't be read)" : string.Empty);
 
-    public void FinishActivity(string description, bool isError)
+    public bool HasActivity => ActivityText is not null;
+
+    public void ToolStarted(string tool)
     {
-        var index = Activity.IndexOf(description + "…");
-        if (index >= 0)
-        {
-            Activity[index] = description + (isError ? " - failed" : " ✓");
-        }
+        _currentStep = Step(tool);
+        RaiseActivity();
     }
 
-    /// <summary>A tool's name as a person would say it.</summary>
-    public static string DescribeTool(string name) => name switch
+    public void ToolFinished(string tool, bool isError)
+    {
+        var subject = Subject(tool);
+        if (!_lookedAt.Contains(subject))
+        {
+            _lookedAt.Add(subject);
+        }
+
+        if (isError)
+        {
+            _failedLookups++;
+        }
+
+        _currentStep = null;
+        RaiseActivity();
+    }
+
+    private void RaiseActivity()
+    {
+        OnPropertyChanged(nameof(ActivityText));
+        OnPropertyChanged(nameof(HasActivity));
+    }
+
+    private static string JoinNames(List<string> names) => names.Count switch
+    {
+        1 => names[0],
+        2 => names[0] + " and " + names[1],
+        _ => string.Join(", ", names.Take(names.Count - 1)) + " and " + names[^1],
+    };
+
+    /// <summary>What a tool is doing, as a person would say it.</summary>
+    private static string Step(string tool) => tool switch
     {
         "active_alerts" => "Checking alerts",
-        "alert_details" => "Reading an alert",
+        "alert_details" => "Reading the alert",
         "alert_rules" => "Reading alert rules",
         "config_backup" or "config_diff" or "recent_config_changes" => "Checking config backups",
         "device_details" => "Reading device details",
@@ -520,5 +561,26 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         "trace_endpoint" => "Tracing the address",
         "what_changed" => "Finding what changed",
         _ => "Looking it up",
+    };
+
+    /// <summary>What a tool looked at, for "Looked at …".</summary>
+    private static string Subject(string tool) => tool switch
+    {
+        "active_alerts" or "alert_details" => "alerts",
+        "alert_rules" => "alert rules",
+        "config_backup" or "config_diff" or "recent_config_changes" => "config backups",
+        "device_details" or "find_device" => "devices",
+        "device_events" or "network_events" => "the event log",
+        "device_health" => "device health",
+        "device_neighbours" => "neighbours",
+        "device_sensors" or "health_overview" => "sensors",
+        "list_groups_and_locations" => "groups and locations",
+        "network_overview" => "the network overview",
+        "port_status" => "ports",
+        "search_logs" => "Graylog",
+        "top_devices" or "top_interfaces" or "top_errors" => "the busiest devices and ports",
+        "trace_endpoint" => "where the address is plugged in",
+        "what_changed" => "recent changes",
+        _ => "the network",
     };
 }
