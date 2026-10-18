@@ -356,6 +356,10 @@
         <!-- The question box with the model and Ask/Stop beneath it, as chat apps have it. -->
         <Grid Grid.Row="3" MaxWidth="860" Margin="24,4,24,18"
                     Visibility="{Binding ShowConversation, Converter={StaticResource BoolToVisibility}}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
         <Border
                 Padding="12,8,8,8"
                 CornerRadius="12"
@@ -370,10 +374,11 @@
                 </Grid.RowDefinitions>
                 <Grid>
                     <TextBox x:Name="QuestionBox"
+                             AutomationProperties.Name="Ask about your network"
                              Text="{Binding Question, UpdateSourceTrigger=PropertyChanged}"
                              AcceptsReturn="False"
                              TextWrapping="Wrap"
-                             MinHeight="24"
+                             MinHeight="48"
                              MaxHeight="140"
                              VerticalScrollBarVisibility="Auto"
                              BorderThickness="0"
@@ -402,31 +407,41 @@
                                IsHitTestVisible="False"
                                Visibility="{Binding Question, Converter={StaticResource StringToVisibility}, ConverterParameter=invert}" />
                 </Grid>
-                <DockPanel Grid.Row="1" Margin="0,6,0,0">
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <DockPanel Grid.Row="1" Margin="0,10,0,0">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Bottom">
                         <Button Content="Ask" Style="{StaticResource PrimaryButtonStyle}" Padding="16,6" Command="{Binding SendCommand}"
                                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
                         <Button Content="Stop" Padding="16,6" Command="{Binding StopCommand}"
                                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
                     </StackPanel>
                     <WrapPanel HorizontalAlignment="Left">
-                    <ComboBox ItemsSource="{Binding Models}"
+                    <StackPanel Margin="0,0,8,0">
+                    <TextBlock Text="Model" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4" />
+                    <ComboBox x:Name="ModelSelector" ItemsSource="{Binding Models}"
                               SelectedItem="{Binding SelectedModel}"
                               DisplayMemberPath="DisplayName"
                               HorizontalAlignment="Left"
                               MinWidth="150"
+                              IsEnabled="{Binding CanManageChats}"
+                              AutomationProperties.Name="Model for this chat"
                               ToolTip="Which ChatGPT model answers" />
+                    </StackPanel>
+                    <StackPanel>
+                    <TextBlock Text="Reply style" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4" />
                     <ComboBox ItemsSource="{Binding ChatReplyStyleOptions}" SelectedValue="{Binding SelectedReplyStyle}"
-                              SelectedValuePath="Key" Width="150" Margin="8,0,0,0" IsEnabled="{Binding CanManageChats}"
+                              SelectedValuePath="Key" Width="150" IsEnabled="{Binding CanManageChats}"
                               ToolTip="Reply style for this chat" AutomationProperties.Name="Reply style for this chat">
                         <ComboBox.ItemTemplate>
                             <DataTemplate><TextBlock Text="{Binding Value}" /></DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
+                    </StackPanel>
                     </WrapPanel>
                 </DockPanel>
             </Grid>
         </Border>
+            <TextBlock Grid.Row="1" Text="Enter to ask · Shift+Enter for a new line" FontSize="12"
+                       Foreground="{StaticResource TextSecondaryBrush}" Margin="2,6,0,0" TextWrapping="Wrap" />
             <!-- Anchor the feet to the composer's top edge. RenderTransform
                  lets the body overlap the transcript without reserving space.
                  The drawing's feet end at 41px in its 44px control. -->
