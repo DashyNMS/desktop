@@ -128,7 +128,7 @@
                 <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,8,0,8"
                            Text="Your questions, and what DashyNMS looks up to answer them - device names, addresses, alerts, ports and log lines from your network - are sent to OpenAI to be processed, using your ChatGPT plan." />
                 <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,0,0,16"
-                           Text="Passwords, tokens and SNMP communities are never sent. Config backups are summarised (when they changed, and by how much) unless you choose otherwise in Settings › Intelligence. This notice won't be shown again." />
+                           Text="Passwords, tokens and SNMP communities are never sent. Config backups are summarised unless you choose otherwise in Settings › Intelligence. Web search can check public information; search terms may be sent to search providers. You can turn it off in Settings. This notice won't be shown again." />
                 <Button Content="OK, continue"
                         Style="{StaticResource PrimaryButtonStyle}"
                         HorizontalAlignment="Left"
@@ -166,13 +166,14 @@
                                 </Border>
 
                                 <!-- Intelligence: what it looked up, then the answer as formatted text. -->
-                                <Border Background="#142C46" BorderBrush="#294764" BorderThickness="1"
+                                <Border Background="#0A1526" BorderBrush="#20334B" BorderThickness="1"
                                         CornerRadius="12" Padding="16,14"
                                         Visibility="{Binding IsAssistant, Converter={StaticResource BoolToVisibility}}">
                                     <Border.Resources>
                                         <SolidColorBrush x:Key="TextPrimaryBrush" Color="#EEF5FF" />
                                         <SolidColorBrush x:Key="TextSecondaryBrush" Color="#AEC5DF" />
-                                        <SolidColorBrush x:Key="SurfaceBrush" Color="#1D3855" />
+                                        <SolidColorBrush x:Key="LinkBrush" Color="#8CCBFF" />
+                                        <SolidColorBrush x:Key="SurfaceBrush" Color="#111F33" />
                                         <SolidColorBrush x:Key="BorderBrush" Color="#34516E" />
                                     </Border.Resources>
                                 <StackPanel>
@@ -209,6 +210,7 @@
                                     </ItemsControl>
 
                                     <RichTextBox views:MarkdownDocument.Markdown="{Binding Text}"
+                                                 Hyperlink.RequestNavigate="OnSourceNavigate"
                                                  IsReadOnly="True"
                                                  IsDocumentEnabled="True"
                                                  BorderThickness="0"
@@ -316,6 +318,7 @@
                  The drawing's feet end at 41px in its 44px control. -->
             <views:IntelligenceMascot HorizontalAlignment="Right" VerticalAlignment="Top"
                                       Margin="0,0,6,0" Panel.ZIndex="10"
+                                      Outfit="{Binding CompanionOutfit}"
                                       IsBusy="{Binding IsBusy}" HasError="{Binding HasError}"
                                       Visibility="{Binding ShowMascot, Converter={StaticResource BoolToVisibility}}">
                 <views:IntelligenceMascot.RenderTransform>

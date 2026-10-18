@@ -4,12 +4,24 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Navigation;
+using DesktopNMS.Core.Intelligence;
 using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views;
 
 public partial class IntelligenceView : UserControl
 {
+    private void OnSourceNavigate(object sender, RequestNavigateEventArgs e)
+    {
+        e.Handled = true;
+        if (WebSearchCitations.TryGetLink(e.Uri?.AbsoluteUri, out var uri)
+            && DataContext is IntelligenceViewModel model)
+        {
+            model.OpenSource(uri);
+        }
+    }
+
     /// <summary>
     /// Copy from an answer as plain text: the rich copy would carry the
     /// app's colours (white text, dark fills) into whatever it's pasted in.

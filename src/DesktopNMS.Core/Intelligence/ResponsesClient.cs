@@ -147,6 +147,12 @@ public sealed class ResponsesClient
         {
         }
 
+        if (status is HttpStatusCode.BadRequest or HttpStatusCode.Forbidden
+            && message?.Contains("web_search", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return "ChatGPT couldn't use web search with this model or account. Choose another model, or turn off Allow web search in Intelligence settings. " + message;
+        }
+
         return status switch
         {
             HttpStatusCode.Unauthorized => "The ChatGPT sign-in has expired. Sign in again.",

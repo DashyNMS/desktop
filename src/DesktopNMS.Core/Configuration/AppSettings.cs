@@ -221,6 +221,9 @@ public sealed class AppSettings
     /// <summary>Opt-in cosmetic companion on the Intelligence tab.</summary>
     public bool IntelligenceMascotEnabled { get; set; }
 
+    /// <summary>Allow current public information to be looked up using hosted web search.</summary>
+    public bool IntelligenceWebSearchEnabled { get; set; } = true;
+
     /// <summary>The "what's sent" notice was accepted, so it isn't shown again.</summary>
     public bool IntelligenceConsentGiven { get; set; }
 
@@ -361,6 +364,7 @@ public sealed class AppSettings
         EnablePinnedDevices = EnablePinnedDevices,
         IntelligenceEnabled = IntelligenceEnabled,
         IntelligenceMascotEnabled = IntelligenceMascotEnabled,
+        IntelligenceWebSearchEnabled = IntelligenceWebSearchEnabled,
         IntelligenceConsentGiven = IntelligenceConsentGiven,
         IntelligenceModel = IntelligenceModel,
         IntelligenceConfigText = IntelligenceConfigText,

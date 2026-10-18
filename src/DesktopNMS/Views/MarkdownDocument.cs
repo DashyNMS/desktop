@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
+using DesktopNMS.Core.Intelligence;
 
 namespace DesktopNMS.Views;
 
@@ -17,8 +18,8 @@ namespace DesktopNMS.Views;
 /// <code>&lt;RichTextBox views:MarkdownDocument.Markdown="{Binding Text}" IsReadOnly="True" /&gt;</code>
 /// Covers what a chat answer uses: paragraphs, headings, bullet and numbered
 /// lists, tables (with column alignment), fenced code, quotes, rules, and
-/// bold, italic, inline code and links inline. Links show their text but
-/// don't open - their targets can come from network data. While an answer
+/// bold, italic, inline code and HTTP(S) source links. Links only open on
+/// explicit activation through the host view. While an answer
 /// streams in, it's redrawn at most every 120 ms.
 /// </summary>
 public static partial class MarkdownDocument
@@ -382,7 +383,21 @@ public static partial class MarkdownDocument
                 else if (token.StartsWith('['))
                 {
                     var link = LinkToken().Match(token);
-                    inlines.Add(new Underline(new Run(link.Groups[1].Value)) { ToolTip = link.Groups[2].Value });
+                    var title = link.Groups[1].Value;
+                    var target = link.Groups[2].Value;
+                    if (WebSearchCitations.TryGetLink(target, out var uri))
+                    {
+                        inlines.Add(new Hyperlink(new Run(title))
+                        {
+                            NavigateUri = uri,
+                            ToolTip = uri.AbsoluteUri,
+                            Foreground = Resource<Brush>("LinkBrush") ?? Brush("AccentBrush"),
+                        });
+                    }
+                    else
+                    {
+                        inlines.Add(new Run(title));
+                    }
                 }
                 else
                 {

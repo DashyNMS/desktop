@@ -1880,6 +1880,20 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    public bool IntelligenceWebSearchEnabled
+    {
+        get => _draft.IntelligenceWebSearchEnabled;
+        set
+        {
+            if (_draft.IntelligenceWebSearchEnabled == value)
+            {
+                return;
+            }
+            _draft.IntelligenceWebSearchEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>See <see cref="AppSettings.IntelligenceMascotEnabled"/>.</summary>
     public bool IntelligenceMascotEnabled
     {
