@@ -298,7 +298,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Intelligence: ChatGPT sign-in failed");
+            _logger.LogWarning("Intelligence: ChatGPT sign-in failed ({ErrorType})", ex.GetType().Name);
             ErrorText = "Couldn't sign in with ChatGPT. Check your internet connection and try again.";
         }
         finally
@@ -352,7 +352,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is IntelligenceException or ChatGptSignInException or HttpRequestException)
         {
-            _logger.LogWarning("Intelligence: couldn't list models: {Message}", ex.Message);
+            _logger.LogWarning("Intelligence: couldn't list models ({ErrorType})", ex.GetType().Name);
             ErrorText = ex.Message;
         }
 
@@ -379,7 +379,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
             chat.Data.Title = ChatTitle(question);
             chat.Refresh();
         }
-        SaveActiveChat();
+        SaveActiveChat(recordActivity: true);
         OnPropertyChanged(nameof(ShowSuggestions));
 
         _running = new CancellationTokenSource();
@@ -417,7 +417,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Intelligence: the question failed");
+            _logger.LogWarning("Intelligence: the question failed ({ErrorType})", ex.GetType().Name);
             ErrorText = "Something went wrong answering that. Try again.";
             if (string.IsNullOrEmpty(answer.Text))
             {
@@ -430,7 +430,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
             _running.Dispose();
             _running = null;
             IsBusy = false;
-            SaveActiveChat();
+            SaveActiveChat(recordActivity: !string.IsNullOrWhiteSpace(answer.Text));
             EnsureChatScope();
             OnPropertyChanged(nameof(ShowSuggestions));
         }
