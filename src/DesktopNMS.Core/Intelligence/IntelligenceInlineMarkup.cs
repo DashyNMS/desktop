@@ -55,6 +55,18 @@ public static partial class IntelligenceInlineMarkup
     public static string ToReadableText(string markdown, IReadOnlyList<IntelligenceInlineReference> references)
         => Expand(markdown, references, escapeMarkdown: false);
 
+    /// <summary>A bounded, plain-text chat-list excerpt; copying retains the original Markdown.</summary>
+    public static string ToPreviewText(string markdown, IReadOnlyList<IntelligenceInlineReference> references)
+    {
+        var text = ToReadableText(markdown[..Math.Min(markdown.Length, 1024)], references);
+        text = Regex.Replace(text, @"!?\[([^\]]*)\]\([^)]+\)", "$1");
+        text = Regex.Replace(text, @"(?<!\w)(\*\*|__)(?=\S)(.+?)(?<=\S)\1(?!\w)", "$2");
+        text = Regex.Replace(text, @"`+([^`]+)`+", "$1");
+        text = Regex.Replace(text, @"(?<!\w)([*_])(?=\S)(.+?)(?<=\S)\1(?!\w)", "$2");
+        text = Regex.Replace(text, @"(?m)^\s*(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+)", "");
+        return string.Join(" ", text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    }
+
     private static string Expand(string markdown, IReadOnlyList<IntelligenceInlineReference> references, bool escapeMarkdown)
         => MarkdownToken().Replace(markdown, match => match.Value.StartsWith('`') ? match.Value
             : match.Value == "[[recommendation]]" ? escapeMarkdown ? "**Recommendation:** " : "Recommendation: "

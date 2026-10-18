@@ -42,6 +42,10 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
     private SpotlightOption? _pickerSelection;
     private bool _pickerOpen;
     private bool _loadedScopes;
+    private bool _isScopeLocked;
+    private DateTimeOffset? _lastAlertRefresh;
+    private bool _alertRefreshFailed;
+    private int _matchingAlertCount;
     private List<SpotlightOption> _groups = new();
     private List<SpotlightOption> _locations = new();
 
@@ -67,9 +71,12 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
                 _dispatcher.InvokeAsync(() =>
                 {
                     _alerts = result.Alerts;
+                    _lastAlertRefresh = result.CompletedAt;
+                    _alertRefreshFailed = false;
                     RefreshMentioned();
                 });
             }
+            else _dispatcher.InvokeAsync(() => { _alertRefreshFailed = true; OnPropertyChanged(nameof(AlertFreshness)); });
         };
 
         OpenDeviceCommand = new RelayCommand(p =>
@@ -89,21 +96,23 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
             {
                 AddSpotlight(new SpotlightOption(SpotlightKind.Device, device.DeviceId, device.Name));
             }
-        });
+        }, _ => CanEditSpotlight);
         RemoveSpotlightCommand = new RelayCommand(p =>
         {
+            if (!CanEditSpotlight) return;
             if (p is SpotlightOption option)
             {
                 Spotlight.Remove(option);
                 RaiseSpotlight();
             }
-        });
+        }, _ => CanEditSpotlight);
         ClearSpotlightCommand = new RelayCommand(() =>
         {
+            if (!CanEditSpotlight) return;
             Spotlight.Clear();
             RaiseSpotlight();
-        }, () => Spotlight.Count > 0);
-        OpenPickerCommand = new AsyncRelayCommand(OpenPickerAsync);
+        }, () => CanEditSpotlight && Spotlight.Count > 0);
+        OpenPickerCommand = new AsyncRelayCommand(OpenPickerAsync, () => CanEditSpotlight);
         ClosePickerCommand = new RelayCommand(() => PickerOpen = false);
         AddPickedCommand = new RelayCommand(() =>
         {
@@ -113,7 +122,7 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
                 PickerSelection = null;
                 PickerOpen = false;
             }
-        }, () => _pickerSelection is not null);
+        }, () => CanEditSpotlight && _pickerSelection is not null);
         PickDevicesCommand = new RelayCommand(() => PickerKind = SpotlightKind.Device);
         PickGroupCommand = new RelayCommand(() => PickerKind = SpotlightKind.Group);
         PickLocationCommand = new RelayCommand(() => PickerKind = SpotlightKind.Location);
@@ -158,7 +167,26 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
 
     public bool HasSpotlight => Spotlight.Count > 0;
 
-    public string AlertsHeader => Alerts.Count == 0 ? "ALERTS" : $"ALERTS · {Alerts.Count}";
+    public string AlertsHeader => "OPEN ALERTS ON MENTIONED DEVICES";
+    public string AlertCountLabel => _matchingAlertCount > Alerts.Count ? $"Showing {Alerts.Count} of {_matchingAlertCount}" : $"{Alerts.Count} open alerts";
+    public string DeviceFreshness => _devices.LastRefreshed is { } at ? $"Cached device data · refreshed {at.ToLocalTime():g}" : "Cached device data · refresh time unavailable";
+    public string AlertFreshness => (_alertRefreshFailed ? "Refresh failed · " : "") + (_lastAlertRefresh is { } at ? $"last successful alert poll {at.ToLocalTime():g}" : "No successful alert poll yet");
+    public bool CanEditSpotlight => !_isScopeLocked;
+    public bool IsScopeLocked
+    {
+        get => _isScopeLocked;
+        set
+        {
+            if (!SetProperty(ref _isScopeLocked, value)) return;
+            if (value) PickerOpen = false;
+            OnPropertyChanged(nameof(CanEditSpotlight));
+            SpotlightDeviceCommand.RaiseCanExecuteChanged();
+            RemoveSpotlightCommand.RaiseCanExecuteChanged();
+            ClearSpotlightCommand.RaiseCanExecuteChanged();
+            OpenPickerCommand.RaiseCanExecuteChanged();
+            AddPickedCommand.RaiseCanExecuteChanged();
+        }
+    }
 
     public string SpotlightSummary => Spotlight.Count == 0 ? "Whole network" : string.Join(", ", Spotlight.Select(s => s.Name));
 
@@ -298,6 +326,7 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
         Mentioned.Clear();
         Alerts.Clear();
         LookedAt.Clear();
+        _matchingAlertCount = 0;
         RaiseLists();
     }
 
@@ -331,6 +360,7 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
         }
 
         var ids = Mentioned.Select(m => m.DeviceId).ToHashSet();
+        _matchingAlertCount = _alerts.Count(a => ids.Contains(a.DeviceId) && a.State != AlertState.Recovered);
         var open = _alerts
             .Where(a => ids.Contains(a.DeviceId) && a.State != AlertState.Recovered)
             .OrderBy(a => a.IsAcknowledged)
@@ -386,6 +416,7 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
 
     private void AddSpotlight(SpotlightOption option)
     {
+        if (!CanEditSpotlight) return;
         // A group or location replaces anything else; devices add up.
         if (option.Kind != SpotlightKind.Device || Spotlight.Any(s => s.Kind != SpotlightKind.Device))
         {
@@ -402,6 +433,7 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
 
     private async Task OpenPickerAsync()
     {
+        if (!CanEditSpotlight) return;
         PickerOpen = true;
         if (!_loadedScopes)
         {
@@ -451,6 +483,9 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
         OnPropertyChanged(nameof(HasAlerts));
         OnPropertyChanged(nameof(HasLookedAt));
         OnPropertyChanged(nameof(AlertsHeader));
+        OnPropertyChanged(nameof(AlertCountLabel));
+        OnPropertyChanged(nameof(DeviceFreshness));
+        OnPropertyChanged(nameof(AlertFreshness));
     }
 
     private void RaiseSpotlight()
@@ -563,7 +598,8 @@ public sealed class ContextAlertViewModel
         DeviceId = alert.DeviceId;
         Rule = alert.DisplayRuleName;
         DeviceName = deviceName;
-        Severity = alert.IsAcknowledged ? "other" : alert.Severity == AlertSeverity.Critical ? "down" : "warning";
+        Severity = alert.Severity switch { AlertSeverity.Critical => "down", AlertSeverity.Warning => "warning", AlertSeverity.Ok => "ok", _ => "other" };
+        StateLabel = alert.Severity.ToDisplayString() + (alert.IsAcknowledged ? " · Acknowledged" : " · Active");
         Age = alert.Timestamp is { } at ? Ago(DateTime.Now - at) : string.Empty;
     }
 
@@ -573,8 +609,9 @@ public sealed class ContextAlertViewModel
 
     public string DeviceName { get; }
 
-    /// <summary>"down" (critical), "warning", or "other" (acknowledged) - drives the dot.</summary>
+    /// <summary>Severity remains independent of acknowledgement.</summary>
     public string Severity { get; }
+    public string StateLabel { get; }
 
     public string Age { get; }
 

@@ -44,14 +44,14 @@
          ChatGPT plan using DashyNMS's read-only network tools. The account
          lives in Settings › Intelligence, not here. The context sidebar on
          the right hides itself when the window is narrow. -->
-    <Grid x:Name="Root" SizeChanged="OnRootSizeChanged">
+    <Grid x:Name="Root" SizeChanged="OnRootSizeChanged" PreviewKeyDown="OnRootKeyDown">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-    <Grid Grid.Column="1">
+    <Grid x:Name="ConversationPane" Grid.Column="1" AutomationProperties.Name="Intelligence conversation">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -74,37 +74,41 @@
                     <Button x:Name="ShowContextButton"
                             Style="{StaticResource IconButtonStyle}"
                             ToolTip="Show the context sidebar"
-                            Command="{Binding ToggleSidebarCommand}"
+                            AutomationProperties.Name="Show context"
+                            Click="OnShowContextClick"
                             Margin="8,0,0,0"
                             Visibility="Collapsed">
                         <TextBlock Text="&#xE8A0;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
                     </Button>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Style="{StaticResource IconButtonStyle}" Margin="0,0,10,0"
-                            Command="{Binding ToggleChatListCommand}" ToolTip="Show or hide saved chats"
-                            Visibility="{Binding ShowConversation, Converter={StaticResource BoolToVisibility}}">
-                        <Path Data="{x:Static views:RailIcon.RouteSparkle}" Width="18" Height="18" Stretch="Uniform"
-                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                              StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
-                    </Button>
+                <Grid VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal">
+                    <Path Data="{x:Static views:RailIcon.RouteSparkle}" Width="18" Height="18" Stretch="Uniform" Margin="0,0,8,0"
+                          Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                    <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="Intelligence" Style="{StaticResource PaneTitleStyle}" />
+                    <TextBlock Text="{Binding SelectedChat.Title}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                               MaxWidth="160" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedChat.Title}"
+                               Visibility="{Binding ShowConversation, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                    </StackPanel>
                     <!-- Spotlight: what the agent is kept to. -->
-                    <Border Background="{StaticResource AccentSubtleBrush}" CornerRadius="10" Padding="9,2,4,2" Margin="8,0,0,0" VerticalAlignment="Center"
+                    <Border Grid.Column="1" Background="{StaticResource AccentSubtleBrush}" CornerRadius="10" Padding="9,2,4,2" Margin="8,0,8,0" VerticalAlignment="Center" HorizontalAlignment="Left" MaxWidth="320"
                             Visibility="{Binding Context.HasSpotlight, Converter={StaticResource BoolToVisibility}}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE7B3;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource IconButtonStyle}" Width="20" Height="20" Margin="4,0,0,0"
+                                    ToolTip="Back to the whole network" AutomationProperties.Name="Clear Spotlight" Command="{Binding Context.ClearSpotlightCommand}">
+                                <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9" />
+                            </Button>
+                            <TextBlock DockPanel.Dock="Left" Text="&#xE7B3;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
                                        Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
                             <TextBlock FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" MaxWidth="320" TextTrimming="CharacterEllipsis">
                                 <Run Text="Spotlight: " /><Run Text="{Binding Context.SpotlightSummary, Mode=OneWay}" FontWeight="SemiBold" />
                             </TextBlock>
-                            <Button Style="{StaticResource IconButtonStyle}" Width="20" Height="20" Margin="4,0,0,0"
-                                    ToolTip="Back to the whole network" Command="{Binding Context.ClearSpotlightCommand}">
-                                <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9" />
-                            </Button>
-                        </StackPanel>
+                        </DockPanel>
                     </Border>
-                </StackPanel>
+                </Grid>
             </DockPanel>
         </Border>
 
@@ -168,7 +172,7 @@
         <Grid Grid.Row="2" Visibility="{Binding ShowConversation, Converter={StaticResource BoolToVisibility}}">
             <!-- Behind the whole conversation, including while typing and streaming. -->
             <views:AmbientGlow />
-            <ScrollViewer x:Name="Transcript" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ScrollViewer x:Name="Transcript" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ScrollChanged="OnTranscriptScrollChanged">
                 <!-- One readable column, as chat apps do. -->
                 <ItemsControl ItemsSource="{Binding Messages}" MaxWidth="860" Margin="24,20,24,8">
                     <ItemsControl.ItemTemplate>
@@ -237,6 +241,7 @@
                                         <views:HeartbeatLogo DockPanel.Dock="Left" Width="14" Height="14" IsBeating="{Binding IsWorking}" VerticalAlignment="Center" Margin="0,0,7,0"
                                                              Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}}" />
                                         <Border DockPanel.Dock="Left" Width="14" Height="14" CornerRadius="7" BorderThickness="1" BorderBrush="#8CCBFF" VerticalAlignment="Center" Margin="0,0,7,0"
+                                                ToolTip="{Binding OutcomeLabel}"
                                                 Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
                                             <TextBlock Text="{Binding CompletionGlyph}" FontFamily="Segoe UI" FontSize="9" Foreground="#8CCBFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                         </Border>
@@ -266,7 +271,7 @@
                                                   Visibility="{Binding HasImages, Converter={StaticResource BoolToVisibility}}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border CornerRadius="8"
+                                                <Button
                                                         BorderBrush="{StaticResource BorderBrush}"
                                                         BorderThickness="1"
                                                         Background="White"
@@ -275,10 +280,11 @@
                                                         HorizontalAlignment="Left"
                                                         Cursor="Hand"
                                                         ToolTip="Open full size"
-                                                        MouseLeftButtonUp="OnGraphClick">
+                                                        AutomationProperties.Name="Open graph full size"
+                                                        Click="OnGraphClick">
                                                     <Image Source="{Binding}" MaxHeight="300" Stretch="Uniform"
                                                            RenderOptions.BitmapScalingMode="HighQuality" />
-                                                </Border>
+                                                </Button>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
@@ -306,6 +312,15 @@
                                             </ContextMenu>
                                         </RichTextBox.ContextMenu>
                                     </RichTextBox>
+                                    <TextBlock Text="{Binding FailureText}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{StaticResource TextSecondaryBrush}"
+                                               AutomationProperties.LiveSetting="Polite" Visibility="{Binding HasFailureText, Converter={StaticResource BoolToVisibility}}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0" Visibility="{Binding CanRecoverQuestion, Converter={StaticResource BoolToVisibility}}">
+                                        <Button Content="Retry" Padding="12,5" Margin="0,0,8,0"
+                                                ToolTip="Ask this question again using the current chat settings"
+                                                Command="{Binding DataContext.RetryQuestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                        <Button Content="Edit question" Padding="12,5"
+                                                Command="{Binding DataContext.EditQuestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                    </StackPanel>
                                     <DockPanel Margin="0,14,0,0">
                                         <Button DockPanel.Dock="Right" Style="{StaticResource IconButtonStyle}" Width="Auto" Height="28"
                                                 FontFamily="{StaticResource BodyFont}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
@@ -317,8 +332,10 @@
                                                 <TextBlock Text="{Binding CopyAnswerLabel}" VerticalAlignment="Center" />
                                             </StackPanel>
                                         </Button>
-                                        <TextBlock Text="{Binding TimeLabel}" ToolTip="{Binding TimeTooltip}" FontSize="12"
-                                                   Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding TimeLabel}" ToolTip="{Binding TimeTooltip}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <TextBlock Text="{Binding OutcomeLabel}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="10,0,0,0" />
+                                        </StackPanel>
                                     </DockPanel>
                                 </StackPanel>
                                 </Border>
@@ -327,6 +344,8 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
+            <Button x:Name="JumpToLatestButton" Content="Jump to latest" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                    Margin="0,0,0,12" Padding="14,7" Visibility="Collapsed" Click="OnJumpToLatestClick" />
 
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                         Visibility="{Binding ShowSuggestions, Converter={StaticResource BoolToVisibility}}">
@@ -477,10 +496,26 @@
                         <TextBlock Text="Chats" Style="{StaticResource PaneTitleStyle}" />
                     </DockPanel>
                 </Border>
-                <ListBox Grid.Row="1" Margin="12,12,12,0" ItemsSource="{Binding Chats}" SelectedItem="{Binding SelectedChat}"
+                <ListBox Grid.Row="1" Margin="12,8,12,0" ItemsSource="{Binding GroupedChats}" SelectedItem="{Binding SelectedChat}"
                          Background="Transparent" BorderThickness="0"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         ToolTip="Finish or stop the current answer before switching chats">
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved chats">
+                    <ListBox.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name.Label}" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="9,12,0,7" />
+                                </DataTemplate>
+                            </GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ListBox.GroupStyle>
+                    <ListBox.Style>
+                        <Style TargetType="ListBox">
+                            <Style.Triggers><DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                <Setter Property="ToolTip" Value="Finish or stop the current answer before switching chats" />
+                            </DataTrigger></Style.Triggers>
+                        </Style>
+                    </ListBox.Style>
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
                             <Setter Property="IsEnabled" Value="{Binding DataContext.CanManageChats, RelativeSource={RelativeSource AncestorType=ListBox}}" />
@@ -527,7 +562,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel>
+                                <StackPanel Visibility="{Binding IsRenaming, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Left" Text="&#xE718;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
                                                    Foreground="{DynamicResource AccentBrush}" Margin="0,0,5,0" VerticalAlignment="Center"
@@ -539,8 +574,17 @@
                                     <TextBlock Text="{Binding LastActivity}" Style="{StaticResource SubtleTextStyle}" FontSize="11"
                                                Margin="0,4,0,0" ToolTip="Latest message activity (local time)" />
                                 </StackPanel>
+                                <StackPanel Visibility="{Binding IsRenaming, Converter={StaticResource BoolToVisibility}}"
+                                            IsEnabled="{Binding DataContext.CanManageChats, RelativeSource={RelativeSource AncestorType=ListBox}}">
+                                    <TextBox Text="{Binding DataContext.ChatNameDraft, RelativeSource={RelativeSource AncestorType=ListBox}, UpdateSourceTrigger=PropertyChanged}"
+                                             MaxLength="80" AutomationProperties.Name="Chat name" KeyDown="OnChatNameKeyDown" IsVisibleChanged="OnRenameVisibilityChanged" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                        <Button Content="Save" Command="{Binding DataContext.SaveChatNameCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" Padding="8,4" />
+                                        <Button Content="Cancel" Command="{Binding DataContext.CancelChatNameCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" Padding="8,4" Margin="4,0,0,0" />
+                                    </StackPanel>
+                                </StackPanel>
                                 <Button Grid.Column="1" Style="{StaticResource IconButtonStyle}" Width="22" Height="22" Margin="4,0,0,0"
-                                        ToolTip="Delete chat" VerticalAlignment="Center"
+                                        ToolTip="Delete chat" AutomationProperties.Name="Delete chat" VerticalAlignment="Center"
                                         Command="{Binding DataContext.DeleteChatCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                         CommandParameter="{Binding}">
                                     <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" />
@@ -549,15 +593,6 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
-                <StackPanel Grid.Row="2" Margin="12,10,12,12"
-                            Visibility="{Binding IsRenamingChat, Converter={StaticResource BoolToVisibility}}">
-                    <TextBox Text="{Binding ChatNameDraft, UpdateSourceTrigger=PropertyChanged}" MaxLength="80"
-                             ToolTip="Chat name" KeyDown="OnChatNameKeyDown" />
-                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                        <Button Content="Save" Command="{Binding SaveChatNameCommand}" Padding="10,5" />
-                        <Button Content="Cancel" Command="{Binding CancelChatNameCommand}" Padding="10,5" Margin="6,0,0,0" />
-                    </StackPanel>
-                </StackPanel>
             </Grid>
         </Border>
 
@@ -565,8 +600,8 @@
         <!-- What the conversation is about, from DashyNMS's own live data:
              Spotlight, the devices it mentions with their state, their open
              alerts, and what it looked at. Hidden on a narrow window. -->
+        <Grid x:Name="DockedSidebarHost" Grid.Column="2">
         <Border x:Name="Sidebar"
-                Grid.Column="2"
                 Width="290"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
@@ -624,7 +659,7 @@
                         <Button DockPanel.Dock="Right"
                                 Style="{StaticResource IconButtonStyle}"
                                 ToolTip="Collapse the context sidebar"
-                                Command="{Binding DataContext.ToggleSidebarCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                AutomationProperties.Name="Close context" Click="OnCloseContextClick">
                             <TextBlock Text="&#xE89F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
                         </Button>
                         <TextBlock Text="Context" Style="{StaticResource PaneTitleStyle}" />
@@ -642,6 +677,8 @@
                         </Button>
                         <TextBlock Text="SPOTLIGHT" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" />
                     </DockPanel>
+                    <TextBlock Text="Finish or stop the answer to change Spotlight" FontSize="12" TextWrapping="Wrap" Margin="8,0,0,6"
+                               Foreground="{StaticResource TextSecondaryBrush}" Visibility="{Binding IsScopeLocked, Converter={StaticResource BoolToVisibility}}" />
 
                     <TextBlock Text="Whole network" Style="{StaticResource SubtleTextStyle}" Margin="8,0,0,4"
                                Visibility="{Binding HasSpotlight, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
@@ -696,7 +733,8 @@
 
                     <!-- ===== Mentioned devices ===== -->
                     <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,16,0,14" />
-                    <TextBlock Text="DEVICES" Style="{StaticResource SectionHeaderStyle}" Margin="8,0,0,6" />
+                    <TextBlock Text="MENTIONED DEVICES" Style="{StaticResource SectionHeaderStyle}" Margin="8,0,0,6" />
+                    <TextBlock Text="{Binding DeviceFreshness}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="8,0,0,8" />
                     <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="8,0,0,0"
                                Text="Devices the conversation mentions appear here, with their state."
                                Visibility="{Binding HasMentioned, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
@@ -734,6 +772,8 @@
                     <StackPanel Visibility="{Binding HasAlerts, Converter={StaticResource BoolToVisibility}}">
                         <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,16,0,14" />
                         <TextBlock Text="{Binding AlertsHeader}" Style="{StaticResource SectionHeaderStyle}" Margin="8,0,0,6" />
+                        <TextBlock Text="{Binding AlertCountLabel}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="8,0,0,3" />
+                        <TextBlock Text="{Binding AlertFreshness}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="8,0,0,8" />
                         <ItemsControl ItemsSource="{Binding Alerts}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -747,6 +787,7 @@
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Rule}" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
                                                 <TextBlock Text="{Binding DeviceName}" Style="{StaticResource SubtleTextStyle}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding StateLabel}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
                                             </StackPanel>
                                         </DockPanel>
                                     </Button>
@@ -775,5 +816,9 @@
             </ScrollViewer>
             </Grid>
         </Border>
+        </Grid>
+        <Grid x:Name="ContextDrawer" Grid.Column="0" Grid.ColumnSpan="3" Visibility="Collapsed" Panel.ZIndex="30" KeyboardNavigation.TabNavigation="Cycle" AutomationProperties.Name="Context drawer">
+            <Button Background="#66000000" BorderThickness="0" AutomationProperties.Name="Close context drawer" Click="OnCloseContextClick" />
+        </Grid>
     </Grid>
 </UserControl>

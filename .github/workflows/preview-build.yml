@@ -57,9 +57,15 @@ jobs:
           "preview_version=$previewVersion" >> $env:GITHUB_OUTPUT
           "preview_tag=$previewTag" >> $env:GITHUB_OUTPUT
 
-      - name: Capture the commit message for the release notes
+      - name: Prepare the preview release notes
         shell: pwsh
-        run: git log -1 --pretty=%B | Out-File -FilePath commit-message.txt -Encoding utf8NoBOM
+        run: |
+          $notes = "docs/releases/${{ steps.version.outputs.preview_version }}.md"
+          if (Test-Path $notes -PathType Leaf) {
+            Copy-Item $notes release-notes.md
+          } else {
+            git log -1 --pretty=%B | Out-File -FilePath release-notes.md -Encoding utf8NoBOM
+          }
 
       - name: Checkout the pinned MCP server
         uses: actions/checkout@v7
@@ -119,6 +125,6 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.preview_tag }}
           name: ${{ steps.version.outputs.preview_version }}
-          body_path: commit-message.txt
+          body_path: release-notes.md
           prerelease: true
           files: dist/DashyNMS-Setup-*.exe

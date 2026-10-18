@@ -2,6 +2,26 @@
 
 Reviewed 18 October 2026. Scope: the Intelligence tab, composer, chat list and Context pane. Findings use the current XAML, command handlers and an isolated WPF rendering; this is a design and code review, not a completed keyboard, screen-reader or accessibility certification.
 
+## Implementation status
+
+The original findings below are retained as the rationale for the changes. All nine prioritised fixes have now been implemented locally:
+
+- Transcript follows only while near the end, offers Jump to latest, ignores Copy/expand UI changes, and removes old message subscriptions.
+- Context remains accessible in narrow windows through an overlay drawer; Escape/backdrop/close dismiss it and wide layouts restore docking.
+- Acknowledged alerts retain their actual severity and show a separate readable acknowledgement label.
+- Spotlight editing locks while an answer runs, with a visible explanation.
+- Route sparkle is a static section identity and the active chat title appears in the header. Following user review, Chats now stays visible while a conversation is available; the hide/show control and its state have been removed.
+- Context names its mentioned-device scope, identifies cached data and alert refresh times, and reports capped lists as Showing 8 of N.
+- Failed, stopped and interrupted answers retain text and their submitted question, persist their outcome, and offer Retry/Edit question. Replacing an existing unsent draft asks first.
+- Rename stays inline beside its chat, the busy tooltip is conditional, and chat previews remove Markdown formatting.
+- Graph enlargement uses a keyboard-focusable button and returns focus when its window closes.
+
+Validation: full Debug solution build; 920 Core tests; isolated WPF interaction checks covering reading-position preservation, Jump to latest, drawer open/close/resizing, Spotlight locking, acknowledged critical alerts, capped counts, persistent recovery, inline rename, active title and cross-chat isolation. The dev app is open for user testing. Screen-reader operation, high contrast and mixed-DPI checks remain manual verification work.
+
+The Route sparkle and integrated composer were committed separately as `becfc46` and `d7ddf94`. The subsequent usability fixes remain uncommitted.
+
+Subsequent chat-list refinement: chats are grouped by latest local activity into Pinned, Today, Yesterday, This week, Last week, Earlier this month, individual older months in the current year, and older years. Weeks start on Monday, headings are non-overlapping, and the grouping refreshes after midnight. Selection and pin/unpin behaviour were verified in WPF, alongside 938 passing Core tests including calendar boundaries.
+
 ## Recommended composer
 
 User selected **Integrated controls**, with visible **Model** and **Reply style** labels and no visible "Message Dashy" label. The local implementation now keeps the question box anchored below the conversation, aligned to the message column, with the two pickers together inside the composer and Ask/Stop at the trailing edge. Both pickers disable while answering. The entry has an accessible name and a quiet keyboard-shortcut hint; the optional companion stays on the composer's top edge.
@@ -92,4 +112,4 @@ Microsoft's tooltip guidance supports labelling icon buttons and cautions agains
 
 Microsoft's keyboard accessibility guidance recommends predictable keyboard access, meaningful pane names and visible focus: https://learn.microsoft.com/windows/apps/design/accessibility/keyboard-accessibility
 
-Route sparkle and the selected integrated composer are implemented locally. Findings about the rest of the tab are proposed follow-up work, not implemented fixes. No new PR or commit has been created for this review.
+Route sparkle and the selected integrated composer are committed locally. The usability fixes in Implementation status are implemented and tested locally, and have not been committed or published in a new PR.

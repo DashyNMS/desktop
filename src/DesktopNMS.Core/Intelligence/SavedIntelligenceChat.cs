@@ -30,10 +30,14 @@ public sealed class SavedIntelligenceMessage
     public List<IntelligenceInlineReference> PriorReferences { get; set; } = new();
     public List<IntelligenceToolObservation> ToolObservations { get; set; } = new();
     public bool IsIncomplete { get; set; }
+    public IntelligenceReplyOutcome? Outcome { get; set; }
+    public string? SubmittedQuestion { get; set; }
+    public string? FailureText { get; set; }
     public List<IntelligenceImage> Images { get; set; } = new();
 }
 
 public sealed record SavedChatSpotlight(int Kind, int Id, string Name);
+public enum IntelligenceReplyOutcome { Generating, Completed, Stopped, Interrupted, Failed }
 public sealed record SavedChatCollection(Guid? ActiveId, IReadOnlyList<SavedIntelligenceChat> Chats);
 
 public interface IIntelligenceChatStore
