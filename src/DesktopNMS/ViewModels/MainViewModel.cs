@@ -107,6 +107,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IWindowService windows,
         DeviceListViewModel deviceList,
         HealthViewModel health,
+        IntelligenceViewModel intelligence,
         DashboardViewModel dashboard,
         GroupsViewModel groups,
         LocationsViewModel locations,
@@ -135,6 +136,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _windows = windows;
         _deviceList = deviceList;
         _health = health;
+        Intelligence = intelligence;
         _dashboard = dashboard;
         _groups = groups;
         _locations = locations;
@@ -195,6 +197,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectDashboardTabCommand = new RelayCommand(() => SelectedTab = MainTab.Dashboard);
         SelectDevicesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Devices);
         SelectHealthTabCommand = new RelayCommand(() => SelectedTab = MainTab.Health);
+        SelectIntelligenceTabCommand = new RelayCommand(() => SelectedTab = MainTab.Intelligence);
         SelectAlertsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Alerts);
         SelectGroupsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Groups);
         SelectLocationsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Locations);
@@ -300,6 +303,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand SelectDevicesTabCommand { get; }
 
     public RelayCommand SelectHealthTabCommand { get; }
+
+    public RelayCommand SelectIntelligenceTabCommand { get; }
 
     public RelayCommand SelectAlertsTabCommand { get; }
 
@@ -511,6 +516,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>The sensor health list, for the Health tab's content to bind to.</summary>
     public HealthViewModel Health => _health;
 
+    /// <summary>The Intelligence tab: questions about the network, answered with the user's ChatGPT plan.</summary>
+    public IntelligenceViewModel Intelligence { get; }
+
     /// <summary>The dashboard widgets, for the Dashboard tab's content to bind to.</summary>
     public DashboardViewModel Dashboard => _dashboard;
 
@@ -560,6 +568,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsDevicesTabSelected));
                 OnPropertyChanged(nameof(IsDevicesFamilyTabSelected));
                 OnPropertyChanged(nameof(IsHealthTabSelected));
+                OnPropertyChanged(nameof(IsIntelligenceTabSelected));
                 OnPropertyChanged(nameof(IsAlertsTabSelected));
                 OnPropertyChanged(nameof(IsAlertsFamilyTabSelected));
                 OnPropertyChanged(nameof(IsGroupsTabSelected));
@@ -699,6 +708,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public bool IsDevicesFamilyTabSelected => SelectedTab is MainTab.Devices or MainTab.Groups or MainTab.Locations;
 
     public bool IsHealthTabSelected => SelectedTab == MainTab.Health;
+
+    public bool IsIntelligenceTabSelected => SelectedTab == MainTab.Intelligence;
 
     public bool IsAlertsTabSelected => SelectedTab == MainTab.Alerts;
 
