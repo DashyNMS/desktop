@@ -84,7 +84,9 @@
                     <Button Style="{StaticResource IconButtonStyle}" Margin="0,0,10,0"
                             Command="{Binding ToggleChatListCommand}" ToolTip="Show or hide saved chats"
                             Visibility="{Binding ShowConversation, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="&#xE8F2;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                        <Path Data="{x:Static views:RailIcon.RouteSparkle}" Width="18" Height="18" Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
                     </Button>
                     <TextBlock Text="Intelligence" Style="{StaticResource PaneTitleStyle}" />
                     <!-- Spotlight: what the agent is kept to. -->
