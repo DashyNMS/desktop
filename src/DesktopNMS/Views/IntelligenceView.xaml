@@ -246,15 +246,19 @@
                     </ItemsControl>
                 </WrapPanel>
             </StackPanel>
+            <!-- Floats over the transcript; never reserves a row or pushes
+                 the composer down. Only the companion itself receives clicks. -->
+            <Grid MaxWidth="860" Margin="24,0,24,4" VerticalAlignment="Bottom" Panel.ZIndex="10"
+                  Visibility="{Binding ShowMascot, Converter={StaticResource BoolToVisibility}}">
+                <views:IntelligenceMascot HorizontalAlignment="Right" Margin="0,0,6,0"
+                                          IsBusy="{Binding IsBusy}" HasError="{Binding HasError}" />
+            </Grid>
         </Grid>
 
         <!-- ======================== Composer ======================== -->
         <!-- The question box with the model and Ask/Stop beneath it, as chat apps have it. -->
         <StackPanel Grid.Row="3" MaxWidth="860" Margin="24,4,24,18"
                     Visibility="{Binding ShowConversation, Converter={StaticResource BoolToVisibility}}">
-            <views:IntelligenceMascot HorizontalAlignment="Right" Margin="0,0,6,-3"
-                                      IsBusy="{Binding IsBusy}" HasError="{Binding HasError}"
-                                      Visibility="{Binding ShowMascot, Converter={StaticResource BoolToVisibility}}" />
         <Border
                 Padding="12,8,8,8"
                 CornerRadius="12"
