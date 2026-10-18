@@ -25,7 +25,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "9.0.x"
+          dotnet-version: |
+            9.0.x
+            10.0.x
 
       - name: Work out the version from the release tag
         id: version
@@ -35,8 +37,31 @@ jobs:
           $version = $tag -replace '^v', ''
           "version=$version" >> $env:GITHUB_OUTPUT
 
+      - name: Checkout the pinned MCP server
+        uses: actions/checkout@v7
+        with:
+          repository: DashyNMS/mcp
+          # Includes permission to bundle the server with DashyNMS.
+          ref: 63a8ed5711d04fee8a3c7aea8882e1ecb9a58ea9
+          path: artifacts/mcp-source
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Publish the bundled network tools
+        shell: pwsh
+        run: ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-source
+
       - name: Publish
         run: dotnet publish src/DesktopNMS/DesktopNMS.csproj -c Release -o publish
+
+      - name: Verify the bundled network tools
+        shell: pwsh
+        run: |
+          foreach ($file in @('dashynms-mcp.exe', 'LICENSE', 'BUILD.txt')) {
+            if (-not (Test-Path "publish/mcp/$file" -PathType Leaf)) {
+              throw "Published app is missing mcp/$file."
+            }
+          }
 
       - name: Ensure Inno Setup is installed
         shell: pwsh

@@ -86,7 +86,7 @@
     <McpExecutable>$(MSBuildThisFileDirectory)..\..\artifacts\mcp\dashynms-mcp.exe</McpExecutable>
   </PropertyGroup>
   <ItemGroup Condition="Exists('$(McpExecutable)')">
-    <None Include="$(McpExecutable)" Link="mcp\dashynms-mcp.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\artifacts\mcp\**\*" Link="mcp\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
 </Project>

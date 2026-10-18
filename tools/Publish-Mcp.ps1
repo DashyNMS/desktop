@@ -36,15 +36,23 @@ if ($Ref) {
 git -C $source submodule update --init --quiet
 if ($LASTEXITCODE -ne 0) { throw "Couldn't fetch the MCP repo's submodules." }
 
-$commit = (git -C $source rev-parse --short HEAD).Trim()
+$commit = (git -C $source rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0) { throw "Couldn't identify the MCP commit." }
 Write-Host "Building DashyNMS MCP at $commit for $Runtime ..."
 
-dotnet publish (Join-Path $source 'src\DashyNMS.Mcp\DashyNMS.Mcp.csproj') `
-    -c Release -r $Runtime --self-contained true `
-    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true `
-    -p:DebugType=none `
-    -o $output --nologo -v quiet
-if ($LASTEXITCODE -ne 0) { throw "Publishing the MCP server failed." }
+Push-Location $source
+try {
+    # Resolve the MCP repo's .NET 10 global.json rather than the desktop SDK.
+    dotnet publish (Join-Path $source 'src\DashyNMS.Mcp\DashyNMS.Mcp.csproj') `
+        -c Release -r $Runtime --self-contained true `
+        -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true `
+        -p:DebugType=none `
+        -o $output --nologo -v quiet
+    if ($LASTEXITCODE -ne 0) { throw "Publishing the MCP server failed." }
+} finally {
+    Pop-Location
+}
 
+Copy-Item (Join-Path $source 'LICENSE') (Join-Path $output 'LICENSE') -Force
 Set-Content -Path (Join-Path $output 'BUILD.txt') -Value "DashyNMS MCP $commit ($Runtime)" -Encoding utf8
 Get-Item (Join-Path $output 'dashynms-mcp.exe') | ForEach-Object { Write-Host ("  {0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB)) }

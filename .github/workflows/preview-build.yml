@@ -25,7 +25,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "9.0.x"
+          dotnet-version: |
+            9.0.x
+            10.0.x
 
       - name: Work out the version and next preview number
         id: version
@@ -59,6 +61,20 @@ jobs:
         shell: pwsh
         run: git log -1 --pretty=%B | Out-File -FilePath commit-message.txt -Encoding utf8NoBOM
 
+      - name: Checkout the pinned MCP server
+        uses: actions/checkout@v7
+        with:
+          repository: DashyNMS/mcp
+          # Includes permission to bundle the server with DashyNMS.
+          ref: 63a8ed5711d04fee8a3c7aea8882e1ecb9a58ea9
+          path: artifacts/mcp-source
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Publish the bundled network tools
+        shell: pwsh
+        run: ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-source
+
       - name: Publish
         # -p:Version= so the built binary's own InformationalVersion carries
         # the full preview tag (e.g. "1.0.0-preview.2") - without it, every
@@ -66,6 +82,15 @@ jobs:
         # regardless of which preview it is, and the in-app update check can
         # never tell them apart (issue #107).
         run: dotnet publish src/DesktopNMS/DesktopNMS.csproj -c Release -o publish -p:Version=${{ steps.version.outputs.preview_version }}
+
+      - name: Verify the bundled network tools
+        shell: pwsh
+        run: |
+          foreach ($file in @('dashynms-mcp.exe', 'LICENSE', 'BUILD.txt')) {
+            if (-not (Test-Path "publish/mcp/$file" -PathType Leaf)) {
+              throw "Published app is missing mcp/$file."
+            }
+          }
 
       - name: Ensure Inno Setup is installed
         shell: pwsh
