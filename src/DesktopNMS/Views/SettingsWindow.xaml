@@ -1419,6 +1419,28 @@
                             </StackPanel>
                         </Border>
 
+                        <TextBlock Text="REPLIES" Style="{StaticResource SectionHeaderStyle}" Margin="0,8,0,6" />
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Default reply style" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding IntelligenceReplyStyleOptions}"
+                                          SelectedValue="{Binding IntelligenceReplyStyle}"
+                                          SelectedValuePath="Key" Width="260" HorizontalAlignment="Left"
+                                          AutomationProperties.Name="Default reply style">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Value}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Text="Conversational gives concise, natural replies. Evidence based lists facts, counts and measurements. New chats start with this style; use the picker beside the model in each chat to change it. Existing replies keep their original style." />
+                                <CheckBox Content="Colour status indicators" IsChecked="{Binding IntelligenceColourStatusIndicators}" Margin="0,14,0,0" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="22,4,0,0"
+                                           Text="Use severity and device-state colours in Intelligence replies. Turn off for neutral colours; status labels and information remain visible. Applies to both reply styles and existing messages." />
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Text="WHAT'S SENT" Style="{StaticResource SectionHeaderStyle}" Margin="0,8,0,6" />
                         <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
                             <StackPanel>

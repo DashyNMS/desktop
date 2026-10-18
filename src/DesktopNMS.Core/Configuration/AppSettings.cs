@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DesktopNMS.Core.Alerting;
+using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Core.Models;
 
 namespace DesktopNMS.Core.Configuration;
@@ -224,6 +225,11 @@ public sealed class AppSettings
     /// <summary>Allow current public information to be looked up using hosted web search.</summary>
     public bool IntelligenceWebSearchEnabled { get; set; } = true;
 
+    /// <summary>How Intelligence presents its next answer; applies to existing and new chats.</summary>
+    public string IntelligenceReplyStyle { get; set; } = IntelligenceReplyStyles.Conversational;
+
+    public bool IntelligenceColourStatusIndicators { get; set; } = true;
+
     /// <summary>The "what's sent" notice was accepted, so it isn't shown again.</summary>
     public bool IntelligenceConsentGiven { get; set; }
 
@@ -365,6 +371,8 @@ public sealed class AppSettings
         IntelligenceEnabled = IntelligenceEnabled,
         IntelligenceMascotEnabled = IntelligenceMascotEnabled,
         IntelligenceWebSearchEnabled = IntelligenceWebSearchEnabled,
+        IntelligenceReplyStyle = IntelligenceReplyStyle,
+        IntelligenceColourStatusIndicators = IntelligenceColourStatusIndicators,
         IntelligenceConsentGiven = IntelligenceConsentGiven,
         IntelligenceModel = IntelligenceModel,
         IntelligenceConfigText = IntelligenceConfigText,

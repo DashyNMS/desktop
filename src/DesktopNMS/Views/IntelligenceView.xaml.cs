@@ -91,10 +91,16 @@ public partial class IntelligenceView : UserControl
     /// <summary>The whole answer, as the Markdown it came in - tables and lists intact.</summary>
     private void OnCopyAnswerClick(object sender, RoutedEventArgs e)
     {
-        if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement { DataContext: IntelligenceMessageViewModel message } } }
-            && !string.IsNullOrWhiteSpace(message.Text))
+        var message = sender switch
         {
-            Clipboard.SetText(message.Text.Trim());
+            FrameworkElement { DataContext: IntelligenceMessageViewModel direct } => direct,
+            MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement { DataContext: IntelligenceMessageViewModel context } } } => context,
+            _ => null,
+        };
+        if (message?.CanCopyAnswer == true)
+        {
+            Clipboard.SetText(message.CopyMarkdown);
+            message.MarkCopied();
         }
     }
 
