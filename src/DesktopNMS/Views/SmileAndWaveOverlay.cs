@@ -241,7 +241,7 @@ public sealed class SmileAndWaveOverlay : Canvas
     };
 
     /// <summary>One penguin, drawn in a <see cref="PenguinWidth"/> x <see cref="PenguinHeight"/> box with its feet on the bottom edge.</summary>
-    internal sealed class Penguin
+    private sealed class Penguin
     {
         private static readonly Brush Coat = Frozen(Color.FromRgb(0x1A, 0x1F, 0x29));
         private static readonly Brush Outline = Frozen(Color.FromRgb(0x4A, 0x57, 0x6E));
