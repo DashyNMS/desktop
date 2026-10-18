@@ -139,6 +139,8 @@
 
         <!-- ======================== Conversation ======================== -->
         <Grid Grid.Row="2" Visibility="{Binding ShowConversation, Converter={StaticResource BoolToVisibility}}">
+            <!-- Behind the whole conversation, including while typing and streaming. -->
+            <views:AmbientGlow />
             <ScrollViewer x:Name="Transcript" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <!-- One readable column, as chat apps do. -->
                 <ItemsControl ItemsSource="{Binding Messages}" MaxWidth="860" Margin="24,20,24,8">
@@ -164,7 +166,16 @@
                                 </Border>
 
                                 <!-- Intelligence: what it looked up, then the answer as formatted text. -->
-                                <StackPanel Visibility="{Binding IsAssistant, Converter={StaticResource BoolToVisibility}}">
+                                <Border Background="#142C46" BorderBrush="#294764" BorderThickness="1"
+                                        CornerRadius="12" Padding="16,14"
+                                        Visibility="{Binding IsAssistant, Converter={StaticResource BoolToVisibility}}">
+                                    <Border.Resources>
+                                        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#EEF5FF" />
+                                        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#AEC5DF" />
+                                        <SolidColorBrush x:Key="SurfaceBrush" Color="#1D3855" />
+                                        <SolidColorBrush x:Key="BorderBrush" Color="#34516E" />
+                                    </Border.Resources>
+                                <StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
                                                 Visibility="{Binding HasActivity, Converter={StaticResource BoolToVisibility}}">
                                         <!-- The DashyNMS heartbeat while it's looking; a quiet search mark once it's done. -->
@@ -173,7 +184,7 @@
                                         <TextBlock Text="&#xE721;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
                                                    Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,1,6,0"
                                                    Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
-                                        <TextBlock Text="{Binding ActivityText}" Style="{StaticResource SubtleTextStyle}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding ActivityText}" Style="{StaticResource SubtleTextStyle}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
                                     <!-- Graphs the answer drew on - LibreNMS's own images; click for full size. -->
                                     <ItemsControl ItemsSource="{Binding Images}" Margin="0,0,0,10"
@@ -216,14 +227,13 @@
                                         </RichTextBox.ContextMenu>
                                     </RichTextBox>
                                 </StackPanel>
+                                </Border>
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
 
-            <!-- A new chat: a slow glow behind somewhere to start. -->
-            <views:AmbientGlow Visibility="{Binding ShowSuggestions, Converter={StaticResource BoolToVisibility}}" />
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                         Visibility="{Binding ShowSuggestions, Converter={StaticResource BoolToVisibility}}">
                 <TextBlock Text="Ask about your network" Style="{StaticResource HeadingTextStyle}" HorizontalAlignment="Center" Margin="0,0,0,14" />

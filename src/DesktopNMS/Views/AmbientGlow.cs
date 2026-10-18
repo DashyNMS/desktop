@@ -7,7 +7,7 @@ using System.Windows.Media.Animation;
 namespace DesktopNMS.Views;
 
 /// <summary>
-/// A slow, soft glow in the accent colour behind an empty Intelligence
+/// A slow, soft glow in the accent colour behind the Intelligence
 /// conversation: three blurred light pools drifting and breathing. Purely
 /// decorative - it only runs while on screen, and holds still when Windows
 /// animations are turned off.
