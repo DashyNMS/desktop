@@ -18,9 +18,9 @@ public static class RailIcon
         new PropertyMetadata(null));
 
     /// <summary>
-    /// The DashyNMS mark as an outline: its ring, and the heartbeat through it
-    /// (the same trace as <see cref="DesktopNMS.Core.Branding.HeartbeatTrace"/>),
-    /// in the logo's own 100×100 space.
+    /// Intelligence's mark: the DashyNMS heartbeat (the logo's trace, see
+    /// <see cref="DesktopNMS.Core.Branding.HeartbeatTrace"/>) inside a
+    /// rounded-square chat bubble, as an outline in the logo's 100×100 space.
     /// </summary>
     public static Geometry DashyMark { get; } = CreateDashyMark();
 
@@ -31,16 +31,20 @@ public static class RailIcon
     private static Geometry CreateDashyMark()
     {
         var group = new GeometryGroup();
-        group.Children.Add(new EllipseGeometry(new Point(50, 50), 42.25, 42.25));
 
+        // The bubble, its tail down at the bottom left.
+        group.Children.Add(Geometry.Parse("M 20 12 H 80 Q 92 12 92 24 V 64 Q 92 76 80 76 H 44 L 24 92 L 28 76 H 20 Q 8 76 8 64 V 24 Q 8 12 20 12 Z"));
+
+        // The logo's heartbeat, raised to the bubble's middle (above the tail).
         var trace = new StreamGeometry();
         using (var context = trace.Open())
         {
             var points = DesktopNMS.Core.Branding.HeartbeatTrace.Points;
-            context.BeginFigure(new Point(points[0].X, points[0].Y), isFilled: false, isClosed: false);
+            const double raise = 8;
+            context.BeginFigure(new Point(points[0].X, points[0].Y - raise), isFilled: false, isClosed: false);
             for (var i = 1; i < points.Count; i++)
             {
-                context.LineTo(new Point(points[i].X, points[i].Y), isStroked: true, isSmoothJoin: true);
+                context.LineTo(new Point(points[i].X, points[i].Y - raise), isStroked: true, isSmoothJoin: true);
             }
         }
 
