@@ -77,6 +77,22 @@ public sealed class IntelligenceWebSearchTests
         Assert.Equal("Release [Notes](https://example.org/a%28b%29).", WebSearchCitations.FormatMessage(message));
     }
 
+    [Fact]
+    public async Task Tool_exceptions_do_not_send_private_diagnostics_to_the_provider_or_history()
+    {
+        var handler = new ScriptedHandler(
+            Stream(
+                """{"type":"response.output_item.done","item":{"type":"function_call","name":"network_overview","call_id":"call_1","arguments":"{}"}}""",
+                """{"type":"response.completed"}"""),
+            Stream("""{"type":"response.completed"}"""));
+        var conversation = new IntelligenceConversation(new ResponsesClient(new HttpClient(handler)), new NetworkTools { ThrowPrivateError = true });
+        await conversation.AskAsync("Network health?", "test-model", Token, new Listener(), CancellationToken.None);
+        var sent = handler.Bodies[1]["input"]!.ToJsonString();
+        Assert.Contains("The network tool failed", sent);
+        Assert.DoesNotContain("synthetic-private-token", sent);
+        Assert.DoesNotContain("synthetic-private-token", conversation.ExportHistory().ToJsonString());
+    }
+
     private static Task<string> Token(CancellationToken _) => Task.FromResult("test-token");
     private static string Stream(params string[] events) => string.Join("", events.Select(e => "data: " + e + "\n\n"));
 
@@ -93,11 +109,13 @@ public sealed class IntelligenceWebSearchTests
     private sealed class NetworkTools : IIntelligenceTools
     {
         public int Calls { get; private set; }
+        public bool ThrowPrivateError { get; init; }
         public Task<IReadOnlyList<IntelligenceTool>> GetToolsAsync(CancellationToken _) => Task.FromResult<IReadOnlyList<IntelligenceTool>>(
             new[] { new IntelligenceTool("network_overview", "Read the network", JsonSerializer.SerializeToElement(new { type = "object" })) });
         public Task<IntelligenceToolResult> CallAsync(string name, JsonElement arguments, CancellationToken _)
         {
             Calls++;
+            if (ThrowPrivateError) throw new InvalidOperationException("Request failed: synthetic-private-token");
             return Task.FromResult(new IntelligenceToolResult("ok", false));
         }
     }

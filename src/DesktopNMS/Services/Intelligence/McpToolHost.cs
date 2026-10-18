@@ -12,6 +12,7 @@ using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Core.Security;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 
@@ -40,7 +41,6 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
     private readonly ISettingsStore _settings;
     private readonly IUnimusTokenProtector _unimusToken;
     private readonly IGraylogPasswordProtector _graylogPassword;
-    private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<McpToolHost> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
@@ -48,7 +48,6 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
     private IReadOnlyList<IntelligenceTool>? _tools;
     private Dictionary<string, McpClientTool> _byName = new();
     private string? _startedFor;
-    private readonly List<string> _recentErrors = new();
 
     public McpToolHost(
         ISessionService session,
@@ -61,7 +60,6 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
         _settings = settings;
         _unimusToken = unimusToken;
         _graylogPassword = graylogPassword;
-        _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<McpToolHost>();
     }
 
@@ -121,7 +119,7 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogWarning(ex, "Intelligence: tool {Tool} failed", name);
+            _logger.LogWarning("Intelligence: tool {Tool} failed ({ErrorType})", name, ex.GetType().Name);
             await StopAsync().ConfigureAwait(false);
             return new IntelligenceToolResult("The network tools stopped unexpectedly. They'll start again on the next question.", IsError: true);
         }
@@ -143,7 +141,7 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "Intelligence: stopping the network tools");
+                _logger.LogDebug("Intelligence: stopping the network tools ({ErrorType})", ex.GetType().Name);
             }
         }
     }
@@ -172,11 +170,6 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
             throw new IntelligenceException("DashyNMS's network tools aren't installed with this build.", IntelligenceFailure.Tools);
         }
 
-        lock (_recentErrors)
-        {
-            _recentErrors.Clear();
-        }
-
         var environment = StdioClientTransportOptions.GetDefaultEnvironmentVariables();
         foreach (var (key, value) in Configuration(connection))
         {
@@ -193,19 +186,10 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
             EnvironmentVariables = environment,
             ShutdownTimeout = TimeSpan.FromSeconds(5),
 
-            // The server's stderr is its log - kept for a useful error, never shown raw.
-            StandardErrorLines = line =>
-            {
-                lock (_recentErrors)
-                {
-                    _recentErrors.Add(line);
-                    if (_recentErrors.Count > 20)
-                    {
-                        _recentErrors.RemoveAt(0);
-                    }
-                }
-            },
-        }, _loggerFactory);
+            // Stderr and protocol diagnostics may contain credentials or tool data.
+            // Keep them out of the UI, persistent logs and debug output.
+            StandardErrorLines = _ => { },
+        }, NullLoggerFactory.Instance);
 
         try
         {
@@ -214,7 +198,7 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
             _client = await McpClient.CreateAsync(transport, new McpClientOptions
             {
                 ClientInfo = new Implementation { Name = "DashyNMS desktop", Version = typeof(McpToolHost).Assembly.GetName().Version?.ToString(3) ?? "0.0.0" },
-            }, _loggerFactory, startTimeout.Token).ConfigureAwait(false);
+            }, NullLoggerFactory.Instance, startTimeout.Token).ConfigureAwait(false);
 
             var listed = await _client.ListToolsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
             _byName = listed
@@ -228,15 +212,9 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            string detail;
-            lock (_recentErrors)
-            {
-                detail = _recentErrors.LastOrDefault(l => !string.IsNullOrWhiteSpace(l)) ?? ex.Message;
-            }
-
-            _logger.LogWarning(ex, "Intelligence: the network tools didn't start: {Detail}", detail);
+            _logger.LogWarning("Intelligence: the network tools didn't start ({ErrorType})", ex.GetType().Name);
             await StopAsync().ConfigureAwait(false);
-            throw new IntelligenceException("DashyNMS's network tools couldn't start: " + detail, IntelligenceFailure.Tools);
+            throw new IntelligenceException("DashyNMS's network tools couldn't start. Check your connection and Intelligence settings, then try again.", IntelligenceFailure.Tools);
         }
     }
 

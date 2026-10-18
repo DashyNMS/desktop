@@ -3,6 +3,22 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:DesktopNMS.Views">
 
+    <UserControl.Resources>
+        <Style x:Key="PaneHeaderStyle" TargetType="Border">
+            <Setter Property="Height" Value="57" />
+            <Setter Property="Padding" Value="18,10" />
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+        </Style>
+        <Style x:Key="PaneTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Resources>
+
     <!-- Intelligence: ask about the network, answered with the user's own
          ChatGPT plan using DashyNMS's read-only network tools. The account
          lives in Settings › Intelligence, not here. The context sidebar on
@@ -23,23 +39,12 @@
         </Grid.RowDefinitions>
 
         <!-- ======================== Top bar ======================== -->
-        <Border Grid.Row="0"
-                Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="18,10">
+        <Border x:Name="IntelligenceHeader" Grid.Row="0" Style="{StaticResource PaneHeaderStyle}">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource IconButtonStyle}"
-                            ToolTip="New conversation"
-                            Command="{Binding ClearCommand}"
-                            Visibility="{Binding ShowConversation, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
-                    </Button>
-                    <Button Style="{StaticResource IconButtonStyle}"
                             ToolTip="Intelligence settings"
-                            Command="{Binding OpenSettingsCommand}"
-                            Margin="4,0,0,0">
+                            Command="{Binding OpenSettingsCommand}">
                         <TextBlock Text="&#xE713;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
                     </Button>
                     <!-- Brings the context sidebar back once it's been collapsed
@@ -60,8 +65,7 @@
                             Visibility="{Binding ShowConversation, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="&#xE8F2;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
                     </Button>
-                    <TextBlock Text="Intelligence" FontWeight="SemiBold" FontSize="15"
-                               Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="Intelligence" Style="{StaticResource PaneTitleStyle}" />
                     <!-- Spotlight: what the agent is kept to. -->
                     <Border Background="{StaticResource AccentSubtleBrush}" CornerRadius="10" Padding="9,2,4,2" Margin="8,0,0,0" VerticalAlignment="Center"
                             Visibility="{Binding Context.HasSpotlight, Converter={StaticResource BoolToVisibility}}">
@@ -331,7 +335,7 @@
         <!-- Saved chats are local to this network and ChatGPT account. -->
         <Border x:Name="ChatSidebar" Grid.Column="0" Width="220"
                 Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,0,1,0" Padding="12">
+                BorderThickness="0,0,1,0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -339,8 +343,16 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Text="Chats" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
-                <ListBox Grid.Row="1" ItemsSource="{Binding Chats}" SelectedItem="{Binding SelectedChat}"
+                <Border x:Name="ChatsHeader" Style="{StaticResource PaneHeaderStyle}">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource IconButtonStyle}"
+                                ToolTip="New conversation" Command="{Binding ClearCommand}">
+                            <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                        </Button>
+                        <TextBlock Text="Chats" Style="{StaticResource PaneTitleStyle}" />
+                    </DockPanel>
+                </Border>
+                <ListBox Grid.Row="1" Margin="12,12,12,0" ItemsSource="{Binding Chats}" SelectedItem="{Binding SelectedChat}"
                          Background="Transparent" BorderThickness="0"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          ToolTip="Finish or stop the current answer before switching chats">
@@ -399,6 +411,8 @@
                                     </DockPanel>
                                     <TextBlock Text="{Binding Preview}" Style="{StaticResource SubtleTextStyle}" FontSize="11" Margin="0,4,0,0"
                                                TextTrimming="CharacterEllipsis" MaxHeight="17" />
+                                    <TextBlock Text="{Binding LastActivity}" Style="{StaticResource SubtleTextStyle}" FontSize="11"
+                                               Margin="0,4,0,0" ToolTip="Latest message activity (local time)" />
                                 </StackPanel>
                                 <Button Grid.Column="1" Style="{StaticResource IconButtonStyle}" Width="22" Height="22" Margin="4,0,0,0"
                                         ToolTip="Delete chat" VerticalAlignment="Center"
@@ -410,7 +424,7 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
-                <StackPanel Grid.Row="2" Margin="0,10,0,0"
+                <StackPanel Grid.Row="2" Margin="12,10,12,12"
                             Visibility="{Binding IsRenamingChat, Converter={StaticResource BoolToVisibility}}">
                     <TextBox Text="{Binding ChatNameDraft, UpdateSourceTrigger=PropertyChanged}" MaxLength="80"
                              ToolTip="Chat name" KeyDown="OnChatNameKeyDown" />
@@ -475,22 +489,24 @@
                 </Style>
             </Border.Resources>
 
-            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Margin="12,10,12,16">
-
-                    <!-- ===== Header: what the panel is, and collapsing it ===== -->
-                    <DockPanel Margin="8,0,0,10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Border x:Name="ContextHeader" Style="{StaticResource PaneHeaderStyle}">
+                    <DockPanel>
                         <Button DockPanel.Dock="Right"
                                 Style="{StaticResource IconButtonStyle}"
-                                Width="28" Height="28"
                                 ToolTip="Collapse the context sidebar"
                                 Command="{Binding DataContext.ToggleSidebarCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
-                            <TextBlock Text="&#xE89F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                            <TextBlock Text="&#xE89F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
                         </Button>
-                        <TextBlock Text="Context" FontWeight="SemiBold" FontSize="14"
-                                   Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="Context" Style="{StaticResource PaneTitleStyle}" />
                     </DockPanel>
-                    <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,0,0,14" />
+                </Border>
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="12,10,12,16">
 
                     <!-- ===== Spotlight ===== -->
                     <DockPanel Margin="8,0,0,6">
@@ -632,6 +648,7 @@
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

@@ -316,10 +316,11 @@ public sealed class IntelligenceConversation
         {
             throw;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             listener.OnToolFinished(name, isError: true);
-            return Error("The tool failed: " + ex.Message);
+            // Exception messages can contain request URLs, credentials or raw server data.
+            return Error("The network tool failed. Try again or check the connection settings.");
         }
 
         listener.OnToolFinished(name, result.IsError);

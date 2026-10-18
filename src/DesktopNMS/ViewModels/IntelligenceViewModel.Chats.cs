@@ -210,7 +210,7 @@ public sealed partial class IntelligenceViewModel
         if (!_changingChat && _chatStore is not null && !_chatSaveTimer.IsEnabled) _chatSaveTimer.Start();
     }
 
-    private void SaveActiveChat()
+    private void SaveActiveChat(bool recordActivity = false)
     {
         _chatSaveTimer.Stop();
         if (_changingChat || _chatStore is null || _chatScope is null || SelectedChat is not { } item) return;
@@ -222,7 +222,8 @@ public sealed partial class IntelligenceViewModel
         chat.Messages = Messages.Select(message => message.Save()).ToList();
         chat.Spotlight = Context.Spotlight.Select(option => new SavedChatSpotlight((int)option.Kind, option.Id, option.Name)).ToList();
         chat.LookedAt = Context.LookedAt.ToList();
-        chat.UpdatedAt = DateTimeOffset.UtcNow;
+        // Draft saves, selection and renaming do not change conversation activity.
+        if (recordActivity) chat.UpdatedAt = DateTimeOffset.UtcNow;
         item.Refresh();
         if (_chatStorageReadOnly) return;
         try { _chatStore.Save(_chatScope, chat); SortChats(); }
@@ -289,6 +290,8 @@ public sealed class IntelligenceChatItemViewModel(SavedIntelligenceChat data) : 
     public string Title => Data.Title;
     public bool IsPinned => Data.IsPinned;
     public string PinLabel => IsPinned ? "Unpin chat" : "Pin chat";
+    public string LastActivity => Data.Messages.Count == 0 ? string.Empty
+        : Data.UpdatedAt.ToLocalTime().ToString("g");
     public string Preview => Data.Messages.LastOrDefault(message => !string.IsNullOrWhiteSpace(message.Text))?.Text.Replace('\n', ' ') ?? "Start a conversation";
     public void Refresh()
     {
@@ -296,5 +299,6 @@ public sealed class IntelligenceChatItemViewModel(SavedIntelligenceChat data) : 
         OnPropertyChanged(nameof(Preview));
         OnPropertyChanged(nameof(IsPinned));
         OnPropertyChanged(nameof(PinLabel));
+        OnPropertyChanged(nameof(LastActivity));
     }
 }
