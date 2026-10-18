@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views;
@@ -45,6 +46,34 @@ public partial class IntelligenceView : UserControl
                     args.Handled = true;
                 }));
         }
+    }
+
+    /// <summary>A graph at full size, in a window of its own.</summary>
+    private void OnGraphClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: ImageSource image })
+        {
+            return;
+        }
+
+        var window = new Window
+        {
+            Title = "Graph",
+            Owner = Window.GetWindow(this),
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ResizeMode = ResizeMode.CanResize,
+            Background = Brushes.White,
+            Content = new Image
+            {
+                Source = image,
+                Stretch = Stretch.Uniform,
+                Margin = new Thickness(12),
+                MaxWidth = SystemParameters.WorkArea.Width * 0.9,
+                MaxHeight = SystemParameters.WorkArea.Height * 0.85,
+            },
+        };
+        window.Show();
     }
 
     /// <summary>The whole answer, as the Markdown it came in - tables and lists intact.</summary>

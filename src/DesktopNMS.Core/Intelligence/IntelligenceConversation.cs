@@ -13,6 +13,9 @@ public interface IIntelligenceListener
     void OnToolStarted(string name, string arguments);
 
     void OnToolFinished(string name, bool isError);
+
+    /// <summary>A tool returned an image - a graph - to show with the answer.</summary>
+    void OnImage(IntelligenceImage image);
 }
 
 /// <summary>
@@ -150,7 +153,7 @@ public sealed class IntelligenceConversation
 
             if (pendingCalls.Count == 0)
             {
-                _history.AddRange(turn);
+                _history.AddRange(turn.Select(WithoutImages));
                 return;
             }
 
@@ -175,7 +178,35 @@ public sealed class IntelligenceConversation
         }
     }
 
-    private async Task<string> RunAsync(JsonObject call, HashSet<string> known, IIntelligenceListener listener, CancellationToken cancellationToken)
+    /// <summary>
+    /// A finished turn as kept for later questions: graph images become a
+    /// note, so every later request doesn't carry every graph again.
+    /// </summary>
+    private static JsonNode WithoutImages(JsonNode item)
+    {
+        if (item is not JsonObject { } obj || obj["output"] is not JsonArray parts)
+        {
+            return item;
+        }
+
+        var kept = new JsonArray();
+        foreach (var part in parts)
+        {
+            kept.Add(part?["type"]?.GetValue<string>() == "input_image"
+                ? new JsonObject { ["type"] = "input_text", ["text"] = "[A graph image was shown to the user here.]" }
+                : part?.DeepClone());
+        }
+
+        var copy = (JsonObject)obj.DeepClone();
+        copy["output"] = kept;
+        return copy;
+    }
+
+    /// <summary>
+    /// Runs one call and returns its output for the model: text, or text and
+    /// images (a graph) as input parts, which a function output can carry.
+    /// </summary>
+    private async Task<JsonNode> RunAsync(JsonObject call, HashSet<string> known, IIntelligenceListener listener, CancellationToken cancellationToken)
     {
         var name = ToolName(call["name"]?.GetValue<string>());
         var arguments = call["arguments"]?.GetValue<string>() ?? "{}";
@@ -222,8 +253,32 @@ public sealed class IntelligenceConversation
         var text = result.Output.Length > MaxToolOutputChars
             ? result.Output[..MaxToolOutputChars] + "\n[Output shortened.]"
             : result.Output;
-        return result.IsError ? Error(text) : text;
+        if (result.IsError)
+        {
+            return Error(text);
+        }
+
+        var images = (result.Images ?? Array.Empty<IntelligenceImage>())
+            .Where(i => i.Data.Length is > 0 and <= IntelligenceImage.MaxBytes && i.MimeType.StartsWith("image/", StringComparison.Ordinal))
+            .Take(MaxImagesPerCall)
+            .ToList();
+        if (images.Count == 0)
+        {
+            return text;
+        }
+
+        var parts = new JsonArray(new JsonObject { ["type"] = "input_text", ["text"] = text });
+        foreach (var image in images)
+        {
+            listener.OnImage(image);
+            parts.Add(new JsonObject { ["type"] = "input_image", ["image_url"] = image.DataUrl });
+        }
+
+        return parts;
     }
+
+    /// <summary>The most images one tool call shows and sends.</summary>
+    public const int MaxImagesPerCall = 2;
 
     /// <summary>A function name, with any namespace prefix the API adds taken off.</summary>
     private static string? ToolName(string? name)
