@@ -15,6 +15,9 @@ public sealed class IntelligenceMascot : Button
     private readonly Canvas _body = new() { Width = 64, Height = 80 };
     private readonly Canvas _happyFace = new() { Visibility = Visibility.Collapsed };
     private readonly RotateTransform _flipper = new(-10, 4, 4);
+    private readonly Canvas _restingFlipper = new() { Width = 12, Height = 28 };
+    private readonly Canvas _waveA = new() { Opacity = 0 };
+    private readonly Canvas _waveB = new() { Opacity = 0 };
     private readonly TranslateTransform _bounce = new();
     private readonly DispatcherTimer _greeting = new() { Interval = TimeSpan.FromSeconds(2) };
 
@@ -25,8 +28,8 @@ public sealed class IntelligenceMascot : Button
 
     public IntelligenceMascot()
     {
-        Width = 80;
-        Height = 88;
+        Width = 40;
+        Height = 44;
         Padding = new Thickness(0);
         Background = Brushes.Transparent;
         BorderThickness = new Thickness(0);
@@ -87,11 +90,22 @@ public sealed class IntelligenceMascot : Button
             "..OOOOO..OOOOO..",
         };
         Paint(_body, sprite);
-        var flipper = new Canvas { Width = 12, Height = 28, RenderTransform = _flipper };
+        var flipper = _restingFlipper;
+        flipper.RenderTransform = _flipper;
         Paint(flipper, new[] { "KK.", "CCK", "CCK", "CCK", "CCK", "CK.", "K.." });
         Canvas.SetLeft(flipper, 52);
         Canvas.SetTop(flipper, 36);
         _body.Children.Add(flipper);
+        // Two bent-elbow poses: the hand waves beside the cheek while the
+        // upper flipper stays tucked in. Never rotate a straight arm upwards.
+        Paint(_waveA, new[] { "..KK.", "..CCK", "..CCK", ".KCCK", "KCCC.", "CCC..", "CC...", "K...." });
+        Paint(_waveB, new[] { "KK...", "CCK..", "KCCK.", ".CCCK", "KCCC.", "CCC..", "CC...", "K...." });
+        foreach (var pose in new[] { _waveA, _waveB })
+        {
+            Canvas.SetLeft(pose, 52);
+            Canvas.SetTop(pose, 20);
+            _body.Children.Add(pose);
+        }
         // Smiling eyes and a tiny beak-side grin replace the resting expression.
         var white = BrushFor('W');
         var dark = BrushFor('K');
@@ -106,7 +120,7 @@ public sealed class IntelligenceMascot : Button
         Pixel(_happyFace, 28, 40, 8, 2, dark);
         Pixel(_happyFace, 36, 38, 2, 2, dark);
         _body.Children.Add(_happyFace);
-        Content = drawing;
+        Content = new Viewbox { Width = 40, Height = 44, Child = drawing };
         Click += (_, _) => Greet();
         _greeting.Tick += (_, _) => UpdateAnimation();
         Loaded += (_, _) => UpdateAnimation();
@@ -129,6 +143,11 @@ public sealed class IntelligenceMascot : Button
     {
         _greeting.Stop();
         _flipper.BeginAnimation(RotateTransform.AngleProperty, null);
+        _waveA.BeginAnimation(OpacityProperty, null);
+        _waveB.BeginAnimation(OpacityProperty, null);
+        _waveA.Opacity = 0;
+        _waveB.Opacity = 0;
+        _restingFlipper.Opacity = 1;
         _bounce.BeginAnimation(TranslateTransform.YProperty, null);
         _happyFace.Visibility = Visibility.Collapsed;
     }
@@ -140,7 +159,10 @@ public sealed class IntelligenceMascot : Button
         _happyFace.Visibility = Visibility.Visible;
         _greeting.Start();
         if (!SystemParameters.ClientAreaAnimation) return;
-        _flipper.BeginAnimation(RotateTransform.AngleProperty, Frames(-10, -130, 3));
+        _restingFlipper.Opacity = 0;
+        _waveA.Opacity = 1;
+        _waveA.BeginAnimation(OpacityProperty, Frames(1, 0, 3));
+        _waveB.BeginAnimation(OpacityProperty, Frames(0, 1, 3));
         _bounce.BeginAnimation(TranslateTransform.YProperty, Frames(0, -4, 3));
     }
 
