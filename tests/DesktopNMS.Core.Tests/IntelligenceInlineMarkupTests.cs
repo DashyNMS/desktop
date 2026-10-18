@@ -5,6 +5,13 @@ namespace DesktopNMS.Core.Tests;
 
 public sealed class IntelligenceInlineMarkupTests
 {
+    [Theory]
+    [InlineData("There are **5** critical alerts.", "There are 5 critical alerts.")]
+    [InlineData("## Status\n- **router_a** is _down_\n- [Vendor docs](https://example.org)", "Status router_a is down Vendor docs")]
+    [InlineData("**Check [[device:12]]** and `show interfaces`.", "Check router-a (Down) and show interfaces.")]
+    public void Chat_previews_remove_formatting_without_changing_object_names(string markdown, string expected)
+        => Assert.Equal(expected, IntelligenceInlineMarkup.ToPreviewText(markdown, References));
+
     [Fact]
     public void Uncertainty_footer_copies_as_readable_markdown_with_resolved_names()
     {

@@ -2,6 +2,9 @@ using System;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Linq;
+using System.Collections;
+using System.ComponentModel;
+using System.Windows.Data;
 using System.Windows.Threading;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Infrastructure;
@@ -13,11 +16,11 @@ public sealed partial class IntelligenceViewModel
 {
     private IIntelligenceChatStore _chatStore = null!;
     private readonly DispatcherTimer _chatSaveTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly DispatcherTimer _chatGroupingTimer = new() { Interval = TimeSpan.FromMinutes(1) };
     private string? _chatScope;
     private bool _changingChat;
     private bool _chatStorageReadOnly;
     private IntelligenceChatItemViewModel? _selectedChat;
-    private bool _isChatListOpen = true;
     private bool _isRenamingChat;
     private string _chatNameDraft = string.Empty;
     private string _selectedReplyStyle = IntelligenceReplyStyles.Conversational;
@@ -40,7 +43,7 @@ public sealed partial class IntelligenceViewModel
     }
 
     public ObservableCollection<IntelligenceChatItemViewModel> Chats { get; } = new();
-    public RelayCommand ToggleChatListCommand { get; private set; } = null!;
+    public ICollectionView GroupedChats { get; private set; } = null!;
     public RelayCommand RenameChatCommand { get; private set; } = null!;
     public RelayCommand SaveChatNameCommand { get; private set; } = null!;
     public RelayCommand CancelChatNameCommand { get; private set; } = null!;
@@ -48,16 +51,14 @@ public sealed partial class IntelligenceViewModel
     public RelayCommand PinChatCommand { get; private set; } = null!;
     public bool CanManageChats => !IsBusy && ShowConversation && _chatScope is not null;
 
-    public bool IsChatListOpen
-    {
-        get => _isChatListOpen;
-        set => SetProperty(ref _isChatListOpen, value);
-    }
-
     public bool IsRenamingChat
     {
         get => _isRenamingChat;
-        private set => SetProperty(ref _isRenamingChat, value);
+        private set
+        {
+            SetProperty(ref _isRenamingChat, value);
+            foreach (var chat in Chats) chat.IsRenaming = value && ReferenceEquals(chat, SelectedChat);
+        }
     }
 
     public string ChatNameDraft
@@ -88,8 +89,18 @@ public sealed partial class IntelligenceViewModel
 
     private void InitializeChats(IIntelligenceChatStore store)
     {
+        var grouped = new ListCollectionView(Chats);
+        grouped.GroupDescriptions.Add(new PropertyGroupDescription(nameof(IntelligenceChatItemViewModel.ActivityGroup)) { CustomSort = new ChatActivityGroupComparer() });
+        grouped.LiveGroupingProperties.Add(nameof(IntelligenceChatItemViewModel.ActivityGroup));
+        grouped.IsLiveGrouping = true;
+        GroupedChats = grouped;
+        _chatGroupingTimer.Tick += (_, _) =>
+        {
+            var today = DateOnly.FromDateTime(DateTime.Now);
+            foreach (var chat in Chats) chat.RefreshActivityGroup(today);
+        };
+        _chatGroupingTimer.Start();
         _chatStore = store;
-        ToggleChatListCommand = new RelayCommand(() => IsChatListOpen = !IsChatListOpen);
         RenameChatCommand = new RelayCommand(parameter =>
         {
             if (parameter is IntelligenceChatItemViewModel target)
@@ -99,7 +110,6 @@ public sealed partial class IntelligenceViewModel
             }
             ChatNameDraft = SelectedChat?.Title ?? string.Empty;
             IsRenamingChat = true;
-            IsChatListOpen = true;
         }, _ => CanManageChats && SelectedChat is not null);
         SaveChatNameCommand = new RelayCommand(() =>
         {
@@ -310,6 +320,13 @@ public sealed partial class IntelligenceViewModel
         var title = string.Join(" ", value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         return title.Length > 80 ? title[..77] + "…" : title;
     }
+
+    private sealed class ChatActivityGroupComparer : IComparer
+    {
+        public int Compare(object? x, object? y) =>
+            (((CollectionViewGroup)x!).Name as IntelligenceChatActivityGroup)!.Order.CompareTo(
+                (((CollectionViewGroup)y!).Name as IntelligenceChatActivityGroup)!.Order);
+    }
 }
 
 public sealed class IntelligenceChatItemViewModel(SavedIntelligenceChat data) : ObservableObject
@@ -318,6 +335,13 @@ public sealed class IntelligenceChatItemViewModel(SavedIntelligenceChat data) : 
     public string Title => Data.Title;
     public bool IsPinned => Data.IsPinned;
     public string PinLabel => IsPinned ? "Unpin chat" : "Pin chat";
+    private IntelligenceChatActivityGroup _activityGroup = IntelligenceChatActivityGroups.ForDate(
+        DateOnly.FromDateTime(data.UpdatedAt.ToLocalTime().DateTime), DateOnly.FromDateTime(DateTime.Now), data.IsPinned);
+    public IntelligenceChatActivityGroup ActivityGroup => _activityGroup;
+    public void RefreshActivityGroup(DateOnly today) => SetProperty(ref _activityGroup,
+        IntelligenceChatActivityGroups.ForDate(DateOnly.FromDateTime(Data.UpdatedAt.ToLocalTime().DateTime), today, IsPinned), nameof(ActivityGroup));
+    private bool _isRenaming;
+    public bool IsRenaming { get => _isRenaming; set => SetProperty(ref _isRenaming, value); }
     public string LastActivity => Data.Messages.Count == 0 ? string.Empty
         : Data.UpdatedAt.ToLocalTime().ToString("g");
     public string Preview
@@ -328,11 +352,12 @@ public sealed class IntelligenceChatItemViewModel(SavedIntelligenceChat data) : 
             if (message is null) return "Start a conversation";
             var references = message.StatusCards.SelectMany(IntelligenceInlineReferences.FromSnapshot)
                 .Concat(message.PriorReferences).DistinctBy(reference => reference.Key).ToArray();
-            return IntelligenceInlineMarkup.ToReadableText(message.Text, references).Replace('\n', ' ');
+            return IntelligenceInlineMarkup.ToPreviewText(message.Text, references);
         }
     }
     public void Refresh()
     {
+        RefreshActivityGroup(DateOnly.FromDateTime(DateTime.Now));
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Preview));
         OnPropertyChanged(nameof(IsPinned));

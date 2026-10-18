@@ -26,6 +26,8 @@ public interface IDeviceCache
     /// <summary>True once a device list has been fetched at least once.</summary>
     bool IsLoaded { get; }
 
+    DateTimeOffset? LastRefreshed => null;
+
     /// <summary>
     /// The device whose IP or hostname is <paramref name="address"/>, or null
     /// - how the Graylog tab names a message's source, as LibreNMS's
@@ -77,6 +79,8 @@ public sealed class DeviceCache : IDeviceCache
     }
 
     public bool IsLoaded { get; private set; }
+
+    public DateTimeOffset? LastRefreshed => _lastRefresh == DateTimeOffset.MinValue ? null : _lastRefresh;
 
     public Device? Get(int deviceId)
     {

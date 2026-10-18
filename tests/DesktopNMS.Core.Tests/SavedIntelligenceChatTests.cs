@@ -29,6 +29,9 @@ public sealed class SavedIntelligenceChatTests : IDisposable
             new[] { new IntelligenceStatusRow("core-switch", "Test location", "Up", "up", DeviceId: 12) }));
         chat.Messages[0].PriorReferences.Add(new("device:99", "earlier-router", "", "unknown", DateTimeOffset.UtcNow, "Earlier lookup"));
         chat.Messages[0].CreatedAt = new DateTimeOffset(2026, 10, 18, 14, 32, 0, TimeSpan.Zero);
+        chat.Messages[0].Outcome = IntelligenceReplyOutcome.Failed;
+        chat.Messages[0].SubmittedQuestion = "How is the switch?";
+        chat.Messages[0].FailureText = "Synthetic lookup failure";
         chat.Messages[0].ToolObservations.Add(new("device_health", chat.Messages[0].CreatedAt.GetValueOrDefault(), "Device is up."));
         store.Save("account-a\nhttps://nms.example/", chat);
         store.Save("account-a\nhttps://nms.example/", second);
@@ -41,6 +44,9 @@ public sealed class SavedIntelligenceChatTests : IDisposable
         Assert.Equal(chat.Model, restored.Model);
         Assert.Equal(IntelligenceReplyStyles.EvidenceBased, restored.ReplyStyle);
         Assert.Equal(chat.Messages[0].CreatedAt, restored.Messages[0].CreatedAt);
+        Assert.Equal(IntelligenceReplyOutcome.Failed, restored.Messages[0].Outcome);
+        Assert.Equal("How is the switch?", restored.Messages[0].SubmittedQuestion);
+        Assert.Equal("Synthetic lookup failure", restored.Messages[0].FailureText);
         Assert.Equal("Device is up.", Assert.Single(restored.Messages[0].ToolObservations).Summary);
         Assert.Equal(DashyOutfit.Wizard, restored.Outfit);
         Assert.Equal(chat.History.ToJsonString(), restored.History.ToJsonString());

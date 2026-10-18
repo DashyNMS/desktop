@@ -103,6 +103,11 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         ConnectCommand = new AsyncRelayCommand(ConnectAsync, () => !_isSigningIn);
         DisconnectCommand = new AsyncRelayCommand(DisconnectAsync, () => IsSignedIn && !_isBusy);
         SendCommand = new AsyncRelayCommand(SendAsync, () => CanSend);
+        EditQuestionCommand = new RelayCommand(p => { if (p is IntelligenceMessageViewModel message) RestoreQuestion(message); }, CanRecoverQuestion);
+        RetryQuestionCommand = new AsyncRelayCommand(async p =>
+        {
+            if (p is IntelligenceMessageViewModel message && RestoreQuestion(message)) await SendAsync().ConfigureAwait(true);
+        }, p => CanRecoverQuestion(p) && SelectedModel is not null);
         StopCommand = new RelayCommand(() => _running?.Cancel(), () => _isBusy);
         ClearCommand = new RelayCommand(Clear, () => !_isBusy && ShowConversation);
         ManageUsageCommand = new RelayCommand(() => _windows.OpenUrl(ManageUsageUrl));
@@ -160,6 +165,23 @@ public sealed partial class IntelligenceViewModel : ObservableObject
     public AsyncRelayCommand DisconnectCommand { get; }
 
     public AsyncRelayCommand SendCommand { get; }
+    public RelayCommand EditQuestionCommand { get; }
+    public AsyncRelayCommand RetryQuestionCommand { get; }
+    public event EventHandler? QuestionFocusRequested;
+
+    private bool CanRecoverQuestion(object? parameter) => CanManageChats && parameter is IntelligenceMessageViewModel message
+        && Messages.Contains(message) && message.CanRecoverQuestion;
+
+    private bool RestoreQuestion(IntelligenceMessageViewModel message)
+    {
+        if (!CanRecoverQuestion(message)) return false;
+        if (!string.IsNullOrWhiteSpace(Question) && Question != message.SubmittedQuestion
+            && !_windows.Confirm("Replace draft?", "Replace the unsent draft with this question?", "Replace draft")) return false;
+        Question = message.SubmittedQuestion!;
+        ErrorText = null;
+        QuestionFocusRequested?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
 
     public RelayCommand StopCommand { get; }
 
@@ -212,7 +234,15 @@ public sealed partial class IntelligenceViewModel : ObservableObject
     public ChatGptModel? SelectedModel
     {
         get => _selectedModel;
-        set { if (SetProperty(ref _selectedModel, value)) QueueChatSave(); }
+        set
+        {
+            if (SetProperty(ref _selectedModel, value))
+            {
+                QueueChatSave();
+                SendCommand?.RaiseCanExecuteChanged();
+                RetryQuestionCommand?.RaiseCanExecuteChanged();
+            }
+        }
     }
 
     public string Question
@@ -250,6 +280,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         {
             if (SetProperty(ref _isBusy, value))
             {
+                Context.IsScopeLocked = value;
                 RaiseCommands();
             }
         }
@@ -376,7 +407,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         ErrorText = null;
         Messages.Add(IntelligenceMessageViewModel.User(question));
         var replyStyle = SelectedReplyStyle;
-        var answer = IntelligenceMessageViewModel.Assistant(replyStyle);
+        var answer = IntelligenceMessageViewModel.Assistant(replyStyle, question);
         answer.SeedInlineReferences(Messages.Where(message => message.IsAssistant).Reverse().SelectMany(message => message.InlineReferences));
         Messages.Add(answer);
         if (_selectedChat is { } chat && !chat.Data.IsRenamed && chat.Data.Messages.Count == 0)
@@ -400,34 +431,28 @@ public sealed partial class IntelligenceViewModel : ObservableObject
             Context.OnAnswer(IntelligenceInlineMarkup.ToReadableText(answer.Text, answer.InlineReferences));
             if (string.IsNullOrWhiteSpace(answer.Text))
             {
-                answer.Text = "(No answer.)";
+                answer.Finish(IntelligenceReplyOutcome.Failed, "No answer was returned. You can retry this question.");
             }
         }
         catch (OperationCanceledException)
         {
-            answer.Text += string.IsNullOrEmpty(answer.Text) ? "Stopped." : "\n\nStopped.";
+            answer.Finish(IntelligenceReplyOutcome.Stopped);
         }
         catch (IntelligenceException ex)
         {
             ErrorText = ex.Message;
-            if (string.IsNullOrEmpty(answer.Text))
-            {
-                Messages.Remove(answer);
-            }
+            answer.Finish(IntelligenceReplyOutcome.Failed, ex.Message);
         }
         catch (ChatGptSignInException ex)
         {
             ErrorText = ex.Message;
-            Messages.Remove(answer);
+            answer.Finish(IntelligenceReplyOutcome.Failed, ex.Message);
         }
         catch (Exception ex)
         {
             _logger.LogWarning("Intelligence: the question failed ({ErrorType})", ex.GetType().Name);
             ErrorText = "Something went wrong answering that. Try again.";
-            if (string.IsNullOrEmpty(answer.Text))
-            {
-                Messages.Remove(answer);
-            }
+            answer.Finish(IntelligenceReplyOutcome.Failed, ErrorText);
         }
         finally
         {
@@ -517,6 +542,8 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         ConnectCommand.RaiseCanExecuteChanged();
         DisconnectCommand.RaiseCanExecuteChanged();
         SendCommand.RaiseCanExecuteChanged();
+        EditQuestionCommand.RaiseCanExecuteChanged();
+        RetryQuestionCommand.RaiseCanExecuteChanged();
         StopCommand.RaiseCanExecuteChanged();
         ClearCommand.RaiseCanExecuteChanged();
         AskSuggestionCommand.RaiseCanExecuteChanged();
@@ -587,12 +614,13 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     {
         IsUser = isUser;
         _isStreaming = !isUser;
+        Outcome = isUser ? IntelligenceReplyOutcome.Completed : IntelligenceReplyOutcome.Generating;
         CreatedAt = DateTimeOffset.UtcNow;
     }
 
     public static IntelligenceMessageViewModel User(string text) => new(isUser: true) { _text = text };
 
-    public static IntelligenceMessageViewModel Assistant(string? replyStyle = null) => new(isUser: false) { ReplyStyle = replyStyle };
+    public static IntelligenceMessageViewModel Assistant(string? replyStyle = null, string? question = null) => new(isUser: false) { ReplyStyle = replyStyle, SubmittedQuestion = question };
 
     /// <summary>The presentation chosen for this reply, kept stable when settings change later.</summary>
     public string? ReplyStyle { get; private init; }
@@ -605,7 +633,35 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     public bool CanCopyAnswer => IsAssistant && !string.IsNullOrWhiteSpace(Text);
     public string CopyMarkdown => IntelligenceInlineMarkup.ToReadableMarkdown(Text, InlineReferences).Trim();
     public string CopyAnswerLabel => _isCopied ? "Copied" : "Copy answer";
-    public string CompletionGlyph => _failedLookups > 0 || _restoredActivity == "Interrupted" ? "!" : "✓";
+    public IntelligenceReplyOutcome Outcome { get; private set; } = IntelligenceReplyOutcome.Generating;
+    public string? SubmittedQuestion { get; private init; }
+    public string? FailureText { get; private set; }
+    public bool HasFailureText => !string.IsNullOrEmpty(FailureText);
+    public bool CanRecoverQuestion => IsAssistant && !IsStreaming
+        && (Outcome is IntelligenceReplyOutcome.Failed or IntelligenceReplyOutcome.Stopped or IntelligenceReplyOutcome.Interrupted)
+        && !string.IsNullOrWhiteSpace(SubmittedQuestion);
+    public string OutcomeLabel => Outcome switch
+    {
+        IntelligenceReplyOutcome.Generating => "Answer in progress",
+        IntelligenceReplyOutcome.Stopped => "Stopped",
+        IntelligenceReplyOutcome.Interrupted => "Interrupted",
+        IntelligenceReplyOutcome.Failed => "Failed",
+        _ => _failedLookups > 0 ? "Completed · some lookups failed" : "Completed",
+    };
+    public string CompletionGlyph => Outcome == IntelligenceReplyOutcome.Stopped ? "■"
+        : _failedLookups > 0 || Outcome is IntelligenceReplyOutcome.Failed or IntelligenceReplyOutcome.Interrupted ? "!" : "✓";
+    public void Finish(IntelligenceReplyOutcome outcome, string? failureText = null)
+    {
+        Outcome = outcome;
+        FailureText = failureText;
+        _currentStep = null;
+        IsStreaming = false;
+        OnPropertyChanged(nameof(Outcome));
+        OnPropertyChanged(nameof(FailureText));
+        OnPropertyChanged(nameof(HasFailureText));
+        OnPropertyChanged(nameof(CanRecoverQuestion));
+        RaiseActivity();
+    }
     public bool IsActivityExpanded { get => _isActivityExpanded; set => SetProperty(ref _isActivityExpanded, value); }
     public ObservableCollection<IntelligenceToolObservationViewModel> ToolObservations { get; } = new();
     public bool HasToolObservations => ToolObservations.Count > 0;
@@ -646,6 +702,9 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         PriorReferences = _priorReferences.Values.Where(reference => Text.Contains("[[" + reference.Key + "]]", StringComparison.Ordinal)).ToList(),
         ToolObservations = ToolObservations.Select(item => item.Data).ToList(),
         IsIncomplete = IsStreaming,
+        Outcome = Outcome,
+        SubmittedQuestion = SubmittedQuestion,
+        FailureText = FailureText,
         Images = _savedImages.ToList(),
     };
 
@@ -658,6 +717,9 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
             _restoredActivity = saved.IsIncomplete ? "Interrupted" : saved.Activity,
             ReplyStyle = saved.ReplyStyle,
             CreatedAt = saved.CreatedAt,
+            Outcome = saved.IsIncomplete || saved.Outcome == IntelligenceReplyOutcome.Generating ? IntelligenceReplyOutcome.Interrupted : saved.Outcome ?? IntelligenceReplyOutcome.Completed,
+            SubmittedQuestion = saved.SubmittedQuestion,
+            FailureText = saved.FailureText,
         };
         foreach (var image in saved.Images) message.AddImage(image);
         message.SeedInlineReferences(saved.PriorReferences);
@@ -723,13 +785,15 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         {
             if (SetProperty(ref _isStreaming, value))
             {
+                if (!value && Outcome == IntelligenceReplyOutcome.Generating) Outcome = IntelligenceReplyOutcome.Completed;
+                OnPropertyChanged(nameof(CanRecoverQuestion));
                 RaiseActivity();
             }
         }
     }
 
     /// <summary>Looking something up, or waiting for the first words - drives the heartbeat.</summary>
-    public bool IsWorking => IsAssistant && _isStreaming && (_currentStep is not null || _text.Length == 0);
+    public bool IsWorking => IsAssistant && _isStreaming;
 
     /// <summary>Graphs the answer drew on, shown above its text.</summary>
     public ObservableCollection<System.Windows.Media.ImageSource> Images { get; } = new();
@@ -767,7 +831,8 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     /// ("Checking alerts…"), then what it looked at ("Looked at alerts and
     /// device health").
     /// </summary>
-    public string? ActivityText => _currentStep is { } step
+    public string? ActivityText => Outcome is IntelligenceReplyOutcome.Stopped or IntelligenceReplyOutcome.Interrupted or IntelligenceReplyOutcome.Failed ? OutcomeLabel
+        : _currentStep is { } step
         ? step + "…"
         : _lookedAt.Count > 0
             ? "Looked at " + JoinNames(_lookedAt) + (_failedLookups > 0 ? $" ({_failedLookups} couldn't be read)" : string.Empty)
@@ -810,6 +875,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         OnPropertyChanged(nameof(HasActivity));
         OnPropertyChanged(nameof(IsWorking));
         OnPropertyChanged(nameof(CompletionGlyph));
+        OnPropertyChanged(nameof(OutcomeLabel));
     }
 
     private static string JoinNames(List<string> names) => names.Count switch

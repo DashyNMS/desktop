@@ -1,10 +1,14 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Navigation;
+using System.Windows.Threading;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.ViewModels;
 
@@ -12,6 +16,11 @@ namespace DesktopNMS.Views;
 
 public partial class IntelligenceView : UserControl
 {
+    private readonly HashSet<IntelligenceMessageViewModel> _observedMessages = new();
+    private bool _followLatest = true;
+    private bool _scrollPending;
+    private bool _drawerOpen;
+    private IInputElement? _drawerReturnFocus;
     private void OnSourceNavigate(object sender, RequestNavigateEventArgs e)
     {
         e.Handled = true;
@@ -61,7 +70,7 @@ public partial class IntelligenceView : UserControl
     }
 
     /// <summary>A graph at full size, in a window of its own.</summary>
-    private void OnGraphClick(object sender, MouseButtonEventArgs e)
+    private void OnGraphClick(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: ImageSource image })
         {
@@ -85,6 +94,7 @@ public partial class IntelligenceView : UserControl
                 MaxHeight = SystemParameters.WorkArea.Height * 0.85,
             },
         };
+        window.Closed += (_, _) => { if (sender is Button { IsLoaded: true } button) button.Focus(); };
         window.Show();
     }
 
@@ -119,26 +129,80 @@ public partial class IntelligenceView : UserControl
         {
             old.Messages.CollectionChanged -= OnMessagesChanged;
             old.PropertyChanged -= OnModelPropertyChanged;
+            old.QuestionFocusRequested -= OnQuestionFocusRequested;
         }
 
         if (e.NewValue is IntelligenceViewModel model)
         {
             model.Messages.CollectionChanged += OnMessagesChanged;
             model.PropertyChanged += OnModelPropertyChanged;
+            model.QuestionFocusRequested += OnQuestionFocusRequested;
         }
-
+        _followLatest = true;
+        SynchronizeMessageSubscriptions();
         UpdateSidebar();
+        ScheduleScrollToLatest();
     }
 
     private void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(IntelligenceViewModel.IsSidebarOpen) or nameof(IntelligenceViewModel.ShowConversation) or nameof(IntelligenceViewModel.IsChatListOpen))
+        if (e.PropertyName is nameof(IntelligenceViewModel.IsSidebarOpen) or nameof(IntelligenceViewModel.ShowConversation))
         {
             UpdateSidebar();
         }
     }
 
     private void OnRootSizeChanged(object sender, SizeChangedEventArgs e) => UpdateSidebar();
+
+    private bool HasRoomForContext => Root.ActualWidth >= SidebarMinWidth + ChatSidebar.Width;
+
+    private void OnShowContextClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not IntelligenceViewModel model) return;
+        if (HasRoomForContext) model.IsSidebarOpen = true;
+        else
+        {
+            _drawerReturnFocus = Keyboard.FocusedElement;
+            _drawerOpen = true;
+            UpdateSidebar();
+            Sidebar.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
+        }
+    }
+
+    private void OnCloseContextClick(object sender, RoutedEventArgs e)
+    {
+        if (HasRoomForContext && DataContext is IntelligenceViewModel model) model.IsSidebarOpen = false;
+        _drawerOpen = false;
+        UpdateSidebar();
+        if (_drawerReturnFocus is { } focus) Keyboard.Focus(focus);
+        _drawerReturnFocus = null;
+    }
+
+    private void OnRootKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && _drawerOpen) { OnCloseContextClick(sender, e); e.Handled = true; }
+        else if (e.Key == Key.F6)
+        {
+            if (_drawerOpen)
+            {
+                Sidebar.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
+                e.Handled = true;
+                return;
+            }
+            var panes = new FrameworkElement[] { ChatSidebar, ConversationPane, Sidebar }.Where(pane => pane.IsVisible).ToArray();
+            var current = Array.FindIndex(panes, pane => pane.IsKeyboardFocusWithin);
+            var direction = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? -1 : 1;
+            if (panes.Length > 0)
+            {
+                var target = panes[(current + direction + panes.Length) % panes.Length];
+                if (target == ConversationPane) QuestionBox.Focus();
+                else if (!target.Focus()) target.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void OnQuestionFocusRequested(object? sender, EventArgs e) => Dispatcher.InvokeAsync(() => { QuestionBox.Focus(); QuestionBox.CaretIndex = QuestionBox.Text.Length; });
 
     /// <summary>
     /// The sidebar shows when there's a conversation, it hasn't been
@@ -152,28 +216,77 @@ public partial class IntelligenceView : UserControl
             return;
         }
 
-        var chatsVisible = model.ShowConversation && model.IsChatListOpen;
-        ChatSidebar.Visibility = chatsVisible ? Visibility.Visible : Visibility.Collapsed;
-        var room = model.ShowConversation && Root.ActualWidth >= SidebarMinWidth + (chatsVisible ? 220 : 0);
-        Sidebar.Visibility = room && model.IsSidebarOpen ? Visibility.Visible : Visibility.Collapsed;
-        ShowContextButton.Visibility = room && !model.IsSidebarOpen ? Visibility.Visible : Visibility.Collapsed;
+        ChatSidebar.Visibility = model.ShowConversation ? Visibility.Visible : Visibility.Collapsed;
+        var room = model.ShowConversation && HasRoomForContext;
+        var host = room ? DockedSidebarHost : ContextDrawer;
+        if (Sidebar.Parent is Panel parent && parent != host)
+        {
+            parent.Children.Remove(Sidebar);
+            host.Children.Add(Sidebar);
+        }
+        if (room) _drawerOpen = false;
+        if (!model.ShowConversation) _drawerOpen = false;
+        Sidebar.HorizontalAlignment = room ? HorizontalAlignment.Stretch : HorizontalAlignment.Right;
+        Sidebar.Visibility = model.ShowConversation && (room ? model.IsSidebarOpen : _drawerOpen) ? Visibility.Visible : Visibility.Collapsed;
+        ContextDrawer.Visibility = !room && _drawerOpen ? Visibility.Visible : Visibility.Collapsed;
+        ShowContextButton.Visibility = model.ShowConversation && (!room || !model.IsSidebarOpen) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Follow the conversation as it grows, including the answer as it streams in.</summary>
     private void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.NewItems is not null)
-        {
-            foreach (var item in e.NewItems)
-            {
-                if (item is INotifyPropertyChanged message)
-                {
-                    message.PropertyChanged += (_, _) => Transcript.ScrollToEnd();
-                }
-            }
-        }
+        SynchronizeMessageSubscriptions();
+        if (e.Action == NotifyCollectionChangedAction.Reset || e.NewItems?.OfType<IntelligenceMessageViewModel>().Any(message => message.IsUser) == true) _followLatest = true;
+        if (_followLatest) ScheduleScrollToLatest();
+        else JumpToLatestButton.Visibility = Visibility.Visible;
+    }
 
-        Transcript.ScrollToEnd();
+    private void SynchronizeMessageSubscriptions()
+    {
+        var messages = DataContext is IntelligenceViewModel model ? model.Messages.ToHashSet() : new HashSet<IntelligenceMessageViewModel>();
+        foreach (var message in _observedMessages.Where(message => !messages.Contains(message)).ToArray())
+        {
+            message.PropertyChanged -= OnMessagePropertyChanged;
+            _observedMessages.Remove(message);
+        }
+        foreach (var message in messages.Where(message => !_observedMessages.Contains(message)))
+        {
+            message.PropertyChanged += OnMessagePropertyChanged;
+            _observedMessages.Add(message);
+        }
+    }
+
+    private void OnMessagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(IntelligenceMessageViewModel.Text) or nameof(IntelligenceMessageViewModel.HasImages))) return;
+        if (_followLatest) ScheduleScrollToLatest();
+        else JumpToLatestButton.Visibility = Visibility.Visible;
+    }
+
+    private void OnTranscriptScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.OriginalSource != Transcript) return;
+        if (e.ExtentHeightChange == 0 && e.VerticalChange != 0)
+            _followLatest = Transcript.ScrollableHeight - Transcript.VerticalOffset <= 24;
+        if (e.ExtentHeightChange != 0 && _followLatest) ScheduleScrollToLatest();
+        JumpToLatestButton.Visibility = !_followLatest && Transcript.ScrollableHeight - Transcript.VerticalOffset > 24 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ScheduleScrollToLatest()
+    {
+        if (!_followLatest || _scrollPending) return;
+        _scrollPending = true;
+        Dispatcher.InvokeAsync(() =>
+        {
+            _scrollPending = false;
+            if (_followLatest) { Transcript.ScrollToEnd(); JumpToLatestButton.Visibility = Visibility.Collapsed; }
+        }, DispatcherPriority.Loaded);
+    }
+
+    private void OnJumpToLatestClick(object sender, RoutedEventArgs e)
+    {
+        _followLatest = true;
+        ScheduleScrollToLatest();
     }
 
     private void OnChatNameKeyDown(object sender, KeyEventArgs e)
@@ -189,6 +302,12 @@ public partial class IntelligenceView : UserControl
             model.CancelChatNameCommand.Execute(null);
             e.Handled = true;
         }
+    }
+
+    private void OnRenameVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is true && sender is TextBox box)
+            Dispatcher.InvokeAsync(() => { if (box.IsVisible) { box.Focus(); box.SelectAll(); } });
     }
 
     /// <summary>Enter asks; Shift+Enter is a new line.</summary>
