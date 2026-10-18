@@ -80,6 +80,8 @@ Name: "startmenuicon"; Description: "Create a &Start Menu shortcut"; GroupDescri
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
 
 [Files]
+Source: "{#AppSourceDir}\mcp\dashynms-mcp.exe"; DestDir: "{app}\mcp"; Flags: ignoreversion
+Source: "{#AppSourceDir}\mcp\*"; DestDir: "{app}\mcp"; Excludes: "dashynms-mcp.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#AppSourceDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]

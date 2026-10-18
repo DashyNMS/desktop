@@ -37,12 +37,27 @@ dotnet test tests/DesktopNMS.Core.Tests/DesktopNMS.Core.Tests.csproj
 
 To produce a single self-contained `.exe`:
 
+For an installable build with Intelligence's network tools, first publish
+the MCP server (requires the .NET 10 SDK alongside .NET 9):
+
+```powershell
+./tools/Publish-Mcp.ps1 -Source ../mcp
+```
+
+Then publish the desktop app:
+
 ```bash
 dotnet publish src/DesktopNMS/DesktopNMS.csproj -c Release -o publish
 ```
 
 Release builds are configured for `win-x64`, self-contained and single-file, so
 `publish/DashyNMS.exe` runs on a machine with no .NET installed.
+The accompanying `publish/mcp` folder contains the self-contained network
+tools, their licence and the source commit in `BUILD.txt`. Keep it beside the
+app. The installer requires the MCP executable; preview and release workflows
+fetch an exact MCP commit, build it first and verify the bundled files before
+packaging. When updating the pinned commit in both workflows, use a commit
+containing the licence's permission to bundle it with DashyNMS.
 
 ### Building the installer
 
