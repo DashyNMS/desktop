@@ -1429,9 +1429,14 @@
                                 <ComboBox ItemsSource="{Binding IntelligenceConfigTextOptions}"
                                           SelectedValue="{Binding IntelligenceConfigText}"
                                           SelectedValuePath="Key"
-                                          DisplayMemberPath="Value"
                                           Width="360"
-                                          HorizontalAlignment="Left" />
+                                          HorizontalAlignment="Left">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Value}" TextTrimming="CharacterEllipsis" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
                                 <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,4,0,0"
                                            Text="With Unimus connected, how much of a device's config the agent can see. Full sends the config text with passwords, keys and SNMP communities redacted - it's still your network's configuration, so Summary is the default." />
                             </StackPanel>
