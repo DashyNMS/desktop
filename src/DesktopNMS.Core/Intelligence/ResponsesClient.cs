@@ -8,7 +8,29 @@ using System.Text.Json.Nodes;
 namespace DesktopNMS.Core.Intelligence;
 
 /// <summary>A model the signed-in account can use.</summary>
-public sealed record ChatGptModel(string Slug, string DisplayName);
+public sealed record ChatGptModel(string Slug, string DisplayName)
+{
+    /// <summary>Its name as a list shows it, wherever it's shown as text.</summary>
+    public override string ToString() => DisplayName;
+
+    /// <summary>
+    /// A readable name from a slug when the API gives none:
+    /// "gpt-5.1-codex-mini" → "GPT-5.1 Codex Mini".
+    /// </summary>
+    public static string NameFor(string slug)
+    {
+        var parts = slug.Split('-');
+        if (parts.Length >= 2 && parts[0].Equals("gpt", StringComparison.OrdinalIgnoreCase))
+        {
+            var rest = parts.Skip(2).Select(Title);
+            return string.Join(' ', new[] { "GPT-" + parts[1] }.Concat(rest));
+        }
+
+        return string.Join(' ', parts.Select(Title));
+
+        static string Title(string word) => word.Length == 0 ? word : char.ToUpperInvariant(word[0]) + word[1..];
+    }
+}
 
 /// <summary>One server-sent event from a streamed response: its type and its JSON.</summary>
 public sealed record ResponseStreamEvent(string Type, JsonObject Data);
@@ -47,7 +69,7 @@ public sealed class ResponsesClient
         return list.OfType<JsonObject>()
             .Where(m => m["visibility"] is null || m["visibility"]!.GetValue<string>() == "list")
             .Select(m => (m["slug"] ?? m["id"])?.GetValue<string>() is { } slug
-                ? new ChatGptModel(slug, m["display_name"]?.GetValue<string>() ?? slug)
+                ? new ChatGptModel(slug, Text(m, "display_name", "displayName", "title", "name") is { } name && name != slug ? name : ChatGptModel.NameFor(slug))
                 : null)
             .OfType<ChatGptModel>()
             .ToList();
@@ -108,6 +130,11 @@ public sealed class ResponsesClient
             }
         }
     }
+
+    /// <summary>The first of <paramref name="keys"/> that's a non-empty string.</summary>
+    private static string? Text(JsonObject json, params string[] keys)
+        => keys.Select(k => json[k] is JsonValue v && v.TryGetValue<string>(out var s) && !string.IsNullOrWhiteSpace(s) ? s : null)
+               .FirstOrDefault(s => s is not null);
 
     private static string Describe(HttpStatusCode status, string body)
     {
