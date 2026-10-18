@@ -122,7 +122,11 @@ public partial class IntelligenceView : UserControl
 
     private void OnRootSizeChanged(object sender, SizeChangedEventArgs e) => UpdateSidebar();
 
-    /// <summary>Shown when there's a conversation, the person wants it, and the window is wide enough - the toggle only when it could show.</summary>
+    /// <summary>
+    /// The sidebar shows when there's a conversation, it hasn't been
+    /// collapsed, and the window is wide enough. Collapsed (with room for
+    /// it), the top bar's Context button brings it back.
+    /// </summary>
     private void UpdateSidebar()
     {
         if (Sidebar is null || DataContext is not IntelligenceViewModel model)
@@ -130,9 +134,9 @@ public partial class IntelligenceView : UserControl
             return;
         }
 
-        var wide = Root.ActualWidth >= SidebarMinWidth;
-        Sidebar.Visibility = model.ShowConversation && model.IsSidebarOpen && wide ? Visibility.Visible : Visibility.Collapsed;
-        SidebarToggle.Visibility = model.ShowConversation && wide ? Visibility.Visible : Visibility.Collapsed;
+        var room = model.ShowConversation && Root.ActualWidth >= SidebarMinWidth;
+        Sidebar.Visibility = room && model.IsSidebarOpen ? Visibility.Visible : Visibility.Collapsed;
+        ShowContextButton.Visibility = room && !model.IsSidebarOpen ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Follow the conversation as it grows, including the answer as it streams in.</summary>

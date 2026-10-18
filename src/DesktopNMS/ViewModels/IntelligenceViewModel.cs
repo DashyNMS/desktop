@@ -38,6 +38,7 @@ public sealed class IntelligenceViewModel : ObservableObject
     private readonly SemaphoreSlim _renewing = new(1, 1);
     private readonly IntelligenceConversation _conversation;
     private readonly ISettingsStore _settings;
+    private string? _defaultModel;
 
     private ChatGptCredentials? _credentials;
     private CancellationTokenSource? _running;
@@ -68,9 +69,19 @@ public sealed class IntelligenceViewModel : ObservableObject
 
         // A new default model in Settings applies to the next conversation,
         // or straight away if this one hasn't started.
+        // A new default model in Settings applies straight away. Only a change
+        // to the default itself moves the picker, so a model picked for this
+        // conversation stays put when other settings are saved.
+        _defaultModel = settings.Current.IntelligenceModel;
         settings.Changed += (_, current) => _dispatcher.InvokeAsync(() =>
         {
-            if (Messages.Count == 0 && Models.FirstOrDefault(m => m.Slug == current.IntelligenceModel) is { } preferred)
+            if (current.IntelligenceModel == _defaultModel)
+            {
+                return;
+            }
+
+            _defaultModel = current.IntelligenceModel;
+            if (Models.FirstOrDefault(m => m.Slug == _defaultModel) is { } preferred)
             {
                 SelectedModel = preferred;
             }
@@ -452,6 +463,13 @@ public sealed class IntelligenceViewModel : ObservableObject
         _conversation.Clear();
         Context.Clear();
         Messages.Clear();
+
+        // A new conversation starts on the default model.
+        if (Models.FirstOrDefault(m => m.Slug == _defaultModel) is { } preferred)
+        {
+            SelectedModel = preferred;
+        }
+
         ErrorText = null;
         OnPropertyChanged(nameof(ShowSuggestions));
         RaiseCommands();

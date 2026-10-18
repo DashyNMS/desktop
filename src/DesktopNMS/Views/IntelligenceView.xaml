@@ -29,13 +29,18 @@
                 Padding="18,10">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Style="{StaticResource IconButtonStyle}"
-                            ToolTip="Show or hide context"
+                    <!-- Brings the context sidebar back once it's been collapsed
+                         (shown only then, and only when there's room for it). -->
+                    <Button x:Name="ShowContextButton"
+                            Style="{StaticResource ChipButtonStyle}"
+                            ToolTip="Show the context sidebar"
                             Command="{Binding ToggleSidebarCommand}"
-                            Visibility="{Binding ShowConversation, Converter={StaticResource BoolToVisibility}}"
-                            x:Name="SidebarToggle"
-                            Margin="0,0,4,0">
-                        <TextBlock Text="&#xE8A0;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                            Margin="0,0,8,0"
+                            Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE8A0;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Context" VerticalAlignment="Center" />
+                        </StackPanel>
                     </Button>
                     <Button Style="{StaticResource IconButtonStyle}"
                             ToolTip="New conversation"
@@ -351,7 +356,21 @@
             </Border.Resources>
 
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Margin="12,16,12,16">
+                <StackPanel Margin="12,10,12,16">
+
+                    <!-- ===== Header: what the panel is, and collapsing it ===== -->
+                    <DockPanel Margin="8,0,0,10">
+                        <Button DockPanel.Dock="Right"
+                                Style="{StaticResource IconButtonStyle}"
+                                Width="28" Height="28"
+                                ToolTip="Collapse the context sidebar"
+                                Command="{Binding DataContext.ToggleSidebarCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                            <TextBlock Text="&#xE89F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" />
+                        </Button>
+                        <TextBlock Text="Context" FontWeight="SemiBold" FontSize="14"
+                                   Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,0,0,14" />
 
                     <!-- ===== Spotlight ===== -->
                     <DockPanel Margin="8,0,0,6">
@@ -415,7 +434,8 @@
                     </Border>
 
                     <!-- ===== Mentioned devices ===== -->
-                    <TextBlock Text="DEVICES" Style="{StaticResource SectionHeaderStyle}" Margin="8,20,0,6" />
+                    <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,16,0,14" />
+                    <TextBlock Text="DEVICES" Style="{StaticResource SectionHeaderStyle}" Margin="8,0,0,6" />
                     <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="8,0,0,0"
                                Text="Devices the conversation mentions appear here, with their state."
                                Visibility="{Binding HasMentioned, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
@@ -451,7 +471,8 @@
 
                     <!-- ===== Their open alerts ===== -->
                     <StackPanel Visibility="{Binding HasAlerts, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="{Binding AlertsHeader}" Style="{StaticResource SectionHeaderStyle}" Margin="8,20,0,6" />
+                        <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,16,0,14" />
+                        <TextBlock Text="{Binding AlertsHeader}" Style="{StaticResource SectionHeaderStyle}" Margin="8,0,0,6" />
                         <ItemsControl ItemsSource="{Binding Alerts}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -475,7 +496,8 @@
 
                     <!-- ===== What it looked at ===== -->
                     <StackPanel Visibility="{Binding HasLookedAt, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="LOOKED AT" Style="{StaticResource SectionHeaderStyle}" Margin="8,20,0,6" />
+                        <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,16,0,14" />
+                        <TextBlock Text="LOOKED AT" Style="{StaticResource SectionHeaderStyle}" Margin="8,0,0,6" />
                         <ItemsControl ItemsSource="{Binding LookedAt}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
