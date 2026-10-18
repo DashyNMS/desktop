@@ -65,6 +65,7 @@ public sealed class IntelligenceConversation
     private readonly ResponsesClient _responses;
     private readonly IIntelligenceTools _tools;
     private readonly List<JsonNode> _history = new();
+    private readonly object _historyLock = new();
 
     public IntelligenceConversation(ResponsesClient responses, IIntelligenceTools tools)
     {
@@ -72,9 +73,25 @@ public sealed class IntelligenceConversation
         _tools = tools;
     }
 
-    public bool IsEmpty => _history.Count == 0;
+    public bool IsEmpty { get { lock (_historyLock) return _history.Count == 0; } }
 
-    public void Clear() => _history.Clear();
+    public void Clear() { lock (_historyLock) _history.Clear(); }
+
+    /// <summary>A detached copy, including tool exchanges and encrypted reasoning.</summary>
+    public JsonArray ExportHistory()
+    {
+        lock (_historyLock) return new JsonArray(_history.Select(item => item.DeepClone()).ToArray());
+    }
+
+    /// <summary>Restore only when no turn is running.</summary>
+    public void RestoreHistory(JsonArray history)
+    {
+        lock (_historyLock)
+        {
+            _history.Clear();
+            _history.AddRange(history.OfType<JsonObject>().Select(item => item.DeepClone()));
+        }
+    }
 
     /// <summary>
     /// Answers one question. <paramref name="accessToken"/> is asked for
@@ -122,7 +139,7 @@ public sealed class IntelligenceConversation
             cancellationToken.ThrowIfCancellationRequested();
 
             var input = new JsonArray();
-            foreach (var item in _history.Concat(turn))
+            foreach (var item in ExportHistory().OfType<JsonObject>().Concat(turn))
             {
                 input.Add(item.DeepClone());
             }
@@ -209,7 +226,7 @@ public sealed class IntelligenceConversation
                     .Select(WebSearchCitations.FormatMessage)
                     .Where(text => !string.IsNullOrWhiteSpace(text)));
                 if (!string.IsNullOrEmpty(answer)) listener.OnAnswerCompleted(answer);
-                _history.AddRange(turn.Select(WithoutImages));
+                lock (_historyLock) _history.AddRange(turn.Select(WithoutImages));
                 return;
             }
 

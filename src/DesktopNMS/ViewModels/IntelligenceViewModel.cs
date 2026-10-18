@@ -20,7 +20,7 @@ namespace DesktopNMS.ViewModels;
 /// The Intelligence tab: ask about the network in plain words, answered by
 /// the user's own ChatGPT plan using DashyNMS's read-only network tools.
 /// </summary>
-public sealed class IntelligenceViewModel : ObservableObject
+public sealed partial class IntelligenceViewModel : ObservableObject
 {
     public static readonly Uri ManageUsageUrl = new("https://chatgpt.com/settings/usage");
 
@@ -49,7 +49,6 @@ public sealed class IntelligenceViewModel : ObservableObject
     private bool _consentGiven;
     private DashyOutfit _companionOutfit = DashyOutfits.Pick(Random.Shared.Next(100));
     private ChatGptModel? _selectedModel;
-    private string? _conversationFor;
 
     public IntelligenceViewModel(
         IChatGptCredentialStore store,
@@ -60,6 +59,7 @@ public sealed class IntelligenceViewModel : ObservableObject
         ILibreNmsClient client,
         ISettingsStore settings,
         AlertMonitor alerts,
+        IIntelligenceChatStore chats,
         ILogger<IntelligenceViewModel> logger)
     {
         _store = store;
@@ -103,7 +103,7 @@ public sealed class IntelligenceViewModel : ObservableObject
         DisconnectCommand = new AsyncRelayCommand(DisconnectAsync, () => IsSignedIn && !_isBusy);
         SendCommand = new AsyncRelayCommand(SendAsync, () => CanSend);
         StopCommand = new RelayCommand(() => _running?.Cancel(), () => _isBusy);
-        ClearCommand = new RelayCommand(Clear, () => !_isBusy && Messages.Count > 0);
+        ClearCommand = new RelayCommand(Clear, () => !_isBusy && ShowConversation);
         ManageUsageCommand = new RelayCommand(() => _windows.OpenUrl(ManageUsageUrl));
         AcceptConsentCommand = new RelayCommand(() =>
         {
@@ -121,6 +121,7 @@ public sealed class IntelligenceViewModel : ObservableObject
         }, _ => CanSend || (IsSignedIn && !_isBusy));
 
         _credentials = _store.Load();
+        InitializeChats(chats);
         if (IsSignedIn)
         {
             _ = LoadModelsAsync();
@@ -210,7 +211,7 @@ public sealed class IntelligenceViewModel : ObservableObject
     public ChatGptModel? SelectedModel
     {
         get => _selectedModel;
-        set => SetProperty(ref _selectedModel, value);
+        set { if (SetProperty(ref _selectedModel, value)) QueueChatSave(); }
     }
 
     public string Question
@@ -221,6 +222,7 @@ public sealed class IntelligenceViewModel : ObservableObject
             if (SetProperty(ref _question, value ?? string.Empty))
             {
                 SendCommand.RaiseCanExecuteChanged();
+                QueueChatSave();
             }
         }
     }
@@ -276,14 +278,10 @@ public sealed class IntelligenceViewModel : ObservableObject
             using var cancel = new CancellationTokenSource();
             var credentials = await _signIn.SignInAsync(_credentials ?? new ChatGptCredentials(), url => _windows.OpenUrl(url), cancel.Token).ConfigureAwait(true);
 
-            // Another account's conversation never carries over.
-            if (_credentials?.Subject is { } previous && previous != credentials.Subject)
-            {
-                _conversation.Clear();
-                Messages.Clear();
-            }
+            SaveActiveChat();
 
             _credentials = credentials;
+            EnsureChatScope();
             _store.Save(credentials);
             _logger.LogInformation("Intelligence: signed in with ChatGPT (plan usage {CanUse})", credentials.CanUsePlan);
             if (!credentials.CanUsePlan)
@@ -317,9 +315,11 @@ public sealed class IntelligenceViewModel : ObservableObject
     /// </summary>
     private async Task DisconnectAsync()
     {
+        SaveActiveChat();
         _running?.Cancel();
         _store.Clear();
         _credentials = null;
+        EnsureChatScope();
         _conversation.Clear();
         Messages.Clear();
         Models.Clear();
@@ -335,7 +335,7 @@ public sealed class IntelligenceViewModel : ObservableObject
         {
             var token = await AccessTokenAsync(CancellationToken.None).ConfigureAwait(true);
             var models = await _responses.ListModelsAsync(token, CancellationToken.None).ConfigureAwait(true);
-            var keep = _selectedModel?.Slug;
+            var keep = _selectedChat?.Data.Model ?? _selectedModel?.Slug;
             Models.Clear();
             foreach (var model in models)
             {
@@ -366,19 +366,7 @@ public sealed class IntelligenceViewModel : ObservableObject
             return;
         }
 
-        // A different LibreNMS starts a new conversation - nothing from one
-        // network is ever sent with another's.
-        var network = _session.Connection?.WebRoot.ToString();
-        if (network != _conversationFor)
-        {
-            if (_conversationFor is not null)
-            {
-                CompanionOutfit = DashyOutfits.Pick(Random.Shared.Next(100));
-            }
-            _conversation.Clear();
-            Messages.Clear();
-            _conversationFor = network;
-        }
+        EnsureChatScope();
 
         var question = _question.Trim();
         Question = string.Empty;
@@ -386,6 +374,12 @@ public sealed class IntelligenceViewModel : ObservableObject
         Messages.Add(IntelligenceMessageViewModel.User(question));
         var answer = IntelligenceMessageViewModel.Assistant();
         Messages.Add(answer);
+        if (_selectedChat is { } chat && !chat.Data.IsRenamed && chat.Data.Messages.Count == 0)
+        {
+            chat.Data.Title = ChatTitle(question);
+            chat.Refresh();
+        }
+        SaveActiveChat();
         OnPropertyChanged(nameof(ShowSuggestions));
 
         _running = new CancellationTokenSource();
@@ -436,6 +430,8 @@ public sealed class IntelligenceViewModel : ObservableObject
             _running.Dispose();
             _running = null;
             IsBusy = false;
+            SaveActiveChat();
+            EnsureChatScope();
             OnPropertyChanged(nameof(ShowSuggestions));
         }
     }
@@ -475,15 +471,14 @@ public sealed class IntelligenceViewModel : ObservableObject
     public async Task OnDisabledAsync()
     {
         _running?.Cancel();
+        SaveActiveChat();
         await _tools.StopAsync().ConfigureAwait(true);
+        SaveActiveChat();
     }
 
     private void Clear()
     {
-        CompanionOutfit = DashyOutfits.Pick(Random.Shared.Next(100));
-        _conversation.Clear();
-        Context.Clear();
-        Messages.Clear();
+        NewChat();
 
         // A new conversation starts on the default model.
         if (Models.FirstOrDefault(m => m.Slug == _defaultModel) is { } preferred)
@@ -520,6 +515,7 @@ public sealed class IntelligenceViewModel : ObservableObject
         StopCommand.RaiseCanExecuteChanged();
         ClearCommand.RaiseCanExecuteChanged();
         AskSuggestionCommand.RaiseCanExecuteChanged();
+        RaiseChatCommands();
     }
 
     /// <summary>Streams the answer and tool activity into the panel, on the UI thread.</summary>
@@ -534,7 +530,11 @@ public sealed class IntelligenceViewModel : ObservableObject
             _answer = answer;
         }
 
-        public void OnText(string delta) => _owner._dispatcher.InvokeAsync(() => _answer.Text += delta);
+        public void OnText(string delta) => _owner._dispatcher.InvokeAsync(() =>
+        {
+            _answer.Text += delta;
+            _owner.QueueChatSave();
+        });
 
         public void OnAnswerCompleted(string text) => _owner._dispatcher.InvokeAsync(() => _answer.Text = text);
 
@@ -559,6 +559,8 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
 {
     private string _text = string.Empty;
     private bool _isStreaming;
+    private string? _restoredActivity;
+    private readonly List<IntelligenceImage> _savedImages = new();
 
     private IntelligenceMessageViewModel(bool isUser)
     {
@@ -569,6 +571,27 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     public static IntelligenceMessageViewModel User(string text) => new(isUser: true) { _text = text };
 
     public static IntelligenceMessageViewModel Assistant() => new(isUser: false);
+
+    public SavedIntelligenceMessage Save() => new()
+    {
+        IsUser = IsUser,
+        Text = Text,
+        Activity = ActivityText,
+        IsIncomplete = IsStreaming,
+        Images = _savedImages.ToList(),
+    };
+
+    public static IntelligenceMessageViewModel Restore(SavedIntelligenceMessage saved)
+    {
+        var message = new IntelligenceMessageViewModel(saved.IsUser)
+        {
+            _text = saved.Text + (saved.IsIncomplete && !saved.IsUser ? "\n\n(Interrupted when DashyNMS closed.)" : string.Empty),
+            _isStreaming = false,
+            _restoredActivity = saved.IsIncomplete ? "Interrupted" : saved.Activity,
+        };
+        foreach (var image in saved.Images) message.AddImage(image);
+        return message;
+    }
 
     public bool IsUser { get; }
 
@@ -619,6 +642,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
             bitmap.EndInit();
             bitmap.Freeze();
             Images.Add(bitmap);
+            _savedImages.Add(image);
             OnPropertyChanged(nameof(HasImages));
         }
         catch (Exception)
@@ -641,7 +665,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         ? step + "…"
         : _lookedAt.Count > 0
             ? "Looked at " + JoinNames(_lookedAt) + (_failedLookups > 0 ? $" ({_failedLookups} couldn't be read)" : string.Empty)
-            : IsWorking ? "Thinking…" : null;
+            : IsWorking ? "Thinking…" : _restoredActivity;
 
     public bool HasActivity => ActivityText is not null;
 

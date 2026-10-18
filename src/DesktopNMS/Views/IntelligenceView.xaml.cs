@@ -126,7 +126,7 @@ public partial class IntelligenceView : UserControl
 
     private void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(IntelligenceViewModel.IsSidebarOpen) or nameof(IntelligenceViewModel.ShowConversation))
+        if (e.PropertyName is nameof(IntelligenceViewModel.IsSidebarOpen) or nameof(IntelligenceViewModel.ShowConversation) or nameof(IntelligenceViewModel.IsChatListOpen))
         {
             UpdateSidebar();
         }
@@ -146,7 +146,9 @@ public partial class IntelligenceView : UserControl
             return;
         }
 
-        var room = model.ShowConversation && Root.ActualWidth >= SidebarMinWidth;
+        var chatsVisible = model.ShowConversation && model.IsChatListOpen;
+        ChatSidebar.Visibility = chatsVisible ? Visibility.Visible : Visibility.Collapsed;
+        var room = model.ShowConversation && Root.ActualWidth >= SidebarMinWidth + (chatsVisible ? 220 : 0);
         Sidebar.Visibility = room && model.IsSidebarOpen ? Visibility.Visible : Visibility.Collapsed;
         ShowContextButton.Visibility = room && !model.IsSidebarOpen ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -166,6 +168,21 @@ public partial class IntelligenceView : UserControl
         }
 
         Transcript.ScrollToEnd();
+    }
+
+    private void OnChatNameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (DataContext is not IntelligenceViewModel model) return;
+        if (e.Key == Key.Enter && model.SaveChatNameCommand.CanExecute(null))
+        {
+            model.SaveChatNameCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            model.CancelChatNameCommand.Execute(null);
+            e.Handled = true;
+        }
     }
 
     /// <summary>Enter asks; Shift+Enter is a new line.</summary>
