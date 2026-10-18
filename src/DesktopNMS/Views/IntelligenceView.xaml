@@ -57,9 +57,6 @@
                     </Button>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <views:IntelligenceMascot Width="36" Height="48" Margin="0,0,10,0"
-                                              IsBusy="{Binding IsBusy}"
-                                              Visibility="{Binding ShowMascot, Converter={StaticResource BoolToVisibility}}" />
                     <TextBlock Text="Intelligence" FontWeight="SemiBold" FontSize="15"
                                Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
                     <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="10" Padding="9,2" Margin="12,0,0,0" VerticalAlignment="Center">
@@ -253,9 +250,12 @@
 
         <!-- ======================== Composer ======================== -->
         <!-- The question box with the model and Ask/Stop beneath it, as chat apps have it. -->
-        <Border Grid.Row="3"
-                MaxWidth="860"
-                Margin="24,4,24,18"
+        <StackPanel Grid.Row="3" MaxWidth="860" Margin="24,4,24,18"
+                    Visibility="{Binding ShowConversation, Converter={StaticResource BoolToVisibility}}">
+            <views:IntelligenceMascot HorizontalAlignment="Right" Margin="0,0,6,-3"
+                                      IsBusy="{Binding IsBusy}" HasError="{Binding HasError}"
+                                      Visibility="{Binding ShowMascot, Converter={StaticResource BoolToVisibility}}" />
+        <Border
                 Padding="12,8,8,8"
                 CornerRadius="12"
                 Background="{StaticResource SurfaceAltBrush}"
@@ -304,6 +304,7 @@
                 </DockPanel>
             </Grid>
         </Border>
+        </StackPanel>
     </Grid>
 
         <!-- ======================== Context sidebar ======================== -->
