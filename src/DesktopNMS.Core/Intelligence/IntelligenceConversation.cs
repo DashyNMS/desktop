@@ -9,7 +9,7 @@ public interface IIntelligenceListener
     /// <summary>More of the assistant's answer.</summary>
     void OnText(string delta);
 
-    /// <summary>A tool is about to run, with its arguments as the model sent them.</summary>
+    /// <summary>A tool is about to run, with its arguments as the model sent them (validated JSON).</summary>
     void OnToolStarted(string name, string arguments);
 
     void OnToolFinished(string name, bool isError);
@@ -73,8 +73,18 @@ public sealed class IntelligenceConversation
     /// Answers one question. <paramref name="accessToken"/> is asked for
     /// before each request, so a long investigation picks up a renewed token.
     /// </summary>
-    public async Task AskAsync(string question, string model, Func<CancellationToken, Task<string>> accessToken, IIntelligenceListener listener, CancellationToken cancellationToken)
+    /// <param name="spotlight">
+    /// What the user has narrowed the conversation to ("the device core-sw-01",
+    /// "the device group Core"), or null for the whole network. The model is
+    /// told to keep its lookups there.
+    /// </param>
+    public async Task AskAsync(string question, string model, Func<CancellationToken, Task<string>> accessToken, IIntelligenceListener listener, CancellationToken cancellationToken, string? spotlight = null)
     {
+        var instructions = spotlight is null
+            ? Instructions
+            : Instructions + " Spotlight is on: the user has narrowed this conversation to " + spotlight + ". " +
+              "Keep lookups and answers to that scope - pass the device, device group or location to tools that accept one - unless the user clearly asks about something else.";
+
         var tools = await _tools.GetToolsAsync(cancellationToken).ConfigureAwait(false);
         var toolDefinitions = BuildTools(tools);
         var known = tools.Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
@@ -105,7 +115,7 @@ public sealed class IntelligenceConversation
             var body = new JsonObject
             {
                 ["model"] = model,
-                ["instructions"] = Instructions,
+                ["instructions"] = instructions,
                 ["input"] = input,
                 ["tools"] = toolDefinitions.DeepClone(),
                 ["include"] = new JsonArray("reasoning.encrypted_content"),

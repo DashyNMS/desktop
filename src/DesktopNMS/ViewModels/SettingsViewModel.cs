@@ -1896,6 +1896,41 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>How much config text the agent's tools return - see <see cref="AppSettings.IntelligenceConfigText"/>.</summary>
+    public IReadOnlyList<KeyValuePair<string, string>> IntelligenceConfigTextOptions { get; } = new[]
+    {
+        new KeyValuePair<string, string>(AppSettings.IntelligenceConfigTextSummary, "Summary - when it changed and by how much"),
+        new KeyValuePair<string, string>(AppSettings.IntelligenceConfigTextFull, "Full - the config text, with secrets redacted"),
+        new KeyValuePair<string, string>(AppSettings.IntelligenceConfigTextOff, "Off - nothing from Unimus"),
+    };
+
+    public string IntelligenceConfigText
+    {
+        get => _draft.IntelligenceConfigText;
+        set
+        {
+            if (_draft.IntelligenceConfigText != value && value is not null)
+            {
+                _draft.IntelligenceConfigText = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>The model new conversations start with - from the signed-in account's list.</summary>
+    public string? IntelligenceModel
+    {
+        get => _draft.IntelligenceModel ?? Intelligence.Models.FirstOrDefault()?.Slug;
+        set
+        {
+            if (_draft.IntelligenceModel != value)
+            {
+                _draft.IntelligenceModel = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     /// <summary>The Intelligence page's account controls - the live ChatGPT connection, not part of the draft.</summary>
     public IntelligenceViewModel Intelligence { get; }
 

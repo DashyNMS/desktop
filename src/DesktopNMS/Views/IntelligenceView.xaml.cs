@@ -92,17 +92,47 @@ public partial class IntelligenceView : UserControl
         DataContextChanged += OnDataContextChanged;
     }
 
+    /// <summary>Narrower than this, the context sidebar steps aside so the conversation keeps its room.</summary>
+    private const double SidebarMinWidth = 1000;
+
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (e.OldValue is IntelligenceViewModel old)
         {
             old.Messages.CollectionChanged -= OnMessagesChanged;
+            old.PropertyChanged -= OnModelPropertyChanged;
         }
 
         if (e.NewValue is IntelligenceViewModel model)
         {
             model.Messages.CollectionChanged += OnMessagesChanged;
+            model.PropertyChanged += OnModelPropertyChanged;
         }
+
+        UpdateSidebar();
+    }
+
+    private void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(IntelligenceViewModel.IsSidebarOpen) or nameof(IntelligenceViewModel.ShowConversation))
+        {
+            UpdateSidebar();
+        }
+    }
+
+    private void OnRootSizeChanged(object sender, SizeChangedEventArgs e) => UpdateSidebar();
+
+    /// <summary>Shown when there's a conversation, the person wants it, and the window is wide enough - the toggle only when it could show.</summary>
+    private void UpdateSidebar()
+    {
+        if (Sidebar is null || DataContext is not IntelligenceViewModel model)
+        {
+            return;
+        }
+
+        var wide = Root.ActualWidth >= SidebarMinWidth;
+        Sidebar.Visibility = model.ShowConversation && model.IsSidebarOpen && wide ? Visibility.Visible : Visibility.Collapsed;
+        SidebarToggle.Visibility = model.ShowConversation && wide ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Follow the conversation as it grows, including the answer as it streams in.</summary>

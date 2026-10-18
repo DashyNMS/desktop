@@ -157,7 +157,9 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
 
         // Another LibreNMS (or a new token) means a new server, so answers
         // can't come from the previous network.
-        var identity = connection.WebRoot + "|" + connection.ApiToken.GetHashCode(StringComparison.Ordinal).ToString(CultureInfo.InvariantCulture);
+        // A changed config-text choice restarts it too: it's set at startup.
+        var identity = connection.WebRoot + "|" + connection.ApiToken.GetHashCode(StringComparison.Ordinal).ToString(CultureInfo.InvariantCulture)
+                       + "|" + ConfigText(_settings.Current);
         if (_client is not null && _startedFor == identity)
         {
             return;
@@ -257,9 +259,9 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
             yield return new("LIBRENMS_TRUSTED_CERTS", string.Join(",", connection.TrustedCertificates));
         }
 
-        // Redacted config text still leaves the network for the model:
-        // only "did it change, when and by how much".
-        yield return new("MCP_CONFIG_TEXT", "summary");
+        // Settings › Intelligence: full (redacted) config text, a summary
+        // ("did it change, when and by how much"), or nothing from Unimus.
+        yield return new("MCP_CONFIG_TEXT", ConfigText(settings));
 
         if (settings.Unimus is { Enabled: true, Url: { Length: > 0 } unimusUrl } unimus && _unimusToken.Load() is { Length: > 0 } unimusToken)
         {
@@ -286,6 +288,14 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
             }
         }
     }
+
+    /// <summary>The MCP server's MCP_CONFIG_TEXT - summary unless set to one of the others.</summary>
+    private static string ConfigText(AppSettings settings) => settings.IntelligenceConfigText switch
+    {
+        AppSettings.IntelligenceConfigTextFull => "full",
+        AppSettings.IntelligenceConfigTextOff => "off",
+        _ => "summary",
+    };
 
     /// <summary>The tool's text content, joined - what the model reads.</summary>
     private static string Text(CallToolResult result)

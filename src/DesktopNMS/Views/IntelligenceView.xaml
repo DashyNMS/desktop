@@ -5,8 +5,15 @@
 
     <!-- Intelligence: ask about the network, answered with the user's own
          ChatGPT plan using DashyNMS's read-only network tools. The account
-         lives in Settings › Intelligence, not here. -->
-    <Grid>
+         lives in Settings › Intelligence, not here. The context sidebar on
+         the right hides itself when the window is narrow. -->
+    <Grid x:Name="Root" SizeChanged="OnRootSizeChanged">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+    <Grid Grid.Column="0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -22,6 +29,14 @@
                 Padding="18,10">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Show or hide context"
+                            Command="{Binding ToggleSidebarCommand}"
+                            Visibility="{Binding ShowConversation, Converter={StaticResource BoolToVisibility}}"
+                            x:Name="SidebarToggle"
+                            Margin="0,0,4,0">
+                        <TextBlock Text="&#xE8A0;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" />
+                    </Button>
                     <Button Style="{StaticResource IconButtonStyle}"
                             ToolTip="New conversation"
                             Command="{Binding ClearCommand}"
@@ -40,6 +55,21 @@
                                Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
                     <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="10" Padding="9,2" Margin="12,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="{Binding PlanText}" Style="{StaticResource SubtleTextStyle}" FontSize="12" />
+                    </Border>
+                    <!-- Spotlight: what the agent is kept to. -->
+                    <Border Background="{StaticResource AccentSubtleBrush}" CornerRadius="10" Padding="9,2,4,2" Margin="8,0,0,0" VerticalAlignment="Center"
+                            Visibility="{Binding Context.HasSpotlight, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE7B3;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
+                                       Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" MaxWidth="320" TextTrimming="CharacterEllipsis">
+                                <Run Text="Spotlight: " /><Run Text="{Binding Context.SpotlightSummary, Mode=OneWay}" FontWeight="SemiBold" />
+                            </TextBlock>
+                            <Button Style="{StaticResource IconButtonStyle}" Width="20" Height="20" Margin="4,0,0,0"
+                                    ToolTip="Back to the whole network" Command="{Binding Context.ClearSpotlightCommand}">
+                                <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9" />
+                            </Button>
+                        </StackPanel>
                     </Border>
                 </StackPanel>
             </DockPanel>
@@ -92,7 +122,7 @@
                 <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,8,0,8"
                            Text="Your questions, and what DashyNMS looks up to answer them - device names, addresses, alerts, ports and log lines from your network - are sent to OpenAI to be processed, using your ChatGPT plan." />
                 <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,0,0,16"
-                           Text="Passwords, tokens and SNMP communities are never sent, and config backups are summarised (when they changed, and by how much) rather than sent." />
+                           Text="Passwords, tokens and SNMP communities are never sent. Config backups are summarised (when they changed, and by how much) unless you choose otherwise in Settings › Intelligence. This notice won't be shown again." />
                 <Button Content="OK, continue"
                         Style="{StaticResource PrimaryButtonStyle}"
                         HorizontalAlignment="Left"
@@ -131,8 +161,12 @@
                                 <StackPanel Visibility="{Binding IsAssistant, Converter={StaticResource BoolToVisibility}}">
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
                                                 Visibility="{Binding HasActivity, Converter={StaticResource BoolToVisibility}}">
+                                        <!-- The DashyNMS heartbeat while it's looking; a quiet search mark once it's done. -->
+                                        <views:HeartbeatLogo Width="14" Height="14" IsBeating="{Binding IsWorking}" VerticalAlignment="Center" Margin="0,0,7,0"
+                                                             Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}}" />
                                         <TextBlock Text="&#xE721;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
-                                                   Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,1,6,0" />
+                                                   Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,1,6,0"
+                                                   Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
                                         <TextBlock Text="{Binding ActivityText}" Style="{StaticResource SubtleTextStyle}" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
                                     <!-- Graphs the answer drew on - LibreNMS's own images; click for full size. -->
@@ -175,8 +209,6 @@
                                             </ContextMenu>
                                         </RichTextBox.ContextMenu>
                                     </RichTextBox>
-                                    <TextBlock Text="Thinking…" Style="{StaticResource SubtleTextStyle}" FontSize="12" Margin="0,4,0,0"
-                                               Visibility="{Binding IsStreaming, Converter={StaticResource BoolToVisibility}}" />
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
@@ -184,7 +216,8 @@
                 </ItemsControl>
             </ScrollViewer>
 
-            <!-- Somewhere to start. -->
+            <!-- A new chat: a slow glow behind somewhere to start. -->
+            <views:AmbientGlow Visibility="{Binding ShowSuggestions, Converter={StaticResource BoolToVisibility}}" />
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                         Visibility="{Binding ShowSuggestions, Converter={StaticResource BoolToVisibility}}">
                 <TextBlock Text="Ask about your network" Style="{StaticResource HeadingTextStyle}" HorizontalAlignment="Center" Margin="0,0,0,14" />
@@ -261,6 +294,202 @@
                               ToolTip="Which ChatGPT model answers" />
                 </DockPanel>
             </Grid>
+        </Border>
+    </Grid>
+
+        <!-- ======================== Context sidebar ======================== -->
+        <!-- What the conversation is about, from DashyNMS's own live data:
+             Spotlight, the devices it mentions with their state, their open
+             alerts, and what it looked at. Hidden on a narrow window. -->
+        <Border x:Name="Sidebar"
+                Grid.Column="1"
+                Width="290"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1,0,0,0"
+                DataContext="{Binding Context}">
+            <Border.Resources>
+                <!-- A flat, full-width row that lights up on hover. -->
+                <Style x:Key="ContextRowStyle" TargetType="Button">
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Row" Background="Transparent" CornerRadius="6" Padding="8,6">
+                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Row" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+                <!-- A status dot: ok, down (critical), warning, or other. -->
+                <Style x:Key="StatusDotStyle" TargetType="Ellipse">
+                    <Setter Property="Width" Value="8" />
+                    <Setter Property="Height" Value="8" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="Margin" Value="0,0,9,0" />
+                    <Setter Property="Fill" Value="{StaticResource TextSecondaryBrush}" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Severity}" Value="ok">
+                            <Setter Property="Fill" Value="{StaticResource OkBrush}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Severity}" Value="down">
+                            <Setter Property="Fill" Value="{StaticResource CriticalBrush}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Severity}" Value="warning">
+                            <Setter Property="Fill" Value="{StaticResource WarningBrush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Resources>
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="12,16,12,16">
+
+                    <!-- ===== Spotlight ===== -->
+                    <DockPanel Margin="8,0,0,6">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource IconButtonStyle}" Width="24" Height="24"
+                                ToolTip="Narrow the conversation to devices, a group or a location"
+                                Command="{Binding OpenPickerCommand}">
+                            <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" />
+                        </Button>
+                        <TextBlock Text="SPOTLIGHT" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <TextBlock Text="Whole network" Style="{StaticResource SubtleTextStyle}" Margin="8,0,0,4"
+                               Visibility="{Binding HasSpotlight, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                    <ItemsControl ItemsSource="{Binding Spotlight}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="8,2,0,2">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource IconButtonStyle}" Width="22" Height="22"
+                                            ToolTip="Remove from Spotlight"
+                                            Command="{Binding DataContext.RemoveSpotlightCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}">
+                                        <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9" />
+                                    </Button>
+                                    <TextBlock Text="&#xE7B3;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
+                                               Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                                        <Run Text="{Binding Name, Mode=OneWay}" Foreground="{StaticResource TextPrimaryBrush}" />
+                                        <Run Text="{Binding KindText, Mode=OneWay}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" />
+                                    </TextBlock>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Picking what to spotlight. -->
+                    <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="8" Padding="10" Margin="0,6,0,0"
+                            Visibility="{Binding PickerOpen, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <Border Style="{StaticResource NavTabTrackStyle}" HorizontalAlignment="Left" Margin="0,0,0,8">
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleButton Content="Devices" Style="{StaticResource NavTabButtonStyle}"
+                                                  IsChecked="{Binding IsPickingDevices, Mode=OneWay}" Command="{Binding PickDevicesCommand}" />
+                                    <ToggleButton Content="Group" Style="{StaticResource NavTabButtonStyle}"
+                                                  IsChecked="{Binding IsPickingGroup, Mode=OneWay}" Command="{Binding PickGroupCommand}" />
+                                    <ToggleButton Content="Location" Style="{StaticResource NavTabButtonStyle}"
+                                                  IsChecked="{Binding IsPickingLocation, Mode=OneWay}" Command="{Binding PickLocationCommand}" />
+                                </StackPanel>
+                            </Border>
+                            <ComboBox ItemsSource="{Binding PickerOptions}"
+                                      SelectedItem="{Binding PickerSelection}"
+                                      DisplayMemberPath="Name"
+                                      IsEditable="True"
+                                      IsTextSearchEnabled="True"
+                                      TextSearch.TextPath="Name"
+                                      ToolTip="Start typing a name" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                                <Button Content="Cancel" Padding="12,5" Margin="0,0,6,0" Command="{Binding ClosePickerCommand}" />
+                                <Button Content="Spotlight" Style="{StaticResource PrimaryButtonStyle}" Padding="12,5" Command="{Binding AddPickedCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ===== Mentioned devices ===== -->
+                    <TextBlock Text="DEVICES" Style="{StaticResource SectionHeaderStyle}" Margin="8,20,0,6" />
+                    <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="8,0,0,0"
+                               Text="Devices the conversation mentions appear here, with their state."
+                               Visibility="{Binding HasMentioned, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                    <ItemsControl ItemsSource="{Binding Mentioned}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Button Style="{StaticResource ContextRowStyle}"
+                                            ToolTip="Open device"
+                                            Command="{Binding DataContext.OpenDeviceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}">
+                                        <DockPanel>
+                                            <Ellipse DockPanel.Dock="Left" Style="{StaticResource StatusDotStyle}" />
+                                            <StackPanel Margin="0,0,26,0">
+                                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Style="{StaticResource SubtleTextStyle}" FontSize="11" TextTrimming="CharacterEllipsis">
+                                                    <Run Text="{Binding StateText, Mode=OneWay}" /><Run Text="{Binding DetailSuffix, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource IconButtonStyle}" Width="24" Height="24"
+                                            HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"
+                                            ToolTip="Spotlight this device"
+                                            Command="{Binding DataContext.SpotlightDeviceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}">
+                                        <TextBlock Text="&#xE7B3;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" />
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- ===== Their open alerts ===== -->
+                    <StackPanel Visibility="{Binding HasAlerts, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding AlertsHeader}" Style="{StaticResource SectionHeaderStyle}" Margin="8,20,0,6" />
+                        <ItemsControl ItemsSource="{Binding Alerts}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource ContextRowStyle}"
+                                            ToolTip="Open device"
+                                            Command="{Binding DataContext.OpenDeviceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}">
+                                        <DockPanel>
+                                            <Ellipse DockPanel.Dock="Left" Style="{StaticResource StatusDotStyle}" />
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding Age}" Style="{StaticResource SubtleTextStyle}" FontSize="11" VerticalAlignment="Top" Margin="6,1,0,0" />
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Rule}" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding DeviceName}" Style="{StaticResource SubtleTextStyle}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- ===== What it looked at ===== -->
+                    <StackPanel Visibility="{Binding HasLookedAt, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="LOOKED AT" Style="{StaticResource SectionHeaderStyle}" Margin="8,20,0,6" />
+                        <ItemsControl ItemsSource="{Binding LookedAt}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="8,2,0,2">
+                                        <TextBlock Text="&#xE721;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding}" Style="{StaticResource SubtleTextStyle}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
         </Border>
     </Grid>
 </UserControl>
