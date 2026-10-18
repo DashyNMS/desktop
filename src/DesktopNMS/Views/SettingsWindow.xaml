@@ -1400,13 +1400,38 @@
                                            Text="{Binding Intelligence.ErrorText}"
                                            Foreground="{StaticResource CriticalBrush}"
                                            Visibility="{Binding Intelligence.HasError, Converter={StaticResource BoolToVisibility}}" />
+
+                                <!-- The model new conversations start with; the chat's own picker changes it for one conversation. -->
+                                <StackPanel Margin="0,16,0,0" Visibility="{Binding Intelligence.IsSignedIn, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Default model" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                                    <ComboBox ItemsSource="{Binding Intelligence.Models}"
+                                              SelectedValue="{Binding IntelligenceModel}"
+                                              SelectedValuePath="Slug"
+                                              DisplayMemberPath="DisplayName"
+                                              Width="260"
+                                              HorizontalAlignment="Left" />
+                                    <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                               Text="What new conversations start with. The picker by the question box changes it for one conversation." />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
                         <TextBlock Text="WHAT'S SENT" Style="{StaticResource SectionHeaderStyle}" Margin="0,8,0,6" />
                         <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
-                            <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap"
-                                       Text="Your questions, and what's looked up to answer them - device names, addresses, alerts, ports and log lines - go to the agent's provider to be processed. Passwords, tokens and SNMP communities are never sent, and config backups are summarised (when they changed and by how much) rather than sent." />
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap"
+                                           Text="Your questions, and what's looked up to answer them - device names, addresses, alerts, ports and log lines - go to the agent's provider to be processed. Passwords, tokens and SNMP communities are never sent." />
+
+                                <TextBlock Text="Config backups" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
+                                <ComboBox ItemsSource="{Binding IntelligenceConfigTextOptions}"
+                                          SelectedValue="{Binding IntelligenceConfigText}"
+                                          SelectedValuePath="Key"
+                                          DisplayMemberPath="Value"
+                                          Width="360"
+                                          HorizontalAlignment="Left" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="With Unimus connected, how much of a device's config the agent can see. Full sends the config text with passwords, keys and SNMP communities redacted - it's still your network's configuration, so Summary is the default." />
+                            </StackPanel>
                         </Border>
                     </StackPanel>
 

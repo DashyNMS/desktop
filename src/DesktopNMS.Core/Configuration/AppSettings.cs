@@ -218,6 +218,24 @@ public sealed class AppSettings
     /// </summary>
     public bool IntelligenceEnabled { get; set; } = true;
 
+    /// <summary>The "what's sent" notice was accepted, so it isn't shown again.</summary>
+    public bool IntelligenceConsentGiven { get; set; }
+
+    /// <summary>The model a new conversation starts with (its slug); the first listed when unset or no longer offered.</summary>
+    public string? IntelligenceModel { get; set; }
+
+    /// <summary>
+    /// How much config text the network tools return - the MCP server's
+    /// MCP_CONFIG_TEXT: "full" (redacted text), "summary" (when it changed and
+    /// by how much) or "off". Summary by default: even redacted, a config is
+    /// the network's own detail leaving for the agent's provider.
+    /// </summary>
+    public string IntelligenceConfigText { get; set; } = IntelligenceConfigTextSummary;
+
+    public const string IntelligenceConfigTextFull = "full";
+    public const string IntelligenceConfigTextSummary = "summary";
+    public const string IntelligenceConfigTextOff = "off";
+
     /// <summary>How many devices <see cref="RecentlyViewedDevices"/> remembers - the same number is shown everywhere it appears.</summary>
     public int RecentlyViewedDeviceCount { get; set; } = 5;
 
@@ -339,6 +357,9 @@ public sealed class AppSettings
         ShowRecentlyViewedDevices = ShowRecentlyViewedDevices,
         EnablePinnedDevices = EnablePinnedDevices,
         IntelligenceEnabled = IntelligenceEnabled,
+        IntelligenceConsentGiven = IntelligenceConsentGiven,
+        IntelligenceModel = IntelligenceModel,
+        IntelligenceConfigText = IntelligenceConfigText,
         RecentlyViewedDeviceCount = RecentlyViewedDeviceCount,
         PinnedDevices = PinnedDevices.Select(d => d.Clone()).ToList(),
         CollapsedDeviceNavGroups = CollapsedDeviceNavGroups.ToList(),

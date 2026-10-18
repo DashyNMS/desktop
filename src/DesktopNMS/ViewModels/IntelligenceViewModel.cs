@@ -6,6 +6,8 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
+using DesktopNMS.Core.Api;
+using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
@@ -35,6 +37,7 @@ public sealed class IntelligenceViewModel : ObservableObject
     private readonly Dispatcher _dispatcher;
     private readonly SemaphoreSlim _renewing = new(1, 1);
     private readonly IntelligenceConversation _conversation;
+    private readonly ISettingsStore _settings;
 
     private ChatGptCredentials? _credentials;
     private CancellationTokenSource? _running;
@@ -51,10 +54,28 @@ public sealed class IntelligenceViewModel : ObservableObject
         McpToolHost tools,
         ISessionService session,
         IWindowService windows,
+        IDeviceCache devices,
+        ILibreNmsClient client,
+        ISettingsStore settings,
+        AlertMonitor alerts,
         ILogger<IntelligenceViewModel> logger)
     {
         _store = store;
         _tools = tools;
+        Context = new IntelligenceContextViewModel(devices, client, settings, windows, alerts, logger);
+        _settings = settings;
+        _consentGiven = settings.Current.IntelligenceConsentGiven;
+
+        // A new default model in Settings applies to the next conversation,
+        // or straight away if this one hasn't started.
+        settings.Changed += (_, current) => _dispatcher.InvokeAsync(() =>
+        {
+            if (Messages.Count == 0 && Models.FirstOrDefault(m => m.Slug == current.IntelligenceModel) is { } preferred)
+            {
+                SelectedModel = preferred;
+            }
+        });
+        ToggleSidebarCommand = new RelayCommand(() => IsSidebarOpen = !IsSidebarOpen);
         _session = session;
         _windows = windows;
         _logger = logger;
@@ -71,7 +92,14 @@ public sealed class IntelligenceViewModel : ObservableObject
         StopCommand = new RelayCommand(() => _running?.Cancel(), () => _isBusy);
         ClearCommand = new RelayCommand(Clear, () => !_isBusy && Messages.Count > 0);
         ManageUsageCommand = new RelayCommand(() => _windows.OpenUrl(ManageUsageUrl));
-        AcceptConsentCommand = new RelayCommand(() => ConsentGiven = true);
+        AcceptConsentCommand = new RelayCommand(() =>
+        {
+            ConsentGiven = true;
+
+            // Remembered, so the notice is shown once rather than every launch.
+            _settings.Current.IntelligenceConsentGiven = true;
+            _settings.Save();
+        });
         OpenSettingsCommand = new RelayCommand(() => _windows.ShowSettingsSection(SettingsSection.Intelligence));
         AskSuggestionCommand = new AsyncRelayCommand(async p =>
         {
@@ -87,6 +115,20 @@ public sealed class IntelligenceViewModel : ObservableObject
     }
 
     public ObservableCollection<IntelligenceMessageViewModel> Messages { get; } = new();
+
+    /// <summary>The context sidebar: Spotlight, mentioned devices, their alerts, what was looked at.</summary>
+    public IntelligenceContextViewModel Context { get; }
+
+    public RelayCommand ToggleSidebarCommand { get; }
+
+    private bool _isSidebarOpen = true;
+
+    /// <summary>Whether the person wants the sidebar - it still hides itself on a narrow window.</summary>
+    public bool IsSidebarOpen
+    {
+        get => _isSidebarOpen;
+        set => SetProperty(ref _isSidebarOpen, value);
+    }
 
     public ObservableCollection<ChatGptModel> Models { get; } = new();
 
@@ -274,7 +316,9 @@ public sealed class IntelligenceViewModel : ObservableObject
                 Models.Add(model);
             }
 
-            SelectedModel = Models.FirstOrDefault(m => m.Slug == keep) ?? Models.FirstOrDefault();
+            SelectedModel = Models.FirstOrDefault(m => m.Slug == keep)
+                            ?? Models.FirstOrDefault(m => m.Slug == _settings.Current.IntelligenceModel)
+                            ?? Models.FirstOrDefault();
             if (Models.Count == 0)
             {
                 ErrorText = "Your ChatGPT plan didn't list any models DashyNMS can use.";
@@ -319,7 +363,11 @@ public sealed class IntelligenceViewModel : ObservableObject
         var listener = new Listener(this, answer);
         try
         {
-            await Task.Run(() => _conversation.AskAsync(question, _selectedModel!.Slug, AccessTokenAsync, listener, _running.Token)).ConfigureAwait(true);
+            var spotlight = Context.SpotlightForAgent;
+            var model = _selectedModel!.Slug;
+            var token = _running.Token;
+            await Task.Run(() => _conversation.AskAsync(question, model, AccessTokenAsync, listener, token, spotlight)).ConfigureAwait(true);
+            Context.OnAnswer(answer.Text);
             if (string.IsNullOrWhiteSpace(answer.Text))
             {
                 answer.Text = "(No answer.)";
@@ -402,6 +450,7 @@ public sealed class IntelligenceViewModel : ObservableObject
     private void Clear()
     {
         _conversation.Clear();
+        Context.Clear();
         Messages.Clear();
         ErrorText = null;
         OnPropertyChanged(nameof(ShowSuggestions));
@@ -448,9 +497,17 @@ public sealed class IntelligenceViewModel : ObservableObject
 
         public void OnText(string delta) => _owner._dispatcher.InvokeAsync(() => _answer.Text += delta);
 
-        public void OnToolStarted(string name, string arguments) => _owner._dispatcher.InvokeAsync(() => _answer.ToolStarted(name));
+        public void OnToolStarted(string name, string arguments) => _owner._dispatcher.InvokeAsync(() =>
+        {
+            _answer.ToolStarted(name);
+            _owner.Context.OnToolStarted(arguments);
+        });
 
-        public void OnToolFinished(string name, bool isError) => _owner._dispatcher.InvokeAsync(() => _answer.ToolFinished(name, isError));
+        public void OnToolFinished(string name, bool isError) => _owner._dispatcher.InvokeAsync(() =>
+        {
+            _answer.ToolFinished(name, isError);
+            _owner.Context.OnLookedAt(IntelligenceMessageViewModel.Subject(name));
+        });
 
         public void OnImage(IntelligenceImage image) => _owner._dispatcher.InvokeAsync(() => _answer.AddImage(image));
     }
@@ -479,14 +536,30 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     public string Text
     {
         get => _text;
-        set => SetProperty(ref _text, value);
+        set
+        {
+            var wasEmpty = _text.Length == 0;
+            if (SetProperty(ref _text, value) && wasEmpty != (_text.Length == 0))
+            {
+                RaiseActivity();
+            }
+        }
     }
 
     public bool IsStreaming
     {
         get => _isStreaming;
-        set => SetProperty(ref _isStreaming, value);
+        set
+        {
+            if (SetProperty(ref _isStreaming, value))
+            {
+                RaiseActivity();
+            }
+        }
     }
+
+    /// <summary>Looking something up, or waiting for the first words - drives the heartbeat.</summary>
+    public bool IsWorking => IsAssistant && _isStreaming && (_currentStep is not null || _text.Length == 0);
 
     /// <summary>Graphs the answer drew on, shown above its text.</summary>
     public ObservableCollection<System.Windows.Media.ImageSource> Images { get; } = new();
@@ -525,9 +598,9 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     /// </summary>
     public string? ActivityText => _currentStep is { } step
         ? step + "…"
-        : _lookedAt.Count == 0
-            ? null
-            : "Looked at " + JoinNames(_lookedAt) + (_failedLookups > 0 ? $" ({_failedLookups} couldn't be read)" : string.Empty);
+        : _lookedAt.Count > 0
+            ? "Looked at " + JoinNames(_lookedAt) + (_failedLookups > 0 ? $" ({_failedLookups} couldn't be read)" : string.Empty)
+            : IsWorking ? "Thinking…" : null;
 
     public bool HasActivity => ActivityText is not null;
 
@@ -558,6 +631,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(ActivityText));
         OnPropertyChanged(nameof(HasActivity));
+        OnPropertyChanged(nameof(IsWorking));
     }
 
     private static string JoinNames(List<string> names) => names.Count switch
@@ -592,7 +666,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     };
 
     /// <summary>What a tool looked at, for "Looked at …".</summary>
-    private static string Subject(string tool) => tool switch
+    internal static string Subject(string tool) => tool switch
     {
         "active_alerts" or "alert_details" => "alerts",
         "alert_rules" => "alert rules",
