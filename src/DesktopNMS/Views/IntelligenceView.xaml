@@ -117,7 +117,14 @@
                                         Background="{StaticResource SurfaceAltBrush}"
                                         Visibility="{Binding IsUser, Converter={StaticResource BoolToVisibility}}">
                                     <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent" Padding="0"
-                                             Foreground="{StaticResource TextPrimaryBrush}" FontSize="14" TextWrapping="Wrap" />
+                                             Foreground="{StaticResource TextPrimaryBrush}" FontSize="14" TextWrapping="Wrap">
+                                        <TextBox.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Copy" Command="ApplicationCommands.Copy" InputGestureText="Ctrl+C" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                <MenuItem Header="Select all" Command="ApplicationCommands.SelectAll" InputGestureText="Ctrl+A" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            </ContextMenu>
+                                        </TextBox.ContextMenu>
+                                    </TextBox>
                                 </Border>
 
                                 <!-- Intelligence: what it looked up, then the answer as formatted text. -->
@@ -134,7 +141,18 @@
                                                  BorderThickness="0"
                                                  Background="Transparent"
                                                  Padding="0"
-                                                 Foreground="{StaticResource TextPrimaryBrush}" />
+                                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                                 views:IntelligenceView.CopiesPlainText="True">
+                                        <!-- The app's own menu, not Windows' Cut/Paste on read-only text. -->
+                                        <RichTextBox.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Copy" Command="ApplicationCommands.Copy" InputGestureText="Ctrl+C" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                <MenuItem Header="Copy answer" Click="OnCopyAnswerClick" />
+                                                <Separator />
+                                                <MenuItem Header="Select all" Command="ApplicationCommands.SelectAll" InputGestureText="Ctrl+A" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            </ContextMenu>
+                                        </RichTextBox.ContextMenu>
+                                    </RichTextBox>
                                     <TextBlock Text="Thinking…" Style="{StaticResource SubtleTextStyle}" FontSize="12" Margin="0,4,0,0"
                                                Visibility="{Binding IsStreaming, Converter={StaticResource BoolToVisibility}}" />
                                 </StackPanel>
