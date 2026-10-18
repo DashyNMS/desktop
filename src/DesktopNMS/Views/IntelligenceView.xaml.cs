@@ -9,6 +9,54 @@ namespace DesktopNMS.Views;
 
 public partial class IntelligenceView : UserControl
 {
+    /// <summary>
+    /// Copy from an answer as plain text: the rich copy would carry the
+    /// app's colours (white text, dark fills) into whatever it's pasted in.
+    /// </summary>
+    public static readonly DependencyProperty CopiesPlainTextProperty = DependencyProperty.RegisterAttached(
+        "CopiesPlainText",
+        typeof(bool),
+        typeof(IntelligenceView),
+        new PropertyMetadata(false, OnCopiesPlainTextChanged));
+
+    public static bool GetCopiesPlainText(DependencyObject element) => (bool)element.GetValue(CopiesPlainTextProperty);
+
+    public static void SetCopiesPlainText(DependencyObject element, bool value) => element.SetValue(CopiesPlainTextProperty, value);
+
+    private static void OnCopiesPlainTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is RichTextBox box && e.NewValue is true)
+        {
+            box.CommandBindings.Add(new CommandBinding(
+                ApplicationCommands.Copy,
+                (_, args) =>
+                {
+                    var text = box.Selection.Text;
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        Clipboard.SetText(text.Trim());
+                    }
+
+                    args.Handled = true;
+                },
+                (_, args) =>
+                {
+                    args.CanExecute = !box.Selection.IsEmpty;
+                    args.Handled = true;
+                }));
+        }
+    }
+
+    /// <summary>The whole answer, as the Markdown it came in - tables and lists intact.</summary>
+    private void OnCopyAnswerClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement { DataContext: IntelligenceMessageViewModel message } } }
+            && !string.IsNullOrWhiteSpace(message.Text))
+        {
+            Clipboard.SetText(message.Text.Trim());
+        }
+    }
+
     public IntelligenceView()
     {
         InitializeComponent();
