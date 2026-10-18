@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using DesktopNMS.Core.Intelligence;
 
 namespace DesktopNMS.Views;
 
@@ -14,6 +15,7 @@ public sealed class IntelligenceMascot : Button
 {
     private readonly Canvas _body = new() { Width = 64, Height = 80 };
     private readonly Canvas _happyFace = new() { Visibility = Visibility.Collapsed };
+    private readonly Canvas _costume = new();
     private readonly RotateTransform _flipper = new(-10, 4, 4);
     private readonly Canvas _restingFlipper = new() { Width = 12, Height = 28 };
     private readonly Canvas _waveA = new() { Opacity = 0 };
@@ -25,6 +27,9 @@ public sealed class IntelligenceMascot : Button
         nameof(IsBusy), typeof(bool), typeof(IntelligenceMascot), new PropertyMetadata(false, OnStateChanged));
     public static readonly DependencyProperty HasErrorProperty = DependencyProperty.Register(
         nameof(HasError), typeof(bool), typeof(IntelligenceMascot), new PropertyMetadata(false, OnStateChanged));
+    public static readonly DependencyProperty OutfitProperty = DependencyProperty.Register(
+        nameof(Outfit), typeof(DashyOutfit), typeof(IntelligenceMascot),
+        new PropertyMetadata(DashyOutfit.Normal, (sender, _) => ((IntelligenceMascot)sender).Dress()));
 
     public IntelligenceMascot()
     {
@@ -120,6 +125,7 @@ public sealed class IntelligenceMascot : Button
         Pixel(_happyFace, 28, 40, 8, 2, dark);
         Pixel(_happyFace, 36, 38, 2, 2, dark);
         _body.Children.Add(_happyFace);
+        _body.Children.Add(_costume);
         Content = new Viewbox { Width = 40, Height = 44, Child = drawing };
         Click += (_, _) => Greet();
         _greeting.Tick += (_, _) => UpdateAnimation();
@@ -130,6 +136,35 @@ public sealed class IntelligenceMascot : Button
 
     public bool IsBusy { get => (bool)GetValue(IsBusyProperty); set => SetValue(IsBusyProperty, value); }
     public bool HasError { get => (bool)GetValue(HasErrorProperty); set => SetValue(HasErrorProperty, value); }
+    public DashyOutfit Outfit { get => (DashyOutfit)GetValue(OutfitProperty); set => SetValue(OutfitProperty, value); }
+
+    private void Dress()
+    {
+        _costume.Children.Clear();
+        switch (Outfit)
+        {
+            case DashyOutfit.Bowtie:
+                Accessory(new[] { "B...B", "BBRBB", "BBRBB", "B...B" }, 22, 44);
+                break;
+            case DashyOutfit.Fedora:
+                Accessory(new[] { "..FFFFF...", ".FFFFFFF..", ".FDDDDDF..", "FFFFFFFFFF" }, 12, -8);
+                break;
+            case DashyOutfit.Wizard:
+                Accessory(new[] { ".....P....", "....PP....", "...PPPL...", "...PPPL...", "..PPPPPL..", ".PPPSPPPL.", "PPPPPPPPPP" }, 12, -20);
+                Accessory(new[] { "PP.......PP", "PL.......LP", "PL.......LP", "PP.......PP", "PP.......PP", "PP.......PP", "PPP.....PPP", "PPPPPPPPPPP" }, 10, 36);
+                Pixel(_costume, 30, 44, 4, 4, BrushFor('S'));
+                break;
+        }
+    }
+
+    private void Accessory(string[] rows, double x, double y)
+    {
+        var drawing = new Canvas();
+        Paint(drawing, rows);
+        Canvas.SetLeft(drawing, x);
+        Canvas.SetTop(drawing, y);
+        _costume.Children.Add(drawing);
+    }
 
     private static void OnStateChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
     {
@@ -201,6 +236,13 @@ public sealed class IntelligenceMascot : Button
         'C' => new SolidColorBrush(Color.FromRgb(0x19, 0x25, 0x38)),
         'H' => new SolidColorBrush(Color.FromRgb(0x52, 0x6B, 0x86)),
         'W' => new SolidColorBrush(Color.FromRgb(0xF1, 0xF5, 0xF9)),
+        'B' => new SolidColorBrush(Color.FromRgb(0xD9, 0x3E, 0x65)),
+        'R' => new SolidColorBrush(Color.FromRgb(0xFF, 0x9E, 0xB1)),
+        'F' => new SolidColorBrush(Color.FromRgb(0x92, 0x64, 0x44)),
+        'D' => new SolidColorBrush(Color.FromRgb(0x56, 0x3B, 0x31)),
+        'P' => new SolidColorBrush(Color.FromRgb(0x7C, 0x4E, 0xD8)),
+        'L' => new SolidColorBrush(Color.FromRgb(0xB6, 0x9C, 0xFC)),
+        'S' => new SolidColorBrush(Color.FromRgb(0xF6, 0xD7, 0x7B)),
         _ => new SolidColorBrush(Color.FromRgb(0xFF, 0xB8, 0x47)),
     };
 

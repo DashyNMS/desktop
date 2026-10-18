@@ -47,6 +47,7 @@ public sealed class IntelligenceViewModel : ObservableObject
     private bool _isBusy;
     private bool _isSigningIn;
     private bool _consentGiven;
+    private DashyOutfit _companionOutfit = DashyOutfits.Pick(Random.Shared.Next(100));
     private ChatGptModel? _selectedModel;
     private string? _conversationFor;
 
@@ -226,6 +227,17 @@ public sealed class IntelligenceViewModel : ObservableObject
 
     public bool ShowMascot => _settings.Current.IntelligenceMascotEnabled;
 
+    public DashyOutfit CompanionOutfit
+    {
+        get => _companionOutfit;
+        private set => SetProperty(ref _companionOutfit, value);
+    }
+
+    public void OpenSource(Uri uri)
+    {
+        if (WebSearchCitations.TryGetLink(uri.AbsoluteUri, out var safeUri)) _windows.OpenUrl(safeUri);
+    }
+
     public bool IsBusy
     {
         get => _isBusy;
@@ -359,6 +371,10 @@ public sealed class IntelligenceViewModel : ObservableObject
         var network = _session.Connection?.WebRoot.ToString();
         if (network != _conversationFor)
         {
+            if (_conversationFor is not null)
+            {
+                CompanionOutfit = DashyOutfits.Pick(Random.Shared.Next(100));
+            }
             _conversation.Clear();
             Messages.Clear();
             _conversationFor = network;
@@ -380,7 +396,8 @@ public sealed class IntelligenceViewModel : ObservableObject
             var spotlight = Context.SpotlightForAgent;
             var model = _selectedModel!.Slug;
             var token = _running.Token;
-            await Task.Run(() => _conversation.AskAsync(question, model, AccessTokenAsync, listener, token, spotlight)).ConfigureAwait(true);
+            var webSearchEnabled = _settings.Current.IntelligenceWebSearchEnabled;
+            await Task.Run(() => _conversation.AskAsync(question, model, AccessTokenAsync, listener, token, spotlight, webSearchEnabled)).ConfigureAwait(true);
             Context.OnAnswer(answer.Text);
             if (string.IsNullOrWhiteSpace(answer.Text))
             {
@@ -463,6 +480,7 @@ public sealed class IntelligenceViewModel : ObservableObject
 
     private void Clear()
     {
+        CompanionOutfit = DashyOutfits.Pick(Random.Shared.Next(100));
         _conversation.Clear();
         Context.Clear();
         Messages.Clear();
@@ -517,6 +535,8 @@ public sealed class IntelligenceViewModel : ObservableObject
         }
 
         public void OnText(string delta) => _owner._dispatcher.InvokeAsync(() => _answer.Text += delta);
+
+        public void OnAnswerCompleted(string text) => _owner._dispatcher.InvokeAsync(() => _answer.Text = text);
 
         public void OnToolStarted(string name, string arguments) => _owner._dispatcher.InvokeAsync(() =>
         {
@@ -665,6 +685,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     /// <summary>What a tool is doing, as a person would say it.</summary>
     private static string Step(string tool) => tool switch
     {
+        "web_search" => "Searching the web",
         "active_alerts" => "Checking alerts",
         "alert_details" => "Reading the alert",
         "alert_rules" => "Reading alert rules",
@@ -689,6 +710,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     /// <summary>What a tool looked at, for "Looked at …".</summary>
     internal static string Subject(string tool) => tool switch
     {
+        "web_search" => "the web",
         "active_alerts" or "alert_details" => "alerts",
         "alert_rules" => "alert rules",
         "config_backup" or "config_diff" or "recent_config_changes" => "config backups",

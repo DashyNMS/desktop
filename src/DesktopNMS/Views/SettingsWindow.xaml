@@ -1424,6 +1424,9 @@
                             <StackPanel>
                                 <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap"
                                            Text="Your questions, and what's looked up to answer them - device names, addresses, alerts, ports and log lines - go to the agent's provider to be processed. Passwords, tokens and SNMP communities are never sent." />
+                                <CheckBox Content="Allow web search" IsChecked="{Binding IntelligenceWebSearchEnabled}" Margin="0,14,0,0" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="22,4,0,0"
+                                           Text="Look up current firmware releases, vendor documentation and other public information, with source links. Search terms may be sent to search providers. Available where your selected model and ChatGPT account permit it." />
 
                                 <TextBlock Text="Config backups" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,6" />
                                 <ComboBox ItemsSource="{Binding IntelligenceConfigTextOptions}"
