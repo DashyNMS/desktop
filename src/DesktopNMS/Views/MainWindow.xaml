@@ -437,11 +437,12 @@
                                           Command="{Binding SelectHealthTabCommand}" />
 
                             <ToggleButton Content="Intelligence"
-                                          Tag="&#xE945;"
+                                          Tag="&#xE8F2;"
                                           ToolTip="Intelligence"
                                           Style="{StaticResource MainRailItemStyle}"
                                           IsChecked="{Binding IsIntelligenceTabSelected, Mode=OneWay}"
-                                          Command="{Binding SelectIntelligenceTabCommand}" />
+                                          Command="{Binding SelectIntelligenceTabCommand}"
+                                          Visibility="{Binding ShowIntelligenceTab, Converter={StaticResource BoolToVisibility}}" />
 
                             <!-- Alerts' own click goes to the Alerts tab;
                                  Rules and Templates are facets of it. The

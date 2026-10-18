@@ -71,6 +71,7 @@ public sealed class IntelligenceViewModel : ObservableObject
         ClearCommand = new RelayCommand(Clear, () => !_isBusy && Messages.Count > 0);
         ManageUsageCommand = new RelayCommand(() => _windows.OpenUrl(ManageUsageUrl));
         AcceptConsentCommand = new RelayCommand(() => ConsentGiven = true);
+        OpenSettingsCommand = new RelayCommand(() => _windows.ShowSettingsSection(SettingsSection.Intelligence));
         AskSuggestionCommand = new AsyncRelayCommand(async p =>
         {
             Question = p as string ?? string.Empty;
@@ -120,7 +121,13 @@ public sealed class IntelligenceViewModel : ObservableObject
 
     public bool ToolsBundled => McpToolHost.IsBundled;
 
-    public string AccountText => _credentials?.Email is { } email ? $"Using ChatGPT plan · {email}" : "Using ChatGPT plan";
+    /// <summary>The top bar's label - which plan answers, never whose account (that's in Settings).</summary>
+    public string PlanText => IsSignedIn ? "Using your ChatGPT plan" : "Not connected";
+
+    /// <summary>Settings › Intelligence: the account, only there.</summary>
+    public string SignedInAsText => _credentials?.Email is { } email ? "Signed in as " + email : "Signed in";
+
+    public RelayCommand OpenSettingsCommand { get; }
 
     public string NetworkText => _session.Connection?.WebRoot.Host is { } host ? $"Network: {host}" : "Not connected to LibreNMS";
 
@@ -384,6 +391,13 @@ public sealed class IntelligenceViewModel : ObservableObject
         }
     }
 
+    /// <summary>Intelligence turned off in Settings: stop anything running and the network tools.</summary>
+    public async Task OnDisabledAsync()
+    {
+        _running?.Cancel();
+        await _tools.StopAsync().ConfigureAwait(true);
+    }
+
     private void Clear()
     {
         _conversation.Clear();
@@ -398,7 +412,8 @@ public sealed class IntelligenceViewModel : ObservableObject
         OnPropertyChanged(nameof(IsSignedIn));
         OnPropertyChanged(nameof(IsSignedOut));
         OnPropertyChanged(nameof(CanUsePlan));
-        OnPropertyChanged(nameof(AccountText));
+        OnPropertyChanged(nameof(PlanText));
+        OnPropertyChanged(nameof(SignedInAsText));
         OnPropertyChanged(nameof(NeedsConsent));
         OnPropertyChanged(nameof(ShowConversation));
         OnPropertyChanged(nameof(ShowSuggestions));

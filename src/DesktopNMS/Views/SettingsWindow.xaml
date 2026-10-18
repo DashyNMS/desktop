@@ -99,6 +99,10 @@
                                       Style="{StaticResource SettingsNavItemStyle}"
                                       IsChecked="{Binding IsIntegrationsSectionSelected, Mode=OneWay}"
                                       Command="{Binding SelectIntegrationsSectionCommand}" />
+                        <ToggleButton Content="Intelligence"
+                                      Style="{StaticResource SettingsNavItemStyle}"
+                                      IsChecked="{Binding IsIntelligenceSectionSelected, Mode=OneWay}"
+                                      Command="{Binding SelectIntelligenceSectionCommand}" />
 
                         <TextBlock Text="WINDOW &amp; APPEARANCE" Style="{StaticResource SectionHeaderStyle}" Margin="14,16,0,6" />
                         <ToggleButton Content="Window and start-up"
@@ -1325,6 +1329,84 @@
                                            Margin="0,6,0,0"
                                            Text="What a device's Graylog tab starts on: the least severe level shown (each level includes everything more severe) and how many messages per page. Both can be changed on the tab itself." />
                             </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Integrations (Intelligence) ==================== -->
+                    <!-- Whether the tab shows, and each agent's account: one
+                         today (ChatGPT), with room for more. The account is
+                         live, not part of the draft - connecting or
+                         disconnecting happens straight away. -->
+                    <StackPanel Visibility="{Binding IsIntelligenceSectionSelected, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Intelligence" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
+                        <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14"
+                                   Text="Ask about your network in plain words on the Intelligence tab. An AI agent answers using DashyNMS's read-only network tools - it looks things up in LibreNMS, Graylog and Unimus, and can't change anything." />
+
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12" Margin="0,0,0,12">
+                            <StackPanel>
+                                <CheckBox Content="Show Intelligence" IsChecked="{Binding IntelligenceEnabled}" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="22,4,0,0"
+                                           Text="Off hides the Intelligence tab and stops its network tools. Your agent sign-ins are kept." />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="AGENTS" Style="{StaticResource SectionHeaderStyle}" Margin="0,8,0,6" />
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12" Margin="0,0,0,12">
+                            <StackPanel>
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleTextStyle}">
+                                                <Setter Property="Text" Value="Not connected" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Intelligence.IsSignedIn}" Value="True">
+                                                        <Setter Property="Text" Value="Connected" />
+                                                        <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="ChatGPT" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                </DockPanel>
+                                <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="Uses your own ChatGPT Plus or Pro plan. Sign in through your browser - DashyNMS never sees your ChatGPT password." />
+
+                                <TextBlock Style="{StaticResource SubtleTextStyle}" Margin="0,10,0,0"
+                                           Text="{Binding Intelligence.SignedInAsText}"
+                                           Visibility="{Binding Intelligence.IsSignedIn, Converter={StaticResource BoolToVisibility}}" />
+
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button Content="Continue with ChatGPT"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Padding="14,7"
+                                            Margin="0,0,8,0"
+                                            Command="{Binding Intelligence.ConnectCommand}"
+                                            Visibility="{Binding Intelligence.IsSignedOut, Converter={StaticResource BoolToVisibility}}" />
+                                    <Button Content="Manage usage"
+                                            Padding="14,7"
+                                            Margin="0,0,8,0"
+                                            Command="{Binding Intelligence.ManageUsageCommand}"
+                                            Visibility="{Binding Intelligence.IsSignedIn, Converter={StaticResource BoolToVisibility}}" />
+                                    <Button Content="Disconnect"
+                                            Padding="14,7"
+                                            Command="{Binding Intelligence.DisconnectCommand}"
+                                            Visibility="{Binding Intelligence.IsSignedIn, Converter={StaticResource BoolToVisibility}}" />
+                                </StackPanel>
+
+                                <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,12,0,0"
+                                           Text="{Binding Intelligence.ErrorText}"
+                                           Foreground="{StaticResource CriticalBrush}"
+                                           Visibility="{Binding Intelligence.HasError, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="WHAT'S SENT" Style="{StaticResource SectionHeaderStyle}" Margin="0,8,0,6" />
+                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
+                            <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap"
+                                       Text="Your questions, and what's looked up to answer them - device names, addresses, alerts, ports and log lines - go to the agent's provider to be processed. Passwords, tokens and SNMP communities are never sent, and config backups are summarised (when they changed and by how much) rather than sent." />
                         </Border>
                     </StackPanel>
 

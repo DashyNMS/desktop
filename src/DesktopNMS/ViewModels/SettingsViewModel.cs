@@ -30,6 +30,7 @@ public enum SettingsSection
     Server,
     Integrations,
     Graylog,
+    Intelligence,
     About,
 }
 
@@ -148,9 +149,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         IUnimusDeviceResolver unimusResolver,
         IGraylogApi graylog,
         IGraylogPasswordProtector graylogPasswords,
-        ICustomMapStore customMaps)
+        ICustomMapStore customMaps,
+        IntelligenceViewModel intelligence)
     {
         _store = store;
+        Intelligence = intelligence;
         _customMaps = customMaps;
         _startup = startup;
         _notifications = notifications;
@@ -186,6 +189,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         SelectServerSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Server);
         SelectIntegrationsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Integrations);
         SelectGraylogSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Graylog);
+        SelectIntelligenceSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Intelligence);
         SelectMapsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Maps);
         ResetMapTileUrlCommand = new RelayCommand(() => MapTileUrl = null);
         SelectAboutSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.About);
@@ -250,6 +254,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public RelayCommand SelectGraylogSectionCommand { get; }
 
+    public RelayCommand SelectIntelligenceSectionCommand { get; }
+
     public RelayCommand SelectMapsSectionCommand { get; }
 
     public RelayCommand SelectAboutSectionCommand { get; }
@@ -271,6 +277,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsServerSectionSelected));
                 OnPropertyChanged(nameof(IsIntegrationsSectionSelected));
                 OnPropertyChanged(nameof(IsGraylogSectionSelected));
+                OnPropertyChanged(nameof(IsIntelligenceSectionSelected));
                 OnPropertyChanged(nameof(IsMapsSectionSelected));
                 OnPropertyChanged(nameof(IsAboutSectionSelected));
 
@@ -301,6 +308,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     public bool IsIntegrationsSectionSelected => SelectedSection == SettingsSection.Integrations;
 
     public bool IsGraylogSectionSelected => SelectedSection == SettingsSection.Graylog;
+
+    public bool IsIntelligenceSectionSelected => SelectedSection == SettingsSection.Intelligence;
 
     public bool IsMapsSectionSelected => SelectedSection == SettingsSection.Maps;
 
@@ -1870,6 +1879,25 @@ public sealed partial class SettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
+
+    /// <summary>See <see cref="AppSettings.IntelligenceEnabled"/>.</summary>
+    public bool IntelligenceEnabled
+    {
+        get => _draft.IntelligenceEnabled;
+        set
+        {
+            if (_draft.IntelligenceEnabled == value)
+            {
+                return;
+            }
+
+            _draft.IntelligenceEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>The Intelligence page's account controls - the live ChatGPT connection, not part of the draft.</summary>
+    public IntelligenceViewModel Intelligence { get; }
 
     /// <summary>See <see cref="AppSettings.EnablePinnedDevices"/> (#98).</summary>
     public bool EnablePinnedDevices
