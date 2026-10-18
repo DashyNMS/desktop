@@ -954,7 +954,7 @@ public partial class App : Application
     // -------------------------------------------------------------- shutdown
 
     /// <summary>Tears everything down, including the tray icon, and exits.</summary>
-    public void ShutdownApplication()
+    public async void ShutdownApplication()
     {
         if (_isShuttingDown)
         {
@@ -966,15 +966,46 @@ public partial class App : Application
 
         try
         {
-            _monitor?.StopAsync().GetAwaiter().GetResult();
+            if (_monitor is not null)
+            {
+                await _monitor.StopAsync();
+            }
         }
         catch (Exception ex)
         {
             _logger?.LogDebug(ex, "The alert monitor did not stop cleanly");
         }
 
+        try
+        {
+            if (_mainViewModel is not null)
+            {
+                await _mainViewModel.Intelligence.OnDisabledAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Intelligence did not stop cleanly");
+        }
+
         _mainWindow?.CloseForExit();
         _tray?.Dispose();
+
+        // The MCP host owns an asynchronous transport and child process.
+        // Await disposal while the dispatcher is still running, before WPF
+        // enters OnExit; synchronous ServiceProvider.Dispose throws for it.
+        if (_services is { } services)
+        {
+            _services = null;
+            try
+            {
+                await services.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Services did not shut down cleanly");
+            }
+        }
 
         Shutdown();
     }
@@ -1002,7 +1033,9 @@ public partial class App : Application
         _mainViewModel?.Dispose();
         _monitor?.Dispose();
         _tray?.Dispose();
-        _services?.Dispose();
+        // Fallback for shutdown initiated by WPF itself (for example Windows
+        // ending the session). Normal exits already awaited disposal above.
+        _services?.DisposeAsync().AsTask().GetAwaiter().GetResult();
 
         // Deliberately not calling ToastNotificationManagerCompat.Uninstall():
         // that removes the Start menu shortcut and COM registration the toast
