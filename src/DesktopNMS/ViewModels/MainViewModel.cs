@@ -555,7 +555,29 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>DashyNMS's own icon, in the title bar.</summary>
     public BitmapImage AppLogo => AppIconLogo.Value;
 
-    private void OnBadgeSettingChanged(object? sender, AppSettings settings) => RaiseAlertBadgeChanged();
+    private void OnBadgeSettingChanged(object? sender, AppSettings settings)
+    {
+        RaiseAlertBadgeChanged();
+
+        // Intelligence switched off in Settings: hide it, leave it if it's
+        // showing, and stop its network tools.
+        _dispatcher.InvokeAsync(async () =>
+        {
+            OnPropertyChanged(nameof(ShowIntelligenceTab));
+            if (!settings.IntelligenceEnabled)
+            {
+                if (SelectedTab == MainTab.Intelligence)
+                {
+                    SelectedTab = MainTab.Dashboard;
+                }
+
+                await Intelligence.OnDisabledAsync().ConfigureAwait(true);
+            }
+        });
+    }
+
+    /// <summary>Settings › Intelligence's Show Intelligence.</summary>
+    public bool ShowIntelligenceTab => _settings.Current.IntelligenceEnabled;
 
     public MainTab SelectedTab
     {

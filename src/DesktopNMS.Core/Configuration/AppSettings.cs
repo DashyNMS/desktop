@@ -211,6 +211,13 @@ public sealed class AppSettings
     /// </summary>
     public bool EnablePinnedDevices { get; set; } = true;
 
+    /// <summary>
+    /// Whether the Intelligence tab is shown. Off hides it from the sidebar
+    /// and stops its network tools; a ChatGPT sign-in is kept, so turning it
+    /// back on carries on where it was.
+    /// </summary>
+    public bool IntelligenceEnabled { get; set; } = true;
+
     /// <summary>How many devices <see cref="RecentlyViewedDevices"/> remembers - the same number is shown everywhere it appears.</summary>
     public int RecentlyViewedDeviceCount { get; set; } = 5;
 
@@ -331,6 +338,7 @@ public sealed class AppSettings
         RecentlyViewedDevices = RecentlyViewedDevices.Select(d => d.Clone()).ToList(),
         ShowRecentlyViewedDevices = ShowRecentlyViewedDevices,
         EnablePinnedDevices = EnablePinnedDevices,
+        IntelligenceEnabled = IntelligenceEnabled,
         RecentlyViewedDeviceCount = RecentlyViewedDeviceCount,
         PinnedDevices = PinnedDevices.Select(d => d.Clone()).ToList(),
         CollapsedDeviceNavGroups = CollapsedDeviceNavGroups.ToList(),
