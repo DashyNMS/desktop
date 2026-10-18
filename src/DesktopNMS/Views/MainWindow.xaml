@@ -436,6 +436,13 @@
                                           IsChecked="{Binding IsHealthTabSelected, Mode=OneWay}"
                                           Command="{Binding SelectHealthTabCommand}" />
 
+                            <ToggleButton Content="Intelligence"
+                                          Tag="&#xE945;"
+                                          ToolTip="Intelligence"
+                                          Style="{StaticResource MainRailItemStyle}"
+                                          IsChecked="{Binding IsIntelligenceTabSelected, Mode=OneWay}"
+                                          Command="{Binding SelectIntelligenceTabCommand}" />
+
                             <!-- Alerts' own click goes to the Alerts tab;
                                  Rules and Templates are facets of it. The
                                  count badge (Settings, Alert display) sits on
@@ -603,6 +610,10 @@
     
                 <Grid Visibility="{Binding IsHealthTabSelected, Converter={StaticResource BoolToVisibility}}">
                     <views:HealthView x:Name="HealthViewControl" DataContext="{Binding Health}" />
+                </Grid>
+
+                <Grid Visibility="{Binding IsIntelligenceTabSelected, Converter={StaticResource BoolToVisibility}}">
+                    <views:IntelligenceView DataContext="{Binding Intelligence}" />
                 </Grid>
     
                 <views:AlertsView x:Name="AlertsViewControl"

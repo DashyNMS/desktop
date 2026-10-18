@@ -32,4 +32,7 @@ public enum MainTab
 
     /// <summary>Logs → Alert log: every device's alert log (#287).</summary>
     LogsAlerts,
+
+    /// <summary>Intelligence: questions about the network, answered with the user's ChatGPT plan.</summary>
+    Intelligence,
 }
