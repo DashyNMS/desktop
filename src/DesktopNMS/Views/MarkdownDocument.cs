@@ -40,6 +40,38 @@ public static partial class MarkdownDocument
 
     public static void SetMarkdown(DependencyObject element, string? value) => element.SetValue(MarkdownProperty, value);
 
+    public static readonly DependencyProperty ReplyStyleProperty = DependencyProperty.RegisterAttached(
+        "ReplyStyle", typeof(string), typeof(MarkdownDocument), new PropertyMetadata(null, OnReplyStyleChanged));
+
+    public static string? GetReplyStyle(DependencyObject element) => (string?)element.GetValue(ReplyStyleProperty);
+
+    public static void SetReplyStyle(DependencyObject element, string? value) => element.SetValue(ReplyStyleProperty, value);
+
+    public static readonly DependencyProperty ColourStatusIndicatorsProperty = DependencyProperty.RegisterAttached(
+        "ColourStatusIndicators", typeof(bool), typeof(MarkdownDocument), new PropertyMetadata(true, OnReplyStyleChanged));
+
+    public static bool GetColourStatusIndicators(DependencyObject element) => (bool)element.GetValue(ColourStatusIndicatorsProperty);
+
+    public static void SetColourStatusIndicators(DependencyObject element, bool value) => element.SetValue(ColourStatusIndicatorsProperty, value);
+
+    public static readonly DependencyProperty InlineReferencesProperty = DependencyProperty.RegisterAttached(
+        "InlineReferences", typeof(IReadOnlyList<IntelligenceInlineReference>), typeof(MarkdownDocument),
+        new PropertyMetadata(null, OnInlineReferencesChanged));
+
+    public static IReadOnlyList<IntelligenceInlineReference> GetInlineReferences(DependencyObject element)
+        => (IReadOnlyList<IntelligenceInlineReference>?)element.GetValue(InlineReferencesProperty) ?? Array.Empty<IntelligenceInlineReference>();
+
+    public static void SetInlineReferences(DependencyObject element, IReadOnlyList<IntelligenceInlineReference> value)
+        => element.SetValue(InlineReferencesProperty, value);
+
+    private static void OnInlineReferencesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        => OnMarkdownChanged(d, new DependencyPropertyChangedEventArgs(MarkdownProperty, GetMarkdown(d), GetMarkdown(d)));
+
+    private static void OnReplyStyleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is RichTextBox box) box.Document = new Renderer(box).Render(GetMarkdown(box) ?? string.Empty);
+    }
+
     private static void OnMarkdownChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not RichTextBox box)
@@ -77,14 +109,17 @@ public static partial class MarkdownDocument
     // its navy surface in both themes, including tables, quotes and code.
     private sealed class Renderer(FrameworkElement? scope)
     {
+        private bool Conversational => scope is not null && GetReplyStyle(scope) == IntelligenceReplyStyles.Conversational;
+        private IReadOnlyList<IntelligenceInlineReference> References => scope is null ? Array.Empty<IntelligenceInlineReference>() : GetInlineReferences(scope);
+
         public FlowDocument Render(string markdown)
         {
             var document = new FlowDocument
             {
                 PagePadding = new Thickness(0),
                 FontFamily = Resource<FontFamily>("BodyFont") ?? new FontFamily("Segoe UI"),
-                FontSize = 14,
-                LineHeight = 21,
+                FontSize = Conversational ? 15 : 14,
+                LineHeight = Conversational ? 24 : 21,
                 Foreground = Brush("TextPrimaryBrush"),
                 TextAlignment = TextAlignment.Left,
             };
@@ -130,7 +165,7 @@ public static partial class MarkdownDocument
                     var paragraph = new Paragraph
                     {
                         FontWeight = FontWeights.SemiBold,
-                        FontSize = level switch { 1 => 19, 2 => 17, _ => 15 },
+                        FontSize = Conversational ? 16 : level switch { 1 => 19, 2 => 17, _ => 15 },
                         Margin = new Thickness(0, 6, 0, 6),
                     };
                     AddInlines(paragraph.Inlines, heading.Groups[2].Value);
@@ -195,8 +230,36 @@ public static partial class MarkdownDocument
                     i++;
                 }
 
-                var p = new Paragraph { Margin = new Thickness(0, 0, 0, 10) };
-                AddInlines(p.Inlines, text.ToString());
+                var p = new Paragraph { Margin = new Thickness(0, 0, 0, Conversational ? 14 : 10) };
+                var prose = text.ToString();
+                var updatePrefix = prose.StartsWith("[[update]]", StringComparison.Ordinal) ? "[[update]]"
+                    : prose.StartsWith("**Notes:**", StringComparison.Ordinal) ? "**Notes:**"
+                    : prose.StartsWith("**Notes**:", StringComparison.Ordinal) ? "**Notes**:"
+                    : prose.StartsWith("Notes:", StringComparison.Ordinal) ? "Notes:"
+                    : prose.StartsWith("**Update:**", StringComparison.Ordinal) ? "**Update:**"
+                    : prose.StartsWith("**Update**:", StringComparison.Ordinal) ? "**Update**:"
+                    : prose.StartsWith("Update:", StringComparison.Ordinal) ? "Update:" : null;
+                if (updatePrefix is not null)
+                {
+                    prose = prose[updatePrefix.Length..].TrimStart();
+                    p.FontSize = 12.5;
+                    p.LineHeight = 18;
+                    p.Foreground = Brush("TextSecondaryBrush");
+                    p.BorderBrush = Brush("BorderBrush");
+                    p.BorderThickness = new Thickness(0, 1, 0, 0);
+                    p.Padding = new Thickness(0, 8, 0, 0);
+                    p.Margin = new Thickness(0, 10, 0, 0);
+                    p.Inlines.Add(new Bold(new Run("Notes: ")));
+                }
+                else if (prose.StartsWith("[[recommendation]]", StringComparison.Ordinal))
+                {
+                    prose = prose["[[recommendation]]".Length..].TrimStart();
+                    p.BorderBrush = Resource<Brush>("LinkBrush") ?? Brush("AccentBrush");
+                    p.BorderThickness = new Thickness(2, 0, 0, 0);
+                    p.Padding = new Thickness(12, 0, 0, 0);
+                    p.Inlines.Add(new Bold(new Run("Recommendation. ")));
+                }
+                AddInlines(p.Inlines, prose);
                 document.Blocks.Add(p);
             }
 
@@ -216,6 +279,14 @@ public static partial class MarkdownDocument
                    || Heading().IsMatch(t)
                    || Rule().IsMatch(t)
                    || t.StartsWith('>')
+                   || t.StartsWith("[[recommendation]]", StringComparison.Ordinal)
+                   || t.StartsWith("[[update]]", StringComparison.Ordinal)
+                   || t.StartsWith("Notes:", StringComparison.Ordinal)
+                   || t.StartsWith("**Notes:**", StringComparison.Ordinal)
+                   || t.StartsWith("**Notes**:", StringComparison.Ordinal)
+                   || t.StartsWith("Update:", StringComparison.Ordinal)
+                   || t.StartsWith("**Update:**", StringComparison.Ordinal)
+                   || t.StartsWith("**Update**:", StringComparison.Ordinal)
                    || ListItem().IsMatch(lines[i])
                    || (t.StartsWith('|') && i + 1 < lines.Length && TableSeparator().IsMatch(lines[i + 1].Trim()));
         }
@@ -251,9 +322,32 @@ public static partial class MarkdownDocument
                     i++;
                 }
 
-                var paragraph = new Paragraph { Margin = new Thickness(0, 0, 0, 3) };
-                AddInlines(paragraph.Inlines, text.ToString());
-                list.ListItems.Add(new ListItem(paragraph));
+                var content = text.ToString();
+                var prefix = IntelligenceInlineMarkup.BulletPrefix().Match(content);
+                var tone = prefix.Success ? prefix.Groups[1].Value == "ok" ? "up" : prefix.Groups[1].Value : null;
+                if (prefix.Success) content = content[prefix.Length..];
+                // Prefer the verified alert's severity if a model-supplied bullet colour disagrees.
+                var alertMarker = IntelligenceInlineMarkup.Token().Matches(content).Cast<Match>()
+                    .FirstOrDefault(match => match.Value.StartsWith("[[alert:", StringComparison.Ordinal));
+                if (alertMarker is not null && IntelligenceInlineMarkup.Resolve(alertMarker.Value, References) is { } alertReference)
+                    tone = alertReference.Tone;
+                var paragraph = new Paragraph { Margin = new Thickness(0, 0, 0, Conversational ? 8 : 3), Foreground = Brush("TextPrimaryBrush") };
+                if (list.MarkerStyle == TextMarkerStyle.None)
+                {
+                    // WPF's native list marker follows paragraph foreground, so
+                    // render the coloured dot explicitly and keep the prose neutral.
+                    paragraph.Margin = new Thickness(20, 0, 0, Conversational ? 8 : 3);
+                    paragraph.TextIndent = -20;
+                    paragraph.Inlines.Add(new Run("●  ")
+                    {
+                        FontSize = 14,
+                        Foreground = tone is null ? Brush("TextPrimaryBrush") : ToneBrush(tone),
+                    });
+                }
+                AddInlines(paragraph.Inlines, content);
+                var listItem = new ListItem(paragraph);
+                if (tone is not null) listItem.Foreground = ToneBrush(tone);
+                list.ListItems.Add(listItem);
             }
 
             return list;
@@ -261,9 +355,9 @@ public static partial class MarkdownDocument
 
         private List NewList(string marker) => new()
         {
-            MarkerStyle = char.IsDigit(marker[0]) ? TextMarkerStyle.Decimal : TextMarkerStyle.Disc,
+            MarkerStyle = char.IsDigit(marker[0]) ? TextMarkerStyle.Decimal : TextMarkerStyle.None,
             Margin = new Thickness(0, 0, 0, 10),
-            Padding = new Thickness(22, 0, 0, 0),
+            Padding = new Thickness(char.IsDigit(marker[0]) ? 22 : 6, 0, 0, 0),
         };
 
         private Table Table(List<string> rows, List<TextAlignment> alignments)
@@ -274,7 +368,7 @@ public static partial class MarkdownDocument
                 CellSpacing = 0,
                 Margin = new Thickness(0, 2, 0, 12),
                 BorderBrush = Brush("BorderBrush"),
-                BorderThickness = new Thickness(1),
+                BorderThickness = Conversational ? new Thickness(0) : new Thickness(1),
             };
 
             // FlowDocument tables have no auto width: share the width by each
@@ -306,7 +400,7 @@ public static partial class MarkdownDocument
                     {
                         Padding = new Thickness(10, 5, 10, 5),
                         BorderBrush = Brush("BorderBrush"),
-                        BorderThickness = new Thickness(0, 0, c < columns - 1 ? 1 : 0, r < rows.Count - 1 ? 1 : 0),
+                        BorderThickness = new Thickness(0, 0, !Conversational && c < columns - 1 ? 1 : 0, r < rows.Count - 1 ? 1 : 0),
                     });
                 }
 
@@ -365,7 +459,11 @@ public static partial class MarkdownDocument
                 }
 
                 var token = m.Value;
-                if (token.StartsWith("**", StringComparison.Ordinal) || token.StartsWith("__", StringComparison.Ordinal))
+                if (token.StartsWith("[[", StringComparison.Ordinal))
+                {
+                    AddReference(inlines, token);
+                }
+                else if (token.StartsWith("**", StringComparison.Ordinal) || token.StartsWith("__", StringComparison.Ordinal))
                 {
                     var bold = new Bold();
                     AddInlines(bold.Inlines, token[2..^2]);
@@ -415,6 +513,35 @@ public static partial class MarkdownDocument
             }
         }
 
+        private void AddReference(InlineCollection inlines, string marker)
+        {
+            if (IntelligenceInlineMarkup.Resolve(marker, References) is not { } reference)
+            {
+                inlines.Add(new Run(IntelligenceInlineMarkup.Fallback(marker)));
+                return;
+            }
+            var badge = new Span
+            {
+                Background = Brush("SurfaceBrush"),
+                Foreground = ToneBrush(reference.Tone),
+                FontWeight = FontWeights.SemiBold,
+                ToolTip = reference.Detail + (reference.ObservedAt == default ? "" : " · observed " + reference.ObservedAt.ToLocalTime().ToString("g")),
+            };
+            badge.Inlines.Add(new Run(" " + reference.Name));
+            if (!string.IsNullOrEmpty(reference.Status)) badge.Inlines.Add(new Run(" · " + reference.Status) { FontSize = 12 });
+            badge.Inlines.Add(new Run(" "));
+            inlines.Add(badge);
+        }
+
+        private Brush ToneBrush(string tone) => scope is not null && !GetColourStatusIndicators(scope)
+            ? Brush("TextPrimaryBrush") : new SolidColorBrush(tone switch
+        {
+            "up" => Color.FromRgb(84, 214, 154),
+            "down" or "critical" => Color.FromRgb(255, 95, 98),
+            "warning" => Color.FromRgb(255, 194, 71),
+            _ => Color.FromRgb(174, 197, 223),
+        });
+
         private Brush Brush(string key) => Resource<Brush>(key) ?? Brushes.Gray;
 
         private T? Resource<T>(string key)
@@ -437,7 +564,7 @@ public static partial class MarkdownDocument
 
     // Bold before italic; single underscores only at word edges, so
     // hostnames like core_sw_01 stay as they are.
-    [GeneratedRegex(@"\*\*(?=\S).+?(?<=\S)\*\*|__(?=\S).+?(?<=\S)__|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|(?<![\w*])\*(?=\S)[^*]+?(?<=\S)\*(?![\w*])|(?<!\w)_(?=\S)[^_]+?(?<=\S)_(?!\w)")]
+    [GeneratedRegex(@"\[\[(?:device|alert|status|severity|bullet):(?:[a-z]+|[1-9][0-9]{0,9})\]\]|\[\[(?:recommendation|update)\]\]|\*\*(?=\S).+?(?<=\S)\*\*|__(?=\S).+?(?<=\S)__|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|(?<![\w*])\*(?=\S)[^*]+?(?<=\S)\*(?![\w*])|(?<!\w)_(?=\S)[^_]+?(?<=\S)_(?!\w)")]
     private static partial Regex InlineToken();
 
     [GeneratedRegex(@"^\[([^\]]+)\]\(([^)\s]+)\)$")]

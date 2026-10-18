@@ -93,6 +93,117 @@ public sealed class IntelligenceWebSearchTests
         Assert.DoesNotContain("synthetic-private-token", conversation.ExportHistory().ToJsonString());
     }
 
+    [Theory]
+    [InlineData(null, "Conversational")]
+    [InlineData("conversational", "Conversational")]
+    [InlineData("evidence-based", "Evidence based")]
+    [InlineData("unknown-style", "Conversational")]
+    public async Task Reply_style_is_applied_without_changing_tools_or_evidence_requirements(string? style, string expected)
+    {
+        var handler = new ScriptedHandler(Stream("""{"type":"response.completed"}"""));
+        var conversation = new IntelligenceConversation(new ResponsesClient(new HttpClient(handler)), new NetworkTools());
+        await conversation.AskAsync("Network health?", "test-model", Token, new Listener(), CancellationToken.None,
+            spotlight: "device test-device", webSearchEnabled: true, replyStyle: style);
+        var instructions = handler.Bodies[0]["instructions"]!.GetValue<string>();
+        Assert.Contains("Reply style: " + expected, instructions);
+        if (expected == "Conversational")
+        {
+            Assert.Contains("Do not use Markdown tables, section headings or exhaustive inventories unless the user explicitly asks", instructions);
+            Assert.Contains("even if earlier answers", instructions);
+            Assert.DoesNotContain("Evidence based layout takes precedence", instructions);
+        }
+        else
+        {
+            Assert.Contains("one compact bullet per category, metric or finding", instructions);
+            Assert.Contains("Category — count · severity", instructions);
+            Assert.Contains("for changes use one change per bullet", instructions);
+            Assert.Contains("do not silently reuse a previous breakdown", instructions);
+            Assert.Contains("a table only when the user requests one", instructions);
+        }
+        Assert.Contains("retain source citations", instructions);
+        Assert.Contains("state important uncertainty", instructions);
+        Assert.Contains("Shared uncertainty footer policy for both reply styles", instructions);
+        Assert.Contains("beginning [[update]]", instructions);
+        Assert.Contains("When no material uncertainty remains, omit the footer entirely", instructions);
+        Assert.Contains("[[device:123]]", instructions);
+        Assert.Contains("[[alert:456]]", instructions);
+        Assert.Contains("do not append a separate status section", instructions);
+        Assert.Contains("[[bullet:critical]]", instructions);
+        Assert.Contains("[[recommendation]]", instructions);
+        Assert.Contains("never include private device names", instructions);
+        Assert.Contains("device test-device", instructions);
+        Assert.Contains(handler.Bodies[0]["tools"]!.AsArray(), tool => tool?["type"]?.GetValue<string>() == "web_search");
+        Assert.Contains(handler.Bodies[0]["tools"]!.AsArray(), tool => tool?["type"]?.GetValue<string>() == "namespace");
+    }
+
+    [Fact]
+    public void Status_indicator_colour_preference_defaults_on_and_survives_save_and_clone()
+    {
+        Assert.True(JsonSerializer.Deserialize<AppSettings>("{}")!.IntelligenceColourStatusIndicators);
+        var settings = new AppSettings { IntelligenceColourStatusIndicators = false };
+        Assert.False(settings.Clone().IntelligenceColourStatusIndicators);
+        Assert.False(JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(settings))!.IntelligenceColourStatusIndicators);
+    }
+
+    [Fact]
+    public async Task Switching_reply_style_keeps_the_same_conversations_history()
+    {
+        var handler = new ScriptedHandler(Stream("""{"type":"response.completed"}"""), Stream("""{"type":"response.completed"}"""));
+        var conversation = new IntelligenceConversation(new ResponsesClient(new HttpClient(handler)), new NetworkTools());
+        await conversation.AskAsync("First question", "test-model", Token, new Listener(), CancellationToken.None);
+        await conversation.AskAsync("Follow-up", "test-model", Token, new Listener(), CancellationToken.None,
+            replyStyle: IntelligenceReplyStyles.EvidenceBased);
+        Assert.Contains("Reply style: Evidence based", handler.Bodies[1]["instructions"]!.GetValue<string>());
+        Assert.Contains("First question", handler.Bodies[1]["input"]!.ToJsonString());
+        Assert.Contains("Follow-up", handler.Bodies[1]["input"]!.ToJsonString());
+    }
+
+    [Theory]
+    [InlineData(IntelligenceReplyStyles.Conversational)]
+    [InlineData(IntelligenceReplyStyles.EvidenceBased)]
+    public async Task Both_styles_make_recommendations_conditional_on_user_intent_or_a_required_follow_up(string style)
+    {
+        var handler = new ScriptedHandler(Stream("""{"type":"response.completed"}"""));
+        var conversation = new IntelligenceConversation(new ResponsesClient(new HttpClient(handler)), new NetworkTools());
+        await conversation.AskAsync("Compare these configs", "test-model", Token, new Listener(), CancellationToken.None, replyStyle: style);
+        var instructions = handler.Bodies[0]["instructions"]!.GetValue<string>();
+        Assert.Contains("recommendations are conditional, never a default ending", instructions);
+        Assert.Contains("user asks for advice, diagnosis or troubleshooting", instructions);
+        Assert.Contains("definite, necessary follow-up task", instructions);
+        Assert.Contains("config comparison or explanation normally needs facts only", instructions);
+        Assert.Contains("omit the recommendation marker and paragraph entirely", instructions);
+        Assert.DoesNotContain("then a grounded recommendation", instructions);
+        Assert.DoesNotContain("then a brief [[recommendation]] paragraph", instructions);
+    }
+
+    [Fact]
+    public void Reply_style_defaults_for_older_settings_and_survives_clone_and_serialization()
+    {
+        Assert.Equal(IntelligenceReplyStyles.Conversational, JsonSerializer.Deserialize<AppSettings>("{}")!.IntelligenceReplyStyle);
+        var settings = new AppSettings { IntelligenceReplyStyle = IntelligenceReplyStyles.EvidenceBased };
+        Assert.Equal(IntelligenceReplyStyles.EvidenceBased, settings.Clone().IntelligenceReplyStyle);
+        Assert.Equal(IntelligenceReplyStyles.EvidenceBased,
+            JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(settings))!.IntelligenceReplyStyle);
+    }
+
+    [Fact]
+    public async Task Successful_tool_results_deliver_typed_inline_status_without_an_extra_provider_request()
+    {
+        var handler = new ScriptedHandler(
+            Stream(
+                """{"type":"response.output_item.done","item":{"type":"function_call","name":"network_overview","call_id":"call_1","arguments":"{}"}}""",
+                """{"type":"response.completed"}"""),
+            Stream("""{"type":"response.completed"}"""));
+        var tools = new NetworkTools { Output = """{"status":"ok","summary":"8 devices up and 2 down.","data":{"devices":{"up":8,"down":2}}}""" };
+        var listener = new Listener();
+        var conversation = new IntelligenceConversation(new ResponsesClient(new HttpClient(handler)), tools);
+        await conversation.AskAsync("Network status?", "test-model", Token, listener, CancellationToken.None);
+        Assert.Equal(2, handler.Bodies.Count);
+        Assert.Equal("Device status", Assert.Single(listener.StatusCards).Title);
+        Assert.Equal("Down", listener.StatusCards[0].Rows[1].Status);
+        Assert.Equal("8 devices up and 2 down.", Assert.Single(listener.ToolObservations).Summary);
+    }
+
     private static Task<string> Token(CancellationToken _) => Task.FromResult("test-token");
     private static string Stream(params string[] events) => string.Join("", events.Select(e => "data: " + e + "\n\n"));
 
@@ -110,13 +221,14 @@ public sealed class IntelligenceWebSearchTests
     {
         public int Calls { get; private set; }
         public bool ThrowPrivateError { get; init; }
+        public string Output { get; init; } = "ok";
         public Task<IReadOnlyList<IntelligenceTool>> GetToolsAsync(CancellationToken _) => Task.FromResult<IReadOnlyList<IntelligenceTool>>(
             new[] { new IntelligenceTool("network_overview", "Read the network", JsonSerializer.SerializeToElement(new { type = "object" })) });
         public Task<IntelligenceToolResult> CallAsync(string name, JsonElement arguments, CancellationToken _)
         {
             Calls++;
             if (ThrowPrivateError) throw new InvalidOperationException("Request failed: synthetic-private-token");
-            return Task.FromResult(new IntelligenceToolResult("ok", false));
+            return Task.FromResult(new IntelligenceToolResult(Output, false));
         }
     }
 
@@ -124,6 +236,10 @@ public sealed class IntelligenceWebSearchTests
     {
         public string? Answer { get; private set; }
         public List<string> Activity { get; } = new();
+        public List<IntelligenceStatusCard> StatusCards { get; } = new();
+        public List<IntelligenceToolObservation> ToolObservations { get; } = new();
+        public void OnToolObserved(IntelligenceToolObservation observation) => ToolObservations.Add(observation);
+        public void OnStatusCard(IntelligenceStatusCard card) => StatusCards.Add(card);
         public void OnText(string text) { }
         public void OnAnswerCompleted(string text) => Answer = text;
         public void OnToolStarted(string name, string arguments) => Activity.Add("start:" + name);

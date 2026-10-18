@@ -18,13 +18,18 @@ public sealed class SavedIntelligenceChatTests : IDisposable
         var store = Store();
         var chat = new SavedIntelligenceChat
         {
-            Title = "Core switch", IsRenamed = true, Model = "test-model", Outfit = DashyOutfit.Wizard,
+            Title = "Core switch", IsRenamed = true, Model = "test-model", Outfit = DashyOutfit.Wizard, ReplyStyle = IntelligenceReplyStyles.EvidenceBased,
             Draft = "What about the ports?",
             History = JsonNode.Parse("""[{"type":"reasoning","encrypted_content":"opaque"},{"type":"function_call","call_id":"1","name":"network_overview","arguments":"{}"},{"type":"function_call_output","call_id":"1","output":"Device health"}]""")!.AsArray(),
-            Messages = new() { new() { IsUser = false, Text = "Healthy", Activity = "Looked at device health", Images = new() { new(new byte[] { 1, 2, 3 }, "image/png") } } },
+            Messages = new() { new() { IsUser = false, Text = "Healthy", Activity = "Looked at device health", ReplyStyle = IntelligenceReplyStyles.Conversational, Images = new() { new(new byte[] { 1, 2, 3 }, "image/png") } } },
             Spotlight = new() { new(0, 12, "core-switch") }, LookedAt = new() { "device health" },
         };
         var second = new SavedIntelligenceChat { Title = "Different chat", Outfit = DashyOutfit.Bowtie };
+        chat.Messages[0].StatusCards.Add(new("Device status", "Test scope", DateTimeOffset.UtcNow,
+            new[] { new IntelligenceStatusRow("core-switch", "Test location", "Up", "up", DeviceId: 12) }));
+        chat.Messages[0].PriorReferences.Add(new("device:99", "earlier-router", "", "unknown", DateTimeOffset.UtcNow, "Earlier lookup"));
+        chat.Messages[0].CreatedAt = new DateTimeOffset(2026, 10, 18, 14, 32, 0, TimeSpan.Zero);
+        chat.Messages[0].ToolObservations.Add(new("device_health", chat.Messages[0].CreatedAt.GetValueOrDefault(), "Device is up."));
         store.Save("account-a\nhttps://nms.example/", chat);
         store.Save("account-a\nhttps://nms.example/", second);
         var loaded = Store().Load("account-a\nhttps://nms.example/");
@@ -34,9 +39,17 @@ public sealed class SavedIntelligenceChatTests : IDisposable
         Assert.Equal(chat.Title, restored.Title);
         Assert.Equal(chat.Draft, restored.Draft);
         Assert.Equal(chat.Model, restored.Model);
+        Assert.Equal(IntelligenceReplyStyles.EvidenceBased, restored.ReplyStyle);
+        Assert.Equal(chat.Messages[0].CreatedAt, restored.Messages[0].CreatedAt);
+        Assert.Equal("Device is up.", Assert.Single(restored.Messages[0].ToolObservations).Summary);
         Assert.Equal(DashyOutfit.Wizard, restored.Outfit);
         Assert.Equal(chat.History.ToJsonString(), restored.History.ToJsonString());
         Assert.Equal(chat.Messages[0].Images[0].Data, restored.Messages[0].Images[0].Data);
+        Assert.Equal(IntelligenceReplyStyles.Conversational, restored.Messages[0].ReplyStyle);
+        var card = Assert.Single(restored.Messages[0].StatusCards);
+        Assert.Equal("Up", Assert.Single(card.Rows).Status);
+        Assert.Equal(chat.Messages[0].StatusCards[0].ObservedAt, card.ObservedAt);
+        Assert.Equal("earlier-router", Assert.Single(restored.Messages[0].PriorReferences).Name);
         Assert.Equal(chat.Spotlight, restored.Spotlight);
         Assert.Equal(chat.LookedAt, restored.LookedAt);
         Assert.DoesNotContain("core-switch", string.Join("", Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories).Select(File.ReadAllText)));

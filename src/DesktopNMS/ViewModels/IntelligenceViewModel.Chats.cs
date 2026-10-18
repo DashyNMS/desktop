@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Threading;
 using DesktopNMS.Core.Intelligence;
@@ -19,6 +20,24 @@ public sealed partial class IntelligenceViewModel
     private bool _isChatListOpen = true;
     private bool _isRenamingChat;
     private string _chatNameDraft = string.Empty;
+    private string _selectedReplyStyle = IntelligenceReplyStyles.Conversational;
+
+    public IReadOnlyList<KeyValuePair<string, string>> ChatReplyStyleOptions { get; } = new[]
+    {
+        new KeyValuePair<string, string>(IntelligenceReplyStyles.Conversational, "Conversational"),
+        new KeyValuePair<string, string>(IntelligenceReplyStyles.EvidenceBased, "Evidence based"),
+    };
+
+    public string SelectedReplyStyle
+    {
+        get => _selectedReplyStyle;
+        set
+        {
+            if (value is null) return;
+            if (IsBusy && !_changingChat) { OnPropertyChanged(); return; }
+            if (SetProperty(ref _selectedReplyStyle, IntelligenceReplyStyles.Normalize(value))) QueueChatSave();
+        }
+    }
 
     public ObservableCollection<IntelligenceChatItemViewModel> Chats { get; } = new();
     public RelayCommand ToggleChatListCommand { get; private set; } = null!;
@@ -174,6 +193,7 @@ public sealed partial class IntelligenceViewModel
         var chat = new IntelligenceChatItemViewModel(new SavedIntelligenceChat
         {
             Model = _settings.Current.IntelligenceModel ?? SelectedModel?.Slug,
+            ReplyStyle = IntelligenceReplyStyles.Normalize(_settings.Current.IntelligenceReplyStyle),
             Outfit = DashyOutfits.Pick(Random.Shared.Next(100)),
         });
         Chats.Insert(0, chat);
@@ -190,13 +210,20 @@ public sealed partial class IntelligenceViewModel
             Messages.Clear();
             var chat = SelectedChat?.Data;
             if (chat is not null)
-                foreach (var message in chat.Messages) Messages.Add(IntelligenceMessageViewModel.Restore(message));
+                foreach (var message in chat.Messages)
+                {
+                    var restored = IntelligenceMessageViewModel.Restore(message);
+                    restored.SeedInlineReferences(Messages.Where(item => item.IsAssistant).Reverse().SelectMany(item => item.InlineReferences));
+                    Messages.Add(restored);
+                }
             Question = chat?.Draft ?? string.Empty;
+            SelectedReplyStyle = chat?.ReplyStyle ?? IntelligenceReplyStyles.Normalize(_settings.Current.IntelligenceReplyStyle);
             CompanionOutfit = chat?.Outfit ?? DashyOutfit.Normal;
             var model = chat?.Model ?? _settings.Current.IntelligenceModel;
             SelectedModel = Models.FirstOrDefault(item => item.Slug == model)
                 ?? (model is not null ? new ChatGptModel(model, ChatGptModel.NameFor(model)) : Models.FirstOrDefault());
-            Context.RestoreChatContext(chat?.Spotlight ?? new(), chat?.LookedAt ?? new(), Messages.Where(m => m.IsAssistant).Select(m => m.Text));
+            Context.RestoreChatContext(chat?.Spotlight ?? new(), chat?.LookedAt ?? new(),
+                Messages.Where(m => m.IsAssistant).Select(m => IntelligenceInlineMarkup.ToReadableText(m.Text, m.InlineReferences)));
             IsRenamingChat = false;
             if (!_chatStorageReadOnly) ErrorText = null;
             OnPropertyChanged(nameof(ShowSuggestions));
@@ -217,6 +244,7 @@ public sealed partial class IntelligenceViewModel
         var chat = item.Data;
         chat.Draft = Question;
         chat.Model = SelectedModel?.Slug ?? chat.Model;
+        chat.ReplyStyle = SelectedReplyStyle;
         chat.Outfit = CompanionOutfit;
         chat.History = _conversation.ExportHistory();
         chat.Messages = Messages.Select(message => message.Save()).ToList();
@@ -292,7 +320,17 @@ public sealed class IntelligenceChatItemViewModel(SavedIntelligenceChat data) : 
     public string PinLabel => IsPinned ? "Unpin chat" : "Pin chat";
     public string LastActivity => Data.Messages.Count == 0 ? string.Empty
         : Data.UpdatedAt.ToLocalTime().ToString("g");
-    public string Preview => Data.Messages.LastOrDefault(message => !string.IsNullOrWhiteSpace(message.Text))?.Text.Replace('\n', ' ') ?? "Start a conversation";
+    public string Preview
+    {
+        get
+        {
+            var message = Data.Messages.LastOrDefault(message => !string.IsNullOrWhiteSpace(message.Text));
+            if (message is null) return "Start a conversation";
+            var references = message.StatusCards.SelectMany(IntelligenceInlineReferences.FromSnapshot)
+                .Concat(message.PriorReferences).DistinctBy(reference => reference.Key).ToArray();
+            return IntelligenceInlineMarkup.ToReadableText(message.Text, references).Replace('\n', ' ');
+        }
+    }
     public void Refresh()
     {
         OnPropertyChanged(nameof(Title));

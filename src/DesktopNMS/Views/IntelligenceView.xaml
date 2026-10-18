@@ -4,6 +4,27 @@
              xmlns:views="clr-namespace:DesktopNMS.Views">
 
     <UserControl.Resources>
+        <Style x:Key="ActivityExpanderStyle" TargetType="Expander">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Expander">
+                        <StackPanel>
+                            <ToggleButton Content="{TemplateBinding Header}" HorizontalAlignment="Left" Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                          AutomationProperties.Name="Show or hide executed lookups"
+                                          IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton"><ContentPresenter /></ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="Details" ContentSource="Content" Visibility="Collapsed" Margin="12,0,0,14" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True"><Setter TargetName="Details" Property="Visibility" Value="Visible" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="PaneHeaderStyle" TargetType="Border">
             <Setter Property="Height" Value="57" />
             <Setter Property="Padding" Value="18,10" />
@@ -171,8 +192,19 @@
 
                                 <!-- Intelligence: what it looked up, then the answer as formatted text. -->
                                 <Border Background="#0A1526" BorderBrush="#20334B" BorderThickness="1"
-                                        CornerRadius="12" Padding="16,14"
                                         Visibility="{Binding IsAssistant, Converter={StaticResource BoolToVisibility}}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="CornerRadius" Value="12" />
+                                            <Setter Property="Padding" Value="16,14" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsConversational}" Value="True">
+                                                    <Setter Property="CornerRadius" Value="14" />
+                                                    <Setter Property="Padding" Value="20" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Border.Resources>
                                         <SolidColorBrush x:Key="TextPrimaryBrush" Color="#EEF5FF" />
                                         <SolidColorBrush x:Key="TextSecondaryBrush" Color="#AEC5DF" />
@@ -181,16 +213,52 @@
                                         <SolidColorBrush x:Key="BorderBrush" Color="#34516E" />
                                     </Border.Resources>
                                 <StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
-                                                Visibility="{Binding HasActivity, Converter={StaticResource BoolToVisibility}}">
-                                        <!-- The DashyNMS heartbeat while it's looking; a quiet search mark once it's done. -->
-                                        <views:HeartbeatLogo Width="14" Height="14" IsBeating="{Binding IsWorking}" VerticalAlignment="Center" Margin="0,0,7,0"
+                                    <Expander Style="{StaticResource ActivityExpanderStyle}" IsExpanded="{Binding IsActivityExpanded}"
+                                              Visibility="{Binding HasActivity, Converter={StaticResource BoolToVisibility}}">
+                                    <Expander.Header>
+                                    <Border Background="#13243A" BorderBrush="#2B405B" BorderThickness="1"
+                                            CornerRadius="14" Padding="9,5" HorizontalAlignment="Left" MaxWidth="700" Margin="0,0,0,14"
+                                            Visibility="{Binding HasActivity, Converter={StaticResource BoolToVisibility}}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="&#xE70D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="9,0,0,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsActivityExpanded}" Value="True">
+                                                            <Setter Property="RenderTransform"><Setter.Value><RotateTransform Angle="180" /></Setter.Value></Setter>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <views:HeartbeatLogo DockPanel.Dock="Left" Width="14" Height="14" IsBeating="{Binding IsWorking}" VerticalAlignment="Center" Margin="0,0,7,0"
                                                              Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}}" />
-                                        <TextBlock Text="&#xE721;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
-                                                   Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,1,6,0"
-                                                   Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
-                                        <TextBlock Text="{Binding ActivityText}" Style="{StaticResource SubtleTextStyle}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <Border DockPanel.Dock="Left" Width="14" Height="14" CornerRadius="7" BorderThickness="1" BorderBrush="#8CCBFF" VerticalAlignment="Center" Margin="0,0,7,0"
+                                                Visibility="{Binding IsWorking, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}">
+                                            <TextBlock Text="{Binding CompletionGlyph}" FontFamily="Segoe UI" FontSize="9" Foreground="#8CCBFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Text="{Binding ActivityText}" Style="{StaticResource SubtleTextStyle}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    </DockPanel>
+                                    </Border>
+                                    </Expander.Header>
+                                    <StackPanel>
+                                        <ItemsControl ItemsSource="{Binding ToolObservations}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#34516E" BorderThickness="1,0,0,0" Padding="10,4" Margin="0,0,0,6">
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" Foreground="#EEF5FF" TextWrapping="Wrap" />
+                                                            <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="#AEC5DF" Margin="0,3,0,0" TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Text="Detailed execution records aren't available for this reply." FontSize="12" Foreground="#AEC5DF" TextWrapping="Wrap"
+                                                   Visibility="{Binding HasToolObservations, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
                                     </StackPanel>
+                                    </Expander>
                                     <!-- Graphs the answer drew on - LibreNMS's own images; click for full size. -->
                                     <ItemsControl ItemsSource="{Binding Images}" Margin="0,0,0,10"
                                                   Visibility="{Binding HasImages, Converter={StaticResource BoolToVisibility}}">
@@ -214,6 +282,9 @@
                                     </ItemsControl>
 
                                     <RichTextBox views:MarkdownDocument.Markdown="{Binding Text}"
+                                                 views:MarkdownDocument.ReplyStyle="{Binding ReplyStyle}"
+                                                 views:MarkdownDocument.ColourStatusIndicators="{Binding DataContext.ColourStatusIndicators, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                 views:MarkdownDocument.InlineReferences="{Binding InlineReferences}"
                                                  Hyperlink.RequestNavigate="OnSourceNavigate"
                                                  IsReadOnly="True"
                                                  IsDocumentEnabled="True"
@@ -222,6 +293,7 @@
                                                  Padding="0"
                                                  Foreground="{StaticResource TextPrimaryBrush}"
                                                  views:IntelligenceView.CopiesPlainText="True">
+
                                         <!-- The app's own menu, not Windows' Cut/Paste on read-only text. -->
                                         <RichTextBox.ContextMenu>
                                             <ContextMenu>
@@ -232,6 +304,20 @@
                                             </ContextMenu>
                                         </RichTextBox.ContextMenu>
                                     </RichTextBox>
+                                    <DockPanel Margin="0,14,0,0">
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource IconButtonStyle}" Width="Auto" Height="28"
+                                                FontFamily="{StaticResource BodyFont}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                                ToolTip="Copy answer as Markdown, including resolved object names and statuses"
+                                                AutomationProperties.Name="Copy answer as Markdown"
+                                                IsEnabled="{Binding CanCopyAnswer}" Click="OnCopyAnswerClick">
+                                            <StackPanel Orientation="Horizontal" Margin="6,0">
+                                                <TextBlock Text="&#xE8C8;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBlock Text="{Binding CopyAnswerLabel}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                        <TextBlock Text="{Binding TimeLabel}" ToolTip="{Binding TimeTooltip}" FontSize="12"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                    </DockPanel>
                                 </StackPanel>
                                 </Border>
                             </Grid>
@@ -293,7 +379,20 @@
                              Foreground="{StaticResource TextPrimaryBrush}"
                              FontSize="14"
                              Padding="2,4"
-                             KeyDown="OnQuestionKeyDown" />
+                             KeyDown="OnQuestionKeyDown">
+                        <TextBox.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Undo" Command="ApplicationCommands.Undo" InputGestureText="Ctrl+Z" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Redo" Command="ApplicationCommands.Redo" InputGestureText="Ctrl+Y" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <Separator />
+                                <MenuItem Header="Cut" Command="ApplicationCommands.Cut" InputGestureText="Ctrl+X" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Copy" Command="ApplicationCommands.Copy" InputGestureText="Ctrl+C" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Paste" Command="ApplicationCommands.Paste" InputGestureText="Ctrl+V" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <Separator />
+                                <MenuItem Header="Select all" Command="ApplicationCommands.SelectAll" InputGestureText="Ctrl+A" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            </ContextMenu>
+                        </TextBox.ContextMenu>
+                    </TextBox>
                     <TextBlock Text="Ask about your network…"
                                Style="{StaticResource SubtleTextStyle}"
                                FontSize="14"
@@ -308,12 +407,21 @@
                         <Button Content="Stop" Padding="16,6" Command="{Binding StopCommand}"
                                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
                     </StackPanel>
+                    <WrapPanel HorizontalAlignment="Left">
                     <ComboBox ItemsSource="{Binding Models}"
                               SelectedItem="{Binding SelectedModel}"
                               DisplayMemberPath="DisplayName"
                               HorizontalAlignment="Left"
                               MinWidth="150"
                               ToolTip="Which ChatGPT model answers" />
+                    <ComboBox ItemsSource="{Binding ChatReplyStyleOptions}" SelectedValue="{Binding SelectedReplyStyle}"
+                              SelectedValuePath="Key" Width="150" Margin="8,0,0,0" IsEnabled="{Binding CanManageChats}"
+                              ToolTip="Reply style for this chat" AutomationProperties.Name="Reply style for this chat">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate><TextBlock Text="{Binding Value}" /></DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    </WrapPanel>
                 </DockPanel>
             </Grid>
         </Border>

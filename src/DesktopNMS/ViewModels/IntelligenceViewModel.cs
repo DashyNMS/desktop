@@ -77,6 +77,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         settings.Changed += (_, current) => _dispatcher.InvokeAsync(() =>
         {
             OnPropertyChanged(nameof(ShowMascot));
+            OnPropertyChanged(nameof(ColourStatusIndicators));
             if (current.IntelligenceModel == _defaultModel)
             {
                 return;
@@ -229,6 +230,8 @@ public sealed partial class IntelligenceViewModel : ObservableObject
 
     public bool ShowMascot => _settings.Current.IntelligenceMascotEnabled;
 
+    public bool ColourStatusIndicators => _settings.Current.IntelligenceColourStatusIndicators;
+
     public DashyOutfit CompanionOutfit
     {
         get => _companionOutfit;
@@ -372,7 +375,9 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         Question = string.Empty;
         ErrorText = null;
         Messages.Add(IntelligenceMessageViewModel.User(question));
-        var answer = IntelligenceMessageViewModel.Assistant();
+        var replyStyle = SelectedReplyStyle;
+        var answer = IntelligenceMessageViewModel.Assistant(replyStyle);
+        answer.SeedInlineReferences(Messages.Where(message => message.IsAssistant).Reverse().SelectMany(message => message.InlineReferences));
         Messages.Add(answer);
         if (_selectedChat is { } chat && !chat.Data.IsRenamed && chat.Data.Messages.Count == 0)
         {
@@ -391,8 +396,8 @@ public sealed partial class IntelligenceViewModel : ObservableObject
             var model = _selectedModel!.Slug;
             var token = _running.Token;
             var webSearchEnabled = _settings.Current.IntelligenceWebSearchEnabled;
-            await Task.Run(() => _conversation.AskAsync(question, model, AccessTokenAsync, listener, token, spotlight, webSearchEnabled)).ConfigureAwait(true);
-            Context.OnAnswer(answer.Text);
+            await Task.Run(() => _conversation.AskAsync(question, model, AccessTokenAsync, listener, token, spotlight, webSearchEnabled, replyStyle)).ConfigureAwait(true);
+            Context.OnAnswer(IntelligenceInlineMarkup.ToReadableText(answer.Text, answer.InlineReferences));
             if (string.IsNullOrWhiteSpace(answer.Text))
             {
                 answer.Text = "(No answer.)";
@@ -551,6 +556,18 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         });
 
         public void OnImage(IntelligenceImage image) => _owner._dispatcher.InvokeAsync(() => _answer.AddImage(image));
+
+        public void OnToolObserved(IntelligenceToolObservation observation) => _owner._dispatcher.InvokeAsync(() =>
+        {
+            _answer.RecordToolObservation(observation);
+            _owner.QueueChatSave();
+        });
+
+        public void OnStatusCard(IntelligenceStatusCard card) => _owner._dispatcher.InvokeAsync(() =>
+        {
+            _answer.AddStatusCard(card);
+            _owner.QueueChatSave();
+        });
     }
 }
 
@@ -560,23 +577,74 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     private string _text = string.Empty;
     private bool _isStreaming;
     private string? _restoredActivity;
+    private bool _isCopied;
+    private DispatcherTimer? _copyFeedbackTimer;
+    private bool _isActivityExpanded;
+    private readonly HashSet<string> _observedToolsAwaitingFinish = new();
     private readonly List<IntelligenceImage> _savedImages = new();
 
     private IntelligenceMessageViewModel(bool isUser)
     {
         IsUser = isUser;
         _isStreaming = !isUser;
+        CreatedAt = DateTimeOffset.UtcNow;
     }
 
     public static IntelligenceMessageViewModel User(string text) => new(isUser: true) { _text = text };
 
-    public static IntelligenceMessageViewModel Assistant() => new(isUser: false);
+    public static IntelligenceMessageViewModel Assistant(string? replyStyle = null) => new(isUser: false) { ReplyStyle = replyStyle };
+
+    /// <summary>The presentation chosen for this reply, kept stable when settings change later.</summary>
+    public string? ReplyStyle { get; private init; }
+
+    public bool IsConversational => ReplyStyle == IntelligenceReplyStyles.Conversational;
+
+    public DateTimeOffset? CreatedAt { get; private init; }
+    public string TimeLabel => CreatedAt?.ToLocalTime().ToString("HH:mm") ?? string.Empty;
+    public string TimeTooltip => CreatedAt?.ToLocalTime().ToString("f") ?? string.Empty;
+    public bool CanCopyAnswer => IsAssistant && !string.IsNullOrWhiteSpace(Text);
+    public string CopyMarkdown => IntelligenceInlineMarkup.ToReadableMarkdown(Text, InlineReferences).Trim();
+    public string CopyAnswerLabel => _isCopied ? "Copied" : "Copy answer";
+    public string CompletionGlyph => _failedLookups > 0 || _restoredActivity == "Interrupted" ? "!" : "✓";
+    public bool IsActivityExpanded { get => _isActivityExpanded; set => SetProperty(ref _isActivityExpanded, value); }
+    public ObservableCollection<IntelligenceToolObservationViewModel> ToolObservations { get; } = new();
+    public bool HasToolObservations => ToolObservations.Count > 0;
+
+    public void MarkCopied()
+    {
+        _isCopied = true;
+        OnPropertyChanged(nameof(CopyAnswerLabel));
+        if (_copyFeedbackTimer is null)
+        {
+            _copyFeedbackTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _copyFeedbackTimer.Tick += (_, _) =>
+            {
+                _copyFeedbackTimer.Stop();
+                _isCopied = false;
+                OnPropertyChanged(nameof(CopyAnswerLabel));
+            };
+        }
+        _copyFeedbackTimer.Stop();
+        _copyFeedbackTimer.Start();
+    }
+
+    public void RecordToolObservation(IntelligenceToolObservation observation)
+    {
+        if (ToolObservations.Count < 48) ToolObservations.Add(new(observation));
+        _observedToolsAwaitingFinish.Add(observation.Tool);
+        OnPropertyChanged(nameof(HasToolObservations));
+    }
 
     public SavedIntelligenceMessage Save() => new()
     {
         IsUser = IsUser,
+        CreatedAt = CreatedAt,
         Text = Text,
         Activity = ActivityText,
+        ReplyStyle = ReplyStyle,
+        StatusCards = _statusSnapshots.ToList(),
+        PriorReferences = _priorReferences.Values.Where(reference => Text.Contains("[[" + reference.Key + "]]", StringComparison.Ordinal)).ToList(),
+        ToolObservations = ToolObservations.Select(item => item.Data).ToList(),
         IsIncomplete = IsStreaming,
         Images = _savedImages.ToList(),
     };
@@ -588,8 +656,14 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
             _text = saved.Text + (saved.IsIncomplete && !saved.IsUser ? "\n\n(Interrupted when DashyNMS closed.)" : string.Empty),
             _isStreaming = false,
             _restoredActivity = saved.IsIncomplete ? "Interrupted" : saved.Activity,
+            ReplyStyle = saved.ReplyStyle,
+            CreatedAt = saved.CreatedAt,
         };
         foreach (var image in saved.Images) message.AddImage(image);
+        message.SeedInlineReferences(saved.PriorReferences);
+        foreach (var observation in saved.ToolObservations) message.ToolObservations.Add(new(observation));
+        message._failedLookups = saved.ToolObservations.Count(item => item.IsError);
+        foreach (var card in saved.StatusCards) message.AddStatusCard(card);
         return message;
     }
 
@@ -597,15 +671,47 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
 
     public bool IsAssistant => !IsUser;
 
+    private readonly List<IntelligenceStatusCard> _statusSnapshots = new();
+    private readonly Dictionary<string, IntelligenceInlineReference> _inlineReferences = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IntelligenceInlineReference> _priorReferences = new(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyList<IntelligenceInlineReference> InlineReferences => _inlineReferences.Values
+        .Concat(_priorReferences.Values.Where(reference => !_inlineReferences.ContainsKey(reference.Key))).ToArray();
+
+    public void SeedInlineReferences(IEnumerable<IntelligenceInlineReference> references)
+    {
+        foreach (var reference in references)
+        {
+            if (_priorReferences.Count >= 2000) break;
+            // A previous lookup may resolve the name, but cannot claim a current operational state.
+            _priorReferences.TryAdd(reference.Key, reference with { Status = "", Tone = "unknown", Detail = "Name verified earlier in this chat; current status not supplied by this reply" });
+        }
+        OnPropertyChanged(nameof(InlineReferences));
+    }
+
+    public void AddStatusCard(IntelligenceStatusCard card)
+    {
+        // Accumulate pages. The first observed status for an object in this reply
+        // stays fixed rather than changing when a later page arrives.
+        if (_statusSnapshots.Count >= 48) return;
+        _statusSnapshots.Add(card);
+        foreach (var reference in IntelligenceInlineReferences.FromSnapshot(card))
+        {
+            if (_inlineReferences.Count >= 2000) break;
+            _inlineReferences.TryAdd(reference.Key, reference);
+        }
+        OnPropertyChanged(nameof(InlineReferences));
+    }
+
     public string Text
     {
         get => _text;
         set
         {
             var wasEmpty = _text.Length == 0;
-            if (SetProperty(ref _text, value) && wasEmpty != (_text.Length == 0))
+            if (SetProperty(ref _text, value))
             {
-                RaiseActivity();
+                OnPropertyChanged(nameof(CanCopyAnswer));
+                if (wasEmpty != (_text.Length == 0)) RaiseActivity();
             }
         }
     }
@@ -677,6 +783,12 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
 
     public void ToolFinished(string tool, bool isError)
     {
+        if (!_observedToolsAwaitingFinish.Remove(tool))
+        {
+            // Hosted web search reports activity events rather than a local tool payload.
+            RecordToolObservation(new(tool, DateTimeOffset.UtcNow, isError ? "Lookup failed." : "Lookup completed.", isError));
+            _observedToolsAwaitingFinish.Remove(tool);
+        }
         var subject = Subject(tool);
         if (!_lookedAt.Contains(subject))
         {
@@ -697,6 +809,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         OnPropertyChanged(nameof(ActivityText));
         OnPropertyChanged(nameof(HasActivity));
         OnPropertyChanged(nameof(IsWorking));
+        OnPropertyChanged(nameof(CompletionGlyph));
     }
 
     private static string JoinNames(List<string> names) => names.Count switch

@@ -8,6 +8,7 @@ using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.CustomMaps;
 using DesktopNMS.Core.Graylog;
+using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Updates;
@@ -1880,6 +1881,25 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    public IReadOnlyList<KeyValuePair<string, string>> IntelligenceReplyStyleOptions { get; } = new[]
+    {
+        new KeyValuePair<string, string>(IntelligenceReplyStyles.Conversational, "Conversational"),
+        new KeyValuePair<string, string>(IntelligenceReplyStyles.EvidenceBased, "Evidence based"),
+    };
+
+    public string IntelligenceReplyStyle
+    {
+        get => IntelligenceReplyStyles.Normalize(_draft.IntelligenceReplyStyle);
+        set
+        {
+            if (value is null) return;
+            var style = IntelligenceReplyStyles.Normalize(value);
+            if (_draft.IntelligenceReplyStyle == style) return;
+            _draft.IntelligenceReplyStyle = style;
+            OnPropertyChanged();
+        }
+    }
+
     public bool IntelligenceWebSearchEnabled
     {
         get => _draft.IntelligenceWebSearchEnabled;
@@ -1890,6 +1910,17 @@ public sealed partial class SettingsViewModel : ObservableObject
                 return;
             }
             _draft.IntelligenceWebSearchEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IntelligenceColourStatusIndicators
+    {
+        get => _draft.IntelligenceColourStatusIndicators;
+        set
+        {
+            if (_draft.IntelligenceColourStatusIndicators == value) return;
+            _draft.IntelligenceColourStatusIndicators = value;
             OnPropertyChanged();
         }
     }
