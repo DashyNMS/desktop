@@ -298,7 +298,7 @@
                         <!-- Intelligence sits apart from the network's own
                              pages, just above Settings and Sign out. -->
                         <ToggleButton Content="Intelligence"
-                                      views:RailIcon.Geometry="{x:Static views:RailIcon.DashyMark}"
+                                      views:RailIcon.Geometry="{x:Static views:RailIcon.RouteSparkle}"
                                       ToolTip="Intelligence"
                                       Style="{StaticResource MainRailItemStyle}"
                                       IsChecked="{Binding IsIntelligenceTabSelected, Mode=OneWay}"
