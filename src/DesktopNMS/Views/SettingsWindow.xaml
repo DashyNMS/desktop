@@ -1349,6 +1349,9 @@
                                 <CheckBox Content="Show Intelligence" IsChecked="{Binding IntelligenceEnabled}" />
                                 <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="22,4,0,0"
                                            Text="Off hides the Intelligence tab and stops its network tools. Your agent sign-ins are kept." />
+                                <CheckBox Content="Show penguin mascot" IsChecked="{Binding IntelligenceMascotEnabled}" Margin="0,12,0,0" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="22,4,0,0"
+                                           Text="A little companion on the Intelligence tab. Waves hello and waddles while preparing an answer. Off by default." />
                             </StackPanel>
                         </Border>
 

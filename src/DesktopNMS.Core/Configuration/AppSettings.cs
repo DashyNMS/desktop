@@ -218,6 +218,9 @@ public sealed class AppSettings
     /// </summary>
     public bool IntelligenceEnabled { get; set; } = true;
 
+    /// <summary>Opt-in cosmetic companion on the Intelligence tab.</summary>
+    public bool IntelligenceMascotEnabled { get; set; }
+
     /// <summary>The "what's sent" notice was accepted, so it isn't shown again.</summary>
     public bool IntelligenceConsentGiven { get; set; }
 
@@ -357,6 +360,7 @@ public sealed class AppSettings
         ShowRecentlyViewedDevices = ShowRecentlyViewedDevices,
         EnablePinnedDevices = EnablePinnedDevices,
         IntelligenceEnabled = IntelligenceEnabled,
+        IntelligenceMascotEnabled = IntelligenceMascotEnabled,
         IntelligenceConsentGiven = IntelligenceConsentGiven,
         IntelligenceModel = IntelligenceModel,
         IntelligenceConfigText = IntelligenceConfigText,

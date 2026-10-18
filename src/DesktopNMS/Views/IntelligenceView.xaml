@@ -57,6 +57,9 @@
                     </Button>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <views:IntelligenceMascot Width="36" Height="48" Margin="0,0,10,0"
+                                              IsBusy="{Binding IsBusy}"
+                                              Visibility="{Binding ShowMascot, Converter={StaticResource BoolToVisibility}}" />
                     <TextBlock Text="Intelligence" FontWeight="SemiBold" FontSize="15"
                                Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
                     <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="10" Padding="9,2" Margin="12,0,0,0" VerticalAlignment="Center">

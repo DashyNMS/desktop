@@ -75,6 +75,7 @@ public sealed class IntelligenceViewModel : ObservableObject
         _defaultModel = settings.Current.IntelligenceModel;
         settings.Changed += (_, current) => _dispatcher.InvokeAsync(() =>
         {
+            OnPropertyChanged(nameof(ShowMascot));
             if (current.IntelligenceModel == _defaultModel)
             {
                 return;
@@ -222,6 +223,8 @@ public sealed class IntelligenceViewModel : ObservableObject
             }
         }
     }
+
+    public bool ShowMascot => _settings.Current.IntelligenceMascotEnabled;
 
     public bool IsBusy
     {
