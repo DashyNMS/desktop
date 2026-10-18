@@ -295,6 +295,15 @@
                             Margin="0,0,0,8" />
 
                     <StackPanel DockPanel.Dock="Bottom">
+                        <!-- Intelligence sits apart from the network's own
+                             pages, just above Settings and Sign out. -->
+                        <ToggleButton Content="Intelligence"
+                                      Tag="&#xE8F2;"
+                                      ToolTip="Intelligence"
+                                      Style="{StaticResource MainRailItemStyle}"
+                                      IsChecked="{Binding IsIntelligenceTabSelected, Mode=OneWay}"
+                                      Command="{Binding SelectIntelligenceTabCommand}"
+                                      Visibility="{Binding ShowIntelligenceTab, Converter={StaticResource BoolToVisibility}}" />
                         <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="12,4,12,6" />
                         <Button Content="Settings"
                                 Tag="&#xE713;"
@@ -435,15 +444,6 @@
                                           Style="{StaticResource MainRailItemStyle}"
                                           IsChecked="{Binding IsHealthTabSelected, Mode=OneWay}"
                                           Command="{Binding SelectHealthTabCommand}" />
-
-                            <ToggleButton Content="Intelligence"
-                                          Tag="&#xE8F2;"
-                                          ToolTip="Intelligence"
-                                          Style="{StaticResource MainRailItemStyle}"
-                                          IsChecked="{Binding IsIntelligenceTabSelected, Mode=OneWay}"
-                                          Command="{Binding SelectIntelligenceTabCommand}"
-                                          Visibility="{Binding ShowIntelligenceTab, Converter={StaticResource BoolToVisibility}}" />
-
                             <!-- Alerts' own click goes to the Alerts tab;
                                  Rules and Templates are facets of it. The
                                  count badge (Settings, Alert display) sits on
