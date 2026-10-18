@@ -153,6 +153,7 @@ Everything lives under `%APPDATA%\DashyNMS`:
 | `settings.json` | Server address, polling, notification and window settings |
 | `token.dat` | The API token, DPAPI-encrypted for your Windows account |
 | `notified.json` | Alert ids already announced, so a restart is quiet |
+| `chats\` | Saved Intelligence chats, encrypted for the current Windows user and separated by LibreNMS server and ChatGPT account |
 | `logs\dashynms-<date>.log` | Rolling log, kept for 14 days |
 
 Delete `token.dat` to force a fresh sign-in. Delete the folder to reset

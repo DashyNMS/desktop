@@ -11,6 +11,7 @@ using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
@@ -275,6 +276,20 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
                 Mention(device);
             }
         }
+    }
+
+    public void RestoreChatContext(IEnumerable<SavedChatSpotlight> spotlight, IEnumerable<string> lookedAt, IEnumerable<string> answers)
+    {
+        Clear();
+        Spotlight.Clear();
+        foreach (var item in spotlight)
+        {
+            if (Enum.IsDefined(typeof(SpotlightKind), item.Kind))
+                Spotlight.Add(new SpotlightOption((SpotlightKind)item.Kind, item.Id, item.Name));
+        }
+        RaiseSpotlight();
+        foreach (var item in lookedAt) OnLookedAt(item);
+        foreach (var answer in answers) OnAnswer(answer);
     }
 
     /// <summary>A new conversation: what it's about starts again, the Spotlight stays.</summary>

@@ -564,6 +564,7 @@ public partial class App : Application
         services.AddSingleton<DeviceListViewModel>();
         services.AddSingleton<HealthViewModel>();
         services.AddSingleton<DesktopNMS.Core.Intelligence.IChatGptCredentialStore, DesktopNMS.Security.DpapiChatGptCredentialStore>();
+        services.AddSingleton<DesktopNMS.Core.Intelligence.IIntelligenceChatStore, DesktopNMS.Security.DpapiIntelligenceChatStore>();
         services.AddSingleton<DesktopNMS.Services.Intelligence.McpToolHost>();
         services.AddSingleton<IntelligenceViewModel>();
         services.AddSingleton<DashboardViewModel>();
