@@ -5,8 +5,17 @@ namespace DesktopNMS.Core.Intelligence;
 /// <summary>A network tool the model may call: its name, what it does, and its arguments' JSON schema.</summary>
 public sealed record IntelligenceTool(string Name, string Description, JsonElement InputSchema);
 
-/// <summary>What a tool call returned: text for the model (already bounded), and whether it was an error.</summary>
-public sealed record IntelligenceToolResult(string Output, bool IsError);
+/// <summary>What a tool call returned: text for the model (already bounded), whether it was an error, and any images (a graph).</summary>
+public sealed record IntelligenceToolResult(string Output, bool IsError, IReadOnlyList<IntelligenceImage>? Images = null);
+
+/// <summary>An image a tool returned - a LibreNMS graph, as PNG.</summary>
+public sealed record IntelligenceImage(byte[] Data, string MimeType)
+{
+    /// <summary>Larger than this isn't shown or sent.</summary>
+    public const int MaxBytes = 2 * 1024 * 1024;
+
+    public string DataUrl => "data:" + MimeType + ";base64," + Convert.ToBase64String(Data);
+}
 
 /// <summary>
 /// Where the network tools come from. On desktop, the bundled DashyNMS MCP
@@ -24,8 +33,8 @@ public interface IIntelligenceTools
 /// <summary>
 /// The tools allowed in the first release: every DashyNMS MCP tool reads
 /// only, but each one is still named here after review rather than trusting
-/// whatever the server lists. <c>graph</c> is left out (it returns an image
-/// the function output can't carry yet).
+/// whatever the server lists. <c>graph</c> returns a PNG alongside its text:
+/// shown in the conversation, and sent to the model as an image.
 /// </summary>
 public static class IntelligenceToolAllowlist
 {
@@ -42,6 +51,7 @@ public static class IntelligenceToolAllowlist
         "device_neighbours",
         "device_sensors",
         "find_device",
+        "graph",
         "health_overview",
         "list_groups_and_locations",
         "network_events",

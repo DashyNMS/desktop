@@ -451,6 +451,8 @@ public sealed class IntelligenceViewModel : ObservableObject
         public void OnToolStarted(string name, string arguments) => _owner._dispatcher.InvokeAsync(() => _answer.ToolStarted(name));
 
         public void OnToolFinished(string name, bool isError) => _owner._dispatcher.InvokeAsync(() => _answer.ToolFinished(name, isError));
+
+        public void OnImage(IntelligenceImage image) => _owner._dispatcher.InvokeAsync(() => _answer.AddImage(image));
     }
 }
 
@@ -484,6 +486,31 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     {
         get => _isStreaming;
         set => SetProperty(ref _isStreaming, value);
+    }
+
+    /// <summary>Graphs the answer drew on, shown above its text.</summary>
+    public ObservableCollection<System.Windows.Media.ImageSource> Images { get; } = new();
+
+    public bool HasImages => Images.Count > 0;
+
+    public void AddImage(IntelligenceImage image)
+    {
+        try
+        {
+            using var stream = new System.IO.MemoryStream(image.Data);
+            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = stream;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            Images.Add(bitmap);
+            OnPropertyChanged(nameof(HasImages));
+        }
+        catch (Exception)
+        {
+            // Not an image WPF can read: the answer still says what it showed.
+        }
     }
 
     // What was looked up for this answer, in the order first looked at.
@@ -553,6 +580,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         "device_neighbours" => "Finding neighbours",
         "device_sensors" or "health_overview" => "Reading sensors",
         "find_device" => "Finding the device",
+        "graph" => "Drawing the graph",
         "list_groups_and_locations" => "Listing groups and locations",
         "network_overview" => "Getting the network overview",
         "port_status" => "Checking the port",
@@ -570,6 +598,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         "alert_rules" => "alert rules",
         "config_backup" or "config_diff" or "recent_config_changes" => "config backups",
         "device_details" or "find_device" => "devices",
+        "graph" => "graphs",
         "device_events" or "network_events" => "the event log",
         "device_health" => "device health",
         "device_neighbours" => "neighbours",

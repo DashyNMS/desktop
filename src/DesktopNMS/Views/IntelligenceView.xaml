@@ -135,6 +135,28 @@
                                                    Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,1,6,0" />
                                         <TextBlock Text="{Binding ActivityText}" Style="{StaticResource SubtleTextStyle}" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
+                                    <!-- Graphs the answer drew on - LibreNMS's own images; click for full size. -->
+                                    <ItemsControl ItemsSource="{Binding Images}" Margin="0,0,0,10"
+                                                  Visibility="{Binding HasImages, Converter={StaticResource BoolToVisibility}}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border CornerRadius="8"
+                                                        BorderBrush="{StaticResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        Background="White"
+                                                        Padding="6"
+                                                        Margin="0,0,0,8"
+                                                        HorizontalAlignment="Left"
+                                                        Cursor="Hand"
+                                                        ToolTip="Open full size"
+                                                        MouseLeftButtonUp="OnGraphClick">
+                                                    <Image Source="{Binding}" MaxHeight="300" Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="HighQuality" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
                                     <RichTextBox views:MarkdownDocument.Markdown="{Binding Text}"
                                                  IsReadOnly="True"
                                                  IsDocumentEnabled="True"

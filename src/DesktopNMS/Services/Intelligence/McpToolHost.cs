@@ -109,7 +109,11 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
         try
         {
             var result = await client.CallToolAsync(name, args, cancellationToken: timeout.Token).ConfigureAwait(false);
-            return new IntelligenceToolResult(Text(result), result.IsError == true);
+            var images = result.Content
+                .OfType<ImageContentBlock>()
+                .Select(i => new IntelligenceImage(i.DecodedData.ToArray(), i.MimeType ?? "image/png"))
+                .ToList();
+            return new IntelligenceToolResult(Text(result), result.IsError == true, images);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
