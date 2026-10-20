@@ -195,7 +195,7 @@
                                 <DockPanel VerticalAlignment="Center">
                                     <!-- A rule testing a column LibreNMS 26.10 removed (#350). -->
                                     <Border DockPanel.Dock="Right"
-                                            Background="{StaticResource WarningSubtleBrush}"
+                                            Background="#33D29922"
                                             BorderBrush="{StaticResource WarningBrush}"
                                             BorderThickness="1"
                                             CornerRadius="4"
