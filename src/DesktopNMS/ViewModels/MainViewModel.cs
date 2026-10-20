@@ -18,7 +18,6 @@ using DesktopNMS.Infrastructure;
 using DesktopNMS.Demo;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 
 namespace DesktopNMS.ViewModels;
 
@@ -2161,27 +2160,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void CopyAlertsCsv()
     {
-        try
-        {
-            Clipboard.SetText(BuildAlertsCsv());
-        }
-        catch (ExternalException)
-        {
-            // Another process briefly holds the clipboard - not worth surfacing as an error.
-        }
+        UiPlatform.Clipboard.SetText(BuildAlertsCsv());
     }
 
     private void ExportAlertsCsv()
     {
-        var dialog = new SaveFileDialog
-        {
-            Filter = "CSV files (*.csv)|*.csv",
-            FileName = $"alerts-{DateTime.Now:yyyy-MM-dd-HHmmss}.csv",
-        };
+        var dialogPath = UiPlatform.FileDialogs.PickFileToSave(new FileDialogOptions(Filter: "CSV files (*.csv)|*.csv", FileName: $"alerts-{DateTime.Now:yyyy-MM-dd-HHmmss}.csv"));
 
-        if (dialog.ShowDialog() == true)
+        if (dialogPath is not null)
         {
-            File.WriteAllText(dialog.FileName, BuildAlertsCsv());
+            File.WriteAllText(dialogPath, BuildAlertsCsv());
         }
     }
 

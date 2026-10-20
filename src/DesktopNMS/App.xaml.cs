@@ -71,6 +71,7 @@ public partial class App : Application
 
         // The shared view models' UI thread and timers (#249) - before any is created.
         WpfUiThread.Install(Dispatcher);
+        WpfUiPlatform.Install();
 
         // Before the single-instance check: this runs alongside nothing else,
         // shows nothing, and must work even if a copy is somehow still open.
@@ -545,6 +546,7 @@ public partial class App : Application
         services.AddSingleton<IDeviceGroupMembershipService, DeviceGroupMembershipService>();
         services.AddSingleton<IMapLayoutStore, MapLayoutStore>();
         services.AddSingleton<IMapTileService, MapTileService>();
+        services.AddSingleton<IMapTiles>(sp => sp.GetRequiredService<IMapTileService>());
         services.AddSingleton<ICustomMapStore, CustomMapStore>();
         services.AddSingleton<IUnimusDeviceResolver, UnimusDeviceResolver>();
         services.AddSingleton<AppActivity>();

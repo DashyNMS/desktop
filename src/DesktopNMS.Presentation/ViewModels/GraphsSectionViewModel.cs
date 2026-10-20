@@ -717,9 +717,7 @@ public sealed class GraphLegendItemViewModel : ObservableObject
         Name = entry.Name;
         Detail = entry.Detail;
         Value = entry.Value;
-        Colour = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(colour);
-        ColourBrush = new System.Windows.Media.SolidColorBrush(Colour);
-        ColourBrush.Freeze();
+        Colour = colour;
         ToggleCommand = new RelayCommand(() => _owner.Toggle(Name));
         OnlyCommand = new RelayCommand(() => _owner.ShowOnly(Name));
     }
@@ -732,9 +730,8 @@ public sealed class GraphLegendItemViewModel : ObservableObject
 
     public string? Value { get; }
 
-    public System.Windows.Media.Color Colour { get; }
-
-    public System.Windows.Media.SolidColorBrush ColourBrush { get; }
+    /// <summary>The series' colour as "#RRGGBB" - views turn it into a brush.</summary>
+    public string Colour { get; }
 
     public bool IsShown
     {

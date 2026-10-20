@@ -26,7 +26,7 @@ namespace DesktopNMS.Services;
 /// once, and a local disk cache (a week) so panning back over the same area,
 /// or reopening the app, doesn't download it again.
 /// </summary>
-public interface IMapTileService
+public interface IMapTileService : IMapTiles
 {
     /// <summary>Raised on the UI thread when a requested tile arrives - the map redraws.</summary>
     event EventHandler? TileLoaded;

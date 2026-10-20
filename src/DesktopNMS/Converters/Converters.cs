@@ -200,3 +200,36 @@ public sealed class GridUnitToPixelsConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>
+/// Image bytes - PNG, JPEG, GIF, BMP - from a view model (#249) as an image
+/// WPF can show, or null for anything it can't read, so an answer whose graph
+/// won't decode still shows its text.
+/// </summary>
+public sealed class ImageBytesToSourceConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is byte[] data ? Decode(data) : null;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => Binding.DoNothing;
+
+    public static ImageSource? Decode(byte[] data)
+    {
+        try
+        {
+            using var stream = new System.IO.MemoryStream(data);
+            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = stream;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+}

@@ -74,18 +74,6 @@ public sealed class GeoPin
     }
 }
 
-/// <summary>The Geographical map legend's colours - the same brushes the pins are drawn with.</summary>
-public static class MapLegend
-{
-    public static System.Windows.Media.Brush Up => Converters.SeverityToBrushConverter.Ok;
-
-    public static System.Windows.Media.Brush Down => Converters.SeverityToBrushConverter.Critical;
-
-    public static System.Windows.Media.Brush Maintenance => Converters.SeverityToBrushConverter.Maintenance;
-
-    public static System.Windows.Media.Brush Inactive => Converters.SeverityToBrushConverter.Unknown;
-}
-
 /// <summary>
 /// The Maps tab's Geographical map: every LibreNMS location with
 /// coordinates as a pin on a real map (OpenStreetMap tiles by default, as
@@ -123,7 +111,7 @@ public sealed class GeoMapViewModel : ObservableObject, IDisposable
         DeviceMonitor deviceMonitor,
         ILibreNmsClient client,
         IDeviceGroupMembershipService groupMembership,
-        IMapTileService tiles,
+        IMapTiles tiles,
         ISessionService session,
         ISettingsStore settings,
         IWindowService windows,
@@ -172,7 +160,7 @@ public sealed class GeoMapViewModel : ObservableObject, IDisposable
     public event EventHandler<GeoPin>? CenterOnRequested;
 
     /// <summary>For the canvas to fetch tiles through.</summary>
-    public IMapTileService Tiles { get; }
+    public IMapTiles Tiles { get; }
 
     public ObservableCollection<MapScopeOption> Scopes { get; }
 

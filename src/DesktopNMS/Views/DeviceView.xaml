@@ -2268,8 +2268,8 @@
                                                                         Height="12"
                                                                         CornerRadius="3"
                                                                         BorderThickness="2"
-                                                                        BorderBrush="{Binding ColourBrush}"
-                                                                        Background="{Binding ColourBrush}"
+                                                                        BorderBrush="{Binding Colour}"
+                                                                        Background="{Binding Colour}"
                                                                         VerticalAlignment="Center" />
                                                                 <StackPanel Grid.Column="1" Margin="10,0,8,0" VerticalAlignment="Center">
                                                                     <TextBlock x:Name="Label"

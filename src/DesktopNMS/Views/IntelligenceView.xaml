@@ -282,7 +282,7 @@
                                                         ToolTip="Open full size"
                                                         AutomationProperties.Name="Open graph full size"
                                                         Click="OnGraphClick">
-                                                    <Image Source="{Binding}" MaxHeight="300" Stretch="Uniform"
+                                                    <Image Source="{Binding Converter={StaticResource ImageBytesToSource}}" MaxHeight="300" Stretch="Uniform"
                                                            RenderOptions.BitmapScalingMode="HighQuality" />
                                                 </Button>
                                             </DataTemplate>

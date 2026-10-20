@@ -4,9 +4,10 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
              xmlns:views="clr-namespace:DesktopNMS.Views"
              mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance Type=vm:GeoMapViewModel}"
+             d:DataContext="{d:DesignInstance Type=pvm:GeoMapViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100">
 
     <Grid>
@@ -207,14 +208,14 @@
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding SelectedPins}" Margin="18,12,18,18">
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type vm:GeoPin}">
+                                <DataTemplate DataType="{x:Type pvm:GeoPin}">
                                     <StackPanel Margin="0,6,0,12">
                                         <TextBlock Text="{Binding Name}" Style="{StaticResource HeadingTextStyle}" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding SummaryText}" Style="{StaticResource SubtleTextStyle}" Margin="0,2,0,8" />
     
                                         <ItemsControl ItemsSource="{Binding Devices}">
                                             <ItemsControl.ItemTemplate>
-                                                <DataTemplate DataType="{x:Type vm:GeoDeviceRow}">
+                                                <DataTemplate DataType="{x:Type pvm:GeoDeviceRow}">
                                                     <Button Command="{Binding DataContext.OpenDeviceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                             CommandParameter="{Binding}"
                                                             Cursor="Hand"

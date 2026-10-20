@@ -6,13 +6,11 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Devices;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 
 namespace DesktopNMS.ViewModels;
 
@@ -294,20 +292,16 @@ public sealed class BulkAddDevicesViewModel : ObservableObject
 
     private void ImportCsv()
     {
-        var dialog = new OpenFileDialog
-        {
-            Filter = "CSV files (*.csv)|*.csv|Text files (*.txt)|*.txt|All files (*.*)|*.*",
-            Title = "Import devices from CSV",
-        };
+        var dialogPath = UiPlatform.FileDialogs.PickFileToOpen(new FileDialogOptions(Filter: "CSV files (*.csv)|*.csv|Text files (*.txt)|*.txt|All files (*.*)|*.*", Title: "Import devices from CSV"));
 
-        if (dialog.ShowDialog() != true)
+        if (dialogPath is null)
         {
             return;
         }
 
         try
         {
-            var info = new FileInfo(dialog.FileName);
+            var info = new FileInfo(dialogPath);
             if (info.Length > MaxCsvBytes)
             {
                 _windows.ShowError("File too large", "That file is over 5 MB - far more than a device list needs. Check it's the right file.");
@@ -315,13 +309,13 @@ public sealed class BulkAddDevicesViewModel : ObservableObject
             }
 
             // Detects a UTF-8/UTF-16 byte-order mark; plain UTF-8 otherwise.
-            using var reader = new StreamReader(dialog.FileName, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            using var reader = new StreamReader(dialogPath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
             _csv = BulkDeviceImport.ParseCsv(reader.ReadToEnd());
-            CsvFileName = Path.GetFileName(dialog.FileName);
+            CsvFileName = Path.GetFileName(dialogPath);
         }
         catch (IOException ex)
         {
-            _logger.LogWarning(ex, "Could not read {Path}", dialog.FileName);
+            _logger.LogWarning(ex, "Could not read {Path}", dialogPath);
             _windows.ShowError("Couldn't read the file", ex.Message);
             return;
         }
@@ -344,21 +338,16 @@ public sealed class BulkAddDevicesViewModel : ObservableObject
 
     private void SaveTemplate()
     {
-        var dialog = new SaveFileDialog
-        {
-            Filter = "CSV files (*.csv)|*.csv",
-            FileName = "dashynms-devices.csv",
-            Title = "Save CSV template",
-        };
+        var dialogPath = UiPlatform.FileDialogs.PickFileToSave(new FileDialogOptions(Filter: "CSV files (*.csv)|*.csv", FileName: "dashynms-devices.csv", Title: "Save CSV template"));
 
-        if (dialog.ShowDialog() != true)
+        if (dialogPath is null)
         {
             return;
         }
 
         try
         {
-            File.WriteAllText(dialog.FileName, BulkDeviceImport.Template());
+            File.WriteAllText(dialogPath, BulkDeviceImport.Template());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -373,14 +362,10 @@ public sealed class BulkAddDevicesViewModel : ObservableObject
             new[] { "line", "hostname", "status", "message" },
             Items.Select(i => (IReadOnlyList<string>)new[] { i.Line.ToString(System.Globalization.CultureInfo.InvariantCulture), i.Hostname, i.StatusText, i.Message ?? string.Empty }));
 
-        try
-        {
-            Clipboard.SetText(csv);
-        }
-        catch (System.Runtime.InteropServices.ExternalException ex)
+        if (!UiPlatform.Clipboard.SetText(csv))
         {
             // Another app holding the clipboard open - rare, and worth a retry.
-            _windows.ShowError("Couldn't copy", "The clipboard is in use by another app. Try again in a moment. (" + ex.Message + ")");
+            _windows.ShowError("Couldn't copy", "The clipboard is in use by another app. Try again in a moment.");
         }
     }
 

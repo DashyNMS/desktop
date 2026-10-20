@@ -795,29 +795,16 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     public bool IsWorking => IsAssistant && _isStreaming;
 
     /// <summary>Graphs the answer drew on, shown above its text.</summary>
-    public ObservableCollection<System.Windows.Media.ImageSource> Images { get; } = new();
+    /// <remarks>The image bytes; the view decodes them, and leaves out any it can't read (#249).</remarks>
+    public ObservableCollection<byte[]> Images { get; } = new();
 
     public bool HasImages => Images.Count > 0;
 
     public void AddImage(IntelligenceImage image)
     {
-        try
-        {
-            using var stream = new System.IO.MemoryStream(image.Data);
-            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-            bitmap.StreamSource = stream;
-            bitmap.EndInit();
-            bitmap.Freeze();
-            Images.Add(bitmap);
-            _savedImages.Add(image);
-            OnPropertyChanged(nameof(HasImages));
-        }
-        catch (Exception)
-        {
-            // Not an image WPF can read: the answer still says what it showed.
-        }
+        Images.Add(image.Data);
+        _savedImages.Add(image);
+        OnPropertyChanged(nameof(HasImages));
     }
 
     // What was looked up for this answer, in the order first looked at.

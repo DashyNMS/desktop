@@ -18,6 +18,7 @@
         <ResourceDictionary>
             <converters:SeverityToBrushConverter x:Key="SeverityToBrush" />
             <converters:BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+            <converters:ImageBytesToSourceConverter x:Key="ImageBytesToSource" />
             <converters:StringToVisibilityConverter x:Key="StringToVisibility" />
             <converters:NullToVisibilityConverter x:Key="NullToVisibility" />
             <converters:AlertStateToOpacityConverter x:Key="StateToOpacity" />

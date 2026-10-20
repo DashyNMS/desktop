@@ -5,7 +5,6 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Topology;
@@ -301,14 +300,7 @@ public sealed class InventorySectionViewModel : ObservableObject
             return;
         }
 
-        try
-        {
-            Clipboard.SetText(text);
-        }
-        catch (System.Runtime.InteropServices.ExternalException)
-        {
-            // Another app holding the clipboard - a second click will do.
-        }
+        UiPlatform.Clipboard.SetText(text);
     }
 
     private void RaiseStateChanged()
@@ -369,7 +361,7 @@ public sealed class InventoryRowViewModel : ObservableObject
     public IReadOnlyList<InventoryRowViewModel> Children { get; }
 
     /// <summary>Indents the name by depth - the tree drawn in a grid.</summary>
-    public Thickness Indent => new(Depth * 18, 0, 0, 0);
+    public string Indent => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Depth * 18},0,0,0");
 
     public bool IsPort => Entry.IsPort;
 
