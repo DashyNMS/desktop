@@ -134,15 +134,22 @@ src/
                              them (plain net9.0), shared by the WPF app and,
                              next, the Avalonia one (#249). Brings in Core,
                              the DashyNMS.Core package (see "Core" above)
-    ViewModels/ Services/   Same namespaces as in the app
-    Infrastructure/         Commands, observable base, CSV, file logging
+    ViewModels/             Every view model
+    Services/               Services, and the interfaces of those with a
+                             platform-specific side (updates, toasts, start
+                             at sign-in, map tiles)
+    Infrastructure/         Commands, observable base, FilteredView, CSV,
+                             UiThread and UiPlatform (the UI thread, timers,
+                             clipboard, file dialogs, theme, keyboard)
     Demo/                   Demo mode's example network
   DesktopNMS/               WPF application (product name DashyNMS)
-    Views/ ViewModels/      Views, and the view models that still use WPF
-                             types (moving to Presentation, #249)
-    Services/               Windows, toasts, tray icon, updates, map tiles
+    Views/                  WPF views and code-behind; lists' grouping and
+                             header sorting are applied here
+    Services/               WPF implementations: windows, toasts, tray icon,
+                             updates, map tiles, start at sign-in
+    Infrastructure/         WpfUiThread and WpfUiPlatform, theming, window
+                             placement, WPF helpers
     Security/               DPAPI token, credential and chat storage
-    Infrastructure/         Theming, window placement, WPF helpers
     Themes/                 Dark/light theme resource dictionaries
 tools/
   New-AppIcon.ps1           Regenerates Assets/app.ico

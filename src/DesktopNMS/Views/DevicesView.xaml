@@ -4,11 +4,10 @@
              xmlns:views="clr-namespace:DesktopNMS.Views"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
-             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
              xmlns:models="clr-namespace:DesktopNMS.Core.Models;assembly=DesktopNMS.Core"
              mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance Type=pvm:DeviceListViewModel}"
+             d:DataContext="{d:DesignInstance Type=vm:DeviceListViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100">
 
     <Grid>

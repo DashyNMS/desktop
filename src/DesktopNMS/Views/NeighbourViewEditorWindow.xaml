@@ -3,10 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
-             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
+        xmlns:vm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
         mc:Ignorable="d"
-        d:DataContext="{d:DesignInstance Type=pvm:NeighbourViewEditorViewModel}"
+        d:DataContext="{d:DesignInstance Type=vm:NeighbourViewEditorViewModel}"
         Title="{Binding Title}"
         Width="720"
         SizeToContent="Height"
@@ -52,11 +51,11 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <ComboBox Grid.Column="0"
-                                      ItemsSource="{x:Static pvm:NeighbourViewEditorViewModel.FieldChoices}"
+                                      ItemsSource="{x:Static vm:NeighbourViewEditorViewModel.FieldChoices}"
                                       SelectedItem="{Binding Field}"
                                       Margin="0,0,8,0" />
                             <ComboBox Grid.Column="1"
-                                      ItemsSource="{x:Static pvm:NeighbourViewEditorViewModel.OperatorChoices}"
+                                      ItemsSource="{x:Static vm:NeighbourViewEditorViewModel.OperatorChoices}"
                                       SelectedItem="{Binding Operator}"
                                       Margin="0,0,8,0" />
                             <TextBox Grid.Column="2" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" />

@@ -1,4 +1,4 @@
-namespace DesktopNMS.ViewModels;
+namespace DesktopNMS.Views;
 
 /// <summary>The Geographical map legend's colours - the same brushes the pins are drawn with.</summary>
 public static class MapLegend

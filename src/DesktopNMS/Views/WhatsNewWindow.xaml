@@ -3,10 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
-             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
+        xmlns:vm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
         mc:Ignorable="d"
-        d:DataContext="{d:DesignInstance Type=pvm:WhatsNewViewModel}"
+        d:DataContext="{d:DesignInstance Type=vm:WhatsNewViewModel}"
         Title="What's new in DashyNMS"
         Width="760"
         Height="680"
@@ -77,7 +76,7 @@
         </Style>
 
         <!-- A change: its icon in the section's colour, its title and what it does. -->
-        <DataTemplate x:Key="ChangeCardTemplate" DataType="{x:Type pvm:WhatsNewItemViewModel}">
+        <DataTemplate x:Key="ChangeCardTemplate" DataType="{x:Type vm:WhatsNewItemViewModel}">
             <Border Margin="0,0,10,10"
                     Padding="14,12"
                     CornerRadius="8"
@@ -172,7 +171,7 @@
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type pvm:WhatsNewTabViewModel}">
+                    <DataTemplate DataType="{x:Type vm:WhatsNewTabViewModel}">
                         <ToggleButton Style="{StaticResource SectionTabStyle}"
                                       IsChecked="{Binding IsSelected, Mode=OneWay}"
                                       Command="{Binding SelectCommand}"

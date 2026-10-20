@@ -3,11 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
-             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
              xmlns:views="clr-namespace:DesktopNMS.Views"
              mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance Type=pvm:GeoMapViewModel}"
+             d:DataContext="{d:DesignInstance Type=vm:GeoMapViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100">
 
     <Grid>
@@ -112,13 +111,13 @@
                         IsHitTestVisible="False">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="9" Height="9" Fill="{Binding Source={x:Static vm:MapLegend.Up}}" VerticalAlignment="Center" />
+                            <Ellipse Width="9" Height="9" Fill="{Binding Source={x:Static views:MapLegend.Up}}" VerticalAlignment="Center" />
                             <TextBlock Text="Up" Style="{StaticResource SubtleTextStyle}" FontSize="11" Margin="5,0,12,0" />
-                            <Ellipse Width="9" Height="9" Fill="{Binding Source={x:Static vm:MapLegend.Down}}" VerticalAlignment="Center" />
+                            <Ellipse Width="9" Height="9" Fill="{Binding Source={x:Static views:MapLegend.Down}}" VerticalAlignment="Center" />
                             <TextBlock Text="Down" Style="{StaticResource SubtleTextStyle}" FontSize="11" Margin="5,0,12,0" />
-                            <Ellipse Width="9" Height="9" Fill="{Binding Source={x:Static vm:MapLegend.Maintenance}}" VerticalAlignment="Center" />
+                            <Ellipse Width="9" Height="9" Fill="{Binding Source={x:Static views:MapLegend.Maintenance}}" VerticalAlignment="Center" />
                             <TextBlock Text="Maintenance" Style="{StaticResource SubtleTextStyle}" FontSize="11" Margin="5,0,12,0" />
-                            <Ellipse Width="9" Height="9" Fill="{Binding Source={x:Static vm:MapLegend.Inactive}}" VerticalAlignment="Center" />
+                            <Ellipse Width="9" Height="9" Fill="{Binding Source={x:Static views:MapLegend.Inactive}}" VerticalAlignment="Center" />
                             <TextBlock Text="Disabled" Style="{StaticResource SubtleTextStyle}" FontSize="11" Margin="5,0,0,0" />
                         </StackPanel>
                     </StackPanel>
@@ -208,14 +207,14 @@
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding SelectedPins}" Margin="18,12,18,18">
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type pvm:GeoPin}">
+                                <DataTemplate DataType="{x:Type vm:GeoPin}">
                                     <StackPanel Margin="0,6,0,12">
                                         <TextBlock Text="{Binding Name}" Style="{StaticResource HeadingTextStyle}" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding SummaryText}" Style="{StaticResource SubtleTextStyle}" Margin="0,2,0,8" />
     
                                         <ItemsControl ItemsSource="{Binding Devices}">
                                             <ItemsControl.ItemTemplate>
-                                                <DataTemplate DataType="{x:Type pvm:GeoDeviceRow}">
+                                                <DataTemplate DataType="{x:Type vm:GeoDeviceRow}">
                                                     <Button Command="{Binding DataContext.OpenDeviceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                             CommandParameter="{Binding}"
                                                             Cursor="Hand"

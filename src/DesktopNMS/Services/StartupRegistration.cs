@@ -6,14 +6,6 @@ using Microsoft.Win32;
 
 namespace DesktopNMS.Services;
 
-/// <summary>Adds or removes the per-user "start at sign-in" registration.</summary>
-public interface IStartupRegistration
-{
-    bool IsEnabled { get; }
-
-    void SetEnabled(bool enabled);
-}
-
 /// <summary>
 /// Writes to HKCU\Software\Microsoft\Windows\CurrentVersion\Run. Per-user, so it
 /// needs no elevation.

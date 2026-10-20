@@ -7,8 +7,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Media.Imaging;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
@@ -76,22 +74,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>Cancels the in-flight fault lookup when the selection moves on.</summary>
     private CancellationTokenSource? _detailCts;
-
-    /// <summary>
-    /// DashyNMS's own icon, decoded once and reused for every window rather
-    /// than on every <see cref="AppLogo"/> access - it never changes, so
-    /// there is nothing to gain by re-decoding it.
-    /// </summary>
-    private static readonly Lazy<BitmapImage> AppIconLogo = new(() =>
-    {
-        var bitmap = new BitmapImage();
-        bitmap.BeginInit();
-        bitmap.UriSource = new Uri("pack://application:,,,/Assets/app.ico");
-        bitmap.CacheOption = BitmapCacheOption.OnLoad;
-        bitmap.EndInit();
-        bitmap.Freeze();
-        return bitmap;
-    });
 
     public MainViewModel(
         ILibreNmsClient client,
@@ -422,7 +404,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void ViewUpdateNotes()
     {
-        var url = _updates.ReadyUpdate?.ReleaseUrl ?? UpdateCheckService.ReleasePageUrl(_updates.CurrentVersion);
+        var url = _updates.ReadyUpdate?.ReleaseUrl ?? UpdateReleases.ReleasePageUrl(_updates.CurrentVersion);
         if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
         {
             _windows.OpenUrl(uri);
@@ -545,9 +527,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>The Logs tab only shows while Graylog - its only source so far - is set up.</summary>
     /// <summary>Always: the event and alert logs are there without Graylog (#287); Graylog joins them once it's set up.</summary>
     public bool ShowLogsTab => true;
-
-    /// <summary>DashyNMS's own icon, in the title bar.</summary>
-    public BitmapImage AppLogo => AppIconLogo.Value;
 
     private void OnBadgeSettingChanged(object? sender, AppSettings settings)
     {

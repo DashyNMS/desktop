@@ -1,8 +1,7 @@
 <UserControl x:Class="DesktopNMS.Views.RoutingView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
-             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
              xmlns:views="clr-namespace:DesktopNMS.Views">
 
     <!-- Device Details' Routing section (#53) - see RoutingSectionViewModel.
@@ -16,13 +15,13 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Fill" Value="{StaticResource OkBrush}" />
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Health}" Value="{x:Static pvm:RoutingHealth.Warning}">
+                <DataTrigger Binding="{Binding Health}" Value="{x:Static vm:RoutingHealth.Warning}">
                     <Setter Property="Fill" Value="{StaticResource WarningBrush}" />
                 </DataTrigger>
-                <DataTrigger Binding="{Binding Health}" Value="{x:Static pvm:RoutingHealth.Critical}">
+                <DataTrigger Binding="{Binding Health}" Value="{x:Static vm:RoutingHealth.Critical}">
                     <Setter Property="Fill" Value="{StaticResource CriticalBrush}" />
                 </DataTrigger>
-                <DataTrigger Binding="{Binding Health}" Value="{x:Static pvm:RoutingHealth.Disabled}">
+                <DataTrigger Binding="{Binding Health}" Value="{x:Static vm:RoutingHealth.Disabled}">
                     <Setter Property="Fill" Value="{StaticResource TextSecondaryBrush}" />
                 </DataTrigger>
             </Style.Triggers>

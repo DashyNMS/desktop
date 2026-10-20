@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+        xmlns:vm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
         xmlns:views="clr-namespace:DesktopNMS.Views"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
@@ -29,6 +29,8 @@
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
+        <!-- DashyNMS's own icon, decoded once (moved from MainViewModel, #249). -->
+        <BitmapImage x:Key="AppLogo" UriSource="pack://application:,,,/Assets/app.ico" CacheOption="OnLoad" />
         <!-- A plain, full-width menu-item look for the sidebar's hover
              flyouts (see #118) - scoped here rather than promoted to
              Dark.xaml since nothing else uses it yet. -->
@@ -142,7 +144,7 @@
 
                 <!-- DashyNMS's own icon, lined up over the sidebar's icons. -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="19,0,0,0">
-                    <Image Source="{Binding AppLogo}"
+                    <Image Source="{StaticResource AppLogo}"
                            Width="18"
                            Height="18"
                            Margin="0,0,10,0"

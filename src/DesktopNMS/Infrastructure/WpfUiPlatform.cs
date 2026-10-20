@@ -9,7 +9,19 @@ namespace DesktopNMS.Infrastructure;
 /// <summary>WPF's side of <see cref="UiPlatform"/>: the clipboard, the common file dialogs and the theme's resources (#249).</summary>
 public static class WpfUiPlatform
 {
-    public static void Install() => UiPlatform.Use(new WpfClipboard(), new WpfFileDialogs(), new WpfGraphTheme());
+    public static void Install() => UiPlatform.Use(new WpfClipboard(), new WpfFileDialogs(), new WpfGraphTheme(), new WpfThemeInfo(), new WpfKeyboard());
+
+    private sealed class WpfThemeInfo : IAppThemeInfo
+    {
+        public DesktopNMS.Core.Configuration.AppTheme Effective => ThemeState.Effective;
+
+        public bool SystemUsesLightTheme() => ThemeState.WindowsUsesLightTheme();
+    }
+
+    private sealed class WpfKeyboard : IKeyboardState
+    {
+        public bool IsControlDown => (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+    }
 
     private sealed class WpfClipboard : IClipboard
     {
