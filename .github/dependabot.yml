@@ -1,10 +1,27 @@
 version: 2
+
+# DashyNMS.Core comes from GitHub Packages, which needs a login. The token is
+# a Dependabot secret (Settings > Secrets and variables > Dependabot):
+# DASHYNMS_PACKAGES_TOKEN, a classic token with read:packages only.
+registries:
+  dashynms:
+    type: nuget-feed
+    url: https://nuget.pkg.github.com/DashyNMS/index.json
+    username: dependabot
+    password: ${{secrets.DASHYNMS_PACKAGES_TOKEN}}
+
 updates:
   # NuGet package updates and vulnerability alerts.
   - package-ecosystem: "nuget"
     directory: "/"
+    registries:
+      - dashynms
     schedule:
       interval: "weekly"
+    ignore:
+      # Pinned by hand to a development build of DashyNMS/core between
+      # releases (see docs/DEVELOPMENT.md), not bumped on every merge there.
+      - dependency-name: "DashyNMS.Core"
 
   # Keep the GitHub Actions used by the workflows above up to date too.
   - package-ecosystem: "github-actions"
