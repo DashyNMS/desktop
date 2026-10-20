@@ -51,8 +51,24 @@
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\DesktopNMS.Core\DesktopNMS.Core.csproj" />
+  <!--
+    DesktopNMS.Core lives in DashyNMS/core (#248) and comes in as the
+    DashyNMS.Core package from GitHub Packages - see nuget.config and
+    docs/DEVELOPMENT.md. Pinned to a development build of core's main
+    (x.y.z-ci.N) between Core releases.
+
+    To build against a local checkout of DashyNMS/core instead - for a Core
+    change and an app change together - set DASHYNMS_LOCAL_CORE to that
+    checkout's folder (an environment variable or -p:DASHYNMS_LOCAL_CORE=...).
+  -->
+  <PropertyGroup>
+    <DashyNMSCoreVersion>2.0.0-ci.1</DashyNMSCoreVersion>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(DASHYNMS_LOCAL_CORE)' == ''">
+    <PackageReference Include="DashyNMS.Core" Version="$(DashyNMSCoreVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(DASHYNMS_LOCAL_CORE)' != ''">
+    <ProjectReference Include="$(DASHYNMS_LOCAL_CORE)\src\DesktopNMS.Core\DesktopNMS.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

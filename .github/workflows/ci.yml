@@ -10,6 +10,14 @@ on:
   pull_request:
     branches: [master]
 
+permissions:
+  contents: read
+  packages: read
+
+# DashyNMS.Core comes from GitHub Packages (see nuget.config).
+env:
+  DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 jobs:
   build-and-test:
     name: Build and test
@@ -25,6 +33,3 @@ jobs:
 
       - name: Build
         run: dotnet build DesktopNMS.sln -c Debug
-
-      - name: Test
-        run: dotnet test tests/DesktopNMS.Core.Tests -c Debug --no-build

@@ -16,6 +16,8 @@ for reporting a security problem. Bugs and ideas are welcome as
   **.NET desktop development** workload.
 - A LibreNMS instance with the API enabled, and a token from
   **Settings, API, API Access**.
+- A GitHub token with `read:packages`, for the `DashyNMS.Core` package (see
+  [Core](#core) below).
 
 ## Building and running
 
@@ -31,9 +33,37 @@ dotnet build DesktopNMS.sln
 dotnet run --project src/DesktopNMS/DesktopNMS.csproj
 ```
 
-```bash
-dotnet test tests/DesktopNMS.Core.Tests/DesktopNMS.Core.Tests.csproj
+### Core
+
+The shared code (`DesktopNMS.Core`: the LibreNMS client, models, alerting, graph
+styling, sign-in and more) lives in [DashyNMS/core](https://github.com/DashyNMS/core),
+with its own tests and CI. DashyNMS Mobile and the MCP server use it too. This
+app takes it as the **`DashyNMS.Core`** package from GitHub Packages. The
+assembly and namespaces are still `DesktopNMS.Core`.
+
+GitHub Packages needs a login even for public packages, so set
+`DASHYNMS_PACKAGES_TOKEN` before restoring:
+
+```powershell
+gh auth refresh -s read:packages
+$env:DASHYNMS_PACKAGES_TOKEN = gh auth token
 ```
+
+The version is pinned in `src/DesktopNMS/DesktopNMS.csproj`
+(`DashyNMSCoreVersion`). Between Core releases it's a development build of
+core's `main`: every merge there publishes `x.y.z-ci.N`. Pin the one this app
+needs, and move to a release before shipping.
+
+To change Core and the app together, build against a local checkout of
+DashyNMS/core instead of the package:
+
+```powershell
+$env:DASHYNMS_LOCAL_CORE = "C:\path\to\core"
+dotnet build DesktopNMS.sln
+```
+
+Run Core's tests there (`dotnet test DashyNMS.Core.sln`), merge the Core change,
+then pin this app to the development build it produces.
 
 To produce a single self-contained `.exe`:
 
@@ -100,17 +130,11 @@ too, defaulting to keep. A silent uninstall (`/VERYSILENT`) always keeps them.
 
 ```
 src/
-  DesktopNMS.Core/          No UI. Reusable against any front end.
-    Api/                    Transport, resource clients, connection details
-    Models/                 Alert, Device, AlertRule, SystemInfo
-    Json/                   Converters for LibreNMS's stringly-typed JSON
-    Alerting/               Poll-to-poll change detection, the rule builder's
-                             field catalog, SQL import/format for rule conditions
-    Configuration/          Settings, paths, notification state
-    Security/               DPAPI token storage
-  DesktopNMS/               WPF application (product name DashyNMS)
+  DesktopNMS/               WPF application (product name DashyNMS); Core is
+                             the DashyNMS.Core package (see "Core" above)
     Views/ ViewModels/      MVVM, no code-behind logic beyond view concerns
     Services/               Session, polling, toasts, tray icon, windows
+    Security/               DPAPI token, credential and chat storage
     Infrastructure/         Commands, observable base, file logging
     Themes/                 Dark/light theme resource dictionaries
 tools/
@@ -283,7 +307,7 @@ one [milestone](https://github.com/DashyNMS/desktop/milestones) per release.
 Larger pieces of work have an epic issue that lists its parts in order:
 
 - [2.0.0](https://github.com/DashyNMS/desktop/milestone/3): one Avalonia app
-  for Windows, macOS and Linux, plus Intelligence. The work is in six batches,
+  for Windows, macOS and Linux, plus Intelligence and LibreNMS 26.10 compatibility. The work is in eight batches,
   listed in the epic [#259](https://github.com/DashyNMS/desktop/issues/259).
 - 2.1.0 to 2.4.0: features again, including Intelligence across the app
   ([#337](https://github.com/DashyNMS/desktop/issues/337)) and device
