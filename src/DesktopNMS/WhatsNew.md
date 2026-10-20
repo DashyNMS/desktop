@@ -1,33 +1,18 @@
-# 1.1.0
-Released 18 October 2026
+# 2.0.0
+Preview, 20 October 2026
 
 ## New
-- **Sign in with LibreNMS.** Sign in on your server's own page and DashyNMS creates its API token for you, so there's no token to find and paste. {lock}
-- **Choose which alerts notify you.** Leave out noisy rules, or only hear about the ones that matter, on every device or just one. {bell}
-- **Logs for your whole network.** The event log, alert log and Graylog for every device, each a click away under Logs. {logs}
-- **Maps.** Network, geographical and custom maps, with an editor to draw your own. {map}
-- **Neighbours.** Every neighbour at a glance, filtered down with Neighbourhoods. {link}
-- **More for your dashboard.** Top interfaces, errors and devices, the event log, Graylog, and any port's traffic graph. {chart}
-- **More in Device Details.** Inventory, routing, PoE and wireless, and ports grouped by status, VLAN, type or speed. {device}
-- **Unimus config backups.** See a device's config backups, compare them, and save either to a file. {copy}
-- **Bulk add devices.** Paste a list or import a CSV to add many devices at once. {add}
-- **Maintenance for several devices.** Select them in Devices and put them all into maintenance in one go. {wrench}
-- **Backup server address.** DashyNMS switches over when the server stops answering, and you choose when to switch back. {swap}
-- **Background updates.** Updates download while you work. Restart when it suits you. {download}
+- **Intelligence.** Ask about your network in plain words - what's alerting, how a switch is doing, what changed overnight - and get an answer from your own ChatGPT plan, with the evidence it used. It only reads; it can't change anything. {search}
+- **Answers that show their working.** See what was looked up and when, with devices, states and alert severities marked in the answer, and LibreNMS's graphs shown inline. {chart}
+- **Saved chats.** Keep several conversations, pin the ones you use, and pick up where you left off. An unfinished answer can be retried or the question edited. {star}
+- **Spotlight and context.** Keep a conversation to chosen devices, a device group or a location, with the devices and alerts it mentions beside it. {device}
+- **Web search, with sources.** Intelligence can check public information, such as firmware releases, and cites what it found. You can turn it off in Settings. {link}
 
 ## Improved
-- **A new look.** Sidebar navigation, a themed title bar and the fonts from DashyNMS Mobile. {look}
-- **Editing your dashboard.** One Edit button, set-up beside the widget with a live preview, sizes to pick from, Undo and Duplicate. {grid}
-- **Graphs.** In the app's own colours, with a legend to turn series on and off, and any port's graphs a click away. {chart}
-- **Alerts.** See how often an alert has fired before, and get a clear confirmation, with Undo, when you acknowledge. {bell}
-- **Tray.** A quick look on left-click, an icon that shows the alert state, and your choice of which severities it counts. {tray}
-- **Read-only tokens.** Buttons for changes your API token can't make are turned off, with the reason. {lock}
-- **Sign out.** Signing out clears everything DashyNMS saved and goes straight to sign-in. {signout}
-- **Uninstall.** Uninstalling removes everything DashyNMS added. {package}
+- **Log entries open where they belong.** Clicking an entry on the dashboard or in Logs opens that device's Graylog, event log or alerts with the entry selected. {logs}
+- **More Graylog messages named.** A message's source now matches its device by sysName or short host name, not just the full host name. {search}
+- **Defaults in one place.** Default map now sits with the other start-up choices in Settings, Window and start-up. {settings}
 
 ## Fixed
-- **Untrusted certificates.** "Allow untrusted certificate" now shows you the certificate and trusts only that one. {shield}
-- **Redirects.** The API token is never sent to a host a redirect points at. {shield}
-- **Request timeout.** A new timeout in Settings applies straight away, not after a restart. {clock}
-- **Time zones.** Timestamps with a time zone are no longer shifted twice. {clock}
-- **Device Details.** Closing it no longer sends the main window behind other apps. {device}
+- **Neighbours.** Neighbours now load for ping-only devices, showing the switch that sees them. {link}
+- **Logs filters.** The device and type filters show "All devices" and "Any type" instead of blank boxes. {logs}
