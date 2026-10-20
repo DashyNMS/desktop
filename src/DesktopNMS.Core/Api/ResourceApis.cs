@@ -376,7 +376,13 @@ internal sealed class PortsApi : IPortsApi
         // with=vlans adds each port's VLAN memberships, tagged and untagged
         // (#99) - an older LibreNMS that doesn't know it just ignores it.
         var url = "devices/" + deviceId.ToString(CultureInfo.InvariantCulture) + "/ports?columns=" + Columns + "&with=vlans";
-        return _transport.GetCollectionAsync<Port>(url, "ports", cancellationToken);
+
+        // A device without any - every ping-only device - is a 404, not an
+        // empty list (get_device_ports, #309).
+        return NoneFound.AsEmpty(
+            _transport.GetCollectionAsync<Port>(url, "ports", cancellationToken),
+            System.Net.HttpStatusCode.NotFound,
+            "No ports found");
     }
 
     public Task<IReadOnlyList<DeviceIpAddress>> ListIpAddressesAsync(int deviceId, CancellationToken cancellationToken = default)
