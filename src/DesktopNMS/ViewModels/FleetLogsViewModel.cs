@@ -667,11 +667,11 @@ public sealed class FleetLogsViewModel : ObservableObject
     {
         if (ShowingEventLog && SelectedEvent is { } ev)
         {
-            _windows.ShowDeviceEventLog(ev.Entry.DeviceId);
+            _windows.ShowDeviceEventLog(ev.Entry.DeviceId, ev.Entry.Id);
         }
         else if (ShowingAlertLog && SelectedAlert is { } alert)
         {
-            _windows.ShowDeviceAlerts(alert.Entry.DeviceId);
+            _windows.ShowDeviceAlerts(alert.Entry.DeviceId, alert.Entry.Id);
         }
     }
 }

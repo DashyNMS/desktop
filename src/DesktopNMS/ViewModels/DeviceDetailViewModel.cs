@@ -123,6 +123,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private readonly Dictionary<int, Vlan> _vlansById = new();
 
     private const int EventLogPageSize = 50;
+
+    /// <summary>How far <see cref="ShowEventLogEntry"/> pages back for an entry before giving up.</summary>
+    private const int MaxEventLogPagesToFind = 6;
     private const int MaxOutagesShown = 10;
     private const int AvailabilityTimelineDays = 30;
 
@@ -204,6 +207,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private bool _hasLoadedActiveAlerts;
     private bool _hasLoadedAlertHistory;
     private bool _hasLoadedEventLog;
+    private int? _eventLogEntryToShow;
+    private int? _alertLogEntryToShow;
+    private EventLogItemViewModel? _selectedEventLogEntry;
+    private AlertLogItemViewModel? _selectedAlertLogEntry;
 
     // Starts false, not true: until the first page has actually loaded and
     // said so, there is nothing confirmed to load more of. Defaulting this to
@@ -268,7 +275,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         PortGraphs = new PortGraphsPanelViewModel(client, settings, logger);
         PortGraphs.OpenRequested += (_, request) => ShowPortGraph(request.IfName, request.GraphType);
         PortGraphs.AddToDashboardRequested += (_, request) => _windows.AddPortGraphToDashboard(request.DeviceId, request.IfName, request.GraphType, request.Title);
-        Graylog = GraylogMessagesViewModel.ForDevice(deviceId, () => _device, graylog, client, deviceCache, settings, windows, logger, _loadCts.Token);
+        // The cached device until this window's own copy loads, so opening
+        // straight onto Graylog (from the dashboard widget, #304) can search at once.
+        Graylog = GraylogMessagesViewModel.ForDevice(deviceId, () => _device ?? deviceCache.Get(deviceId), graylog, client, deviceCache, settings, windows, logger, _loadCts.Token);
         Graylog.PropertyChanged += OnGraylogPropertyChanged;
         Inventory = new InventorySectionViewModel(deviceId, client, logger, _loadCts.Token);
         Inventory.PropertyChanged += OnInventoryPropertyChanged;
@@ -778,6 +787,73 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(ShowArpNoMatchesMessage));
             }
         }
+    }
+
+    /// <summary>The event log row shown selected - set by <see cref="ShowEventLogEntry"/>, or by clicking.</summary>
+    public EventLogItemViewModel? SelectedEventLogEntry
+    {
+        get => _selectedEventLogEntry;
+        set => SetProperty(ref _selectedEventLogEntry, value);
+    }
+
+    /// <summary>The alert history row shown selected - set by <see cref="ShowAlertLogEntry"/>, or by clicking.</summary>
+    public AlertLogItemViewModel? SelectedAlertLogEntry
+    {
+        get => _selectedAlertLogEntry;
+        set => SetProperty(ref _selectedAlertLogEntry, value);
+    }
+
+    /// <summary>
+    /// Selects one event log entry - one clicked on the dashboard's Event log
+    /// widget or the Logs tab (#304) - once the event log has loaded, loading
+    /// a few more pages to find an older one.
+    /// </summary>
+    public void ShowEventLogEntry(int eventId)
+    {
+        _eventLogEntryToShow = eventId;
+        EventLogSearchText = string.Empty;
+        SelectPendingEventLogEntry();
+    }
+
+    /// <summary>Selects one alert history entry - one clicked on the Logs tab's alert log (#304) - once the history has loaded.</summary>
+    public void ShowAlertLogEntry(int alertLogId)
+    {
+        _alertLogEntryToShow = alertLogId;
+        SelectPendingAlertLogEntry();
+    }
+
+    private void SelectPendingEventLogEntry()
+    {
+        if (_eventLogEntryToShow is not { } id || !_hasLoadedEventLog || IsLoadingMoreEventLog)
+        {
+            return;
+        }
+
+        if (EventLog.FirstOrDefault(e => e.Id == id) is { } found)
+        {
+            SelectedEventLogEntry = found;
+            _eventLogEntryToShow = null;
+        }
+        else if (HasMoreEventLog && _eventLogLimit < EventLogPageSize * MaxEventLogPagesToFind)
+        {
+            // LoadMoreEventLogAsync calls back here once it has the next page.
+            _ = LoadMoreEventLogAsync();
+        }
+        else
+        {
+            _eventLogEntryToShow = null;
+        }
+    }
+
+    private void SelectPendingAlertLogEntry()
+    {
+        if (_alertLogEntryToShow is not { } id || !_hasLoadedAlertHistory)
+        {
+            return;
+        }
+
+        SelectedAlertLogEntry = AlertHistory.FirstOrDefault(a => a.Id == id) ?? SelectedAlertLogEntry;
+        _alertLogEntryToShow = null;
     }
 
     /// <summary>Free-text filter over the event log's message, type and username - applied client-side over whatever pages have been loaded so far.</summary>
@@ -2974,6 +3050,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             _hasLoadedAlertHistory = true;
             OnPropertyChanged(nameof(IsLoadingAlertHistory));
             OnPropertyChanged(nameof(ShowNoAlertHistoryMessage));
+            SelectPendingAlertLogEntry();
         }
     }
 
@@ -3893,6 +3970,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             _hasLoadedEventLog = true;
             OnPropertyChanged(nameof(IsLoadingEventLog));
             OnPropertyChanged(nameof(ShowEventLogEmptyMessage));
+            SelectPendingEventLogEntry();
         }
     }
 
@@ -3951,6 +4029,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         finally
         {
             IsLoadingMoreEventLog = false;
+        }
+
+        // Still looking for an entry ShowEventLogEntry asked for (#304)?
+        if (!_loadCts.IsCancellationRequested)
+        {
+            SelectPendingEventLogEntry();
         }
     }
 
@@ -4713,6 +4797,8 @@ public sealed class EventLogItemViewModel
         _serverTimestampsAreUtc = serverTimestampsAreUtc;
     }
 
+    public int Id => _entry.Id;
+
     public string Message => string.IsNullOrWhiteSpace(_entry.Message) ? "-" : _entry.Message!;
 
     public string TypeText => string.IsNullOrWhiteSpace(_entry.Type) ? "-" : _entry.Type!;
@@ -5156,6 +5242,8 @@ public sealed class AlertLogItemViewModel
     }
 
     private readonly bool _serverTimestampsAreUtc;
+
+    public int Id => _entry.Id;
 
     public string TimeText => _entry.TimeLogged is { } t
         ? ServerTime.ToLocal(t, _serverTimestampsAreUtc).ToString("dd MMM HH:mm:ss", CultureInfo.InvariantCulture)

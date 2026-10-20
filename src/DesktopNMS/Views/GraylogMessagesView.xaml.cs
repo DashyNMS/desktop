@@ -37,6 +37,15 @@ public partial class GraylogMessagesView : UserControl
         }
     }
 
+    /// <summary>A message selected from elsewhere (a dashboard widget click, #304) is scrolled to.</summary>
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (MessagesGrid.SelectedItem is { } item)
+        {
+            MessagesGrid.ScrollIntoView(item);
+        }
+    }
+
     private static DataGridRow? FindRow(DependencyObject? source)
     {
         while (source is not null and not DataGridRow)

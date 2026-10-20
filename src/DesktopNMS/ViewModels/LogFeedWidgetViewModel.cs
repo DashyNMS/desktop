@@ -386,6 +386,9 @@ public sealed class LogFeedRowViewModel : ObservableObject
     /// <summary>Graylog's level as a dot colour; null for no dot.</summary>
     public AlertSeverity? Severity { get; }
 
+    /// <summary>The entry itself - an <see cref="EventLogEntry"/> or a <see cref="GraylogMessage"/> - so a click can open it (#304).</summary>
+    public object? Entry { get; init; }
+
     public bool HasSeverity => Severity is not null;
 
     /// <summary>Arrived since the last refresh - tinted for a few seconds.</summary>
@@ -471,16 +474,20 @@ public sealed class EventLogWidgetViewModel : LogFeedWidgetViewModel
                     e.Type?.Trim(),
                     (e.Message ?? string.Empty).ReplaceLineEndings(" "),
                     e.DeviceId > 0 ? e.DeviceId : null,
-                    severity: null);
+                    severity: null)
+                {
+                    Entry = e,
+                };
             })
             .ToList();
     }
 
+    /// <summary>That device's Event log, with this entry selected (#304).</summary>
     protected override void Open(LogFeedRowViewModel row)
     {
         if (row.DeviceId is { } deviceId)
         {
-            _windows.ShowDeviceEventLog(deviceId);
+            _windows.ShowDeviceEventLog(deviceId, (row.Entry as EventLogEntry)?.Id);
         }
     }
 
@@ -643,20 +650,30 @@ public sealed class GraylogWidgetViewModel : LogFeedWidgetViewModel
                     LevelName(message.Level),
                     (message.Text ?? string.Empty).ReplaceLineEndings(" "),
                     device?.DeviceId,
-                    LevelSeverity(message.Level));
+                    LevelSeverity(message.Level))
+                {
+                    Entry = message,
+                };
             })
             .ToList();
     }
 
+    /// <summary>
+    /// That device's Graylog with this message selected and its details
+    /// shown, or - for a source that isn't a known device - the Logs tab's
+    /// Graylog with it selected. Never the Default log, which is usually the
+    /// event log (#304).
+    /// </summary>
     protected override void Open(LogFeedRowViewModel row)
     {
+        var message = row.Entry as GraylogMessage;
         if (row.DeviceId is { } deviceId)
         {
-            _windows.ShowDeviceGraylog(deviceId);
+            _windows.ShowDeviceGraylog(deviceId, message);
         }
-        else
+        else if (message is not null)
         {
-            _windows.ShowLogsTab();
+            _windows.ShowGraylogMessage(message);
         }
     }
 
