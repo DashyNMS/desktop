@@ -7,7 +7,7 @@
              xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
              xmlns:views="clr-namespace:DesktopNMS.Views"
              mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance Type=vm:CustomMapsViewModel}"
+             d:DataContext="{d:DesignInstance Type=pvm:CustomMapsViewModel}"
              d:DesignHeight="700" d:DesignWidth="1300">
 
     <UserControl.Resources>

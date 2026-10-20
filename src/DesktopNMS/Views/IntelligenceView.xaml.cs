@@ -134,6 +134,7 @@ public partial class IntelligenceView : UserControl
 
         if (e.NewValue is IntelligenceViewModel model)
         {
+            ApplyChatGrouping(model);
             model.Messages.CollectionChanged += OnMessagesChanged;
             model.PropertyChanged += OnModelPropertyChanged;
             model.QuestionFocusRequested += OnQuestionFocusRequested;
@@ -331,5 +332,31 @@ public partial class IntelligenceView : UserControl
         }
 
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// The chat list grouped by activity - Pinned, Today, Yesterday… - live,
+    /// so a chat moves group when it's used or the day turns (a view concern
+    /// since #249).
+    /// </summary>
+    private static void ApplyChatGrouping(IntelligenceViewModel model)
+    {
+        var chats = System.Windows.Data.CollectionViewSource.GetDefaultView(model.GroupedChats);
+        if (chats is not System.Windows.Data.ListCollectionView view || view.GroupDescriptions.Count > 0)
+        {
+            return;
+        }
+
+        view.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription(nameof(IntelligenceChatItemViewModel.ActivityGroup)) { CustomSort = new ChatActivityGroupOrder() });
+        view.LiveGroupingProperties.Add(nameof(IntelligenceChatItemViewModel.ActivityGroup));
+        view.IsLiveGrouping = true;
+    }
+
+    /// <summary>Groups in their own order (Pinned first, then most recent), not alphabetically.</summary>
+    private sealed class ChatActivityGroupOrder : System.Collections.IComparer
+    {
+        public int Compare(object? x, object? y) =>
+            ((x as System.Windows.Data.CollectionViewGroup)?.Name as IntelligenceChatActivityGroup)?.Order.CompareTo(
+                ((y as System.Windows.Data.CollectionViewGroup)?.Name as IntelligenceChatActivityGroup)?.Order ?? 0) ?? 0;
     }
 }

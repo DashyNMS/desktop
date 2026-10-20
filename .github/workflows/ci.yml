@@ -33,3 +33,6 @@ jobs:
 
       - name: Build
         run: dotnet build DesktopNMS.sln -c Debug
+
+      - name: Test
+        run: dotnet test tests/DesktopNMS.Presentation.Tests -c Debug --no-build

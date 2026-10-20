@@ -5,7 +5,6 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Data;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.CustomMaps;
@@ -68,7 +67,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
 
         Views = new ObservableCollection<NeighbourViewDefinition>();
         Items = new BatchObservableCollection<NeighbourItemViewModel>();
-        ItemsView = CollectionViewSource.GetDefaultView(Items);
+        ItemsView = new FilteredView(Items);
         ItemsView.Filter = item => item is NeighbourItemViewModel n && IsStateShown(n.State) && n.Matches(SearchText);
 
         PortGraphs = new PortGraphsPanelViewModel(client, settings, logger);
@@ -179,7 +178,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
 
     public BatchObservableCollection<NeighbourItemViewModel> Items { get; }
 
-    public ICollectionView ItemsView { get; }
+    public FilteredView ItemsView { get; }
 
     public AsyncRelayCommand RefreshCommand { get; }
 
@@ -421,7 +420,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
         {
             _logger.LogWarning(ex, "Could not load switch neighbours");
             ErrorMessage = ex.ToUserMessage();
-            LoadState.CompleteLoad(Items.Count, ItemsView.Cast<object>().Count());
+            LoadState.CompleteLoad(Items.Count, ItemsView.Count);
         }
         finally
         {
@@ -466,7 +465,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
 
         if (_snapshot is not null)
         {
-            LoadState.CompleteLoad(Items.Count, ItemsView.Cast<object>().Count());
+            LoadState.CompleteLoad(Items.Count, ItemsView.Count);
         }
 
         OnPropertyChanged(nameof(UpCount));
@@ -626,7 +625,7 @@ public sealed class NeighboursViewModel : ObservableObject, IDisposable
     {
         ItemsView.Refresh();
         OnPropertyChanged(nameof(HasAnyFilterApplied));
-        LoadState.UpdateVisibleCount(ItemsView.Cast<object>().Count());
+        LoadState.UpdateVisibleCount(ItemsView.Count);
     }
 
     public void Dispose()

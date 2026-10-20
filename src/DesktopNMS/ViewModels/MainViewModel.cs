@@ -8,7 +8,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Data;
 using System.Windows.Media.Imaging;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
@@ -161,7 +160,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _settings.Changed += OnBadgeSettingChanged;
 
         Alerts = new BatchObservableCollection<AlertItemViewModel>();
-        AlertsView = CollectionViewSource.GetDefaultView(Alerts);
+        AlertsView = new FilteredView(Alerts);
         GroupFilter = new FilterFacet(OnFilterChanged);
         GroupFilter.PropertyChanged += OnGroupFilterPropertyChanged;
         _groupMembership.Changed += OnGroupMembershipChanged;
@@ -255,7 +254,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public BatchObservableCollection<AlertItemViewModel> Alerts { get; }
 
-    public ICollectionView AlertsView { get; }
+    public FilteredView AlertsView { get; }
 
     public RelayCommand RefreshCommand { get; }
 
@@ -1177,7 +1176,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public int VisibleCount => AlertsView.Cast<object>().Count();
+    public int VisibleCount => AlertsView.Count;
 
     /// <summary>Drives the loading/empty/no-matches split on the Alerts grid (issue #16).</summary>
     public ListLoadState LoadState { get; } = new();

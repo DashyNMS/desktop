@@ -5,7 +5,6 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Data;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.CustomMaps;
@@ -109,8 +108,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
         _settings.Changed += OnSettingsChanged;
 
         Maps = new BatchObservableCollection<CustomMapSummary>();
-        MapsView = CollectionViewSource.GetDefaultView(Maps);
-        MapsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(CustomMapSummary.MenuGroup)));
+        MapsView = new FilteredView(Maps);
 
         NewMapCommand = new RelayCommand(NewMap);
         ImportMapCommand = new RelayCommand(ImportMap);
@@ -153,7 +151,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
     public BatchObservableCollection<CustomMapSummary> Maps { get; }
 
     /// <summary>The map list grouped by menu group, like LibreNMS's Custom Maps menu.</summary>
-    public ICollectionView MapsView { get; }
+    public FilteredView MapsView { get; }
 
     public bool HasMaps => Maps.Count > 0;
 

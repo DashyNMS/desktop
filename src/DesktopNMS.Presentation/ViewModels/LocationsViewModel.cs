@@ -3,7 +3,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Data;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
@@ -44,9 +43,9 @@ public sealed class LocationsViewModel : ObservableObject
         _logger = logger;
 
         Locations = new BatchObservableCollection<LocationListItemViewModel>();
-        LocationsView = CollectionViewSource.GetDefaultView(Locations);
+        LocationsView = new FilteredView(Locations);
         LocationsView.Filter = FilterLocation;
-        LocationsView.SortDescriptions.Add(new SortDescription(nameof(LocationListItemViewModel.Name), ListSortDirection.Ascending));
+        LocationsView.Sort = FilteredView.By<LocationListItemViewModel, string>(i => i.Name, comparer: StringComparer.CurrentCultureIgnoreCase);
 
         RefreshCommand = new AsyncRelayCommand(LoadAsync, () => _session.IsConnected && !IsBusy);
         AddLocationCommand = new RelayCommand(AddLocation);
@@ -55,7 +54,7 @@ public sealed class LocationsViewModel : ObservableObject
 
     public BatchObservableCollection<LocationListItemViewModel> Locations { get; }
 
-    public ICollectionView LocationsView { get; }
+    public FilteredView LocationsView { get; }
 
     public AsyncRelayCommand RefreshCommand { get; }
 
@@ -72,7 +71,7 @@ public sealed class LocationsViewModel : ObservableObject
             {
                 LocationsView.Refresh();
                 OnPropertyChanged(nameof(HasAnyFilterApplied));
-                LoadState.UpdateVisibleCount(LocationsView.Cast<object>().Count());
+                LoadState.UpdateVisibleCount(LocationsView.Count);
             }
         }
     }
@@ -175,7 +174,7 @@ public sealed class LocationsViewModel : ObservableObject
         finally
         {
             IsBusy = false;
-            LoadState.CompleteLoad(Locations.Count, LocationsView.Cast<object>().Count());
+            LoadState.CompleteLoad(Locations.Count, LocationsView.Count);
         }
     }
 

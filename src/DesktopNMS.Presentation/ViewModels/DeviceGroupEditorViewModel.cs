@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Data;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
@@ -43,9 +42,9 @@ public sealed class DeviceGroupEditorViewModel : ObservableObject
         _logger = logger;
 
         DevicePickerItems = new BatchObservableCollection<DevicePickerItemViewModel>();
-        DevicePickerView = CollectionViewSource.GetDefaultView(DevicePickerItems);
+        DevicePickerView = new FilteredView(DevicePickerItems);
         DevicePickerView.Filter = FilterDevicePickerItem;
-        DevicePickerView.SortDescriptions.Add(new SortDescription(nameof(DevicePickerItemViewModel.Name), ListSortDirection.Ascending));
+        DevicePickerView.Sort = FilteredView.By<DevicePickerItemViewModel, string>(i => i.Name, comparer: StringComparer.CurrentCultureIgnoreCase);
 
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(Name));
 
@@ -110,7 +109,7 @@ public sealed class DeviceGroupEditorViewModel : ObservableObject
 
     public BatchObservableCollection<DevicePickerItemViewModel> DevicePickerItems { get; }
 
-    public ICollectionView DevicePickerView { get; }
+    public FilteredView DevicePickerView { get; }
 
     public AsyncRelayCommand SaveCommand { get; }
 

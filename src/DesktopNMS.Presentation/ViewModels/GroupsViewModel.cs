@@ -5,7 +5,6 @@ using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Data;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
@@ -55,9 +54,9 @@ public sealed class GroupsViewModel : ObservableObject
         _logger = logger;
 
         Groups = new BatchObservableCollection<GroupListItemViewModel>();
-        GroupsView = CollectionViewSource.GetDefaultView(Groups);
+        GroupsView = new FilteredView(Groups);
         GroupsView.Filter = FilterGroup;
-        GroupsView.SortDescriptions.Add(new SortDescription(nameof(GroupListItemViewModel.Name), ListSortDirection.Ascending));
+        GroupsView.Sort = FilteredView.By<GroupListItemViewModel, string>(i => i.Name, comparer: StringComparer.CurrentCultureIgnoreCase);
 
         RefreshCommand = new AsyncRelayCommand(LoadAsync, () => _session.IsConnected && !IsBusy);
         AddGroupCommand = new RelayCommand(AddGroup);
@@ -66,7 +65,7 @@ public sealed class GroupsViewModel : ObservableObject
 
     public BatchObservableCollection<GroupListItemViewModel> Groups { get; }
 
-    public ICollectionView GroupsView { get; }
+    public FilteredView GroupsView { get; }
 
     public AsyncRelayCommand RefreshCommand { get; }
 
@@ -211,7 +210,7 @@ public sealed class GroupsViewModel : ObservableObject
         finally
         {
             IsBusy = false;
-            LoadState.CompleteLoad(Groups.Count, GroupsView.Cast<object>().Count());
+            LoadState.CompleteLoad(Groups.Count, GroupsView.Count);
         }
     }
 
@@ -359,7 +358,7 @@ public sealed class GroupsViewModel : ObservableObject
     {
         GroupsView.Refresh();
         OnPropertyChanged(nameof(HasAnyFilterApplied));
-        LoadState.UpdateVisibleCount(GroupsView.Cast<object>().Count());
+        LoadState.UpdateVisibleCount(GroupsView.Count);
     }
 
     private bool FilterGroup(object item)

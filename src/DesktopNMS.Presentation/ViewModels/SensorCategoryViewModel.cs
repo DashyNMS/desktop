@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
-using System.Windows.Data;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
@@ -46,7 +45,7 @@ public sealed class SensorCategoryViewModel : ObservableObject
         NoneFoundMessage = noneFoundMessage;
 
         Sensors = new BatchObservableCollection<SensorItemViewModel>();
-        SensorsView = CollectionViewSource.GetDefaultView(Sensors);
+        SensorsView = new FilteredView(Sensors);
         SensorsView.Filter = FilterSensor;
 
         OpenDeviceCommand = new RelayCommand(OpenSelectedDevice, () => SelectedSensor?.DeviceUrl is not null);
@@ -58,7 +57,7 @@ public sealed class SensorCategoryViewModel : ObservableObject
 
     public BatchObservableCollection<SensorItemViewModel> Sensors { get; }
 
-    public ICollectionView SensorsView { get; }
+    public FilteredView SensorsView { get; }
 
     public RelayCommand OpenDeviceCommand { get; }
 
@@ -125,7 +124,7 @@ public sealed class SensorCategoryViewModel : ObservableObject
 
     public int TotalCount => Sensors.Count;
 
-    public int VisibleCount => SensorsView.Cast<object>().Count();
+    public int VisibleCount => SensorsView.Count;
 
     /// <summary>Drives the loading/empty/no-matches split on the grid (issue #16) - replaces the old TotalCount==0/HasSensorsButNoneVisible pair with the same shared shape every other rolled-out section uses, adding the loading state neither of those covered.</summary>
     public ListLoadState LoadState { get; } = new();

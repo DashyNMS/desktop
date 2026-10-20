@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:DesktopNMS.Converters"
              xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
              ShutdownMode="OnExplicitShutdown">
     <!--
       The theme (Themes/Palette.Dark.xaml or Palette.Light.xaml, then
@@ -32,7 +33,7 @@
                  Group) and the Alerts tab's (Group), rather than a copy in
                  each. Uses no StaticResource of its own, so it's safe here
                  ahead of the programmatically-merged theme (see above). -->
-            <DataTemplate x:Key="FilterFacetSectionTemplate" DataType="{x:Type vm:FilterFacet}">
+            <DataTemplate x:Key="FilterFacetSectionTemplate" DataType="{x:Type pvm:FilterFacet}">
                 <Grid Margin="18">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />

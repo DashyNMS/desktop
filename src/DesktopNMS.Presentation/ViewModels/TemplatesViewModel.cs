@@ -56,7 +56,7 @@ public sealed class TemplatesViewModel : ObservableObject
 
     public BatchObservableCollection<AlertTemplateItemViewModel> Templates { get; }
 
-    /// <summary>Search box (issue #28's pattern applied here too) - see <see cref="FilteredListViewModel"/>'s own doc comment for why this is a separate class rather than an ICollectionView property declared directly here.</summary>
+    /// <summary>Search box (issue #28's pattern applied here too) - see <see cref="FilteredListViewModel"/>'s own doc comment for why this is a separate class rather than an FilteredView property declared directly here.</summary>
     public FilteredListViewModel Filtered { get; }
 
     public AsyncRelayCommand RefreshCommand { get; }
