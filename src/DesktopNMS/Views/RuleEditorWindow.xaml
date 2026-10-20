@@ -5,6 +5,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:RuleEditorViewModel}"
         Title="{Binding Title}"
@@ -19,7 +20,7 @@
 
     <Window.Resources>
         <!-- ================= One leaf condition ================= -->
-        <DataTemplate DataType="{x:Type vm:RuleConditionRowViewModel}">
+        <DataTemplate DataType="{x:Type pvm:RuleConditionRowViewModel}">
             <Grid Margin="0,0,0,6"
                   Background="Transparent"
                   AllowDrop="True"
@@ -105,7 +106,7 @@
         <!-- ================= One AND/OR group ================= -->
         <!-- Nested groups render through this same implicit template via the
              inner ItemsControl, which is what gives the tree its recursion. -->
-        <DataTemplate DataType="{x:Type vm:RuleConditionGroupViewModel}">
+        <DataTemplate DataType="{x:Type pvm:RuleConditionGroupViewModel}">
             <Border BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="2,0,0,0"
                     Padding="10,0,0,0"

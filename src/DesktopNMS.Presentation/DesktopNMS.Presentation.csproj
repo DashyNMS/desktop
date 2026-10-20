@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The desktop app's view models and services with no UI framework in them
+    (#249): plain net9.0, so the WPF app today and the Avalonia app next can
+    share them, and porting is a views-only job. Namespaces are unchanged
+    (DesktopNMS.ViewModels, DesktopNMS.Services, DesktopNMS.Infrastructure);
+    only the assembly differs, so XAML refers to these types with
+    ";assembly=DesktopNMS.Presentation". Nothing here may reference WPF,
+    WinForms or Windows-only APIs - a front end supplies those behind
+    interfaces.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>DesktopNMS</RootNamespace>
+    <AssemblyName>DesktopNMS.Presentation</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    DesktopNMS.Core lives in DashyNMS/core (#248) and comes in as the
+    DashyNMS.Core package from GitHub Packages - see nuget.config and
+    docs/DEVELOPMENT.md. Pinned to a development build of core's main
+    (x.y.z-ci.N) between Core releases. The app gets it through this project.
+
+    To build against a local checkout of DashyNMS/core instead - for a Core
+    change and an app change together - set DASHYNMS_LOCAL_CORE to that
+    checkout's folder (an environment variable or -p:DASHYNMS_LOCAL_CORE=...).
+  -->
+  <PropertyGroup>
+    <DashyNMSCoreVersion>2.0.0-ci.2</DashyNMSCoreVersion>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(DASHYNMS_LOCAL_CORE)' == ''">
+    <PackageReference Include="DashyNMS.Core" Version="$(DashyNMSCoreVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(DASHYNMS_LOCAL_CORE)' != ''">
+    <ProjectReference Include="$(DASHYNMS_LOCAL_CORE)\src\DesktopNMS.Core\DesktopNMS.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
+  </ItemGroup>
+
+  <!-- Some moved types are internal and used by the app; Avalonia's head will be added here too. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="DashyNMS" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="DesktopNMS.Core.Services" />
+  </ItemGroup>
+
+</Project>
