@@ -13,7 +13,6 @@ using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 
 namespace DesktopNMS.ViewModels;
 
@@ -92,7 +91,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
         ICustomMapStore store,
         DeviceMonitor deviceMonitor,
         ILibreNmsClient client,
-        IMapTileService tiles,
+        IMapTiles tiles,
         ISessionService session,
         ISettingsStore settings,
         IWindowService windows,
@@ -140,7 +139,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
     /// <summary>Asks the view to fit the whole map in the window - after opening one.</summary>
     public event EventHandler? FitToViewRequested;
 
-    public IMapTileService Tiles { get; }
+    public IMapTiles Tiles { get; }
 
     /// <summary>The tile server for a "geographic map" background - the same one the Geographical map uses (Settings → Maps).</summary>
     /// <summary>Settings, Maps, "Jiggle physics" (#207, #220).</summary>
@@ -539,20 +538,16 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
 
     private void ImportMap()
     {
-        var dialog = new OpenFileDialog
-        {
-            Title = "Import custom map",
-            Filter = "DashyNMS maps (*.map)|*.map|All files (*.*)|*.*",
-        };
+        var dialogPath = UiPlatform.FileDialogs.PickFileToOpen(new FileDialogOptions(Title: "Import custom map", Filter: "DashyNMS maps (*.map)|*.map|All files (*.*)|*.*"));
 
-        if (dialog.ShowDialog() != true)
+        if (dialogPath is null)
         {
             return;
         }
 
         try
         {
-            var imported = _store.Import(dialog.FileName);
+            var imported = _store.Import(dialogPath);
             ReloadList();
             OpenMap(imported.Id);
         }
@@ -575,21 +570,16 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var dialog = new SaveFileDialog
-        {
-            Title = "Export custom map",
-            Filter = "DashyNMS maps (*.map)|*.map",
-            FileName = SafeFileName(_map.Name) + CustomMapSerializer.FileExtension,
-        };
+        var dialogPath = UiPlatform.FileDialogs.PickFileToSave(new FileDialogOptions(Title: "Export custom map", Filter: "DashyNMS maps (*.map)|*.map", FileName: SafeFileName(_map.Name) + CustomMapSerializer.FileExtension));
 
-        if (dialog.ShowDialog() != true)
+        if (dialogPath is null)
         {
             return;
         }
 
         try
         {
-            _store.Export(_map.Id, dialog.FileName);
+            _store.Export(_map.Id, dialogPath);
         }
         catch (Exception ex) when (ex is CustomMapFormatException or IOException or UnauthorizedAccessException)
         {
@@ -821,18 +811,14 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
     /// <summary>An image to embed in the map - PNG, JPEG, GIF or BMP, up to 5 MB, as LibreNMS limits its uploads.</summary>
     private CustomMapImage? ChooseImage()
     {
-        var dialog = new OpenFileDialog
-        {
-            Title = "Choose image",
-            Filter = "Images (*.png;*.jpg;*.jpeg;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp",
-        };
+        var dialogPath = UiPlatform.FileDialogs.PickFileToOpen(new FileDialogOptions(Title: "Choose image", Filter: "Images (*.png;*.jpg;*.jpeg;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp"));
 
-        if (dialog.ShowDialog() != true)
+        if (dialogPath is null)
         {
             return null;
         }
 
-        var info = new FileInfo(dialog.FileName);
+        var info = new FileInfo(dialogPath);
         if (info.Length > 5 * 1024 * 1024)
         {
             _windows.ShowError("Image too large", "Choose an image under 5 MB - it's stored inside the map file.");
@@ -847,7 +833,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
             _ => "image/png",
         };
 
-        return new CustomMapImage { MimeType = mime, Data = Convert.ToBase64String(File.ReadAllBytes(dialog.FileName)) };
+        return new CustomMapImage { MimeType = mime, Data = Convert.ToBase64String(File.ReadAllBytes(dialogPath)) };
     }
 
     private void MarkChanged()

@@ -19,7 +19,6 @@ using DesktopNMS.Core.Topology;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 
 namespace DesktopNMS.ViewModels;
 
@@ -1407,14 +1406,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             ? UnimusExport.ToDiffText(lines.Select(l => l.Row))
             : SelectedBackup?.Backup.Content ?? string.Join(Environment.NewLine, lines.Select(l => l.Text));
 
-        try
-        {
-            Clipboard.SetText(text);
-        }
-        catch (ExternalException)
-        {
-            // Another process briefly holds the clipboard - not worth surfacing as an error.
-        }
+        UiPlatform.Clipboard.SetText(text);
     }
 
     /// <summary>
@@ -1444,18 +1436,16 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var dialog = new SaveFileDialog
-        {
-            Title = "Export configuration",
-            Filter = item.IsText
+        var dialogPath = UiPlatform.FileDialogs.PickFileToSave(new FileDialogOptions(
+            Title: "Export configuration",
+            Filter: item.IsText
                 ? "Config files (*.cfg)|*.cfg|Text files (*.txt)|*.txt|All files (*.*)|*.*"
                 : "Binary files (*.bin)|*.bin|All files (*.*)|*.*",
-            FileName = UnimusExport.FileNameFor(Name, item.Backup.ValidSinceUtc?.ToLocalTime(), item.IsText ? ".cfg" : ".bin"),
-        };
+            FileName: UnimusExport.FileNameFor(Name, item.Backup.ValidSinceUtc?.ToLocalTime(), item.IsText ? ".cfg" : ".bin")));
 
-        if (dialog.ShowDialog() == true)
+        if (dialogPath is not null)
         {
-            WriteExport(dialog.FileName, () => File.WriteAllBytes(dialog.FileName, bytes));
+            WriteExport(dialogPath, () => File.WriteAllBytes(dialogPath, bytes));
         }
     }
 
@@ -1483,18 +1473,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var dialog = new SaveFileDialog
-        {
-            Title = "Export comparison",
-            Filter = "Diff files (*.diff)|*.diff|Patch files (*.patch)|*.patch|All files (*.*)|*.*",
-            FileName = UnimusExport.FileNameFor(Name, revised.Backup.ValidSinceUtc?.ToLocalTime(), ".diff"),
-        };
+        var dialogPath = UiPlatform.FileDialogs.PickFileToSave(new FileDialogOptions(Title: "Export comparison", Filter: "Diff files (*.diff)|*.diff|Patch files (*.patch)|*.patch|All files (*.*)|*.*", FileName: UnimusExport.FileNameFor(Name, revised.Backup.ValidSinceUtc?.ToLocalTime(), ".diff")));
 
-        if (dialog.ShowDialog() == true)
+        if (dialogPath is not null)
         {
             // UTF-8 without a BOM - a BOM ahead of "---" can stop patch tools
             // recognising the header.
-            WriteExport(dialog.FileName, () => File.WriteAllText(dialog.FileName, text, new System.Text.UTF8Encoding(false)));
+            WriteExport(dialogPath, () => File.WriteAllText(dialogPath, text, new System.Text.UTF8Encoding(false)));
         }
     }
 
@@ -4010,27 +3995,16 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     private void CopyEventLogCsv()
     {
-        try
-        {
-            Clipboard.SetText(BuildEventLogCsv());
-        }
-        catch (ExternalException)
-        {
-            // Another process briefly holds the clipboard - not worth surfacing as an error.
-        }
+        UiPlatform.Clipboard.SetText(BuildEventLogCsv());
     }
 
     private void ExportEventLogCsv()
     {
-        var dialog = new SaveFileDialog
-        {
-            Filter = "CSV files (*.csv)|*.csv",
-            FileName = $"device-{_deviceId}-eventlog-{DateTime.Now:yyyy-MM-dd-HHmmss}.csv",
-        };
+        var dialogPath = UiPlatform.FileDialogs.PickFileToSave(new FileDialogOptions(Filter: "CSV files (*.csv)|*.csv", FileName: $"device-{_deviceId}-eventlog-{DateTime.Now:yyyy-MM-dd-HHmmss}.csv"));
 
-        if (dialog.ShowDialog() == true)
+        if (dialogPath is not null)
         {
-            File.WriteAllText(dialog.FileName, BuildEventLogCsv());
+            File.WriteAllText(dialogPath, BuildEventLogCsv());
         }
     }
 

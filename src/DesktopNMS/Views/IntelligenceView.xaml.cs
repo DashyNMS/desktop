@@ -72,7 +72,7 @@ public partial class IntelligenceView : UserControl
     /// <summary>A graph at full size, in a window of its own.</summary>
     private void OnGraphClick(object sender, RoutedEventArgs e)
     {
-        if (sender is not FrameworkElement { DataContext: ImageSource image })
+        if (sender is not FrameworkElement { DataContext: byte[] data } || Converters.ImageBytesToSourceConverter.Decode(data) is not { } image)
         {
             return;
         }

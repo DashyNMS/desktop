@@ -4,9 +4,10 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
         xmlns:views="clr-namespace:DesktopNMS.Views"
         mc:Ignorable="d"
-        d:DataContext="{d:DesignInstance Type=vm:BulkAddDevicesViewModel}"
+        d:DataContext="{d:DesignInstance Type=pvm:BulkAddDevicesViewModel}"
         Title="Bulk add devices"
         Width="1040"
         Height="760"
@@ -144,21 +145,21 @@
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static vm:BulkDeviceStatus.Added}">
+                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static pvm:BulkDeviceStatus.Added}">
                                                             <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
                                                             <Setter Property="FontWeight" Value="SemiBold" />
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static vm:BulkDeviceStatus.Failed}">
+                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static pvm:BulkDeviceStatus.Failed}">
                                                             <Setter Property="Foreground" Value="{StaticResource CriticalBrush}" />
                                                             <Setter Property="FontWeight" Value="SemiBold" />
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static vm:BulkDeviceStatus.Invalid}">
+                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static pvm:BulkDeviceStatus.Invalid}">
                                                             <Setter Property="Foreground" Value="{StaticResource CriticalBrush}" />
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static vm:BulkDeviceStatus.Exists}">
+                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static pvm:BulkDeviceStatus.Exists}">
                                                             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static vm:BulkDeviceStatus.Adding}">
+                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static pvm:BulkDeviceStatus.Adding}">
                                                             <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>

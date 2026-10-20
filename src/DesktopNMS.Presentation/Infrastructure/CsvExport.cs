@@ -2,16 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Windows;
-using Microsoft.Win32;
 
 namespace DesktopNMS.Infrastructure;
 
 /// <summary>
 /// Copy as CSV / Save as CSV for one table - the rows it's showing right
 /// now, after search and filters (#67, #142). A table's view model owns one,
-/// and its toolbar's <see cref="Views.CsvExportButton"/> binds to it.
+/// and its toolbar's CSV export button binds to it.
 /// </summary>
 public sealed class CsvExport
 {
@@ -43,30 +40,15 @@ public sealed class CsvExport
 
     public string ToCsv() => CsvWriter.ToCsv(_headers, _rows());
 
-    private void Copy()
-    {
-        try
-        {
-            Clipboard.SetText(ToCsv());
-        }
-        catch (ExternalException)
-        {
-            // Another process briefly holds the clipboard - not worth an error.
-        }
-    }
+    private void Copy() => UiPlatform.Clipboard.SetText(ToCsv());
 
     private void Save()
     {
         var stem = string.Concat(_fileStem().Split(Path.GetInvalidFileNameChars()));
-        var dialog = new SaveFileDialog
+        var path = UiPlatform.FileDialogs.PickFileToSave(new FileDialogOptions("CSV files (*.csv)|*.csv", $"{stem}-{DateTime.Now:yyyy-MM-dd-HHmmss}.csv"));
+        if (path is not null)
         {
-            Filter = "CSV files (*.csv)|*.csv",
-            FileName = $"{stem}-{DateTime.Now:yyyy-MM-dd-HHmmss}.csv",
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            File.WriteAllText(dialog.FileName, ToCsv());
+            File.WriteAllText(path, ToCsv());
         }
     }
 

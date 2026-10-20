@@ -8,7 +8,7 @@
              xmlns:views="clr-namespace:DesktopNMS.Views"
              xmlns:svgc="clr-namespace:SharpVectors.Converters;assembly=SharpVectors.Converters.Wpf"
              mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance Type=vm:DashboardViewModel}"
+             d:DataContext="{d:DesignInstance Type=pvm:DashboardViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100"
              Loaded="OnLoaded"
              PreviewKeyDown="OnPreviewKeyDown"
@@ -1194,7 +1194,7 @@
              the rendered graph itself stays visible underneath in both
              states, so changing the time range or graph gives instant
              feedback rather than requiring a save-and-close round trip. -->
-        <DataTemplate DataType="{x:Type vm:GraphWidgetViewModel}">
+        <DataTemplate DataType="{x:Type pvm:GraphWidgetViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -1914,7 +1914,7 @@
                                     </DataTemplate>
 
                                     <!-- Graph: the device, the graph and the range. -->
-                                    <DataTemplate DataType="{x:Type vm:GraphWidgetViewModel}">
+                                    <DataTemplate DataType="{x:Type pvm:GraphWidgetViewModel}">
                                         <StackPanel>
                                             <TextBlock Text="DEVICE" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
                                             <!-- Choosing: search the devices. -->
