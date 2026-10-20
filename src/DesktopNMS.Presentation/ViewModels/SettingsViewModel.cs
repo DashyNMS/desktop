@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Media;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.CustomMaps;
@@ -342,7 +341,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// running - so the notice doesn't show before anything has changed, or
     /// for switching to "Match Windows" when Windows already matches.
     /// </summary>
-    public bool ThemeChangeRequiresRestart => _draft.Theme.Resolve(ThemeState.WindowsUsesLightTheme()) != ThemeState.Effective;
+    public bool ThemeChangeRequiresRestart => _draft.Theme.Resolve(UiPlatform.Theme.SystemUsesLightTheme()) != UiPlatform.Theme.Effective;
 
     private void SetDraftTheme(AppTheme theme)
     {
@@ -364,7 +363,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         get => _draft.AccentColor;
         set
         {
-            if (AccentTheme.TryParseColor(value, out var color))
+            if (RgbColour.TryParse(value, out var color))
             {
                 SetDraftAccentColor(color);
             }
@@ -378,19 +377,19 @@ public sealed partial class SettingsViewModel : ObservableObject
     public byte AccentRed
     {
         get => CurrentAccentColor.R;
-        set => SetDraftAccentColor(Color.FromRgb(value, CurrentAccentColor.G, CurrentAccentColor.B));
+        set => SetDraftAccentColor(CurrentAccentColor with { R = value });
     }
 
     public byte AccentGreen
     {
         get => CurrentAccentColor.G;
-        set => SetDraftAccentColor(Color.FromRgb(CurrentAccentColor.R, value, CurrentAccentColor.B));
+        set => SetDraftAccentColor(CurrentAccentColor with { G = value });
     }
 
     public byte AccentBlue
     {
         get => CurrentAccentColor.B;
-        set => SetDraftAccentColor(Color.FromRgb(CurrentAccentColor.R, CurrentAccentColor.G, value));
+        set => SetDraftAccentColor(CurrentAccentColor with { B = value });
     }
 
     /// <summary>
@@ -440,14 +439,14 @@ public sealed partial class SettingsViewModel : ObservableObject
         => byte.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
 
     /// <summary>A live swatch for the settings dialog itself - the rest of the app only repaints once Save applies the draft.</summary>
-    public Brush AccentPreviewBrush => new SolidColorBrush(CurrentAccentColor);
+    public string AccentPreviewColour => CurrentAccentColor.ToHex();
 
-    private Color CurrentAccentColor =>
-        AccentTheme.TryParseColor(_draft.AccentColor, out var color) ? color : Colors.DodgerBlue;
+    private RgbColour CurrentAccentColor =>
+        RgbColour.TryParse(_draft.AccentColor, out var color) ? color : RgbColour.DefaultAccent;
 
-    private void SetDraftAccentColor(Color color)
+    private void SetDraftAccentColor(RgbColour color)
     {
-        var hex = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        var hex = color.ToHex();
         if (string.Equals(_draft.AccentColor, hex, StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -461,7 +460,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(AccentRedText));
         OnPropertyChanged(nameof(AccentGreenText));
         OnPropertyChanged(nameof(AccentBlueText));
-        OnPropertyChanged(nameof(AccentPreviewBrush));
+        OnPropertyChanged(nameof(AccentPreviewColour));
     }
 
     // ----------------------------------------------------------------- server

@@ -30,6 +30,22 @@ public interface IGraphTheme
     GraphPalette Palette { get; }
 }
 
+/// <summary>The palette in use and Windows' (or the OS's) own light/dark choice.</summary>
+public interface IAppThemeInfo
+{
+    /// <summary>Dark or Light - the palette the app started with; never "match the system".</summary>
+    DesktopNMS.Core.Configuration.AppTheme Effective { get; }
+
+    /// <summary>The operating system's app mode is light. True (light) when it can't be read.</summary>
+    bool SystemUsesLightTheme();
+}
+
+/// <summary>Which modifier keys are held - for a click that means something different with Ctrl held.</summary>
+public interface IKeyboardState
+{
+    bool IsControlDown { get; }
+}
+
 /// <summary>
 /// The front end's clipboard, file dialogs and theme colours, set once at
 /// startup (#249) - alongside <see cref="UiThread"/>. Until then the
@@ -44,12 +60,30 @@ public static class UiPlatform
 
     public static IGraphTheme GraphTheme { get; private set; } = new DarkGraphTheme();
 
+    public static IAppThemeInfo Theme { get; private set; } = new DarkTheme();
+
+    public static IKeyboardState Keyboard { get; private set; } = new NoKeys();
+
     /// <summary>Called once by the front end at startup.</summary>
-    public static void Use(IClipboard clipboard, IFileDialogs fileDialogs, IGraphTheme graphTheme)
+    public static void Use(IClipboard clipboard, IFileDialogs fileDialogs, IGraphTheme graphTheme, IAppThemeInfo theme, IKeyboardState keyboard)
     {
         Clipboard = clipboard;
         FileDialogs = fileDialogs;
         GraphTheme = graphTheme;
+        Theme = theme;
+        Keyboard = keyboard;
+    }
+
+    private sealed class DarkTheme : IAppThemeInfo
+    {
+        public DesktopNMS.Core.Configuration.AppTheme Effective => DesktopNMS.Core.Configuration.AppTheme.Dark;
+
+        public bool SystemUsesLightTheme() => true;
+    }
+
+    private sealed class NoKeys : IKeyboardState
+    {
+        public bool IsControlDown => false;
     }
 
     private sealed class NoClipboard : IClipboard

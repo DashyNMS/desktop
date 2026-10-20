@@ -3,12 +3,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
-             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
              xmlns:views="clr-namespace:DesktopNMS.Views"
              xmlns:svgc="clr-namespace:SharpVectors.Converters;assembly=SharpVectors.Converters.Wpf"
              mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance Type=pvm:DashboardViewModel}"
+             d:DataContext="{d:DesignInstance Type=vm:DashboardViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100"
              Loaded="OnLoaded"
              PreviewKeyDown="OnPreviewKeyDown"
@@ -91,7 +90,7 @@
         <!-- ======================== Sensor widget body ======================== -->
         <!-- Resolved automatically wherever a widget's content is presented via a
              plain ContentControl, based on the bound view model's runtime type. -->
-        <DataTemplate DataType="{x:Type pvm:SensorWidgetViewModel}">
+        <DataTemplate DataType="{x:Type vm:SensorWidgetViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -189,7 +188,7 @@
              always in the title bar (a viewing preference, not a structural
              edit), unlike the Sensors widget's "manage" controls which only
              appear while editing. -->
-        <DataTemplate DataType="{x:Type pvm:AlertsWidgetViewModel}">
+        <DataTemplate DataType="{x:Type vm:AlertsWidgetViewModel}">
             <Grid>
                 <!-- Two-line rows (#212): a severity dot, the device, the alert
                      underneath and its age on the right. The severity and
@@ -269,7 +268,7 @@
         <!-- The Alerts widget's title-bar controls (#212): Critical, Warning and
              Acknowledged toggles, each with its count. Shift-click a severity to
              show only that one. -->
-        <DataTemplate DataType="{x:Type pvm:AlertsWidgetHeader}">
+        <DataTemplate DataType="{x:Type vm:AlertsWidgetHeader}">
             <StackPanel Orientation="Horizontal">
                 <ToggleButton Style="{StaticResource ChipToggleStyle}"
                               Tag="Critical"
@@ -310,7 +309,7 @@
              active alerts, drawn with GaugeArcConverter inside a fixed
              100x100 local space that a Viewbox scales to whatever room the
              widget has. -->
-        <DataTemplate DataType="{x:Type pvm:AlertsGaugeWidgetViewModel}">
+        <DataTemplate DataType="{x:Type vm:AlertsGaugeWidgetViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
@@ -424,7 +423,7 @@
         <!-- Four ring gauges - up, down, maintenance and disabled/ignored -
              each a share of all devices, drawn the same way as the Alerts
              gauge widget. -->
-        <DataTemplate DataType="{x:Type pvm:DeviceStatusWidgetViewModel}">
+        <DataTemplate DataType="{x:Type vm:DeviceStatusWidgetViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
@@ -572,7 +571,7 @@
         <!-- The fleet's client total, then one line per wireless controller:
              state dot, name, APs, clients. A line opens the controller's
              Device Details on its Wireless section. -->
-        <DataTemplate DataType="{x:Type pvm:WirelessWidgetViewModel}">
+        <DataTemplate DataType="{x:Type vm:WirelessWidgetViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -667,7 +666,7 @@
         <!-- Same data as the Devices tab's own recently-viewed strip, as rows in
              the shared style (#212): status dot, name, hardware and location,
              and when it was opened. -->
-        <DataTemplate DataType="{x:Type pvm:RecentlyViewedWidgetViewModel}">
+        <DataTemplate DataType="{x:Type vm:RecentlyViewedWidgetViewModel}">
             <Grid>
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}}">
@@ -713,7 +712,7 @@
              two numbers and a bar - under headings that double as the ranking
              control. The count and (errors) the eye are in the title bar - see
              the TopWidgetHeader template below. -->
-        <DataTemplate DataType="{x:Type pvm:TopWidgetViewModel}">
+        <DataTemplate DataType="{x:Type vm:TopWidgetViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -900,7 +899,7 @@
 
         <!-- A Top widget's title-bar controls: "Top 3 ▾" and, for errors, the
              eye that hides ports with no errors. -->
-        <DataTemplate DataType="{x:Type pvm:TopWidgetHeader}">
+        <DataTemplate DataType="{x:Type vm:TopWidgetHeader}">
             <StackPanel Orientation="Horizontal">
                 <ComboBox ItemsSource="{Binding CountChoices}"
                           SelectedItem="{Binding Widget.SelectedCount}"
@@ -951,7 +950,7 @@
              the time on the right. Entries new since the last refresh are
              tinted for a few seconds. The filters are in the title bar - see
              the LogFeedHeader template below. -->
-        <DataTemplate DataType="{x:Type pvm:LogFeedWidgetViewModel}">
+        <DataTemplate DataType="{x:Type vm:LogFeedWidgetViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -1037,7 +1036,7 @@
 
         <!-- A log feed widget's title-bar controls: the Event log's type, or
              Graylog's stream and time range; the search magnifier; the count. -->
-        <DataTemplate DataType="{x:Type pvm:LogFeedHeader}">
+        <DataTemplate DataType="{x:Type vm:LogFeedHeader}">
             <StackPanel Orientation="Horizontal">
                 <ComboBox ItemsSource="{Binding Widget.TypeChoices}"
                           SelectedItem="{Binding Widget.SelectedType}"
@@ -1110,7 +1109,7 @@
         <!-- ======================== Unsupported widget body ======================== -->
         <!-- A widget type from DashyNMS Mobile or a newer version (#196): say
              so plainly. Its settings are kept, so it still works where it was made. -->
-        <DataTemplate DataType="{x:Type pvm:UnsupportedWidgetViewModel}">
+        <DataTemplate DataType="{x:Type vm:UnsupportedWidgetViewModel}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16">
                 <TextBlock Text="{Binding Message}"
                            TextAlignment="Center"
@@ -1128,7 +1127,7 @@
         <!-- Same data as the Devices tab's own pinned/starred devices, as rows in
              the shared style (#212), with Unpin on hover so a device can be
              un-favourited from here too. -->
-        <DataTemplate DataType="{x:Type pvm:PinnedDevicesWidgetViewModel}">
+        <DataTemplate DataType="{x:Type vm:PinnedDevicesWidgetViewModel}">
             <Grid>
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}}">
@@ -1194,7 +1193,7 @@
              the rendered graph itself stays visible underneath in both
              states, so changing the time range or graph gives instant
              feedback rather than requiring a save-and-close round trip. -->
-        <DataTemplate DataType="{x:Type pvm:GraphWidgetViewModel}">
+        <DataTemplate DataType="{x:Type vm:GraphWidgetViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -1260,7 +1259,7 @@
              remove button, the last two only while editing), body, and a
              resize grip in edit mode. Position/size are committed once a drag
              finishes (see DashboardView.xaml.cs), not on every pixel. -->
-        <DataTemplate x:Key="WidgetTemplate" DataType="{x:Type pvm:DashboardWidgetViewModel}">
+        <DataTemplate x:Key="WidgetTemplate" DataType="{x:Type vm:DashboardWidgetViewModel}">
             <!-- The outer Grid keeps the exact cell footprint (ColumnSpan/RowSpan
                  * CellSize) that Canvas.Left/Top and every drag/resize/reflow
                  calculation in DashboardView.xaml.cs assumes - two widgets in
@@ -1684,10 +1683,10 @@
                         <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,16,0,12" />
                         <TextBlock Text="Jump in" Style="{StaticResource SubtleTextStyle}" Margin="0,0,0,8" />
                         <WrapPanel>
-                            <Button Content="Devices" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static pvm:MainTab.Devices}" Padding="10,4" Margin="0,0,6,6" />
-                            <Button Content="Alerts" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static pvm:MainTab.Alerts}" Padding="10,4" Margin="0,0,6,6" />
-                            <Button Content="Network map" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static pvm:MainTab.MapsNetwork}" Padding="10,4" Margin="0,0,6,6" />
-                            <Button Content="Neighbours" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static pvm:MainTab.Neighbours}" Padding="10,4" Margin="0,0,6,6" />
+                            <Button Content="Devices" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static vm:MainTab.Devices}" Padding="10,4" Margin="0,0,6,6" />
+                            <Button Content="Alerts" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static vm:MainTab.Alerts}" Padding="10,4" Margin="0,0,6,6" />
+                            <Button Content="Network map" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static vm:MainTab.MapsNetwork}" Padding="10,4" Margin="0,0,6,6" />
+                            <Button Content="Neighbours" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static vm:MainTab.Neighbours}" Padding="10,4" Margin="0,0,6,6" />
                         </WrapPanel>
 
                         <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,10,0,10" />
@@ -1823,7 +1822,7 @@
                             <ContentControl Content="{Binding}" Focusable="False" Margin="0,16,0,0">
                                 <ContentControl.Resources>
                                     <!-- Any widget: the same options as its title bar, if it has any. -->
-                                    <DataTemplate DataType="{x:Type pvm:DashboardWidgetViewModel}">
+                                    <DataTemplate DataType="{x:Type vm:DashboardWidgetViewModel}">
                                         <StackPanel>
                                             <TextBlock Text="OPTIONS" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6"
                                                        Visibility="{Binding HeaderOptions, Converter={StaticResource NullToVisibility}}" />
@@ -1835,7 +1834,7 @@
                                     </DataTemplate>
 
                                     <!-- Sensors: the ones on it, each removable, and a search to add more. -->
-                                    <DataTemplate DataType="{x:Type pvm:SensorWidgetViewModel}">
+                                    <DataTemplate DataType="{x:Type vm:SensorWidgetViewModel}">
                                         <StackPanel>
                                             <DockPanel Margin="0,0,0,6">
                                                 <Button DockPanel.Dock="Right"
@@ -1914,7 +1913,7 @@
                                     </DataTemplate>
 
                                     <!-- Graph: the device, the graph and the range. -->
-                                    <DataTemplate DataType="{x:Type pvm:GraphWidgetViewModel}">
+                                    <DataTemplate DataType="{x:Type vm:GraphWidgetViewModel}">
                                         <StackPanel>
                                             <TextBlock Text="DEVICE" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
                                             <!-- Choosing: search the devices. -->

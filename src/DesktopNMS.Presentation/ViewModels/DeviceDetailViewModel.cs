@@ -8,7 +8,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using DesktopNMS.Core;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
@@ -1939,7 +1938,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// </summary>
     public void OpenRelatedDevice(int deviceId)
     {
-        if (OpenDeviceRequested is null || (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0)
+        if (OpenDeviceRequested is null || UiPlatform.Keyboard.IsControlDown)
         {
             _windows.ShowDeviceDetail(deviceId);
             return;

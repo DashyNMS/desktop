@@ -3,11 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
-             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
+             xmlns:vm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
              xmlns:models="clr-namespace:DesktopNMS.Core.Models;assembly=DesktopNMS.Core"
              mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance Type=pvm:SensorCategoryViewModel}"
+             d:DataContext="{d:DesignInstance Type=vm:SensorCategoryViewModel}"
              d:DesignHeight="500" d:DesignWidth="1100">
 
     <Grid>
