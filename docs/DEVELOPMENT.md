@@ -212,6 +212,70 @@ lists the app in Settings > Notifications. That is how an unpackaged desktop
 app is allowed to raise toasts and receive clicks on them, and it is why toast
 buttons still work when the app is sitting in the tray.
 
+## Commits and pull requests
+
+Every change goes through a branch and a pull request into `master`, one issue
+per PR, and is squash-merged. The PR title becomes the commit on `master`, so
+the title is what the history reads like.
+
+Titles follow [Conventional Commits](https://www.conventionalcommits.org/), in
+plain words:
+
+```
+type(scope): what changes, as the user would notice it
+```
+
+- **type** is one of:
+
+  | Type | For |
+  |---|---|
+  | `feat` | Something new a user can do or see |
+  | `fix` | Something that was wrong now works |
+  | `perf` | Faster or lighter, with no change in behaviour |
+  | `refactor` | Code restructured, with no change in behaviour |
+  | `docs` | README, docs, What's New |
+  | `test` | Tests only |
+  | `build` | Project files, packages, the installer, the version number |
+  | `ci` | GitHub Actions workflows |
+  | `chore` | Anything else that doesn't touch the app |
+  | `revert` | Undoing an earlier change |
+
+- **scope** is the area of the app, in lower case: `dashboard`, `alerts`,
+  `devices`, `device-details`, `logs`, `graylog`, `maps`, `health`,
+  `neighbours`, `ports`, `settings`, `notifications`, `tray`, `sign-in`,
+  `updates`, `intelligence`, `mcp`, `core`, `api`, `demo`, `installer`,
+  `deps`. Separate two scopes with a comma (`fix(logs,dashboard): …`). Leave
+  it out when a change has no single area (`docs: …`).
+- **The description** says what changes, not how. Start with a lower-case
+  letter, no full stop, and keep the whole title under about 72 characters.
+  Write it as the result someone would notice, for example "neighbours load for
+  ping-only devices", not "handle 404 in PortsApi".
+- **No issue numbers in the title.** Put `Closes #NN` in the PR description
+  instead. GitHub adds the PR number to the squash commit itself.
+- **A breaking change** (to the settings format, or to Core's public API that
+  DashyNMS Mobile uses) gets a `!` after the scope, `feat(core)!: …`, and a
+  sentence in the description saying what breaks.
+
+Examples:
+
+```
+fix(device-details): neighbours load for ping-only devices
+fix(logs): device and type filters show "All devices" and "Any type"
+feat(intelligence): choose how much detail answers give
+refactor(intelligence): split the chat list and composer out of the view model
+test(core): run the locked-file reset test on Windows only
+build: bump the version to 2.0.0
+ci: build the bundled MCP server in preview and release builds
+docs: What's New for 2.0.0-preview.3
+```
+
+Commits on a branch use the same format. They disappear in the squash, so only
+the PR title has to be right.
+
+The PR description starts with `Closes #NN`, then says briefly what changed
+and how it was checked. Release notes and What's New are written separately,
+for users.
+
 ## Roadmap
 
 Tracked as [GitHub issues](https://github.com/DashyNMS/desktop/issues),
