@@ -217,10 +217,8 @@ public partial class DevicesView : UserControl
     /// Sorts by pinned-first, then the given column - shared by a live
     /// column click (<see cref="DeviceGrid_Sorting"/>) and restoring a saved
     /// sort column (<see cref="ApplyGridLayout"/>), so pinned devices stay on
-    /// top no matter which triggered it. The default DataGrid-bound-to-an-
-    /// ICollectionView behaviour would otherwise replace
-    /// DeviceListViewModel's IsPinned SortDescription with just the clicked
-    /// column's.
+    /// top no matter which triggered it. The DataGrid's default behaviour would otherwise
+    /// sort by just the clicked column.
     /// </summary>
     private void ApplyPinnedFirstSort(DataGridColumn column, ListSortDirection direction)
     {
@@ -229,9 +227,12 @@ public partial class DevicesView : UserControl
             return;
         }
 
-        vm.DevicesView.SortDescriptions.Clear();
-        vm.DevicesView.SortDescriptions.Add(new SortDescription(nameof(DeviceItemViewModel.IsPinned), ListSortDirection.Descending));
-        vm.DevicesView.SortDescriptions.Add(new SortDescription(column.SortMemberPath, direction));
+        // The grid's own view over the filtered devices (#249) - the view
+        // model's list keeps its pinned-then-name order underneath.
+        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(vm.DevicesView);
+        view.SortDescriptions.Clear();
+        view.SortDescriptions.Add(new SortDescription(nameof(DeviceItemViewModel.IsPinned), ListSortDirection.Descending));
+        view.SortDescriptions.Add(new SortDescription(column.SortMemberPath, direction));
 
         foreach (var gridColumn in DeviceGrid.Columns)
         {

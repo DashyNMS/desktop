@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Collections;
 using System.ComponentModel;
-using System.Windows.Data;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Infrastructure;
 using Microsoft.Extensions.Logging;
@@ -42,7 +41,7 @@ public sealed partial class IntelligenceViewModel
     }
 
     public ObservableCollection<IntelligenceChatItemViewModel> Chats { get; } = new();
-    public ICollectionView GroupedChats { get; private set; } = null!;
+    public FilteredView GroupedChats { get; private set; } = null!;
     public RelayCommand RenameChatCommand { get; private set; } = null!;
     public RelayCommand SaveChatNameCommand { get; private set; } = null!;
     public RelayCommand CancelChatNameCommand { get; private set; } = null!;
@@ -88,11 +87,8 @@ public sealed partial class IntelligenceViewModel
 
     private void InitializeChats(IIntelligenceChatStore store)
     {
-        var grouped = new ListCollectionView(Chats);
-        grouped.GroupDescriptions.Add(new PropertyGroupDescription(nameof(IntelligenceChatItemViewModel.ActivityGroup)) { CustomSort = new ChatActivityGroupComparer() });
-        grouped.LiveGroupingProperties.Add(nameof(IntelligenceChatItemViewModel.ActivityGroup));
-        grouped.IsLiveGrouping = true;
-        GroupedChats = grouped;
+        // Grouped by ActivityGroup in the view (#249), live, as chats move between groups.
+        GroupedChats = new FilteredView(Chats);
         _chatGroupingTimer.Tick += (_, _) =>
         {
             var today = DateOnly.FromDateTime(DateTime.Now);
@@ -318,13 +314,6 @@ public sealed partial class IntelligenceViewModel
     {
         var title = string.Join(" ", value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         return title.Length > 80 ? title[..77] + "…" : title;
-    }
-
-    private sealed class ChatActivityGroupComparer : IComparer
-    {
-        public int Compare(object? x, object? y) =>
-            (((CollectionViewGroup)x!).Name as IntelligenceChatActivityGroup)!.Order.CompareTo(
-                (((CollectionViewGroup)y!).Name as IntelligenceChatActivityGroup)!.Order);
     }
 }
 

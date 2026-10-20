@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Data;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
@@ -79,15 +78,15 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         _dispatcher = UiThread.Dispatcher;
 
         Devices = new BatchObservableCollection<DeviceItemViewModel>();
-        DevicesView = CollectionViewSource.GetDefaultView(Devices);
+        DevicesView = new FilteredView(Devices);
         DevicesView.Filter = FilterDevice;
 
-        // Pinned devices always float to the top, regardless of whichever
-        // column the user has sorted by - see DevicesView.xaml.cs's Sorting
-        // handler, which re-applies this same IsPinned SortDescription ahead
-        // of the clicked column instead of letting the DataGrid replace it.
-        DevicesView.SortDescriptions.Add(new SortDescription(nameof(DeviceItemViewModel.IsPinned), ListSortDirection.Descending));
-        DevicesView.SortDescriptions.Add(new SortDescription(nameof(DeviceItemViewModel.Name), ListSortDirection.Ascending));
+        // Pinned devices first, then by name - the default order. Once a
+        // column is clicked, DevicesView.xaml.cs's Sorting handler sorts the
+        // grid's own view, keeping IsPinned ahead of the clicked column.
+        DevicesView.Sort = FilteredView.ThenBy(
+            FilteredView.By<DeviceItemViewModel, bool>(i => i.IsPinned, descending: true),
+            FilteredView.By<DeviceItemViewModel, string>(i => i.Name, comparer: StringComparer.CurrentCultureIgnoreCase));
 
         _pinnedIds = EffectivePinnedIds(_settings.Current);
 
@@ -152,7 +151,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     public BatchObservableCollection<DeviceItemViewModel> Devices { get; }
 
-    public ICollectionView DevicesView { get; }
+    public FilteredView DevicesView { get; }
 
     /// <summary>
     /// Devices opened recently (see DeviceDetailViewModel.RecordRecentlyViewed),
@@ -428,7 +427,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
 
     public int TotalCount => Devices.Count;
 
-    public int VisibleCount => DevicesView.Cast<object>().Count();
+    public int VisibleCount => DevicesView.Count;
 
     /// <summary>Drives the loading/empty/no-matches split on the grid itself (issue #16) - distinct from <see cref="IsBusy"/>, which only covers whether a refresh is in flight after the first load.</summary>
     public ListLoadState LoadState { get; } = new();

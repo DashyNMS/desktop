@@ -8,7 +8,7 @@
              xmlns:views="clr-namespace:DesktopNMS.Views"
              xmlns:svgc="clr-namespace:SharpVectors.Converters;assembly=SharpVectors.Converters.Wpf"
              mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance Type=vm:NeighboursViewModel}"
+             d:DataContext="{d:DesignInstance Type=pvm:NeighboursViewModel}"
              d:DesignHeight="600" d:DesignWidth="1100">
 
     <!-- The Neighbours tab (#55, #221) - see NeighboursViewModel. Every

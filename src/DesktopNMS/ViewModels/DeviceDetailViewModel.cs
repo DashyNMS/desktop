@@ -9,7 +9,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Data;
 using DesktopNMS.Core;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
@@ -263,22 +262,21 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         // of being scaled down into illegibility.
         OverviewGraph = new SingleGraphViewModel(deviceId, "device_icmp_perf", GraphTimeRange.LastDay, width: 420, height: 160, client, logger);
 
-        PortsView = CollectionViewSource.GetDefaultView(Ports);
+        PortsView = new FilteredView(Ports);
         PortsView.Filter = FilterPortEntry;
-        ApplyPortGrouping();
 
-        VlansView = CollectionViewSource.GetDefaultView(VlanEntries);
+        VlansView = new FilteredView(VlanEntries);
         VlansView.Filter = FilterVlanEntry;
 
-        FdbView = CollectionViewSource.GetDefaultView(FdbEntries);
+        FdbView = new FilteredView(FdbEntries);
         FdbView.Filter = FilterFdbEntry;
 
-        ArpView = CollectionViewSource.GetDefaultView(ArpEntries);
+        ArpView = new FilteredView(ArpEntries);
         ArpView.Filter = FilterArpEntry;
 
         // Filter only - no grouping, so this does not run into the DataGrid
         // grouping/full-width fight the Sensors tab did.
-        EventLogView = CollectionViewSource.GetDefaultView(EventLog);
+        EventLogView = new FilteredView(EventLog);
         EventLogView.Filter = FilterEventLogEntry;
 
         ShowAlertsCommand = new RelayCommand(() => _windows.ShowAlertsForDevice(_deviceId, Name));
@@ -435,7 +433,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// <see cref="SensorItemViewModel.GroupKey"/> - e.g. every reading for
     /// one transceiver, or a PSU's voltage/current/power that all share a
     /// name - so related readings read as one thing instead of scattered
-    /// rows. Built explicitly rather than via an ICollectionView's grouping:
+    /// rows. Built explicitly rather than via an FilteredView's grouping:
     /// a grouped DataGrid does not lay its rows out at full width without a
     /// fight, and this list needs no sorting or selection to justify one.
     /// </summary>
@@ -451,12 +449,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public BatchObservableCollection<PortItemViewModel> Ports { get; }
 
     /// <summary>Ports, filtered by <see cref="PortSearchText"/>. What the Ports tab actually binds to.</summary>
-    public ICollectionView PortsView { get; }
+    public FilteredView PortsView { get; }
 
     public BatchObservableCollection<VlanItemViewModel> VlanEntries { get; }
 
     /// <summary>The VLANs, filtered by <see cref="VlanSearchText"/>. What the VLANs tab actually binds to.</summary>
-    public ICollectionView VlansView { get; }
+    public FilteredView VlansView { get; }
 
     public BatchObservableCollection<ProcessorItemViewModel> Processors { get; }
 
@@ -487,17 +485,17 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     public BatchObservableCollection<FdbItemViewModel> FdbEntries { get; }
 
     /// <summary>The FDB, filtered by <see cref="FdbSearchText"/>. What the FDB tab actually binds to.</summary>
-    public ICollectionView FdbView { get; }
+    public FilteredView FdbView { get; }
 
     public BatchObservableCollection<ArpItemViewModel> ArpEntries { get; }
 
     /// <summary>The ARP table, filtered by <see cref="ArpSearchText"/>. What the ARP tab actually binds to.</summary>
-    public ICollectionView ArpView { get; }
+    public FilteredView ArpView { get; }
 
     public BatchObservableCollection<EventLogItemViewModel> EventLog { get; }
 
     /// <summary>The event log, filtered by <see cref="EventLogSearchText"/>. What the Event log tab actually binds to.</summary>
-    public ICollectionView EventLogView { get; }
+    public FilteredView EventLogView { get; }
 
     public RelayCommand ShowAlertsCommand { get; }
 
@@ -628,53 +626,28 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
             _settings.Current.PortGroupBy = value.Value.ToString();
             _settings.SaveQuietly();
-            ApplyPortGrouping();
             OnPropertyChanged();
+            OnPropertyChanged(nameof(PortGroupProperty));
         }
     }
 
-    /// <summary>Groups <see cref="PortsView"/> by the chosen key; search and column sorting still work inside each group.</summary>
-    private void ApplyPortGrouping()
+    /// <summary>
+    /// The <see cref="PortItemViewModel"/> property the Ports table groups by,
+    /// or null for no grouping. The view applies it to its grid, with groups
+    /// ordered by <see cref="PortItemViewModel.GroupSortKey"/> (#249) - search
+    /// and column sorting still work inside each group.
+    /// </summary>
+    public string? PortGroupProperty => CurrentPortGrouping switch
     {
-        var grouping = CurrentPortGrouping;
-        PortsView.GroupDescriptions.Clear();
-        if (grouping == PortGrouping.None)
-        {
-            return;
-        }
+        PortGrouping.None => null,
+        PortGrouping.Status => nameof(PortItemViewModel.StatusGroup),
+        PortGrouping.Vlan => nameof(PortItemViewModel.VlanGroup),
+        PortGrouping.Type => nameof(PortItemViewModel.TypeGroup),
+        _ => nameof(PortItemViewModel.SpeedGroup),
+    };
 
-        var property = grouping switch
-        {
-            PortGrouping.Status => nameof(PortItemViewModel.StatusGroup),
-            PortGrouping.Vlan => nameof(PortItemViewModel.VlanGroup),
-            PortGrouping.Type => nameof(PortItemViewModel.TypeGroup),
-            _ => nameof(PortItemViewModel.SpeedGroup),
-        };
-
-        PortsView.GroupDescriptions.Add(new PropertyGroupDescription(property) { CustomSort = new PortGroupOrder(grouping) });
-    }
-
-    /// <summary>Up before Down, VLANs and speeds by number, types by name - whatever the rows are sorted by.</summary>
-    private sealed class PortGroupOrder : System.Collections.IComparer
-    {
-        private readonly PortGrouping _grouping;
-
-        public PortGroupOrder(PortGrouping grouping) => _grouping = grouping;
-
-        public int Compare(object? x, object? y)
-        {
-            if (x is not CollectionViewGroup a || y is not CollectionViewGroup b)
-            {
-                return 0;
-            }
-
-            var byKey = Key(a).CompareTo(Key(b));
-            return byKey != 0 ? byKey : string.Compare(a.Name?.ToString(), b.Name?.ToString(), StringComparison.OrdinalIgnoreCase);
-        }
-
-        private long Key(CollectionViewGroup group) =>
-            group.Items.Count > 0 && group.Items[0] is PortItemViewModel port ? port.GroupSortKey(_grouping) : 0;
-    }
+    /// <summary>The grouping in force, for ordering the groups (see <see cref="PortItemViewModel.GroupSortKey"/>).</summary>
+    public PortGrouping PortGroupingValue => CurrentPortGrouping;
 
     /// <summary>Free-text filter over a port's name, description and alias.</summary>
     public string PortSearchText

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 using DesktopNMS.Core.Configuration;
@@ -38,6 +39,7 @@ public partial class DeviceView : Window
 
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
         viewModel.ScrollToConfigLineRequested += OnScrollToConfigLineRequested;
+        ApplyPortGrouping(viewModel);
         DiffRuler.NavigateRequested += OnDiffRulerNavigateRequested;
 
         // Back and forward (#58): Alt+Left/Right and the mouse's own buttons, as in a browser.
@@ -132,6 +134,7 @@ public partial class DeviceView : Window
         DataContext = viewModel;
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
         viewModel.ScrollToConfigLineRequested += OnScrollToConfigLineRequested;
+        ApplyPortGrouping(viewModel);
     }
 
     private void OnNavigationKeyDown(object sender, KeyEventArgs e)
@@ -235,6 +238,11 @@ public partial class DeviceView : Window
     /// </summary>
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(DeviceDetailViewModel.PortGroupProperty) && sender is DeviceDetailViewModel grouped)
+        {
+            ApplyPortGrouping(grouped);
+        }
+
         if (e.PropertyName == nameof(DeviceDetailViewModel.ConfigLines))
         {
             // New content starts at the top unless the view model asks for
@@ -490,5 +498,40 @@ public partial class DeviceView : Window
 
         item.OnlyCommand.Execute(null);
         e.Handled = true;
+    }
+
+    // ------------------------------------------------------------------ ports
+
+    /// <summary>
+    /// Groups the Ports table by the view model's chosen key (#272) - a view
+    /// concern since #249, applied to the grid's own view of the ports, so
+    /// search and column sorting still work inside each group.
+    /// </summary>
+    private static void ApplyPortGrouping(DeviceDetailViewModel viewModel)
+    {
+        var view = CollectionViewSource.GetDefaultView(viewModel.PortsView);
+        view.GroupDescriptions.Clear();
+        if (viewModel.PortGroupProperty is { } property)
+        {
+            view.GroupDescriptions.Add(new PropertyGroupDescription(property) { CustomSort = new PortGroupOrder(viewModel.PortGroupingValue) });
+        }
+    }
+
+    /// <summary>Up before Down, VLANs and speeds by number, types by name - whatever the rows are sorted by.</summary>
+    private sealed class PortGroupOrder(PortGrouping grouping) : System.Collections.IComparer
+    {
+        public int Compare(object? x, object? y)
+        {
+            if (x is not CollectionViewGroup a || y is not CollectionViewGroup b)
+            {
+                return 0;
+            }
+
+            var byKey = Key(a).CompareTo(Key(b));
+            return byKey != 0 ? byKey : string.Compare(a.Name?.ToString(), b.Name?.ToString(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private long Key(CollectionViewGroup group) =>
+            group.Items.Count > 0 && group.Items[0] is PortItemViewModel port ? port.GroupSortKey(grouping) : 0;
     }
 }

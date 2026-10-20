@@ -37,6 +37,13 @@ public partial class CustomMapsView : UserControl
         if (_viewModel is not null)
         {
             _viewModel.FitToViewRequested += OnFitToViewRequested;
+
+            // The maps list in menu groups - a view concern since #249.
+            var maps = System.Windows.Data.CollectionViewSource.GetDefaultView(_viewModel.MapsView);
+            if (maps.GroupDescriptions.Count == 0)
+            {
+                maps.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription(nameof(DesktopNMS.Core.CustomMaps.CustomMapSummary.MenuGroup)));
+            }
         }
     }
 

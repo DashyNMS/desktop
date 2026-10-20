@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
-using System.Windows.Data;
 using DesktopNMS.Infrastructure;
 
 namespace DesktopNMS.ViewModels;
@@ -81,7 +80,7 @@ public sealed class FilterFacet : ObservableObject
         _onChanged = onChanged;
 
         Options = new ObservableCollection<FilterOptionViewModel>();
-        OptionsView = CollectionViewSource.GetDefaultView(Options);
+        OptionsView = new FilteredView(Options);
         OptionsView.Filter = MatchesSearch;
 
         CheckAllCommand = new RelayCommand(() => SetAllChecked(true));
@@ -92,7 +91,7 @@ public sealed class FilterFacet : ObservableObject
     public ObservableCollection<FilterOptionViewModel> Options { get; }
 
     /// <summary>Options, filtered by <see cref="SearchText"/> - what the popover's checklist actually binds to.</summary>
-    public ICollectionView OptionsView { get; }
+    public FilteredView OptionsView { get; }
 
     public RelayCommand CheckAllCommand { get; }
 

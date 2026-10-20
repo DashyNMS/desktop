@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
-using System.Windows.Data;
 using DesktopNMS.Infrastructure;
 
 namespace DesktopNMS.ViewModels;
@@ -49,15 +48,16 @@ public sealed class CheckablePickerViewModel : ObservableObject
     public CheckablePickerViewModel()
     {
         Items = new BatchObservableCollection<NamedPickerItemViewModel>();
-        View = CollectionViewSource.GetDefaultView(Items);
+        View = new FilteredView(Items);
         View.Filter = Filter;
-        View.SortDescriptions.Add(new SortDescription(nameof(NamedPickerItemViewModel.Kind), ListSortDirection.Ascending));
-        View.SortDescriptions.Add(new SortDescription(nameof(NamedPickerItemViewModel.Name), ListSortDirection.Ascending));
+        View.Sort = FilteredView.ThenBy(
+            FilteredView.By<NamedPickerItemViewModel, string>(i => i.Kind, comparer: StringComparer.CurrentCultureIgnoreCase),
+            FilteredView.By<NamedPickerItemViewModel, string>(i => i.Name, comparer: StringComparer.CurrentCultureIgnoreCase));
     }
 
     public BatchObservableCollection<NamedPickerItemViewModel> Items { get; }
 
-    public ICollectionView View { get; }
+    public FilteredView View { get; }
 
     public string SearchText
     {
