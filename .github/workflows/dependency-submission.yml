@@ -1,0 +1,39 @@
+name: Dependency submission
+
+# Sends the full NuGet dependency tree (including DashyNMS.Core from GitHub
+# Packages) to the dependency graph, so Dependabot alerts cover transitive
+# packages. Replaces GitHub's automatic dependency submission, which can't
+# log in to GitHub Packages - turn that off in Settings > Advanced Security.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: read
+
+env:
+  DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  submit:
+    name: Submit dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "9.0.x"
+
+      # project.assets.json is what component detection reads.
+      - name: Restore
+        run: dotnet restore DesktopNMS.sln
+
+      - name: Submit to the dependency graph
+        uses: advanced-security/component-detection-dependency-submission-action@v0.2.0
+        with:
+          detectorsCategories: NuGet
