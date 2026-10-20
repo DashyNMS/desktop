@@ -214,7 +214,18 @@ buttons still work when the app is sitting in the tray.
 
 ## Roadmap
 
-Tracked as [GitHub issues](https://github.com/DashyNMS/desktop/issues),
-grouped under the [1.1.0](https://github.com/DashyNMS/desktop/milestone/2) and
-[1.2.0](https://github.com/DashyNMS/desktop/milestone/3) milestones, each
-issue labelled `Feature`, `UI/UX`, `Performance`, or `bug`.
+Tracked as [GitHub issues](https://github.com/DashyNMS/desktop/issues), with
+one [milestone](https://github.com/DashyNMS/desktop/milestones) per release.
+Larger pieces of work have an epic issue that lists its parts in order:
+
+- [2.0.0](https://github.com/DashyNMS/desktop/milestone/3): one Avalonia app
+  for Windows, macOS and Linux, plus Intelligence. The work is in six batches,
+  listed in the epic [#259](https://github.com/DashyNMS/desktop/issues/259).
+- 2.1.0 to 2.4.0: features again, including Intelligence across the app
+  ([#337](https://github.com/DashyNMS/desktop/issues/337)) and device
+  dependencies ([#305](https://github.com/DashyNMS/desktop/issues/305)).
+- [2.5.0](https://github.com/DashyNMS/desktop/milestone/9): multiple LibreNMS
+  servers.
+
+Issues are labelled by kind: `bug`, `Feature`, `enhancement`, `UI/UX`,
+`Performance`, `accessibility`, `documentation`, `.NET` or `github_actions`.
