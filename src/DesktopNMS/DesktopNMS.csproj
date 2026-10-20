@@ -62,7 +62,7 @@
     checkout's folder (an environment variable or -p:DASHYNMS_LOCAL_CORE=...).
   -->
   <PropertyGroup>
-    <DashyNMSCoreVersion>2.0.0-ci.1</DashyNMSCoreVersion>
+    <DashyNMSCoreVersion>2.0.0-ci.2</DashyNMSCoreVersion>
   </PropertyGroup>
   <ItemGroup Condition="'$(DASHYNMS_LOCAL_CORE)' == ''">
     <PackageReference Include="DashyNMS.Core" Version="$(DashyNMSCoreVersion)" />
