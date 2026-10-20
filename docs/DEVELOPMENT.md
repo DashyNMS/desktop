@@ -236,14 +236,15 @@ lists the app in Settings > Notifications. That is how an unpackaged desktop
 app is allowed to raise toasts and receive clicks on them, and it is why toast
 buttons still work when the app is sitting in the tray.
 
-## Commits and pull requests
+## Commits, pull requests and issues
 
 Every change goes through a branch and a pull request into `master`, one issue
 per PR, and is squash-merged. The PR title becomes the commit on `master`, so
 the title is what the history reads like.
 
-Titles follow [Conventional Commits](https://www.conventionalcommits.org/), in
-plain words:
+PR titles, commit messages and **issue titles** follow
+[Conventional Commits](https://www.conventionalcommits.org/), in plain words.
+The same standard is used in DashyNMS/core, mobile and mcp.
 
 ```
 type(scope): what changes, as the user would notice it
@@ -264,12 +265,21 @@ type(scope): what changes, as the user would notice it
   | `chore` | Anything else that doesn't touch the app |
   | `revert` | Undoing an earlier change |
 
-- **scope** is the area of the app, in lower case: `dashboard`, `alerts`,
-  `devices`, `device-details`, `logs`, `graylog`, `maps`, `health`,
-  `neighbours`, `ports`, `settings`, `notifications`, `tray`, `sign-in`,
-  `updates`, `intelligence`, `mcp`, `core`, `api`, `demo`, `installer`,
-  `deps`. Separate two scopes with a comma (`fix(logs,dashboard): …`). Leave
-  it out when a change has no single area (`docs: …`).
+- **scope** is the area of the app, in lower case:
+  - Screens: `dashboard`, `alerts`, `devices`, `device-details`, `logs`,
+    `graylog`, `maps`, `health`, `neighbours`, `ports`, `wireless`, `apps`,
+    `routing`, `graphs`, `rules`, `groups`, `maintenance`, `search`,
+    `reports`, `catch-up`, `dependencies` (device dependencies)
+  - Around the app: `settings`, `notifications`, `tray`, `startup`,
+    `sign-in`, `updates`, `servers` (several LibreNMS servers), `users`,
+    `billing`, `pollers`, `oxidized`, `diagnostics`, `accessibility`,
+    `intelligence`, `mcp`, `kiosk`, `demo`
+  - Code and packaging: `core`, `presentation`, `avalonia`, `api`,
+    `installer`, `deps` (package updates)
+
+  Separate two scopes with a comma (`fix(logs,dashboard): …`). Leave it out
+  when a change has no single area (`docs: …`). A new area can add a scope;
+  add it to this list in the same PR.
 - **The description** says what changes, not how. Start with a lower-case
   letter, no full stop, and keep the whole title under about 72 characters.
   Write it as the result someone would notice, for example "neighbours load for
@@ -295,6 +305,17 @@ docs: What's New for 2.0.0-preview.3
 
 Commits on a branch use the same format. They disappear in the squash, so only
 the PR title has to be right.
+
+**Issue titles** use the same form, worded as the result the fixing PR will
+deliver, so the PR can reuse the title:
+`fix(intelligence): saving chats no longer stutters while answers stream`,
+`feat(alerts): add a note without acknowledging`. An epic ends with
+`(epic)`; an issue waiting on LibreNMS ends with `(blocked upstream)`, as its
+label says. Labels carry the rest (`bug`, `LibreNMS 26.10`…), so titles don't
+repeat them.
+
+Commits, PRs and release notes carry no AI attribution or `Co-Authored-By`
+lines.
 
 The PR description starts with `Closes #NN`, then says briefly what changed
 and how it was checked. Release notes and What's New are written separately,
