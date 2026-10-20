@@ -1,7 +1,9 @@
 # DashyNMS
 
-WPF/.NET 9 desktop client for LibreNMS. `src/DesktopNMS` is the app and
-`src/DesktopNMS.Core` is the shared code (DashyNMS Mobile builds it too).
+WPF/.NET 9 desktop client for LibreNMS. `src/DesktopNMS` is the app. The shared code (`DesktopNMS.Core`) lives in
+[DashyNMS/core](https://github.com/DashyNMS/core) and comes in as the `DashyNMS.Core`
+package, pinned to a development build between releases. Make Core changes
+there, and set `DASHYNMS_LOCAL_CORE` to build against a local checkout.
 Building, layout and storage are covered in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Commits and pull requests

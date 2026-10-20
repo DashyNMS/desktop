@@ -12,6 +12,11 @@ on:
 permissions:
   contents: read
   security-events: write
+  packages: read
+
+# DashyNMS.Core comes from GitHub Packages (see nuget.config).
+env:
+  DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   analyze:
