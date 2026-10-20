@@ -70,7 +70,7 @@ public sealed class StartupTabOption
     public override string ToString() => Label;
 }
 
-/// <summary>A choice in Settings → Maps → Default map.</summary>
+/// <summary>A choice in Settings → Window and start-up → Default map.</summary>
 public sealed record DefaultMapOption(string Value, string Label)
 {
     public override string ToString() => Label;

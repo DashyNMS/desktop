@@ -693,21 +693,7 @@
                     <StackPanel Visibility="{Binding IsMapsSectionSelected, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="Maps" Style="{StaticResource HeadingTextStyle}" Margin="0,0,0,14" />
 
-                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12" Margin="0,0,0,12">
-                            <StackPanel>
-                                <TextBlock Text="Default map" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
-                                <ComboBox ItemsSource="{Binding DefaultMapOptions}"
-                                          SelectedItem="{Binding SelectedDefaultMap}"
-                                          DisplayMemberPath="Label"
-                                          Width="220"
-                                          HorizontalAlignment="Left" />
-                                <TextBlock Style="{StaticResource SubtleTextStyle}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,6,0,0"
-                                           Text="Which map opens when you click Maps - Network, Geographical, or one of your custom maps. The others are always a hover away." />
-                            </StackPanel>
-                        </Border>
-
+                        <!-- Default map lives in Window and start-up, with the other "what opens" choices (#300). -->
                         <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="6" Padding="14,12">
                             <StackPanel>
                                 <TextBlock Text="Geographical map tiles" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
@@ -781,7 +767,7 @@
                                           SelectedItem="{Binding SelectedStartupTab}"
                                           DisplayMemberPath="Label" />
 
-                                <!-- #287: what clicking Logs opens, as Settings › Maps' Default map does for Maps. -->
+                                <!-- #287: what clicking Logs opens, as Default map below does for Maps. -->
                                 <TextBlock Text="Default log" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
                                 <ComboBox ItemsSource="{Binding DefaultLogOptions}"
                                           SelectedItem="{Binding SelectedDefaultLog}"
@@ -790,6 +776,16 @@
                                            TextWrapping="Wrap"
                                            Margin="0,6,0,0"
                                            Text="Which log opens when you click Logs. The others are a hover away. Graylog opens the event log until it's set up." />
+
+                                <!-- #300: moved here from Maps, so every "what opens" choice is together. -->
+                                <TextBlock Text="Default map" Style="{StaticResource SectionHeaderStyle}" Margin="0,16,0,6" />
+                                <ComboBox ItemsSource="{Binding DefaultMapOptions}"
+                                          SelectedItem="{Binding SelectedDefaultMap}"
+                                          DisplayMemberPath="Label" />
+                                <TextBlock Style="{StaticResource SubtleTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"
+                                           Text="Which map opens when you click Maps: Network, Geographical, or one of your custom maps. The others are a hover away." />
                             </StackPanel>
                         </Border>
                     </StackPanel>
