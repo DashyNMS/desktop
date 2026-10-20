@@ -6,20 +6,10 @@ using System.Windows.Threading;
 namespace DesktopNMS.Services;
 
 /// <summary>
-/// Whether any DashyNMS window is on screen - none means it's sitting in the
-/// tray, or every window is minimised. The device and sensor pollers slow
-/// down while it is (#52); the alert poller never does, since notifications
-/// depend on it.
+/// Desktop's <see cref="IAppActivity"/>: in the background when no DashyNMS
+/// window is on screen - it's sitting in the tray, or every window is
+/// minimised. <see cref="IAppActivity.Changed"/> is raised on the UI thread.
 /// </summary>
-public interface IAppActivity
-{
-    /// <summary>No window is on screen. Safe to read from any thread.</summary>
-    bool IsInBackground { get; }
-
-    /// <summary>Raised on the UI thread when <see cref="IsInBackground"/> changes.</summary>
-    event EventHandler? Changed;
-}
-
 public sealed class AppActivity : IAppActivity
 {
     private volatile bool _isInBackground;
@@ -59,11 +49,4 @@ public sealed class AppActivity : IAppActivity
         _isInBackground = !onScreen;
         Changed?.Invoke(this, EventArgs.Empty);
     }
-}
-
-/// <summary>How much the device and sensor pollers slow down with nothing on screen (#52).</summary>
-public static class AppActivityPolling
-{
-    /// <summary>Poll this many times less often - a 30-second setting becomes 2 minutes.</summary>
-    public const int BackgroundSlowdown = 4;
 }

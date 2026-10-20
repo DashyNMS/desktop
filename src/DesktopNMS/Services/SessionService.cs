@@ -13,10 +13,8 @@ namespace DesktopNMS.Services;
 /// Owns "am I signed in, and to what". Everything else asks this rather than
 /// poking the client directly.
 /// </summary>
-public interface ISessionService
+public interface ISessionService : DesktopNMS.Core.Services.IConnectionState
 {
-    bool IsConnected { get; }
-
     LibreNmsConnection? Connection { get; }
 
     /// <summary>Version details of the connected instance, populated on sign-in.</summary>

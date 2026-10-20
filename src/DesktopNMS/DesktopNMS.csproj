@@ -90,6 +90,8 @@
     -->
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
+    <!-- The pollers, caches and dashboard layout service moved to Core (#208). -->
+    <Using Include="DesktopNMS.Core.Services" />
   </ItemGroup>
 
   <!--
