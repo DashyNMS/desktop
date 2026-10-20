@@ -71,6 +71,19 @@ public class DeviceNeighboursTests
     }
 
     [Fact]
+    public void A_ping_only_device_with_no_ports_still_shows_the_switch_that_sees_it()
+    {
+        // #309: a camera seen over LLDP on a switch port, with no ports of its own.
+        var fleet = new[] { Link(7, 30, 312, Me, null, "camera-gate", "") };
+
+        var row = Assert.Single(DeviceNeighbours.Build(Me, Array.Empty<NetworkLink>(), fleet, new Dictionary<int, string>(), NoMatches));
+
+        Assert.Equal(NeighbourSource.Neighbour, row.Source);
+        Assert.Equal(30, row.RemoteDeviceId);
+        Assert.Equal(312, row.RemotePortId);
+    }
+
+    [Fact]
     public void A_connection_both_sides_report_shows_once_from_this_side()
     {
         var own = new[] { Link(1, Me, 124, 20, 201, "dist-sw-01", "Te1/1/1") };

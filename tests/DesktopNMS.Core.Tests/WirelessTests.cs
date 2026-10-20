@@ -139,6 +139,23 @@ public class WirelessTests
         await Assert.ThrowsAsync<LibreNmsApiException>(() => api.GetWirelessSensorsAsync(97));
     }
 
+    // Not wireless, but the same 404-for-none pattern and transport (#309).
+    [Fact]
+    public async Task No_ports_is_an_empty_list_not_an_error()
+    {
+        var api = new PortsApi(new FailingTransport(HttpStatusCode.NotFound, "No ports found"));
+
+        Assert.Empty(await api.ListForDeviceAsync(97));
+    }
+
+    [Fact]
+    public async Task A_real_ports_failure_still_throws()
+    {
+        var api = new PortsApi(new FailingTransport(HttpStatusCode.InternalServerError, "Something broke"));
+
+        await Assert.ThrowsAsync<LibreNmsApiException>(() => api.ListForDeviceAsync(97));
+    }
+
     private sealed class FailingTransport : ILibreNmsTransport
     {
         private readonly HttpStatusCode _status;

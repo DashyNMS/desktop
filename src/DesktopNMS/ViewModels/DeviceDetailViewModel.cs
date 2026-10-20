@@ -3075,7 +3075,30 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var ports = await _client.Ports.ListForDeviceAsync(_deviceId, _loadCts.Token).ConfigureAwait(true);
+            // A ports failure leaves the list empty but still builds the
+            // neighbours below - other devices' links can name this one even
+            // when it has no ports of its own (#309).
+            IReadOnlyList<Port> ports;
+            try
+            {
+                ports = await _client.Ports.ListForDeviceAsync(_deviceId, _loadCts.Token).ConfigureAwait(true);
+            }
+            catch (LibreNmsApiException ex)
+            {
+                // Warning, not Debug: a genuine fetch failure (bad request, timeout,
+                // server error) should be visible in the log, not indistinguishable
+                // from the ordinary case of a device that simply has no ports.
+                // ServerMessage (LibreNMS's own explanation, e.g. which column name
+                // it rejected) is logged explicitly since ex.Message alone is just
+                // the generic "HTTP 400" wrapper - see LibreNmsApiException.
+                _logger.LogWarning(ex, "Could not load ports for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
+                ports = Array.Empty<Port>();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Could not load ports for device {DeviceId}", _deviceId);
+                ports = Array.Empty<Port>();
+            }
 
             // Neighbours and IP addresses are fetched independently and each
             // tolerate their own failure - a problem with one endpoint
@@ -3169,22 +3192,18 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         {
             // The window closed while this was in flight - quietly give up.
         }
-        catch (LibreNmsApiException ex)
-        {
-            // Warning, not Debug: a genuine fetch failure (bad request, timeout,
-            // server error) should be visible in the log, not indistinguishable
-            // from the ordinary case of a device that simply has no ports.
-            // ServerMessage (LibreNMS's own explanation, e.g. which column name
-            // it rejected) is logged explicitly since ex.Message alone is just
-            // the generic "HTTP 400" wrapper - see LibreNmsApiException.
-            _logger.LogWarning(ex, "Could not load ports for device {DeviceId}: {ServerMessage}", _deviceId, ex.ServerMessage);
-        }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Could not load ports for device {DeviceId}", _deviceId);
+            _logger.LogWarning(ex, "Could not load ports or neighbours for device {DeviceId}", _deviceId);
         }
         finally
         {
+            // Whatever failed, Neighbours never stays loading.
+            if (!_hasLoadedNeighbours && !_loadCts.IsCancellationRequested)
+            {
+                BuildNeighbours(Array.Empty<NetworkLink>(), Array.Empty<NetworkLink>(), new Dictionary<int, NeighbourMatch>());
+            }
+
             _hasLoadedPorts = true;
             OnPropertyChanged(nameof(IsLoadingPorts));
             OnPropertyChanged(nameof(ShowPortsNav));
