@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
@@ -69,6 +70,13 @@ public sealed class RuleItemViewModel : ObservableObject
         : AlertRuleSqlFormatter.Format(_rule.Builder) ?? _rule.Rule ?? string.Empty;
 
     public string ConditionToolTip => _rule.Extra?.OverrideQuery == true ? "Override SQL - runs exactly as written" : ConditionText;
+
+    /// <summary>Columns this rule tests that LibreNMS 26.10 removed (#350) - it needs reviewing in the editor.</summary>
+    public bool NeedsReview => AlertRuleCompatibility.FindRemovedColumns(_rule).Count > 0;
+
+    public string? ReviewToolTip => NeedsReview
+        ? "Uses columns LibreNMS 26.10 removed: " + string.Join(", ", AlertRuleCompatibility.FindRemovedColumns(_rule).Select(c => c.Field)) + ". Open the rule to review it."
+        : null;
 
     public bool IsDisabled => _rule.Disabled;
 

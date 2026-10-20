@@ -1625,6 +1625,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         set => SetProperty(ref _editOverrideSysContact, value);
     }
 
+    /// <summary>
+    /// False on LibreNMS 26.10, whose device resource leaves the sysContact
+    /// override out (DashyNMS/core#8): it's shown as unknown, can't be
+    /// changed here, and is never written back from a default.
+    /// </summary>
+    public bool IsSysContactOverrideKnown => _device?.IsSysContactOverrideKnown ?? true;
+
     public string EditNotes
     {
         get => _editNotes;
@@ -4157,6 +4164,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         EditOverrideSysLocation = _device?.OverrideSysLocation ?? false;
         EditContact = _device?.Contact ?? string.Empty;
         EditOverrideSysContact = _device?.OverrideSysContact ?? false;
+        OnPropertyChanged(nameof(IsSysContactOverrideKnown));
         EditNotes = _device?.Notes ?? string.Empty;
         EditDisabled = _device?.Disabled ?? false;
         EditIgnore = _device?.Ignore ?? false;
@@ -4298,7 +4306,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             fields["sysContact"] = string.IsNullOrWhiteSpace(EditContact) ? null : EditContact.Trim();
         }
 
-        if (EditOverrideSysContact != (_device?.OverrideSysContact ?? false))
+        if (IsSysContactOverrideKnown && EditOverrideSysContact != (_device?.OverrideSysContact ?? false))
         {
             fields["override_sysContact"] = EditOverrideSysContact ? "1" : "0";
         }
@@ -5216,7 +5224,8 @@ public sealed class ProcessorItemViewModel
 
     public string UsageText => _processor.UsagePercent is { } percent ? $"{percent:0.#}%" : "-";
 
-    public AlertSeverity Severity => ResourceSeverity.Evaluate(_processor.UsagePercent, _processor.WarningPercent);
+    // An unset processor limit means it was removed in LibreNMS (librenms#20768), so this CPU doesn't warn.
+    public AlertSeverity Severity => ResourceSeverity.Evaluate(_processor.UsagePercent, _processor.WarningPercent, warnWhenUnset: false);
 }
 
 /// <summary>One row in a device's Resources tab - one memory pool.</summary>
@@ -5385,7 +5394,7 @@ file static class ResourceSeverity
     private const double AlwaysCriticalAt = 95;
     private const double DefaultWarningAt = 90;
 
-    public static AlertSeverity Evaluate(double? usagePercent, double? warningPercent)
+    public static AlertSeverity Evaluate(double? usagePercent, double? warningPercent, bool warnWhenUnset = true)
     {
         if (usagePercent is not { } percent)
         {
@@ -5395,6 +5404,11 @@ file static class ResourceSeverity
         if (percent >= AlwaysCriticalAt)
         {
             return AlertSeverity.Critical;
+        }
+
+        if (warningPercent is null && !warnWhenUnset)
+        {
+            return AlertSeverity.Ok;
         }
 
         var warning = warningPercent ?? DefaultWarningAt;

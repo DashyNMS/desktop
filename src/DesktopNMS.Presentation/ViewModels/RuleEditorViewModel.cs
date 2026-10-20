@@ -82,6 +82,10 @@ public sealed class RuleEditorViewModel : ObservableObject
     private AlertRule? _selectedImportRule;
     private bool _isBusy;
     private string? _errorMessage;
+    private bool _notifyPerEntity;
+    private string _maxEntitiesText = string.Empty;
+    private IReadOnlyList<RemovedConditionField> _removedColumns = Array.Empty<RemovedConditionField>();
+    private bool _reviewedRemovedColumns;
 
     public RuleEditorViewModel(ILibreNmsClient client, ILogger<RuleEditorViewModel> logger)
     {
@@ -134,7 +138,12 @@ public sealed class RuleEditorViewModel : ObservableObject
 
         OnPropertyChanged(nameof(IsMuted));
 
+        NotifyPerEntity = rule.NotifyPerEntity ?? false;
+        MaxEntitiesText = rule.MaxEntities?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+        OnPropertyChanged(nameof(SupportsPerEntity));
+
         LoadCondition(rule);
+        CheckRemovedColumns();
     }
 
     /// <summary>
@@ -473,6 +482,121 @@ public sealed class RuleEditorViewModel : ObservableObject
 
     public bool HasError => !string.IsNullOrEmpty(_errorMessage);
 
+    // ------------------------------------------------------------------
+    // LibreNMS 26.10 (#350)
+
+    /// <summary>The server's LibreNMS version, once known - see <see cref="ApiPermissions.ServerVersion"/>.</summary>
+    public Version? ServerVersion => _client.Permissions.ServerVersion;
+
+    /// <summary>LibreNMS 26.10 or later, or a rule that already carries the settings.</summary>
+    public bool SupportsPerEntity => ServerVersion >= LibreNmsVersion.Faults || _source?.NotifyPerEntity is not null;
+
+    /// <summary>"Notify per entity": one alert per matching port, sensor or core, rather than one per device.</summary>
+    public bool NotifyPerEntity
+    {
+        get => _notifyPerEntity;
+        set
+        {
+            if (SetProperty(ref _notifyPerEntity, value))
+            {
+                OnPropertyChanged(nameof(PerEntityExplanation));
+            }
+        }
+    }
+
+    /// <summary>"Max entities" - blank inherits the server's default (20, unless changed in LibreNMS).</summary>
+    public string MaxEntitiesText
+    {
+        get => _maxEntitiesText;
+        set
+        {
+            if (SetProperty(ref _maxEntitiesText, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(PerEntityExplanation));
+            }
+        }
+    }
+
+    /// <summary>What the two settings mean for alerts and acknowledging.</summary>
+    public string PerEntityExplanation
+    {
+        get
+        {
+            if (!NotifyPerEntity)
+            {
+                return "Off: LibreNMS raises one alert per device for this rule, covering every matching port, sensor or core, and acknowledging it acknowledges them all.";
+            }
+
+            var limit = int.TryParse(MaxEntitiesText.Trim(), out var value) && value >= 1
+                ? value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : "the server default (20, unless changed in LibreNMS)";
+            return $"On: one alert per matching port, sensor or core while a device has no more than {limit} open. Beyond that, LibreNMS groups them into one alert for the device, and acknowledging any of them acknowledges them all.";
+        }
+    }
+
+    /// <summary>Columns this rule's conditions or SQL use that LibreNMS 26.10 removed - shown for review before saving.</summary>
+    public IReadOnlyList<RemovedConditionField> RemovedColumns
+    {
+        get => _removedColumns;
+        private set
+        {
+            if (SetProperty(ref _removedColumns, value))
+            {
+                OnPropertyChanged(nameof(HasRemovedColumns));
+                OnPropertyChanged(nameof(RemovedColumnsText));
+            }
+        }
+    }
+
+    public bool HasRemovedColumns => _removedColumns.Count > 0;
+
+    public string RemovedColumnsText => string.Join(Environment.NewLine, _removedColumns.Select(c => $"{c.Field}: {c.Advice}"));
+
+    /// <summary>Ticked once the flagged conditions have been looked at - saving needs it. Custom SQL is never rewritten.</summary>
+    public bool ReviewedRemovedColumns
+    {
+        get => _reviewedRemovedColumns;
+        set => SetProperty(ref _reviewedRemovedColumns, value);
+    }
+
+    /// <summary>Re-checks the conditions and SQL for removed columns - after loading, importing, or learning the server's version.</summary>
+    private void CheckRemovedColumns()
+    {
+        var builder = IsConditionEditable ? JsonSerializer.Serialize(Root.ToNode()) : _source?.Builder;
+        var sql = OverrideQuery ? AdvQuery : null;
+        RemovedColumns = AlertRuleCompatibility.FindRemovedColumns(builder, sql, ServerVersion ?? LibreNmsVersion.Faults);
+    }
+
+    private void RefreshForServerVersion()
+    {
+        RuleConditionRowViewModel.ServerVersion = ServerVersion;
+        foreach (var row in Rows(Root))
+        {
+            row.RefreshForServerVersion();
+        }
+
+        OnPropertyChanged(nameof(ServerVersion));
+        OnPropertyChanged(nameof(SupportsPerEntity));
+        CheckRemovedColumns();
+    }
+
+    private static IEnumerable<RuleConditionRowViewModel> Rows(RuleConditionGroupViewModel group)
+    {
+        foreach (var child in group.Children)
+        {
+            if (child is RuleConditionRowViewModel row)
+            {
+                yield return row;
+            }
+            else if (child is RuleConditionGroupViewModel inner)
+            {
+                foreach (var nested in Rows(inner))
+                {
+                    yield return nested;
+                }
+            }
+        }
+    }
     private void LoadCondition(AlertRule rule)
     {
         AlertConditionNode? tree = null;
@@ -517,6 +641,7 @@ public sealed class RuleEditorViewModel : ObservableObject
             ImportError = null;
             IsImportOpen = false;
             ImportText = string.Empty;
+            CheckRemovedColumns();
         }
         catch (FormatException ex)
         {
@@ -546,6 +671,7 @@ public sealed class RuleEditorViewModel : ObservableObject
             RawConditionJson = null;
             ImportError = null;
             IsImportOpen = false;
+            CheckRemovedColumns();
         }
         catch (JsonException)
         {
@@ -555,6 +681,22 @@ public sealed class RuleEditorViewModel : ObservableObject
 
     private async Task LoadPickerDataAsync()
     {
+        RuleConditionRowViewModel.ServerVersion = ServerVersion;
+        if (ServerVersion is null)
+        {
+            try
+            {
+                // Records the version on the connection's permissions as a side effect.
+                await _client.System.GetAsync().ConfigureAwait(true);
+            }
+            catch (LibreNmsApiException ex)
+            {
+                _logger.LogDebug(ex, "Could not read the server's version for the rule editor");
+            }
+        }
+
+        RefreshForServerVersion();
+
         try
         {
             var devicesTask = _client.Devices.ListAsync();
@@ -628,6 +770,30 @@ public sealed class RuleEditorViewModel : ObservableObject
             {
                 ErrorMessage = "Override SQL is on but the query is empty - enter the SQL to run, or turn the override off.";
                 return;
+            }
+
+            CheckRemovedColumns();
+            if (HasRemovedColumns && !ReviewedRemovedColumns)
+            {
+                ErrorMessage = "This rule uses columns LibreNMS 26.10 removed. Review the conditions flagged above, then tick 'I've reviewed these' to save.";
+                return;
+            }
+
+            if (SupportsPerEntity)
+            {
+                int? maxEntities = null;
+                if (!string.IsNullOrWhiteSpace(MaxEntitiesText))
+                {
+                    if (!int.TryParse(MaxEntitiesText.Trim(), out var limit) || limit < 1)
+                    {
+                        ErrorMessage = "Max entities must be a whole number of 1 or more, or blank to use the server's default.";
+                        return;
+                    }
+
+                    maxEntities = limit;
+                }
+
+                request.SetPerEntity(_originalRule, NotifyPerEntity, maxEntities);
             }
 
             if (_originalRule is not null)
