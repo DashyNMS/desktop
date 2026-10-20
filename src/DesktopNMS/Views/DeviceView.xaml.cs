@@ -68,6 +68,17 @@ public partial class DeviceView : Window
         }
     }
 
+    // ------------------------------------------------------------------ logs
+
+    // An entry selected from elsewhere (a log click on the dashboard or the Logs tab, #304) is scrolled to.
+    private void OnScrollSelectionIntoView(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is DataGrid { SelectedItem: { } item } grid)
+        {
+            grid.ScrollIntoView(item);
+        }
+    }
+
     // ------------------------------------------------------------------ title bar
 
     // Segoe Fluent Icons' ChromeRestore / ChromeMaximize.

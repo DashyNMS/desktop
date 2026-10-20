@@ -126,6 +126,8 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
     private string? _errorMessage;
     private string? _updateErrorMessage;
     private GraylogMessageItemViewModel? _selectedMessage;
+    private string? _messageToShow;
+    private int _pagesSearchedForMessage;
 
     private GraylogMessagesViewModel(
         int? fixedDeviceId,
@@ -542,6 +544,82 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
         UpdateAutoUpdateTimer();
     }
 
+    /// <summary>
+    /// Selects <paramref name="message"/> and shows its details - a message
+    /// clicked on the dashboard's Graylog widget (#304). If it isn't showing,
+    /// the filters are widened just enough to include it (its time, its
+    /// level, every stream, no search) and up to <see cref="MaxPagesToFind"/>
+    /// pages are searched for it.
+    /// </summary>
+    public void ShowMessage(GraylogMessage message)
+    {
+        if (message.Id is not { } id || !_graylog.IsConfigured)
+        {
+            return;
+        }
+
+        if (!IsLoading && Messages.FirstOrDefault(m => m.Id == id) is { } showing)
+        {
+            SelectedMessage = showing;
+            return;
+        }
+
+        _messageToShow = id;
+        _pagesSearchedForMessage = 0;
+
+        _suppressReload = true;
+        try
+        {
+            SearchText = null;
+            SelectedStream = Streams[0];
+            if (IsFleet)
+            {
+                SelectedDevice = DeviceOptions[0];
+            }
+
+            if (message.Level is { } level && SelectedLevel.Level is { } max && level > max)
+            {
+                SelectedLevel = GraylogLevelOption.For(level);
+            }
+
+            SelectedRange = RangeIncluding(message.Timestamp);
+        }
+        finally
+        {
+            _suppressReload = false;
+        }
+
+        _page = 1;
+        OnPropertyChanged(nameof(Page));
+        if (!_hasLoaded)
+        {
+            _ = LoadStreamsAsync();
+        }
+
+        _ = LoadAsync(silent: false);
+    }
+
+    private const int MaxPagesToFind = 5;
+
+    /// <summary>The current range if it reaches back to <paramref name="timestamp"/>, else the shortest one that does.</summary>
+    private GraylogRangeOption RangeIncluding(DateTimeOffset? timestamp)
+    {
+        if (timestamp is not { } at)
+        {
+            return SelectedRange;
+        }
+
+        // A minute's grace for clock differences between here and Graylog.
+        var needed = (DateTimeOffset.Now - at).TotalSeconds + 60;
+        bool Covers(GraylogRangeOption range) => range.Seconds == 0 || range.Seconds >= needed;
+
+        return Covers(SelectedRange)
+            ? SelectedRange
+            : RangeOptions.Where(r => r.Seconds > 0 && Covers(r)).OrderBy(r => r.Seconds).FirstOrDefault()
+              ?? RangeOptions.FirstOrDefault(r => r.Seconds == 0)
+              ?? SelectedRange;
+    }
+
     /// <summary>Device Details' own Refresh - only re-fetches once the tab has actually been opened.</summary>
     public Task RefreshIfLoadedAsync() => _hasLoaded && _graylog.IsConfigured ? LoadAsync(silent: false) : Task.CompletedTask;
 
@@ -905,6 +983,24 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
             if (silent && selectedId is not null)
             {
                 SelectedMessage = Messages.FirstOrDefault(m => m.Id == selectedId);
+            }
+
+            // A message asked for by ShowMessage: select it, or look on the next page.
+            if (!silent && _messageToShow is { } wanted)
+            {
+                if (Messages.FirstOrDefault(m => m.Id == wanted) is { } found)
+                {
+                    SelectedMessage = found;
+                    _messageToShow = null;
+                }
+                else if (++_pagesSearchedForMessage < MaxPagesToFind && Page < (int)Math.Ceiling(result.TotalResults / (double)SelectedPageSize))
+                {
+                    _dispatcher.InvokeAsync(() => GoToPageAsync(Page + 1));
+                }
+                else
+                {
+                    _messageToShow = null;
+                }
             }
 
             _hasLoaded = true;

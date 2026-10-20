@@ -51,20 +51,20 @@ public interface IWindowService
     /// <summary>Opens Device Details on its Ports section with one port picked - from a Top widget.</summary>
     void ShowDevicePort(int deviceId, int portId);
 
-    /// <summary>Opens Device Details on its Event log section - from the Event log widget (#202).</summary>
-    void ShowDeviceEventLog(int deviceId);
+    /// <summary>Opens Device Details on its Event log section - from the Event log widget (#202) - with <paramref name="eventId"/> selected if given (#304).</summary>
+    void ShowDeviceEventLog(int deviceId, int? eventId = null);
 
-    /// <summary>Opens Device Details on its Alerts section - current alerts and the alert history (#270).</summary>
-    void ShowDeviceAlerts(int deviceId);
+    /// <summary>Opens Device Details on its Alerts section - current alerts and the alert history (#270) - with alert log entry <paramref name="alertLogId"/> selected if given (#304).</summary>
+    void ShowDeviceAlerts(int deviceId, int? alertLogId = null);
 
     /// <summary>Puts a port's graph on the dashboard as a Graph widget (#285).</summary>
     void AddPortGraphToDashboard(int deviceId, string ifName, string graphType, string title);
 
-    /// <summary>Opens Device Details on its Graylog section - from the Graylog widget (#203).</summary>
-    void ShowDeviceGraylog(int deviceId);
+    /// <summary>Opens Device Details on its Graylog section - from the Graylog widget (#203) - with <paramref name="message"/> selected and its details shown if given (#304).</summary>
+    void ShowDeviceGraylog(int deviceId, DesktopNMS.Core.Models.GraylogMessage? message = null);
 
-    /// <summary>Shows the main window on the Logs tab - a Graylog widget message from a source that isn't a known device (#203).</summary>
-    void ShowLogsTab();
+    /// <summary>Shows the main window on Logs › Graylog with <paramref name="message"/> selected - a Graylog message from a source that isn't a known device (#304).</summary>
+    void ShowGraylogMessage(DesktopNMS.Core.Models.GraylogMessage message);
 
     /// <summary>The Dashboard's "Add widget" picker (#204, #277). Returns the widgets chosen - several at once - or none if cancelled.</summary>
     IReadOnlyList<DesktopNMS.ViewModels.WidgetCatalogEntry> ShowWidgetPicker(IReadOnlyList<DesktopNMS.ViewModels.WidgetCatalogEntry> catalog);

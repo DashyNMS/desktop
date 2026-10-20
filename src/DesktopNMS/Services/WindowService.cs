@@ -237,7 +237,7 @@ public sealed class WindowService : IWindowService
     public void AddPortGraphToDashboard(int deviceId, string ifName, string graphType, string title)
         => _services.GetRequiredService<IDashboardLayoutService>().AddPortGraph(deviceId, ifName, graphType, title);
 
-    public void ShowDeviceAlerts(int deviceId)
+    public void ShowDeviceAlerts(int deviceId, int? alertLogId = null)
     {
         ShowDeviceDetail(deviceId);
 
@@ -245,10 +245,14 @@ public sealed class WindowService : IWindowService
             && window.DataContext is DeviceDetailViewModel viewModel)
         {
             viewModel.SelectAlertsCommand.Execute(null);
+            if (alertLogId is { } id)
+            {
+                viewModel.ShowAlertLogEntry(id);
+            }
         }
     }
 
-    public void ShowDeviceEventLog(int deviceId)
+    public void ShowDeviceEventLog(int deviceId, int? eventId = null)
     {
         ShowDeviceDetail(deviceId);
 
@@ -256,10 +260,14 @@ public sealed class WindowService : IWindowService
             && window.DataContext is DeviceDetailViewModel viewModel)
         {
             viewModel.SelectEventLogCommand.Execute(null);
+            if (eventId is { } id)
+            {
+                viewModel.ShowEventLogEntry(id);
+            }
         }
     }
 
-    public void ShowDeviceGraylog(int deviceId)
+    public void ShowDeviceGraylog(int deviceId, GraylogMessage? message = null)
     {
         ShowDeviceDetail(deviceId);
 
@@ -267,12 +275,17 @@ public sealed class WindowService : IWindowService
             && window.DataContext is DeviceDetailViewModel viewModel)
         {
             viewModel.SelectGraylogCommand.Execute(null);
+            if (message is not null)
+            {
+                viewModel.Graylog.ShowMessage(message);
+            }
         }
     }
 
-    public void ShowLogsTab()
+    public void ShowGraylogMessage(GraylogMessage message)
     {
-        _services.GetRequiredService<MainViewModel>().SelectLogsTabCommand.Execute(null);
+        _services.GetRequiredService<MainViewModel>().SelectGraylogTabCommand.Execute(null);
+        _services.GetRequiredService<LogsViewModel>().Graylog.ShowMessage(message);
         ShowMain();
     }
 

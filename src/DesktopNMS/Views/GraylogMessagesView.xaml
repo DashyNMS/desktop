@@ -116,6 +116,7 @@
             <DataGrid x:Name="MessagesGrid"
                       ItemsSource="{Binding Messages}"
                       SelectedItem="{Binding SelectedMessage}"
+                      SelectionChanged="OnSelectionChanged"
                       IsReadOnly="True"
                       CanUserSortColumns="False"
                       SelectionMode="Single"

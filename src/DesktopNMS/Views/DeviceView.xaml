@@ -2625,6 +2625,8 @@
                 <Grid Grid.Row="2">
                     <DataGrid x:Name="AlertHistoryGrid"
                               ItemsSource="{Binding AlertHistory}"
+                              SelectedItem="{Binding SelectedAlertLogEntry}"
+                              SelectionChanged="OnScrollSelectionIntoView"
                               Visibility="{Binding HasAlertHistory, Converter={StaticResource BoolToVisibility}}"
                               IsReadOnly="True"
                               HeadersVisibility="Column">
@@ -2720,6 +2722,8 @@
                          who never scrolls that far. -->
                     <DataGrid x:Name="EventLogGrid"
                               ItemsSource="{Binding EventLogView}"
+                              SelectedItem="{Binding SelectedEventLogEntry}"
+                              SelectionChanged="OnScrollSelectionIntoView"
                               Visibility="{Binding HasVisibleEventLog, Converter={StaticResource BoolToVisibility}}"
                               IsReadOnly="True"
                               HeadersVisibility="Column">

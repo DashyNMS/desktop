@@ -29,9 +29,10 @@ public interface IDeviceCache
     DateTimeOffset? LastRefreshed => null;
 
     /// <summary>
-    /// The device whose IP or hostname is <paramref name="address"/>, or null
-    /// - how the Graylog tab names a message's source, as LibreNMS's
-    /// <c>Device::findByIp</c> / <c>findByHostname</c> do.
+    /// The device whose IP, hostname or sysName is <paramref name="address"/>,
+    /// or failing those the one device with that short name, or null - how
+    /// the Graylog tab names a message's source. See
+    /// <see cref="DesktopNMS.Core.Devices.DeviceAddresses.Find"/>.
     /// </summary>
     Device? FindByAddress(string? address);
 
@@ -93,14 +94,8 @@ public sealed class DeviceCache : IDeviceCache
 
     public Device? FindByAddress(string? address)
     {
-        if (string.IsNullOrWhiteSpace(address))
-        {
-            return null;
-        }
-
-        var snapshot = _devices;
-        return snapshot.Values.FirstOrDefault(d => string.Equals(d.Ip, address, StringComparison.OrdinalIgnoreCase))
-               ?? snapshot.Values.FirstOrDefault(d => string.Equals(d.Hostname, address, StringComparison.OrdinalIgnoreCase));
+        // IP, hostname, sysName, then a unique short name (#304).
+        return DesktopNMS.Core.Devices.DeviceAddresses.Find(_devices.Values, address);
     }
 
     public void Invalidate() => _lastRefresh = DateTimeOffset.MinValue;
