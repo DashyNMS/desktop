@@ -3285,7 +3285,14 @@
                                 <TextBox Text="{Binding EditContact, UpdateSourceTrigger=PropertyChanged}" />
                                 <CheckBox Content="Override sysContact"
                                           IsChecked="{Binding EditOverrideSysContact}"
-                                          Margin="0,8,0,0" />
+                                          IsEnabled="{Binding IsSysContactOverrideKnown}"
+                                          Margin="0,8,0,0"
+                                          Visibility="{Binding IsSysContactOverrideKnown, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Text="LibreNMS 26.10 doesn't report whether sysContact is overridden. Change that setting in LibreNMS."
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,8,0,0"
+                                           Visibility="{Binding IsSysContactOverrideKnown, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}" />
                             </StackPanel>
                         </Grid>
                     </StackPanel>

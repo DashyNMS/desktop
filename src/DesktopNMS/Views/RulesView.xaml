@@ -189,7 +189,27 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTextColumn Header="Name" Width="1*" Binding="{Binding Name}" ElementStyle="{StaticResource GridTextCellStyle}" />
+                    <DataGridTemplateColumn Header="Name" Width="1*" SortMemberPath="Name">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <DockPanel VerticalAlignment="Center">
+                                    <!-- A rule testing a column LibreNMS 26.10 removed (#350). -->
+                                    <Border DockPanel.Dock="Right"
+                                            Background="#33D29922"
+                                            BorderBrush="{StaticResource WarningBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Padding="6,1"
+                                            Margin="6,0,0,0"
+                                            ToolTip="{Binding ReviewToolTip}"
+                                            Visibility="{Binding NeedsReview, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="Review" FontSize="11" />
+                                    </Border>
+                                    <TextBlock Text="{Binding Name}" Style="{StaticResource GridTextCellStyle}" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
 
                     <!-- The condition as LibreNMS's own rule list renders it
                          (macros unexpanded), wrapped so a long rule reads in

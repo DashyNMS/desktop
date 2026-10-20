@@ -25,6 +25,10 @@
                   AllowDrop="True"
                   DragOver="OnConditionDragOver"
                   Drop="OnConditionDrop">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="2*" />
@@ -99,6 +103,16 @@
                         ToolTip="Remove condition">
                     <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
                 </Button>
+
+                <!-- A column the server's LibreNMS has removed (#350): kept, but flagged with what to use instead. -->
+                <TextBlock Grid.Row="1"
+                           Grid.Column="1"
+                           Grid.ColumnSpan="4"
+                           Text="{Binding RemovedWarning}"
+                           Foreground="{StaticResource WarningBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,0"
+                           Visibility="{Binding HasRemovedWarning, Converter={StaticResource BoolToVisibility}}" />
             </Grid>
         </DataTemplate>
 
@@ -284,6 +298,42 @@
                               IsChecked="{Binding Acknowledgement}"
                               ToolTip="Issue acknowledgement alerts."
                               Margin="0,0,0,8" />
+
+                    <!-- LibreNMS 26.10's per-entity settings (#350). -->
+                    <StackPanel Visibility="{Binding SupportsPerEntity, Converter={StaticResource BoolToVisibility}}" Margin="0,4,0,8">
+                        <CheckBox Content="Notify per entity"
+                                  IsChecked="{Binding NotifyPerEntity}"
+                                  ToolTip="One alert per matching port, sensor or core, rather than one per device."
+                                  Margin="0,0,0,8" />
+                        <DockPanel Margin="0,0,0,6">
+                            <TextBlock Text="Max entities" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock DockPanel.Dock="Right" Text="Blank uses the server's default" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <TextBox Width="80"
+                                     Text="{Binding MaxEntitiesText, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Leave blank to use the server's default (20, unless changed in LibreNMS)."
+                                     IsEnabled="{Binding NotifyPerEntity}"
+                                     HorizontalAlignment="Left" />
+                        </DockPanel>
+                        <TextBlock Text="{Binding PerEntityExplanation}"
+                                   Style="{StaticResource SubtleTextStyle}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <!-- Columns LibreNMS 26.10 removed (#350): flagged, never rewritten. -->
+                    <Border Background="#33D29922"
+                            BorderBrush="{StaticResource WarningBrush}"
+                            BorderThickness="1"
+                            CornerRadius="5"
+                            Padding="12,8"
+                            Margin="0,4,0,8"
+                            Visibility="{Binding HasRemovedColumns, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock TextWrapping="Wrap" FontWeight="SemiBold"
+                                       Text="This rule uses columns LibreNMS 26.10 removed, so it won't match as it used to. Custom SQL isn't changed for you." />
+                            <TextBlock Text="{Binding RemovedColumnsText}" TextWrapping="Wrap" Margin="0,6,0,6" />
+                            <CheckBox Content="I've reviewed these" IsChecked="{Binding ReviewedRemovedColumns}" />
+                        </StackPanel>
+                    </Border>
 
                     <!-- The API's save handler rebuilds a rule's extra
                          settings without a mute field, so this can only be

@@ -14,8 +14,27 @@ namespace DesktopNMS.ViewModels;
 /// </summary>
 public sealed class RuleConditionRowViewModel : ObservableObject
 {
-    private static readonly IReadOnlyList<AlertConditionField> AllFields =
-        AlertConditionFields.Groups.SelectMany(g => g.Fields).ToList();
+    private static (Version? Version, IReadOnlyList<AlertConditionField> Fields) _catalog =
+        (null, AlertConditionFields.Groups.SelectMany(g => g.Fields).ToList());
+
+    /// <summary>
+    /// The server's LibreNMS version, set by the rule editor (#350). On 26.10
+    /// or later, new conditions aren't offered the device columns it removed,
+    /// and a condition still using one says so.
+    /// </summary>
+    public static Version? ServerVersion
+    {
+        get => _catalog.Version;
+        set
+        {
+            if (value != _catalog.Version)
+            {
+                _catalog = (value, AlertRuleCompatibility.FieldGroups(value).SelectMany(g => g.Fields).ToList());
+            }
+        }
+    }
+
+    private static IReadOnlyList<AlertConditionField> AllFields => _catalog.Fields;
 
     private AlertConditionField _selectedField;
     private AlertConditionOperator? _selectedOperator;
@@ -57,9 +76,10 @@ public sealed class RuleConditionRowViewModel : ObservableObject
     {
         get
         {
-            if (string.IsNullOrWhiteSpace(_fieldSearchText))
+            if (string.IsNullOrWhiteSpace(_fieldSearchText) || _fieldSearchText == _selectedField.Field)
             {
-                return AllFields;
+                // A removed or custom field this row already uses stays selectable.
+                return AllFields.Contains(_selectedField) ? AllFields : AllFields.Prepend(_selectedField).ToList();
             }
 
             var matches = AllFields
@@ -107,6 +127,8 @@ public sealed class RuleConditionRowViewModel : ObservableObject
                 _fieldSearchText = value.Field;
                 OnPropertyChanged(nameof(FieldSearchText));
                 OnPropertyChanged(nameof(ValueHint));
+                OnPropertyChanged(nameof(RemovedWarning));
+                OnPropertyChanged(nameof(HasRemovedWarning));
 
                 _operators = OperatorsFor(value, null);
                 OnPropertyChanged(nameof(Operators));
@@ -163,6 +185,19 @@ public sealed class RuleConditionRowViewModel : ObservableObject
         : "Allowed values: " + string.Join(", ", SelectedField.Values);
 
     public RelayCommand RemoveCommand { get; }
+
+    /// <summary>What to use instead, when this condition tests a column the server's LibreNMS has removed (#350).</summary>
+    public string? RemovedWarning => AlertRuleCompatibility.Removal(SelectedField.Field, ServerVersion)?.Advice;
+
+    public bool HasRemovedWarning => RemovedWarning is not null;
+
+    /// <summary>Re-reads <see cref="ServerVersion"/> once the editor knows it.</summary>
+    public void RefreshForServerVersion()
+    {
+        OnPropertyChanged(nameof(Fields));
+        OnPropertyChanged(nameof(RemovedWarning));
+        OnPropertyChanged(nameof(HasRemovedWarning));
+    }
 
     public AlertConditionNode ToNode()
     {
