@@ -4,10 +4,11 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
         xmlns:views="clr-namespace:DesktopNMS.Views"
         xmlns:models="clr-namespace:DesktopNMS.Core.Models;assembly=DesktopNMS.Core"
         mc:Ignorable="d"
-        d:DataContext="{d:DesignInstance Type=vm:TrayViewModel}"
+        d:DataContext="{d:DesignInstance Type=pvm:TrayViewModel}"
         Title="DashyNMS"
         Width="340"
         SizeToContent="Height"
@@ -109,7 +110,7 @@
                 <TextBlock Text="Latest alerts" Style="{StaticResource SubtleTextStyle}" FontSize="11.5" Margin="14,0,14,4" />
                 <ItemsControl ItemsSource="{Binding LatestAlerts}" Margin="6,0">
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type vm:TrayAlertViewModel}">
+                        <DataTemplate DataType="{x:Type pvm:TrayAlertViewModel}">
                             <Button Command="{Binding DataContext.OpenAlertCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     CommandParameter="{Binding}"
                                     Cursor="Hand"

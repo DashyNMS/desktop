@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
              xmlns:views="clr-namespace:DesktopNMS.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:CustomMapsViewModel}"
@@ -16,7 +17,7 @@
         </Style>
 
         <!-- ================= Node properties ================= -->
-        <DataTemplate DataType="{x:Type vm:CustomMapNodeEditor}">
+        <DataTemplate DataType="{x:Type pvm:CustomMapNodeEditor}">
             <StackPanel>
                 <TextBlock Text="Node" Style="{StaticResource HeadingTextStyle}" />
 
@@ -45,13 +46,13 @@
                           ToolTip="Double-clicking the node opens this map, and it shows as down if anything on that map is" />
 
                 <TextBlock Text="Style" Style="{StaticResource FieldLabel}" />
-                <ComboBox ItemsSource="{Binding Source={x:Static vm:CustomMapNodeEditor.Styles}}"
+                <ComboBox ItemsSource="{Binding Source={x:Static pvm:CustomMapNodeEditor.Styles}}"
                           SelectedItem="{Binding Style}"
                           DisplayMemberPath="Label" />
 
                 <StackPanel Visibility="{Binding IsIconStyle, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Text="Icon" Style="{StaticResource FieldLabel}" />
-                    <ComboBox ItemsSource="{Binding Source={x:Static vm:CustomMapNodeEditor.Icons}}"
+                    <ComboBox ItemsSource="{Binding Source={x:Static pvm:CustomMapNodeEditor.Icons}}"
                               SelectedItem="{Binding Icon}"
                               DisplayMemberPath="Label" />
                 </StackPanel>
@@ -109,7 +110,7 @@
         </DataTemplate>
 
         <!-- ================= Link properties ================= -->
-        <DataTemplate DataType="{x:Type vm:CustomMapEdgeEditor}">
+        <DataTemplate DataType="{x:Type pvm:CustomMapEdgeEditor}">
             <StackPanel>
                 <TextBlock Text="Link" Style="{StaticResource HeadingTextStyle}" />
                 <TextBlock Text="{Binding EndsText}" Style="{StaticResource SubtleTextStyle}" Margin="0,2,0,0" TextWrapping="Wrap" />
@@ -139,7 +140,7 @@
                 <TextBox Text="{Binding Label, UpdateSourceTrigger=PropertyChanged, Delay=250}" />
 
                 <TextBlock Text="Line style" Style="{StaticResource FieldLabel}" />
-                <ComboBox ItemsSource="{Binding Source={x:Static vm:CustomMapEdgeEditor.LineStyles}}"
+                <ComboBox ItemsSource="{Binding Source={x:Static pvm:CustomMapEdgeEditor.LineStyles}}"
                           SelectedItem="{Binding LineStyle}"
                           DisplayMemberPath="Label" />
 
@@ -171,7 +172,7 @@
         </DataTemplate>
 
         <!-- ================= Map settings ================= -->
-        <DataTemplate DataType="{x:Type vm:CustomMapSettingsEditor}">
+        <DataTemplate DataType="{x:Type pvm:CustomMapSettingsEditor}">
             <StackPanel>
                 <TextBlock Text="Map settings" Style="{StaticResource HeadingTextStyle}" />
                 <TextBlock Text="Select a node or link to edit it instead."
@@ -219,7 +220,7 @@
                 <CheckBox Content="Reverse arrows (point out from the middle)" IsChecked="{Binding ReverseArrows}" Margin="0,10,0,0" />
 
                 <TextBlock Text="Background" Style="{StaticResource FieldLabel}" />
-                <ComboBox ItemsSource="{Binding Source={x:Static vm:CustomMapSettingsEditor.BackgroundTypes}}"
+                <ComboBox ItemsSource="{Binding Source={x:Static pvm:CustomMapSettingsEditor.BackgroundTypes}}"
                           SelectedItem="{Binding BackgroundType}"
                           DisplayMemberPath="Label" />
 

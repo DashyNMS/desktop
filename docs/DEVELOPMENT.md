@@ -49,8 +49,8 @@ gh auth refresh -s read:packages
 $env:DASHYNMS_PACKAGES_TOKEN = gh auth token
 ```
 
-The version is pinned in `src/DesktopNMS/DesktopNMS.csproj`
-(`DashyNMSCoreVersion`). Between Core releases it's a development build of
+The version is pinned in `src/DesktopNMS.Presentation/DesktopNMS.Presentation.csproj`
+(`DashyNMSCoreVersion`); the app gets Core through that project. Between Core releases it's a development build of
 core's `main`: every merge there publishes `x.y.z-ci.N`. Pin the one this app
 needs, and move to a release before shipping.
 
@@ -130,12 +130,19 @@ too, defaulting to keep. A silent uninstall (`/VERYSILENT`) always keeps them.
 
 ```
 src/
-  DesktopNMS/               WPF application (product name DashyNMS); Core is
+  DesktopNMS.Presentation/  View models and services with no UI framework in
+                             them (plain net9.0), shared by the WPF app and,
+                             next, the Avalonia one (#249). Brings in Core,
                              the DashyNMS.Core package (see "Core" above)
-    Views/ ViewModels/      MVVM, no code-behind logic beyond view concerns
-    Services/               Session, polling, toasts, tray icon, windows
+    ViewModels/ Services/   Same namespaces as in the app
+    Infrastructure/         Commands, observable base, CSV, file logging
+    Demo/                   Demo mode's example network
+  DesktopNMS/               WPF application (product name DashyNMS)
+    Views/ ViewModels/      Views, and the view models that still use WPF
+                             types (moving to Presentation, #249)
+    Services/               Windows, toasts, tray icon, updates, map tiles
     Security/               DPAPI token, credential and chat storage
-    Infrastructure/         Commands, observable base, file logging
+    Infrastructure/         Theming, window placement, WPF helpers
     Themes/                 Dark/light theme resource dictionaries
 tools/
   New-AppIcon.ps1           Regenerates Assets/app.ico

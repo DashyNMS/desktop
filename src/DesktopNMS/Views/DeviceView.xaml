@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
         xmlns:views="clr-namespace:DesktopNMS.Views"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         xmlns:svgc="clr-namespace:SharpVectors.Converters;assembly=SharpVectors.Converters.Wpf"
@@ -3057,7 +3058,7 @@
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate DataType="{x:Type vm:UnimusDiffLineViewModel}">
+                                        <DataTemplate DataType="{x:Type pvm:UnimusDiffLineViewModel}">
                                             <Border x:Name="RowBackground"
                                                     Background="Transparent"
                                                     MouseLeftButtonUp="OnConfigLineClick">
