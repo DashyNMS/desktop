@@ -397,14 +397,10 @@ public sealed class FleetLogsViewModel : ObservableObject
         var options = devices
             .Select(d => new LogDeviceOption(d.DeviceId, d.BestName))
             .OrderBy(o => o.Name, StringComparer.OrdinalIgnoreCase)
+            .Prepend(AllDevices)
             .ToList();
 
-        DeviceOptions.Clear();
-        DeviceOptions.Add(AllDevices);
-        foreach (var option in options)
-        {
-            DeviceOptions.Add(option);
-        }
+        MatchInPlace(DeviceOptions, options);
 
         _selectedDevice = DeviceOptions.FirstOrDefault(o => o.DeviceId == chosen) ?? AllDevices;
         OnPropertyChanged(nameof(SelectedDevice));
@@ -556,20 +552,57 @@ public sealed class FleetLogsViewModel : ObservableObject
     private void RefreshTypes()
     {
         var chosen = _selectedType;
-        TypeOptions.Clear();
-        TypeOptions.Add(AnyType);
-        foreach (var type in EventLogFeed.Types(_events))
+        var types = EventLogFeed.Types(_events).Prepend(AnyType).ToList();
+        if (!types.Contains(chosen))
         {
-            TypeOptions.Add(type);
+            types.Add(chosen);
         }
 
-        if (chosen != AnyType && !TypeOptions.Contains(chosen))
-        {
-            TypeOptions.Add(chosen);
-        }
+        MatchInPlace(TypeOptions, types);
 
         _selectedType = chosen;
         OnPropertyChanged(nameof(SelectedType));
+    }
+
+    /// <summary>
+    /// Makes <paramref name="list"/> match <paramref name="wanted"/> by moving,
+    /// inserting and removing, never clearing it. Clearing the list a ComboBox
+    /// is bound to drops its selection, and raising SelectedItem again for the
+    /// same item doesn't bring it back, so the filters showed blank (#298).
+    /// </summary>
+    internal static void MatchInPlace<T>(ObservableCollection<T> list, IReadOnlyList<T> wanted)
+    {
+        for (var i = 0; i < wanted.Count; i++)
+        {
+            if (i < list.Count && EqualityComparer<T>.Default.Equals(list[i], wanted[i]))
+            {
+                continue;
+            }
+
+            var existing = -1;
+            for (var j = i + 1; j < list.Count; j++)
+            {
+                if (EqualityComparer<T>.Default.Equals(list[j], wanted[i]))
+                {
+                    existing = j;
+                    break;
+                }
+            }
+
+            if (existing >= 0)
+            {
+                list.Move(existing, i);
+            }
+            else
+            {
+                list.Insert(i, wanted[i]);
+            }
+        }
+
+        while (list.Count > wanted.Count)
+        {
+            list.RemoveAt(list.Count - 1);
+        }
     }
 
     /// <summary>Applies the filters that narrow what's loaded.</summary>
