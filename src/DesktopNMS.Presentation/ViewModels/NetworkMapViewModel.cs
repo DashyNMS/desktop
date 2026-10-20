@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
@@ -160,7 +159,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
     private readonly IWindowService _windows;
     private readonly ILogger<NetworkMapViewModel> _logger;
     private readonly INeighbourDirectory _neighbourDirectory;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
 
     private IReadOnlyList<Device> _devices = Array.Empty<Device>();
     private IReadOnlySet<int> _maintenanceIds = new HashSet<int>();
@@ -207,7 +206,7 @@ public sealed class NetworkMapViewModel : ObservableObject, IDisposable
         _neighbourDirectory = neighbourDirectory;
         _fleetLinks = fleetLinks;
         _logger = logger;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         _selectedScope = MapScopes.AllDevices;
         Scopes = new ObservableCollection<MapScopeOption> { _selectedScope };

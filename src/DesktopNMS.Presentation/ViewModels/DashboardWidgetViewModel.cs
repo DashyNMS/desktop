@@ -163,7 +163,7 @@ public abstract class DashboardWidgetViewModel : ObservableObject
     public void Flash()
     {
         IsHighlighted = true;
-        var timer = new System.Windows.Threading.DispatcherTimer { Interval = System.TimeSpan.FromSeconds(1.6) };
+        var timer = UiThread.CreateTimer(System.TimeSpan.FromSeconds(1.6));
         timer.Tick += (_, _) =>
         {
             timer.Stop();

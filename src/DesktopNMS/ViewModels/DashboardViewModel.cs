@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
@@ -48,7 +47,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
     private DashboardWidgetViewModel? _selectedWidget;
     private string? _toastText;
     private string? _toastWidgetId;
-    private DispatcherTimer? _toastTimer;
+    private IUiTimer? _toastTimer;
 
     private readonly SensorMonitor _sensorMonitor;
     private readonly ISessionService _session;
@@ -62,7 +61,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
     private readonly IFleetPorts _fleetPorts;
     private readonly IGraylogApi _graylog;
     private readonly ILogger<DashboardViewModel> _logger;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
     private readonly Dictionary<string, DashboardWidgetViewModel> _widgetIndex = new();
     private readonly AutoRefreshTimer _autoRefresh;
 
@@ -106,7 +105,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         _deviceMonitor = deviceMonitor;
         _client = client;
         _logger = logger;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         Widgets = new ObservableCollection<DashboardWidgetViewModel>();
 
@@ -536,7 +535,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         ToastText = text;
 
         _toastTimer?.Stop();
-        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(8) };
+        _toastTimer = UiThread.CreateTimer(TimeSpan.FromSeconds(8));
         _toastTimer.Tick += (_, _) => DismissToast();
         _toastTimer.Start();
     }

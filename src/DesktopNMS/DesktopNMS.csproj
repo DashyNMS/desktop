@@ -77,6 +77,8 @@
     <Using Remove="System.Drawing" />
     <!-- The pollers, caches and dashboard layout service moved to Core (#208). -->
     <Using Include="DesktopNMS.Core.Services" />
+    <!-- UiThread, IUiDispatcher and IUiTimer (#249) are used across the view models. -->
+    <Using Include="DesktopNMS.Infrastructure" />
   </ItemGroup>
 
   <!--

@@ -1,5 +1,4 @@
 using System;
-using System.Windows.Threading;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
@@ -18,7 +17,7 @@ namespace DesktopNMS.ViewModels;
 public sealed class DeviceStatusWidgetViewModel : DashboardWidgetViewModel, IDisposable
 {
     private readonly DeviceMonitor _monitor;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
 
     private int _upCount;
     private int _downCount;
@@ -36,7 +35,7 @@ public sealed class DeviceStatusWidgetViewModel : DashboardWidgetViewModel, IDis
         OpenDownCommand = new RelayCommand(() => windows.ShowDevicesWithState(DeviceState.Down));
         OpenMaintenanceCommand = new RelayCommand(() => windows.ShowDevicesWithState(DeviceState.Maintenance));
         OpenDisabledCommand = new RelayCommand(() => windows.ShowDevicesWithState(DeviceState.Disabled));
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         _monitor.Polled += OnPolled;
 

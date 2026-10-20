@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
@@ -32,7 +31,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
     private readonly DeviceMonitor _deviceMonitor;
     private readonly ILibreNmsClient _client;
     private readonly ILogger _logger;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
     private readonly Action<int, string> _openGraph;
     private readonly Action<int, string, string>? _openPortGraph;
     private readonly List<GraphType> _deviceGraphs = new();
@@ -59,7 +58,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         _deviceMonitor = deviceMonitor;
         _client = client;
         _logger = logger;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
         _openGraph = openGraph;
         _openPortGraph = openPortGraph;
 

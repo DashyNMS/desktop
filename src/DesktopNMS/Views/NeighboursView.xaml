@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
              xmlns:views="clr-namespace:DesktopNMS.Views"
              xmlns:svgc="clr-namespace:SharpVectors.Converters;assembly=SharpVectors.Converters.Wpf"
              mc:Ignorable="d"
@@ -43,21 +44,21 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <ToggleButton IsChecked="{Binding ShowUp}" Tag="{x:Static vm:NeighbourState.Up}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide those that are up (shift-click to show only these)" Margin="0,0,10,0">
+                        <ToggleButton IsChecked="{Binding ShowUp}" Tag="{x:Static pvm:NeighbourState.Up}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide those that are up (shift-click to show only these)" Margin="0,0,10,0">
                             <StackPanel Orientation="Horizontal">
                                 <Ellipse Width="9" Height="9" Fill="{StaticResource OkBrush}" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
                                 <TextBlock Text="up" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                             </StackPanel>
                         </ToggleButton>
-                        <ToggleButton IsChecked="{Binding ShowDown}" Tag="{x:Static vm:NeighbourState.Down}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide those that are down - the device itself, its switch port, or the switch (shift-click to show only these)" Margin="0,0,10,0">
+                        <ToggleButton IsChecked="{Binding ShowDown}" Tag="{x:Static pvm:NeighbourState.Down}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide those that are down - the device itself, its switch port, or the switch (shift-click to show only these)" Margin="0,0,10,0">
                             <StackPanel Orientation="Horizontal">
                                 <Ellipse Width="9" Height="9" Fill="{StaticResource CriticalBrush}" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
                                 <TextBlock Text="down" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                             </StackPanel>
                         </ToggleButton>
-                        <ToggleButton IsChecked="{Binding ShowOther}" Tag="{x:Static vm:NeighbourState.Other}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide shut-down ports, disabled or in-maintenance devices, and ones LibreNMS no longer sees (shift-click to show only these)"
+                        <ToggleButton IsChecked="{Binding ShowOther}" Tag="{x:Static pvm:NeighbourState.Other}" PreviewMouseLeftButtonDown="StateBadge_PreviewMouseLeftButtonDown" Style="{StaticResource CountBadgeToggleStyle}" ToolTip="Show/hide shut-down ports, disabled or in-maintenance devices, and ones LibreNMS no longer sees (shift-click to show only these)"
                                       Margin="0,0,10,0"
                                       Visibility="{Binding HasOther, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Orientation="Horizontal">

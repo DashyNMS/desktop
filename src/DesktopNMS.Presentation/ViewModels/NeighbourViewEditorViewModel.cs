@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Topology;
@@ -31,7 +30,7 @@ public sealed class NeighbourViewEditorViewModel : ObservableObject
 
     private readonly INeighbourDirectory _directory;
     private readonly IDeviceCache _devices;
-    private readonly DispatcherTimer _previewTimer;
+    private readonly IUiTimer _previewTimer;
 
     private string _id = Guid.NewGuid().ToString("N");
     private string _name = string.Empty;
@@ -50,7 +49,7 @@ public sealed class NeighbourViewEditorViewModel : ObservableObject
         _directory = directory;
         _devices = devices;
 
-        _previewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _previewTimer = UiThread.CreateTimer(TimeSpan.FromMilliseconds(300));
         _previewTimer.Tick += (_, _) =>
         {
             _previewTimer.Stop();

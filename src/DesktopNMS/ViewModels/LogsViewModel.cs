@@ -1,4 +1,3 @@
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Infrastructure;
@@ -18,7 +17,7 @@ namespace DesktopNMS.ViewModels;
 public sealed class LogsViewModel : ObservableObject
 {
     private readonly DeviceMonitor _deviceMonitor;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
 
     public LogsViewModel(
         IGraylogApi graylog,
@@ -30,7 +29,7 @@ public sealed class LogsViewModel : ObservableObject
         ILogger<LogsViewModel> logger)
     {
         _deviceMonitor = deviceMonitor;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         Graylog = GraylogMessagesViewModel.ForFleet(graylog, client, deviceCache, settings, windows, logger);
         Fleet = new FleetLogsViewModel(client, deviceCache, settings, windows, logger);

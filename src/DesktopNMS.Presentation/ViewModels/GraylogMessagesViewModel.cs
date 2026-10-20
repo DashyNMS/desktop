@@ -7,7 +7,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Graylog;
@@ -100,8 +99,8 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
     private readonly IWindowService? _windows;
     private readonly ILogger _logger;
     private readonly CancellationToken _ownerToken;
-    private readonly Dispatcher _dispatcher;
-    private readonly DispatcherTimer? _autoUpdateTimer;
+    private readonly IUiDispatcher _dispatcher;
+    private readonly IUiTimer? _autoUpdateTimer;
     private readonly Dictionary<int, IReadOnlyList<string>> _addressesByDevice = new();
     private readonly Dictionary<string, (string Name, int? DeviceId)> _sourceNames = new(StringComparer.OrdinalIgnoreCase);
 
@@ -149,7 +148,7 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
         _windows = windows;
         _logger = logger;
         _ownerToken = ownerToken;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         var options = settings.Current.Graylog;
 
@@ -194,7 +193,7 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
 
         if (IsFleet)
         {
-            _autoUpdateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(SelectedAutoUpdateInterval.Seconds) };
+            _autoUpdateTimer = UiThread.CreateTimer(TimeSpan.FromSeconds(SelectedAutoUpdateInterval.Seconds));
             _autoUpdateTimer.Tick += OnAutoUpdateTick;
         }
 

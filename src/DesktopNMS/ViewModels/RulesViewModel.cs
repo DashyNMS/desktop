@@ -365,7 +365,7 @@ public sealed class RulesViewModel : ObservableObject
             .GroupBy(a => a.RuleId)
             .ToDictionary(g => g.Key, g => g.Count());
 
-        System.Windows.Application.Current?.Dispatcher.InvokeAsync(() =>
+        UiThread.Dispatcher.InvokeAsync(() =>
         {
             _alertCounts = counts;
             foreach (var item in Rules)

@@ -6,7 +6,6 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Data;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.CustomMaps;
@@ -66,7 +65,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
     private readonly ILogger<CustomMapsViewModel> _logger;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
 
     private IReadOnlyList<Device> _devices = Array.Empty<Device>();
     private IReadOnlySet<int> _maintenanceIds = new HashSet<int>();
@@ -107,7 +106,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
         _settings = settings;
         _windows = windows;
         _logger = logger;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
         _settings.Changed += OnSettingsChanged;
 
         Maps = new BatchObservableCollection<CustomMapSummary>();
@@ -173,7 +172,7 @@ public sealed class CustomMapsViewModel : ObservableObject, IDisposable
             if (_isEditing && _isDirty && !_windows.Confirm("Discard changes", $"Discard your unsaved changes to \"{_map?.Name}\"? {Confirmations.CannotBeUndone}", "Discard", destructive: true))
             {
                 // Put the list selection back on the map still being edited.
-                _dispatcher.BeginInvoke(() => OnPropertyChanged(nameof(SelectedSummary)));
+                _dispatcher.Post(() => OnPropertyChanged(nameof(SelectedSummary)));
                 return;
             }
 

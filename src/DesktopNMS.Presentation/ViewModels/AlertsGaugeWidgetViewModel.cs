@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows.Threading;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
@@ -19,7 +18,7 @@ namespace DesktopNMS.ViewModels;
 public sealed class AlertsGaugeWidgetViewModel : DashboardWidgetViewModel, IDisposable
 {
     private readonly AlertMonitor _monitor;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
 
     private int _criticalCount;
     private int _warningCount;
@@ -35,7 +34,7 @@ public sealed class AlertsGaugeWidgetViewModel : DashboardWidgetViewModel, IDisp
         OpenCriticalCommand = new RelayCommand(() => windows.ShowAlertsWithSeverity(AlertSeverity.Critical));
         OpenWarningCommand = new RelayCommand(() => windows.ShowAlertsWithSeverity(AlertSeverity.Warning));
         OpenAllCommand = new RelayCommand(() => windows.ShowAlertsWithSeverity(null));
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         _monitor.Polled += OnPolled;
 

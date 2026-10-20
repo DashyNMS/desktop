@@ -17,7 +17,7 @@ public sealed class PinnedDevicesWidgetViewModel : DashboardWidgetViewModel, IDi
     private readonly ISettingsStore _settings;
     private readonly IDeviceCache _devices;
     private readonly DeviceMonitor _deviceMonitor;
-    private readonly System.Windows.Threading.Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
     private readonly Action<int> _openDevice;
 
     public PinnedDevicesWidgetViewModel(
@@ -32,7 +32,7 @@ public sealed class PinnedDevicesWidgetViewModel : DashboardWidgetViewModel, IDi
         _settings = settings;
         _devices = devices;
         _deviceMonitor = deviceMonitor;
-        _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
         _openDevice = openDevice;
 
         Devices = new BatchObservableCollection<PinnedDeviceItemViewModel>();

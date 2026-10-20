@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
@@ -53,9 +52,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly IUpdateCheckService _updates;
     private readonly DemoMode _demo;
     private readonly ILogger<MainViewModel> _logger;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
     private readonly Dictionary<int, AlertItemViewModel> _index = new();
-    private readonly DispatcherTimer _ageTimer;
+    private readonly IUiTimer _ageTimer;
     private readonly AutoRefreshTimer _refreshCountdown;
 
     private AlertItemViewModel? _selectedAlert;
@@ -153,7 +152,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _updates = updates;
         _demo = demo;
         _logger = logger;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         _client.Failover.Changed += OnFailoverChanged;
         SwitchBackToMainAddressCommand = new RelayCommand(SwitchBackToMainAddress);
@@ -242,10 +241,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _rulesTab.ShowAlertsRequested += (_, rule) => ShowAlertsForRule(rule);
 
         // Ages are relative, so they have to be nudged even when nothing polls.
-        _ageTimer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
-        {
-            Interval = TimeSpan.FromSeconds(30),
-        };
+        _ageTimer = UiThread.CreateTimer(TimeSpan.FromSeconds(30), UiPriority.Background);
         _ageTimer.Tick += (_, _) => RefreshAges();
         _ageTimer.Start();
 
@@ -919,7 +915,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string? _actionToastText;
     private bool _actionToastIsError;
     private IReadOnlyList<AlertItemViewModel> _actionToastUndo = Array.Empty<AlertItemViewModel>();
-    private DispatcherTimer? _actionToastTimer;
+    private IUiTimer? _actionToastTimer;
 
     /// <summary>"Acknowledged core-sw-01 · Port down" - shown for a few seconds after acknowledging or returning to active.</summary>
     public string? ActionToastText
@@ -963,7 +959,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         UndoAcknowledgeCommand.RaiseCanExecuteChanged();
 
         _actionToastTimer?.Stop();
-        _actionToastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(isError ? 10 : 6) };
+        _actionToastTimer = UiThread.CreateTimer(TimeSpan.FromSeconds(isError ? 10 : 6));
         _actionToastTimer.Tick += (_, _) => HideActionToast();
         _actionToastTimer.Start();
     }

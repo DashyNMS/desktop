@@ -4,8 +4,9 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:DesktopNMS.ViewModels"
+             xmlns:pvm="clr-namespace:DesktopNMS.ViewModels;assembly=DesktopNMS.Presentation"
         mc:Ignorable="d"
-        d:DataContext="{d:DesignInstance Type=vm:NeighbourViewEditorViewModel}"
+        d:DataContext="{d:DesignInstance Type=pvm:NeighbourViewEditorViewModel}"
         Title="{Binding Title}"
         Width="720"
         SizeToContent="Height"
@@ -51,11 +52,11 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <ComboBox Grid.Column="0"
-                                      ItemsSource="{x:Static vm:NeighbourViewEditorViewModel.FieldChoices}"
+                                      ItemsSource="{x:Static pvm:NeighbourViewEditorViewModel.FieldChoices}"
                                       SelectedItem="{Binding Field}"
                                       Margin="0,0,8,0" />
                             <ComboBox Grid.Column="1"
-                                      ItemsSource="{x:Static vm:NeighbourViewEditorViewModel.OperatorChoices}"
+                                      ItemsSource="{x:Static pvm:NeighbourViewEditorViewModel.OperatorChoices}"
                                       SelectedItem="{Binding Operator}"
                                       Margin="0,0,8,0" />
                             <TextBox Grid.Column="2" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" />

@@ -7,7 +7,6 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
@@ -35,7 +34,7 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
     private readonly ILogger _logger;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
 
     private IReadOnlyList<Alert> _alerts = Array.Empty<Alert>();
     private SpotlightKind _pickerKind = SpotlightKind.Device;
@@ -62,7 +61,7 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
         _settings = settings;
         _windows = windows;
         _logger = logger;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         alerts.Polled += (_, result) =>
         {

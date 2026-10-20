@@ -1,5 +1,4 @@
 using System;
-using System.Windows.Threading;
 
 namespace DesktopNMS.Infrastructure;
 
@@ -17,11 +16,11 @@ namespace DesktopNMS.Infrastructure;
 /// </summary>
 public sealed class AutoRefreshTimer : IDisposable
 {
-    private readonly DispatcherTimer _timer;
+    private readonly IUiTimer _timer;
 
     public AutoRefreshTimer(Action onTick)
     {
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _timer = UiThread.CreateTimer(TimeSpan.FromSeconds(1));
         _timer.Tick += (_, _) => onTick();
     }
 

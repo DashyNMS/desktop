@@ -5,7 +5,6 @@ using System.Linq;
 using System.Collections;
 using System.ComponentModel;
 using System.Windows.Data;
-using System.Windows.Threading;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Infrastructure;
 using Microsoft.Extensions.Logging;
@@ -15,8 +14,8 @@ namespace DesktopNMS.ViewModels;
 public sealed partial class IntelligenceViewModel
 {
     private IIntelligenceChatStore _chatStore = null!;
-    private readonly DispatcherTimer _chatSaveTimer = new() { Interval = TimeSpan.FromSeconds(1) };
-    private readonly DispatcherTimer _chatGroupingTimer = new() { Interval = TimeSpan.FromMinutes(1) };
+    private readonly IUiTimer _chatSaveTimer = UiThread.CreateTimer(TimeSpan.FromSeconds(1));
+    private readonly IUiTimer _chatGroupingTimer = UiThread.CreateTimer(TimeSpan.FromMinutes(1));
     private string? _chatScope;
     private bool _changingChat;
     private bool _chatStorageReadOnly;

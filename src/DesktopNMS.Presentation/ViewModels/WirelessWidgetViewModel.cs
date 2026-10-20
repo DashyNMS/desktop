@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Devices;
@@ -36,7 +35,7 @@ public sealed class WirelessWidgetViewModel : DashboardWidgetViewModel, IDisposa
     private readonly ILibreNmsClient _client;
     private readonly ILogger _logger;
     private readonly Action<int> _openDevice;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
 
     private readonly HashSet<string> _probedOses = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _wirelessOses = new(StringComparer.OrdinalIgnoreCase);
@@ -55,7 +54,7 @@ public sealed class WirelessWidgetViewModel : DashboardWidgetViewModel, IDisposa
         _client = client;
         _logger = logger;
         _openDevice = openDevice;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         Controllers = new BatchObservableCollection<WirelessControllerItemViewModel>();
         OpenDeviceCommand = new RelayCommand(parameter =>

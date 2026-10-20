@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Windows.Input;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
@@ -28,7 +27,7 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     private readonly AlertMonitor _alertMonitor;
     private readonly IGraylogApi _graylog;
     private readonly IUnimusApi _unimus;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
 
     private int? _activeAlerts;
     private IReadOnlyList<WelcomeStep> _steps = Array.Empty<WelcomeStep>();
@@ -52,7 +51,7 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
         _alertMonitor = alertMonitor;
         _graylog = graylog;
         _unimus = unimus;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         ChooseWidgetsCommand = chooseWidgets;
         UseStarterCommand = new RelayCommand(() => _layout.AddWidgets(StarterDashboard.Create()));
@@ -162,10 +161,10 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     // Unimus is set up from the settings once they're saved, so look again
     // after that has had a chance to run.
     private void OnSettingsChanged(object? sender, AppSettings settings)
-        => _dispatcher.InvokeAsync(RebuildSteps, DispatcherPriority.Background);
+        => _dispatcher.InvokeAsync(RebuildSteps, UiPriority.Background);
 
     private void OnIntegrationChanged(object? sender, EventArgs e)
-        => _dispatcher.InvokeAsync(RebuildSteps, DispatcherPriority.Background);
+        => _dispatcher.InvokeAsync(RebuildSteps, UiPriority.Background);
 
     public void Dispose()
     {
