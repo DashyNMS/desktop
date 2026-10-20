@@ -535,6 +535,8 @@ public partial class App : Application
         }
 
         services.AddSingleton<ISessionService, SessionService>();
+        // What Core's pollers and caches ask before polling (#208).
+        services.AddSingleton<IConnectionState>(sp => sp.GetRequiredService<ISessionService>());
         services.AddSingleton<IDeviceCache, DeviceCache>();
         services.AddSingleton<IAlertRuleCache, AlertRuleCache>();
         services.AddSingleton<IDeviceGroupMembershipService, DeviceGroupMembershipService>();
