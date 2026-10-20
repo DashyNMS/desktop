@@ -5,7 +5,6 @@ using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Data;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
@@ -35,7 +34,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
     private readonly IWindowService _windows;
     private readonly ILibreNmsClient _client;
     private readonly ILogger<DeviceListViewModel> _logger;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
     private readonly Dictionary<int, DeviceItemViewModel> _index = new();
 
     private readonly List<DeviceItemViewModel> _selectedDevices = new();
@@ -77,7 +76,7 @@ public sealed class DeviceListViewModel : ObservableObject, IDisposable
         _windows = windows;
         _client = client;
         _logger = logger;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         Devices = new BatchObservableCollection<DeviceItemViewModel>();
         DevicesView = CollectionViewSource.GetDefaultView(Devices);

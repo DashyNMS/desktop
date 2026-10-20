@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Intelligence;
@@ -34,7 +33,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
     private readonly ISessionService _session;
     private readonly IWindowService _windows;
     private readonly ILogger<IntelligenceViewModel> _logger;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
     private readonly SemaphoreSlim _renewing = new(1, 1);
     private readonly IntelligenceConversation _conversation;
     private readonly ISettingsStore _settings;
@@ -93,7 +92,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         _session = session;
         _windows = windows;
         _logger = logger;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
         _signIn = new ChatGptSignIn(http, "DashyNMS");
@@ -605,7 +604,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     private bool _isStreaming;
     private string? _restoredActivity;
     private bool _isCopied;
-    private DispatcherTimer? _copyFeedbackTimer;
+    private IUiTimer? _copyFeedbackTimer;
     private bool _isActivityExpanded;
     private readonly HashSet<string> _observedToolsAwaitingFinish = new();
     private readonly List<IntelligenceImage> _savedImages = new();
@@ -672,7 +671,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         OnPropertyChanged(nameof(CopyAnswerLabel));
         if (_copyFeedbackTimer is null)
         {
-            _copyFeedbackTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _copyFeedbackTimer = UiThread.CreateTimer(TimeSpan.FromSeconds(2));
             _copyFeedbackTimer.Tick += (_, _) =>
             {
                 _copyFeedbackTimer.Stop();

@@ -48,6 +48,8 @@
 
   <ItemGroup>
     <Using Include="DesktopNMS.Core.Services" />
+    <!-- UiThread, IUiDispatcher and IUiTimer (#249) are used across the view models. -->
+    <Using Include="DesktopNMS.Infrastructure" />
   </ItemGroup>
 
 </Project>

@@ -87,7 +87,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IStartupRegistration _startup;
     private readonly IAlertNotificationService _notifications;
     private readonly IUpdateCheckService _updates;
-    private readonly System.Windows.Threading.Dispatcher _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+    private readonly IUiDispatcher _dispatcher = UiThread.Dispatcher;
     private readonly IWindowService _windows;
     private readonly ISessionService _session;
     private readonly ILibreNmsClient _client;

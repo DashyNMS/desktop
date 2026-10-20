@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Windows.Threading;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
@@ -24,7 +23,7 @@ public sealed class AlertsWidgetViewModel : DashboardWidgetViewModel, IDisposabl
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
     private readonly IDeviceCache _devices;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
     private readonly Dictionary<int, AlertItemViewModel> _index = new();
 
     private IReadOnlyList<Alert> _lastAlerts = Array.Empty<Alert>();
@@ -46,7 +45,7 @@ public sealed class AlertsWidgetViewModel : DashboardWidgetViewModel, IDisposabl
         _session = session;
         _settings = settings;
         _devices = devices;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         _showCritical = model.AlertsShowCritical;
         _showWarning = model.AlertsShowWarning;

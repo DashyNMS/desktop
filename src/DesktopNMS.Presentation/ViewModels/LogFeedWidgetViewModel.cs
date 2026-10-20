@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using DesktopNMS.Core;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
@@ -37,8 +36,8 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
     private readonly IDashboardLayoutService _layout;
     private readonly DeviceMonitor _deviceMonitor;
     private readonly ILogger _logger;
-    private readonly Dispatcher _dispatcher;
-    private readonly DispatcherTimer _newTimer;
+    private readonly IUiDispatcher _dispatcher;
+    private readonly IUiTimer _newTimer;
     private readonly HashSet<string> _shownKeys = new(StringComparer.Ordinal);
 
     private int _count;
@@ -55,7 +54,7 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
         _layout = layout;
         _deviceMonitor = deviceMonitor;
         _logger = logger;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         _count = CountChoices.Contains(model.LogCount) ? model.LogCount : DefaultCount;
         _searchText = model.LogSearch;
@@ -75,7 +74,7 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
             }
         });
 
-        _newTimer = new DispatcherTimer { Interval = NewHighlight };
+        _newTimer = UiThread.CreateTimer(NewHighlight);
         _newTimer.Tick += (_, _) =>
         {
             _newTimer.Stop();

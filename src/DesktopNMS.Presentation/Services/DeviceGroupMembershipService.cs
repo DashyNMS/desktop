@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using Microsoft.Extensions.Logging;
@@ -55,8 +54,8 @@ public sealed class DeviceGroupMembershipService : IDeviceGroupMembershipService
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
     private readonly ILogger<DeviceGroupMembershipService> _logger;
-    private readonly Dispatcher _dispatcher;
-    private readonly DispatcherTimer _timer;
+    private readonly IUiDispatcher _dispatcher;
+    private readonly IUiTimer _timer;
 
     private IReadOnlyDictionary<int, IReadOnlyList<string>> _membership = new Dictionary<int, IReadOnlyList<string>>();
     private Task? _inFlight;
@@ -75,12 +74,12 @@ public sealed class DeviceGroupMembershipService : IDeviceGroupMembershipService
         _session = session;
         _settings = settings;
         _logger = logger;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
-        _timer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher) { Interval = RefreshInterval() };
+        _timer = UiThread.CreateTimer(RefreshInterval(), UiPriority.Background);
         _timer.Tick += (_, _) => _ = RefreshAsync();
 
-        // Changing Interval on a running DispatcherTimer takes effect
+        // Changing Interval on a running IUiTimer takes effect
         // immediately - picks up a mid-session poll-interval change.
         _settings.Changed += (_, _) => _timer.Interval = RefreshInterval();
     }
@@ -178,7 +177,7 @@ public sealed class DeviceGroupMembershipService : IDeviceGroupMembershipService
             HasLoaded = true;
             Changed?.Invoke(this, EventArgs.Empty);
         }
-    }).Task;
+    });
 
     private TimeSpan RefreshInterval()
         => TimeSpan.FromSeconds(_settings.Current.PollIntervalSeconds * RefreshMultiplier);

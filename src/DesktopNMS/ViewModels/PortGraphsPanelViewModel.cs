@@ -74,7 +74,7 @@ public sealed class PortGraphsPanelViewModel : ObservableObject
     public event EventHandler<PortGraphAddRequest>? AddToDashboardRequested;
 
     private string? _notice;
-    private System.Windows.Threading.DispatcherTimer? _noticeTimer;
+    private IUiTimer? _noticeTimer;
 
     /// <summary>"Traffic added to the dashboard" for a few seconds in the header, after Add to dashboard.</summary>
     public string? Notice
@@ -102,7 +102,7 @@ public sealed class PortGraphsPanelViewModel : ObservableObject
 
         Notice = $"{graph.Title} added to the dashboard";
         _noticeTimer?.Stop();
-        _noticeTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        _noticeTimer = UiThread.CreateTimer(TimeSpan.FromSeconds(4));
         _noticeTimer.Tick += (_, _) =>
         {
             _noticeTimer?.Stop();

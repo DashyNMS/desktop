@@ -2,7 +2,6 @@ using System;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
@@ -33,7 +32,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
     private readonly IDeviceCache _devices;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
 
     private string _statusMessage = "Not loaded yet.";
     private string? _errorMessage;
@@ -54,7 +53,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         _session = session;
         _settings = settings;
         _devices = devices;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         // Thresholds delegate to SensorCategoryRegistry rather than the raw
         // *ThresholdSettings, so a sensor's own LibreNMS-configured limit

@@ -10,7 +10,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
-using System.Windows.Threading;
 using DesktopNMS.Core;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
@@ -49,7 +48,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private readonly IDeviceCache _deviceCache;
     private readonly IFleetLinks _fleetLinks;
     private readonly ILogger<DeviceDetailViewModel> _logger;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
     private readonly Dictionary<int, SensorItemViewModel> _sensorIndex = new();
     private readonly HashSet<int> _loadedEventLogIds = new();
     private int? _unimusDeviceId;
@@ -214,7 +213,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _deviceCache = deviceCache;
         _fleetLinks = fleetLinks;
         _logger = logger;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         Sensors = new ObservableCollection<SensorItemViewModel>();
         SensorGroups = new BatchObservableCollection<SensorGroupViewModel>();

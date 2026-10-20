@@ -69,6 +69,9 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // The shared view models' UI thread and timers (#249) - before any is created.
+        WpfUiThread.Install(Dispatcher);
+
         // Before the single-instance check: this runs alongside nothing else,
         // shows nothing, and must work even if a copy is somehow still open.
         if (e.Args.Any(a => a.Equals(UninstallArgument, StringComparison.OrdinalIgnoreCase)))

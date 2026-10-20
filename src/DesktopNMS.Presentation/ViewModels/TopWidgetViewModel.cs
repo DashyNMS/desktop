@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Devices;
@@ -35,7 +34,7 @@ public abstract class TopWidgetViewModel : DashboardWidgetViewModel, IDisposable
     private readonly ISettingsStore _settings;
     private readonly DeviceMonitor _deviceMonitor;
     private readonly ILogger _logger;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiDispatcher _dispatcher;
 
     private IReadOnlyList<Port> _latest = Array.Empty<Port>();
     private int _count;
@@ -63,7 +62,7 @@ public abstract class TopWidgetViewModel : DashboardWidgetViewModel, IDisposable
         _settings = settings;
         _deviceMonitor = deviceMonitor;
         _logger = logger;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = UiThread.Dispatcher;
 
         _count = CountChoices.Contains(model.TopCount) ? model.TopCount : DefaultCount;
         _rankBy = model.TopRankBy;
