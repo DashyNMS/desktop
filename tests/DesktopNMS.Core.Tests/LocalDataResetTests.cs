@@ -51,7 +51,8 @@ public sealed class LocalDataResetTests : IDisposable
         Assert.False(Directory.Exists(Cache));
     }
 
-    [Fact]
+    // Only Windows refuses to delete a file that's open.
+    [WindowsFact]
     public void Carries_on_past_a_locked_file_and_reports_it()
     {
         var locked = Path.Combine(Data, "settings.json");
@@ -63,6 +64,18 @@ public sealed class LocalDataResetTests : IDisposable
             Assert.StartsWith(locked + " (IOException", failed[0]);
             Assert.False(File.Exists(Path.Combine(Data, "token.dat")));
             Assert.False(Directory.Exists(Path.Combine(Data, "custom-maps")));
+        }
+    }
+
+    // Elsewhere an open file is deleted like any other, so nothing is reported.
+    [NotWindowsFact]
+    public void Deletes_an_open_file_off_Windows()
+    {
+        var open = Path.Combine(Data, "settings.json");
+        using (new FileStream(open, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.Empty(LocalDataReset.Wipe(Data, Cache));
+            Assert.False(File.Exists(open));
         }
     }
 
