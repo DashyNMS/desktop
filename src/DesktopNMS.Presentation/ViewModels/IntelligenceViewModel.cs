@@ -97,7 +97,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
         _signIn = new ChatGptSignIn(http, "DashyNMS");
         _responses = new ResponsesClient(http);
-        _conversation = new IntelligenceConversation(_responses, _tools);
+        _conversation = new IntelligenceConversation(_responses, _tools, _logger);
 
         ConnectCommand = new AsyncRelayCommand(ConnectAsync, () => !_isSigningIn);
         DisconnectCommand = new AsyncRelayCommand(DisconnectAsync, () => IsSignedIn && !_isBusy);
