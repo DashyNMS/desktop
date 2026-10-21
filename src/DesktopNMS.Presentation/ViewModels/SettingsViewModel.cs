@@ -1862,19 +1862,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
-    public IReadOnlyList<KeyValuePair<string, string>> IntelligenceReplyStyleOptions { get; } = new[]
-    {
-        new KeyValuePair<string, string>(IntelligenceReplyStyles.Conversational, "Conversational"),
-        new KeyValuePair<string, string>(IntelligenceReplyStyles.EvidenceBased, "Evidence based"),
-    };
+    public IReadOnlyList<KeyValuePair<string, string>> IntelligenceDetailOptions => ViewModels.IntelligenceDetailOptions.All;
 
-    public string IntelligenceReplyStyle
+    /// <summary>The detail level new chats start with (#329).</summary>
+    public string IntelligenceDetail
     {
-        get => IntelligenceReplyStyles.Normalize(_draft.IntelligenceReplyStyle);
+        get => Core.Intelligence.IntelligenceDetail.Normalize(_draft.IntelligenceReplyStyle);
         set
         {
             if (value is null) return;
-            var style = IntelligenceReplyStyles.Normalize(value);
+            var style = Core.Intelligence.IntelligenceDetail.Normalize(value);
             if (_draft.IntelligenceReplyStyle == style) return;
             _draft.IntelligenceReplyStyle = style;
             OnPropertyChanged();

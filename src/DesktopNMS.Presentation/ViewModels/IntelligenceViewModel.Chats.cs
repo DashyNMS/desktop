@@ -30,22 +30,19 @@ public sealed partial class IntelligenceViewModel : IDisposable
     private IntelligenceChatItemViewModel? _selectedChat;
     private bool _isRenamingChat;
     private string _chatNameDraft = string.Empty;
-    private string _selectedReplyStyle = IntelligenceReplyStyles.Conversational;
+    private string _selectedDetail = IntelligenceDetail.Default;
 
-    public IReadOnlyList<KeyValuePair<string, string>> ChatReplyStyleOptions { get; } = new[]
-    {
-        new KeyValuePair<string, string>(IntelligenceReplyStyles.Conversational, "Conversational"),
-        new KeyValuePair<string, string>(IntelligenceReplyStyles.EvidenceBased, "Evidence based"),
-    };
+    public IReadOnlyList<KeyValuePair<string, string>> DetailOptions => IntelligenceDetailOptions.All;
 
-    public string SelectedReplyStyle
+    /// <summary>How much this chat's next answer says (#329) - saved with the chat as its ReplyStyle.</summary>
+    public string SelectedDetail
     {
-        get => _selectedReplyStyle;
+        get => _selectedDetail;
         set
         {
             if (value is null) return;
             if (IsBusy && !_changingChat) { OnPropertyChanged(); return; }
-            if (SetProperty(ref _selectedReplyStyle, IntelligenceReplyStyles.Normalize(value))) QueueChatSave();
+            if (SetProperty(ref _selectedDetail, IntelligenceDetail.Normalize(value))) QueueChatSave();
         }
     }
 
@@ -223,7 +220,7 @@ public sealed partial class IntelligenceViewModel : IDisposable
         var chat = new IntelligenceChatItemViewModel(new SavedIntelligenceChat
         {
             Model = _settings.Current.IntelligenceModel ?? SelectedModel?.Slug,
-            ReplyStyle = IntelligenceReplyStyles.Normalize(_settings.Current.IntelligenceReplyStyle),
+            ReplyStyle = IntelligenceDetail.Normalize(_settings.Current.IntelligenceReplyStyle),
             Outfit = DashyOutfits.Pick(Random.Shared.Next(100)),
         });
         Chats.Insert(0, chat);
@@ -247,7 +244,7 @@ public sealed partial class IntelligenceViewModel : IDisposable
                     Messages.Add(restored);
                 }
             Question = chat?.Draft ?? string.Empty;
-            SelectedReplyStyle = chat?.ReplyStyle ?? IntelligenceReplyStyles.Normalize(_settings.Current.IntelligenceReplyStyle);
+            SelectedDetail = IntelligenceDetail.Normalize(chat?.ReplyStyle ?? _settings.Current.IntelligenceReplyStyle);
             CompanionOutfit = chat?.Outfit ?? DashyOutfit.Normal;
             var model = chat?.Model ?? _settings.Current.IntelligenceModel;
             SelectedModel = Models.FirstOrDefault(item => item.Slug == model)
@@ -283,7 +280,7 @@ public sealed partial class IntelligenceViewModel : IDisposable
         var chat = item.Data;
         chat.Draft = Question;
         chat.Model = SelectedModel?.Slug ?? chat.Model;
-        chat.ReplyStyle = SelectedReplyStyle;
+        chat.ReplyStyle = SelectedDetail;
         chat.Outfit = CompanionOutfit;
         chat.History = _conversation.ExportHistory();
         chat.Messages = Messages.Select(message => message.Save()).ToList();
