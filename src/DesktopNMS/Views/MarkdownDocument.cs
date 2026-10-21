@@ -109,7 +109,7 @@ public static partial class MarkdownDocument
     // its navy surface in both themes, including tables, quotes and code.
     private sealed class Renderer(FrameworkElement? scope)
     {
-        private bool Conversational => scope is not null && GetReplyStyle(scope) == IntelligenceReplyStyles.Conversational;
+        private bool Conversational => scope is not null && GetReplyStyle(scope) is { } detail && IntelligenceDetail.IsConversational(detail);
         private IReadOnlyList<IntelligenceInlineReference> References => scope is null ? Array.Empty<IntelligenceInlineReference>() : GetInlineReferences(scope);
 
         public FlowDocument Render(string markdown)

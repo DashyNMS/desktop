@@ -406,8 +406,8 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         Question = string.Empty;
         ErrorText = null;
         Messages.Add(IntelligenceMessageViewModel.User(question));
-        var replyStyle = SelectedReplyStyle;
-        var answer = IntelligenceMessageViewModel.Assistant(replyStyle, question);
+        var detail = SelectedDetail;
+        var answer = IntelligenceMessageViewModel.Assistant(detail, question);
         answer.SeedInlineReferences(Messages.Where(message => message.IsAssistant).Reverse().SelectMany(message => message.InlineReferences));
         Messages.Add(answer);
         if (_selectedChat is { } chat && !chat.Data.IsRenamed && chat.Data.Messages.Count == 0)
@@ -427,7 +427,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
             var model = _selectedModel!.Slug;
             var token = _running.Token;
             var webSearchEnabled = IntelligenceConsent.AllowsWebSearch(_settings.Current);
-            await Task.Run(() => _conversation.AskAsync(question, model, AccessTokenAsync, listener, token, spotlight, webSearchEnabled, replyStyle)).ConfigureAwait(true);
+            await Task.Run(() => _conversation.AskAsync(question, model, AccessTokenAsync, listener, token, spotlight, webSearchEnabled, detail)).ConfigureAwait(true);
             Context.OnAnswer(IntelligenceInlineMarkup.ToReadableText(answer.Text, answer.InlineReferences));
             if (string.IsNullOrWhiteSpace(answer.Text))
             {
@@ -625,7 +625,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     /// <summary>The presentation chosen for this reply, kept stable when settings change later.</summary>
     public string? ReplyStyle { get; private init; }
 
-    public bool IsConversational => ReplyStyle == IntelligenceReplyStyles.Conversational;
+    public bool IsConversational => ReplyStyle is { } detail && IntelligenceDetail.IsConversational(detail);
 
     public DateTimeOffset? CreatedAt { get; private init; }
     public string TimeLabel => CreatedAt?.ToLocalTime().ToString("HH:mm") ?? string.Empty;
