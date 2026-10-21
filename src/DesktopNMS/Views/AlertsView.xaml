@@ -290,14 +290,14 @@
                                     </Grid.ColumnDefinitions>
                                     <!-- A rule firing on several cores, ports or sensors of one
                                          device is one row (#353); this opens its list of faults. -->
-                                    <ToggleButton Grid.Column="0"
-                                                  IsChecked="{Binding IsExpanded}"
-                                                  Style="{StaticResource IconButtonStyle}"
-                                                  Width="22"
-                                                  Height="22"
-                                                  Margin="0,0,6,0"
-                                                  ToolTip="Show each fault"
-                                                  Visibility="{Binding IsGroup, Converter={StaticResource BoolToVisibility}}">
+                                    <Button Grid.Column="0"
+                                            Command="{Binding ToggleExpandedCommand}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Width="22"
+                                            Height="22"
+                                            Margin="0,0,6,0"
+                                            ToolTip="Show each fault"
+                                            Visibility="{Binding IsGroup, Converter={StaticResource BoolToVisibility}}">
                                         <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
@@ -310,7 +310,7 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                    </ToggleButton>
+                                    </Button>
                                     <StackPanel Grid.Column="1"
                                                 VerticalAlignment="Center"
                                                 Opacity="{Binding State, Converter={StaticResource StateToOpacity}}">
