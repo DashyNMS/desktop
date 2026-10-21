@@ -162,6 +162,7 @@ public sealed partial class IntelligenceViewModel : IDisposable
         _chatScope = scope;
         _chatStorageReadOnly = false;
         Guid? activeId = null;
+        var unreadable = 0;
         try
         {
             if (scope is not null)
@@ -169,6 +170,12 @@ public sealed partial class IntelligenceViewModel : IDisposable
                 var saved = _chatStore.Load(scope);
                 activeId = saved.ActiveId;
                 foreach (var chat in saved.Chats) Chats.Add(new(chat));
+                foreach (var file in saved.Unreadable ?? Array.Empty<string>())
+                {
+                    _logger.LogWarning("Intelligence: saved chat {File} could not be read and was skipped", file);
+                }
+
+                unreadable = saved.Unreadable?.Count ?? 0;
             }
         }
         catch (Exception ex)
@@ -189,6 +196,15 @@ public sealed partial class IntelligenceViewModel : IDisposable
             SelectedChat = Chats.FirstOrDefault(chat => chat.Data.Id == activeId) ?? Chats[0];
         }
         else NewChat();
+
+        // After selecting, which clears the error line (#322).
+        if (unreadable > 0)
+        {
+            ErrorText = unreadable == 1
+                ? "One saved chat couldn't be opened and was skipped. Your other chats are here."
+                : $"{unreadable} saved chats couldn't be opened and were skipped. Your other chats are here.";
+        }
+
         RaiseChatCommands();
     }
 
