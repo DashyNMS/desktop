@@ -176,6 +176,8 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
             environment[key] = value;
         }
 
+        var stderr = new Queue<string>();
+        var listening = true;
         var transport = new StdioClientTransport(new StdioClientTransportOptions
         {
             Name = "DashyNMS network tools",
@@ -187,8 +189,17 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
             ShutdownTimeout = TimeSpan.FromSeconds(5),
 
             // Stderr and protocol diagnostics may contain credentials or tool data.
-            // Keep them out of the UI, persistent logs and debug output.
-            StandardErrorLines = _ => { },
+            // Keep them out of the UI, persistent logs and debug output: the
+            // last few lines stay in memory only, for McpStartReason (#325).
+            StandardErrorLines = line =>
+            {
+                lock (stderr)
+                {
+                    if (!listening) return;
+                    if (stderr.Count == McpStartReason.MaxLines) stderr.Dequeue();
+                    stderr.Enqueue(line);
+                }
+            },
         }, NullLoggerFactory.Instance);
 
         try
@@ -212,10 +223,40 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            _logger.LogWarning("Intelligence: the network tools didn't start ({ErrorType})", ex.GetType().Name);
+            var reason = await StartReasonAsync(stderr).ConfigureAwait(false);
+            _logger.LogWarning("Intelligence: the network tools didn't start ({ErrorType}, {Reason})", ex.GetType().Name, reason);
             await StopAsync().ConfigureAwait(false);
-            throw new IntelligenceException("DashyNMS's network tools couldn't start. Check your connection and Intelligence settings, then try again.", IntelligenceFailure.Tools);
+            throw new IntelligenceException(
+                McpStartReason.Describe(reason) ?? "DashyNMS's network tools couldn't start. Check your connection and Intelligence settings, then try again.",
+                IntelligenceFailure.Tools);
         }
+        finally
+        {
+            // Only a start's lines are kept; nothing once it's running.
+            lock (stderr)
+            {
+                listening = false;
+                stderr.Clear();
+            }
+        }
+    }
+
+    /// <summary>
+    /// The fixed reason word for a failed start. The server's last line can
+    /// arrive just after the exit is noticed, so an unknown reason waits a
+    /// moment and looks again.
+    /// </summary>
+    private static async Task<string> StartReasonAsync(Queue<string> stderr)
+    {
+        string Classify()
+        {
+            lock (stderr) return McpStartReason.Classify(stderr.ToList());
+        }
+
+        var reason = Classify();
+        if (reason != McpStartReason.Unknown) return reason;
+        await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+        return Classify();
     }
 
     /// <summary>The MCP server's settings (see the MCP README's table), from this app's own connection and settings.</summary>
