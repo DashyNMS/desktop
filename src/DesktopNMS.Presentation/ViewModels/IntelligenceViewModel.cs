@@ -564,7 +564,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         public void OnText(string delta) => _owner._dispatcher.InvokeAsync(() =>
         {
             _answer.Text += delta;
-            _owner.QueueChatSave();
+            _owner.SaveWhileStreaming();
         });
 
         public void OnAnswerCompleted(string text) => _owner._dispatcher.InvokeAsync(() => _answer.Text = text);
