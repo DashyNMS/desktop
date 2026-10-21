@@ -35,8 +35,8 @@ dotnet run --project src/DesktopNMS/DesktopNMS.csproj
 
 The cross-platform Avalonia app (#153) builds and runs on Windows, macOS and
 Linux. For now it's a scaffold: sign in, and it shows the open alert count from
-the shared alert monitor. It asks for the API token each time, saves nothing,
-and keeps its own data folder (see "Where things are stored").
+the shared alert monitor. It can remember the token, encrypted as the WPF app's
+is (#154), and keeps its own data folder (see "Where things are stored").
 
 ```bash
 dotnet run --project src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj
@@ -151,12 +151,15 @@ src/
                              UiThread and UiPlatform (the UI thread, timers,
                              clipboard, file dialogs, theme, keyboard)
     Demo/                   Demo mode's example network
+    Security/               Secret storage on every OS (#154): the token,
+                             Unimus, Graylog, ChatGPT and chat stores, over
+                             DPAPI on Windows or a Keychain / Secret Service
+                             key on macOS and Linux
   DesktopNMS.Avalonia/      Avalonia application for Windows, macOS and Linux
                              (#153), replacing the WPF app once the views are
                              ported (#250). A scaffold for now
     Views/                  Avalonia views
     Infrastructure/         AvaloniaUiThread
-    Security/               Secret storage (session-only until #154)
   DesktopNMS/               WPF application (product name DashyNMS)
     Views/                  WPF views and code-behind; lists' grouping and
                              header sorting are applied here
@@ -164,7 +167,6 @@ src/
                              updates, map tiles, start at sign-in
     Infrastructure/         WpfUiThread and WpfUiPlatform, theming, window
                              placement, WPF helpers
-    Security/               DPAPI token, credential and chat storage
     Themes/                 Dark/light theme resource dictionaries
 tools/
   New-AppIcon.ps1           Regenerates Assets/app.ico
@@ -216,6 +218,17 @@ The Avalonia app keeps its own data in `avalonia\` inside that folder
 (`~/.config/DashyNMS/avalonia` on Linux, `~/Library/Application
 Support/DashyNMS/avalonia` on macOS), so while it's a preview it never touches
 the WPF app's settings or token.
+
+Secrets (the `.dat` files and `chats\`) are encrypted for the current user on
+every OS (#154):
+
+- **Windows:** DPAPI, with each secret's own purpose string as its entropy.
+- **macOS and Linux:** AES-256-GCM with one random key per user. The key lives
+  in the login Keychain (through `/usr/bin/security`) or the freedesktop Secret
+  Service, such as GNOME Keyring or KWallet (through `secret-tool`, from
+  `libsecret-tools`). It's created only when the keychain answers that there
+  isn't one. If the keychain can't be reached, nothing is saved and existing
+  files are kept for later.
 
 > The app was originally built and shipped as **DesktopNMS**; this folder, the
 > exe name and every user-visible string were renamed to DashyNMS afterwards.

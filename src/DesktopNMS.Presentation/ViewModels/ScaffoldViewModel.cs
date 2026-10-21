@@ -2,9 +2,11 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using DesktopNMS.Core.Alerting;
+using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Services;
 using DesktopNMS.Infrastructure;
+using DesktopNMS.Security;
 using DesktopNMS.Services;
 
 namespace DesktopNMS.ViewModels;
@@ -12,27 +14,32 @@ namespace DesktopNMS.ViewModels;
 /// <summary>
 /// The Avalonia app's placeholder window (#153): sign in to LibreNMS, start the
 /// alert monitor and show the open alert count - proof that the shared
-/// sign-in, polling and view-model plumbing run on Avalonia. The ported views
-/// replace it in #250.
+/// sign-in, polling, secret storage (#154) and view-model plumbing run on
+/// Avalonia. The ported views replace it in #250.
 /// </summary>
 public sealed class ScaffoldViewModel : ObservableObject
 {
     private readonly ISessionService _session;
     private readonly AlertMonitor _alerts;
+    private readonly ISecretProtector _secrets;
+    private readonly ISettingsStore _settings;
     private readonly IUiDispatcher _dispatcher = UiThread.Dispatcher;
     private string _serverUrl = string.Empty;
     private string _token = string.Empty;
     private bool _allowUntrustedCertificate;
+    private bool _rememberToken = true;
     private bool _isSigningIn;
     private string? _errorText;
     private string _alertSummary = "Waiting for the first poll…";
     private string _faultSummary = string.Empty;
     private string _pollText = string.Empty;
 
-    public ScaffoldViewModel(ISessionService session, AlertMonitor alerts)
+    public ScaffoldViewModel(ISessionService session, AlertMonitor alerts, ISecretProtector secrets, ISettingsStore settings)
     {
+        _settings = settings;
         _session = session;
         _alerts = alerts;
+        _secrets = secrets;
         SignInCommand = new AsyncRelayCommand(SignInAsync, () => !_isSigningIn && !string.IsNullOrWhiteSpace(_serverUrl) && !string.IsNullOrWhiteSpace(_token));
         _alerts.Polled += (_, result) => _dispatcher.Post(() => OnPolled(result));
     }
@@ -56,6 +63,20 @@ public sealed class ScaffoldViewModel : ObservableObject
         get => _allowUntrustedCertificate;
         set => SetProperty(ref _allowUntrustedCertificate, value);
     }
+
+    /// <summary>Keep the token, encrypted for this user, so the next launch signs straight in (#154).</summary>
+    public bool RememberToken
+    {
+        get => _rememberToken;
+        set => SetProperty(ref _rememberToken, value);
+    }
+
+    /// <summary>Where a remembered token goes on this OS, or why it can't be kept.</summary>
+    public string SecretsText => _secrets.UnavailableReason is { } reason
+        ? "Can't remember the token on this computer: " + reason
+        : OperatingSystem.IsWindows() ? "A remembered token is encrypted for your Windows account."
+        : OperatingSystem.IsMacOS() ? "A remembered token is encrypted with a key in your Keychain."
+        : "A remembered token is encrypted with a key in your Secret Service keyring.";
 
     public bool IsSignedIn => _session.IsConnected;
 
@@ -104,8 +125,7 @@ public sealed class ScaffoldViewModel : ObservableObject
         ErrorText = null;
         try
         {
-            // Never remembered: saving secrets on each OS is #154.
-            var result = await _session.SignInAsync(_serverUrl, _token, _allowUntrustedCertificate, rememberToken: false).ConfigureAwait(true);
+            var result = await _session.SignInAsync(_serverUrl, _token, _allowUntrustedCertificate, _rememberToken).ConfigureAwait(true);
             if (!result.Succeeded)
             {
                 ErrorText = result.UntrustedCertificate is not null
@@ -115,16 +135,37 @@ public sealed class ScaffoldViewModel : ObservableObject
             }
 
             Token = string.Empty;
-            _alerts.Start();
-            OnPropertyChanged(nameof(IsSignedIn));
-            OnPropertyChanged(nameof(IsSignedOut));
-            OnPropertyChanged(nameof(ServerText));
+            OnSignedIn();
         }
         finally
         {
             _isSigningIn = false;
             SignInCommand.RaiseCanExecuteChanged();
         }
+    }
+
+    /// <summary>Signs in with the remembered token, if there is one - at launch.</summary>
+    public async Task RestoreAsync()
+    {
+        ServerUrl = _settings.Current.ServerUrl ?? string.Empty;
+        AllowUntrustedCertificate = _settings.Current.AllowUntrustedCertificate;
+        var result = await _session.TryRestoreAsync().ConfigureAwait(true);
+        if (result is { Succeeded: true })
+        {
+            OnSignedIn();
+        }
+        else if (result is { } failed)
+        {
+            ErrorText = "Couldn't sign in with the remembered token: " + (failed.ErrorMessage ?? "unknown error");
+        }
+    }
+
+    private void OnSignedIn()
+    {
+        _alerts.Start();
+        OnPropertyChanged(nameof(IsSignedIn));
+        OnPropertyChanged(nameof(IsSignedOut));
+        OnPropertyChanged(nameof(ServerText));
     }
 
     private void OnPolled(AlertPollResult result)

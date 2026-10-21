@@ -525,10 +525,11 @@ public partial class App : Application
 
         services.AddDesktopNmsCore();
 
-        // Secret storage is per platform - DPAPI here (#152).
-        services.AddSingleton<ITokenProtector, DpapiTokenProtector>();
-        services.AddSingleton<IUnimusTokenProtector, DpapiUnimusTokenProtector>();
-        services.AddSingleton<IGraylogPasswordProtector, DpapiGraylogPasswordProtector>();
+        // Secrets are encrypted per platform - DPAPI here (#154).
+        services.AddSingleton<ISecretProtector>(sp => SecretProtectors.ForThisPlatform(sp.GetRequiredService<ILoggerFactory>()));
+        services.AddSingleton<ITokenProtector, TokenProtector>();
+        services.AddSingleton<IUnimusTokenProtector, UnimusTokenProtector>();
+        services.AddSingleton<IGraylogPasswordProtector, GraylogPasswordProtector>();
 
         // "Sign in with LibreNMS" (mobile#162) needs the WebView2 runtime; without it,
         // nothing is registered and the connection window asks for a token, as before.
@@ -570,8 +571,8 @@ public partial class App : Application
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<DeviceListViewModel>();
         services.AddSingleton<HealthViewModel>();
-        services.AddSingleton<DesktopNMS.Core.Intelligence.IChatGptCredentialStore, DesktopNMS.Security.DpapiChatGptCredentialStore>();
-        services.AddSingleton<DesktopNMS.Core.Intelligence.IIntelligenceChatStore, DesktopNMS.Security.DpapiIntelligenceChatStore>();
+        services.AddSingleton<DesktopNMS.Core.Intelligence.IChatGptCredentialStore, ChatGptCredentialStore>();
+        services.AddSingleton<DesktopNMS.Core.Intelligence.IIntelligenceChatStore, IntelligenceChatStore>();
         services.AddSingleton<DesktopNMS.Services.Intelligence.McpToolHost>();
         services.AddSingleton<IntelligenceViewModel>();
         services.AddSingleton<DashboardViewModel>();
