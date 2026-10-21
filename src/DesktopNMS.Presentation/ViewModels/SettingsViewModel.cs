@@ -1305,7 +1305,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             var folder = AppPaths.LogDirectory;
             System.IO.Directory.CreateDirectory(folder);
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+            // The OS opens a folder in its own file manager: Explorer, Finder, or xdg-open on Linux.
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(folder) { UseShellExecute = true });
         }
         catch (Exception ex)
         {

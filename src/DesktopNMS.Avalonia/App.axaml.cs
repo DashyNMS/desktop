@@ -322,6 +322,7 @@ public partial class App : Application
         services.AddSingleton<CustomMapsViewModel>();
         services.AddSingleton<LogsViewModel>();
         services.AddTransient<ConnectionViewModel>();
+        services.AddTransient<SettingsViewModel>();
         return services.BuildServiceProvider();
     }
 }

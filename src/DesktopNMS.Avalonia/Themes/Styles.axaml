@@ -224,6 +224,77 @@
         <Setter Property="Margin" Value="14,6,14,4" />
     </Style>
 
+    <!-- ======================= Settings and cards ======================= -->
+
+    <!-- A settings page's section in its sidebar: left-aligned, a soft hover,
+         a filled accent pill once selected. -->
+    <Style Selector="Button.settingsNav">
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="Margin" Value="0,0,0,2" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Button.settingsNav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.settingsNav.selected">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+    </Style>
+    <Style Selector="Button.settingsNav.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+    </Style>
+
+    <!-- A segmented control: a rounded track of pill-shaped choices (Theme). -->
+    <Style Selector="Border.navTabTrack">
+        <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+        <Setter Property="CornerRadius" Value="9" />
+        <Setter Property="Padding" Value="3" />
+    </Style>
+    <Style Selector="RadioButton.navTab">
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="Root" Background="Transparent" CornerRadius="6" Padding="16,7">
+                    <ContentPresenter Content="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="RadioButton.navTab:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="RadioButton.navTab:checked">
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="RadioButton.navTab:checked /template/ Border#Root">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- A settings card: one self-contained topic with its own heading and help. -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="14,12" />
+    </Style>
+
+    <Style Selector="TextBlock.warning">
+        <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+    </Style>
+    <Style Selector="TextBlock.ok">
+        <Setter Property="Foreground" Value="{DynamicResource OkBrush}" />
+    </Style>
+
     <!-- ============================ Notices ============================ -->
 
     <Style Selector="Border.errorNotice">

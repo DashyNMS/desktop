@@ -1,0 +1,138 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:views="using:DesktopNMS.Views"
+        xmlns:fi="using:FluentIcons.Avalonia"
+        x:Class="DesktopNMS.Views.WhatsNewWindow"
+        x:DataType="vm:WhatsNewViewModel"
+        Title="What's new in DashyNMS"
+        Width="760" Height="680" MinWidth="560" MinHeight="440"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- What's New (#227, from the WPF app's WhatsNewWindow): the release's
+         notes as New / Improved / Fixed tabs, each change a card. -->
+    <Window.Styles>
+        <!-- A section tab: an underline and a count, the picked one in the accent. -->
+        <Style Selector="Button.sectionTab">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="Root" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,0,0,2" Padding="14,0" Height="36" Margin="0,0,4,-1">
+                        <ContentPresenter Content="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}" VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.sectionTab:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style Selector="Button.sectionTab.selected">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.sectionTab.selected /template/ Border#Root">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+
+        <!-- Each section's colour: New in the accent, Improved green, Fixed amber. -->
+        <Style Selector="Border.tile">
+            <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+        </Style>
+        <Style Selector="Border.tile fi|SymbolIcon">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Border.tile.improved">
+            <Setter Property="Background" Value="#292EA043" />
+        </Style>
+        <Style Selector="Border.tile.improved fi|SymbolIcon">
+            <Setter Property="Foreground" Value="{DynamicResource OkBrush}" />
+        </Style>
+        <Style Selector="Border.tile.fixed">
+            <Setter Property="Background" Value="#29DB9A04" />
+        </Style>
+        <Style Selector="Border.tile.fixed fi|SymbolIcon">
+            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <Grid Grid.Row="0" Margin="28,24,28,18" ColumnDefinitions="Auto,*">
+            <views:DashyMark Width="52" Height="52" Margin="0,0,16,0" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Title}" FontFamily="{DynamicResource DisplayFont}" FontSize="24" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding Released}" Margin="0,3,0,0" Classes="subtle" IsVisible="{Binding HasReleased}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- New / Improved / Fixed, with how many of each. -->
+        <Border Grid.Row="1" Margin="28,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+            <ItemsControl ItemsSource="{Binding Tabs}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:WhatsNewTabViewModel">
+                        <Button Classes="sectionTab" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
+                                AutomationProperties.Name="{Binding Name}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                <Border MinWidth="20" Height="18" Padding="6,0" CornerRadius="9" Background="{DynamicResource SurfaceAltBrush}">
+                                    <TextBlock Text="{Binding Count}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                            </StackPanel>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
+        <ScrollViewer Grid.Row="2" Margin="28,16,18,8" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding SelectedTab.Items}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="2" VerticalAlignment="Top" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:WhatsNewItemViewModel">
+                        <Border Margin="0,0,10,10" Padding="14,12" CornerRadius="8"
+                                Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="tile"
+                                        Classes.improved="{Binding Tone, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:WhatsNewTone.Improved}}"
+                                        Classes.fixed="{Binding Tone, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:WhatsNewTone.Fixed}}"
+                                        Width="34" Height="34" CornerRadius="8" VerticalAlignment="Top">
+                                    <fi:SymbolIcon Symbol="{Binding Icon, Converter={x:Static views:Converters.WhatsNewIcon}}" FontSize="16"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Text}" FontSize="12" TextWrapping="Wrap" LineHeight="17" Margin="0,3,0,0" Classes="subtle" IsVisible="{Binding HasText}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="16,12">
+            <DockPanel LastChildFill="False">
+                <Button DockPanel.Dock="Left" Classes="link" Command="{Binding OpenReleaseNotesCommand}" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Full release notes" />
+                        <fi:SymbolIcon Symbol="Open" FontSize="12" />
+                    </StackPanel>
+                </Button>
+                <!-- Got it, Esc and the close button all count as seen. -->
+                <Button DockPanel.Dock="Right" Content="Got it" Classes="primary" IsDefault="True" IsCancel="True" Click="OnGotIt" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

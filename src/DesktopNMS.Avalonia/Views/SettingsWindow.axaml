@@ -1,0 +1,751 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:infra="using:DesktopNMS.Infrastructure"
+        xmlns:views="using:DesktopNMS.Views"
+        x:Class="DesktopNMS.Views.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="DashyNMS settings"
+        Width="760" Height="640" MinWidth="640" MinHeight="440"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Settings (#250, from the WPF app's SettingsWindow): a page per section,
+         saved together. What the cross-platform app can't do yet - the tray,
+         start at login, notifications - is left out or says so, rather than
+         offering settings that do nothing. -->
+    <Grid RowDefinitions="*,Auto">
+        <Grid Grid.Row="0" ColumnDefinitions="190,*">
+
+            <!-- ======================== Sidebar ======================== -->
+            <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10,16">
+                        <TextBlock Text="CONNECTION" Classes="section" Margin="14,0,0,6" />
+                        <Button Content="Polling" Classes="settingsNav" Classes.selected="{Binding IsPollingSectionSelected}" Command="{Binding SelectPollingSectionCommand}" />
+                        <Button Content="Server" Classes="settingsNav" Classes.selected="{Binding IsServerSectionSelected}" Command="{Binding SelectServerSectionCommand}" />
+
+                        <TextBlock Text="ALERTS &amp; HEALTH" Classes="section" Margin="14,16,0,6" />
+                        <Button Content="Alert display" Classes="settingsNav" Classes.selected="{Binding IsAlertDisplaySectionSelected}" Command="{Binding SelectAlertDisplaySectionCommand}" />
+                        <Button Content="Health thresholds" Classes="settingsNav" Classes.selected="{Binding IsHealthThresholdsSectionSelected}" Command="{Binding SelectHealthThresholdsSectionCommand}" />
+                        <Button Content="Notifications" Classes="settingsNav" Classes.selected="{Binding IsNotificationsSectionSelected}" Command="{Binding SelectNotificationsSectionCommand}" />
+
+                        <TextBlock Text="DEVICES" Classes="section" Margin="14,16,0,6" />
+                        <Button Content="Devices" Classes="settingsNav" Classes.selected="{Binding IsDevicesSectionSelected}" Command="{Binding SelectDevicesSectionCommand}" />
+
+                        <TextBlock Text="MAPS" Classes="section" Margin="14,16,0,6" />
+                        <Button Content="Maps" Classes="settingsNav" Classes.selected="{Binding IsMapsSectionSelected}" Command="{Binding SelectMapsSectionCommand}" />
+
+                        <TextBlock Text="INTEGRATIONS" Classes="section" Margin="14,16,0,6" />
+                        <Button Content="Graylog" Classes="settingsNav" Classes.selected="{Binding IsGraylogSectionSelected}" Command="{Binding SelectGraylogSectionCommand}" />
+                        <Button Content="Unimus" Classes="settingsNav" Classes.selected="{Binding IsIntegrationsSectionSelected}" Command="{Binding SelectIntegrationsSectionCommand}" />
+                        <Button Content="Intelligence" Classes="settingsNav" Classes.selected="{Binding IsIntelligenceSectionSelected}" Command="{Binding SelectIntelligenceSectionCommand}" />
+
+                        <TextBlock Text="WINDOW &amp; APPEARANCE" Classes="section" Margin="14,16,0,6" />
+                        <Button Content="Window and start-up" Classes="settingsNav" Classes.selected="{Binding IsWindowSectionSelected}" Command="{Binding SelectWindowSectionCommand}" />
+                        <Button Content="Appearance" Classes="settingsNav" Classes.selected="{Binding IsAppearanceSectionSelected}" Command="{Binding SelectAppearanceSectionCommand}" />
+
+                        <Button Content="About" Classes="settingsNav" Classes.selected="{Binding IsAboutSectionSelected}" Command="{Binding SelectAboutSectionCommand}" Margin="0,16,0,2" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- ======================== Content ======================== -->
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="28,24">
+                <Panel>
+
+                    <!-- ==================== Polling ==================== -->
+                    <StackPanel IsVisible="{Binding IsPollingSectionSelected}">
+                        <TextBlock Text="Polling" Classes="heading" Margin="0,0,0,14" />
+                        <Border Classes="card" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Refresh interval" Classes="section" Margin="0,0,0,6" />
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Slider Minimum="15" Maximum="600" TickFrequency="15" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                            Value="{Binding PollIntervalSeconds}" AutomationProperties.Name="Refresh interval in seconds" />
+                                    <TextBlock Grid.Column="1" Text="{Binding PollIntervalSeconds, StringFormat='{}{0} s'}" Classes="subtle"
+                                               VerticalAlignment="Center" MinWidth="52" TextAlignment="Right" Margin="12,0,0,0" />
+                                </Grid>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="Also used for the Devices and Health tabs, once each has been opened at least once - both show a countdown to their next refresh." />
+
+                                <TextBlock Text="Request timeout" Classes="section" Margin="0,16,0,6" />
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Slider Minimum="5" Maximum="120" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                            Value="{Binding TimeoutSeconds}" AutomationProperties.Name="Request timeout in seconds" />
+                                    <TextBlock Grid.Column="1" Text="{Binding TimeoutSeconds, StringFormat='{}{0} s'}" Classes="subtle"
+                                               VerticalAlignment="Center" MinWidth="52" TextAlignment="Right" Margin="12,0,0,0" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card" Margin="0,0,0,16">
+                            <StackPanel>
+                                <CheckBox Content="Also fetch recovered alerts" IsChecked="{Binding IncludeRecoveredAlerts}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="LibreNMS keeps a row for every rule and device that has ever fired, so this can return a lot of history." />
+                                <CheckBox Content="The LibreNMS server stores timestamps in UTC" IsChecked="{Binding ServerTimestampsAreUtc}" Margin="0,16,0,0" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="Leave this off unless alert ages look wrong by a fixed number of hours." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card">
+                            <StackPanel>
+                                <CheckBox Content="Allow an untrusted or self-signed certificate" IsChecked="{Binding AllowUntrustedCertificate}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="For a self-signed or internally-issued certificate. You are shown the certificate and asked before it is trusted; after that only that exact certificate is accepted. Takes effect the next time you sign in." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Alert display ==================== -->
+                    <StackPanel IsVisible="{Binding IsAlertDisplaySectionSelected}">
+                        <TextBlock Text="Alert display" Classes="heading" Margin="0,0,0,14" />
+                        <Border Classes="card" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Alerts tab count" Classes="section" Margin="0,0,0,6" />
+                                <CheckBox Content="Show an alert count on the Alerts tab" IsChecked="{Binding ShowAlertTabBadge}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0" Spacing="10">
+                                    <TextBlock Text="Count" VerticalAlignment="Center" />
+                                    <ComboBox ItemsSource="{Binding CountFromOptions}" SelectedItem="{Binding SelectedCountFrom}"
+                                              DisplayMemberBinding="{ReflectionBinding Label}" MinWidth="200" AutomationProperties.Name="Which alerts count" />
+                                </StackPanel>
+                                <CheckBox Content="Include acknowledged alerts in the count" IsChecked="{Binding AlertTabBadgeIncludesAcknowledged}" Margin="0,10,0,0" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="The Alerts tab counts these alerts: red while any counted alert is critical, amber otherwise. The Alerts page still lists every alert, whatever is counted." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Name devices by" Classes="section" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding DeviceNameOptions}" SelectedItem="{Binding DeviceName}"
+                                          DisplayMemberBinding="{ReflectionBinding Label}" AutomationProperties.Name="Name devices by" />
+                                <TextBlock Text="{Binding DeviceName.Description}" Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="The name not chosen here is shown underneath it, so you always have both." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card" Margin="0,0,0,16">
+                            <StackPanel>
+                                <CheckBox Content="Show what triggered the selected alert" IsChecked="{Binding LoadAlertFaults}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="Fetches the rows the alert rule matched, with their measured values. Costs one extra request each time you select an alert." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card">
+                            <StackPanel>
+                                <CheckBox Content="Confirm before a large bulk acknowledge/unacknowledge" IsChecked="{Binding ConfirmBulkAlertActions}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="Turned off automatically if you tick &quot;don't ask me again&quot; on that prompt - check this to turn it back on." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Health thresholds ==================== -->
+                    <StackPanel IsVisible="{Binding IsHealthThresholdsSectionSelected}">
+                        <TextBlock Text="Health thresholds" Classes="heading" Margin="0,0,0,4" />
+                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,14"
+                                   Text="Each sensor type on the Health tab has its own band of Warning/Critical colours. Expand a sensor type below to see or change them." />
+                        <Border Classes="card" Margin="0,0,0,14">
+                            <StackPanel>
+                                <CheckBox Content="Always use these app thresholds, ignoring each sensor's own configured limits" IsChecked="{Binding OverrideSensorLimitsWithAppThresholds}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="Off (default): a sensor's own limit, as configured in LibreNMS, wins for whichever bound it sets - these app thresholds only fill in what the sensor leaves unset. On: these app thresholds always decide, and sensor-configured limits are ignored." />
+                            </StackPanel>
+                        </Border>
+
+                        <Expander Header="dBm sensors" Margin="0,0,0,8" HorizontalAlignment="Stretch">
+                            <StackPanel>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,6"
+                                           Text="Optical power (dBm) sensors on the Health tab are coloured against these bands. A weak signal is too negative; an unplugged port usually reads back near zero or positive instead." />
+                                <TextBlock Text="Warning at or below (dBm)" Classes="section" />
+                                <TextBox Text="{Binding DbmWarningThreshold}" AutomationProperties.Name="dBm warning at or below" />
+                                <TextBlock Text="Critical at or below (dBm)" Classes="section" />
+                                <TextBox Text="{Binding DbmCriticalThreshold}" AutomationProperties.Name="dBm critical at or below" />
+                                <TextBlock Text="Treat as no signal at or above (dBm)" Classes="section" />
+                                <TextBox Text="{Binding DbmIgnoreAtOrAbove}" AutomationProperties.Name="dBm no signal at or above" />
+                                <TextBlock Text="Treat as no signal at or below (dBm)" Classes="section" />
+                                <TextBox Text="{Binding DbmIgnoreAtOrBelow}" AutomationProperties.Name="dBm no signal at or below" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="Some hardware reports a fixed sentinel value, high or low, for an unplugged port instead of a real reading. Sensors at or beyond either sentinel are shown as &quot;no signal&quot; rather than critical." />
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="Signal sensors" Margin="0,0,0,8" HorizontalAlignment="Stretch">
+                            <StackPanel>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,6"
+                                           Text="LibreNMS's generic &quot;signal&quot; sensors, coloured the same way as dBm: a weak signal is bad, and a sentinel at either extreme is treated as no data rather than flagged." />
+                                <TextBlock Text="Warning at or below" Classes="section" />
+                                <TextBox Text="{Binding SignalWarningThreshold}" AutomationProperties.Name="Signal warning at or below" />
+                                <TextBlock Text="Critical at or below" Classes="section" />
+                                <TextBox Text="{Binding SignalCriticalThreshold}" AutomationProperties.Name="Signal critical at or below" />
+                                <TextBlock Text="Treat as no data at or above" Classes="section" />
+                                <TextBox Text="{Binding SignalIgnoreAtOrAbove}" AutomationProperties.Name="Signal no data at or above" />
+                                <TextBlock Text="Treat as no data at or below" Classes="section" />
+                                <TextBox Text="{Binding SignalIgnoreAtOrBelow}" AutomationProperties.Name="Signal no data at or below" />
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="Temperature sensors" Margin="0,0,0,8" HorizontalAlignment="Stretch">
+                            <StackPanel>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,6"
+                                           Text="Both too hot and too cold are faults, so temperature uses a band rather than a single direction. These starting values are a generic guideline - hardware varies, so tune them for your fleet." />
+                                <TextBlock Text="Critical at or below (°C)" Classes="section" />
+                                <TextBox Text="{Binding TemperatureLowCritical}" AutomationProperties.Name="Temperature critical at or below" />
+                                <TextBlock Text="Warning at or below (°C)" Classes="section" />
+                                <TextBox Text="{Binding TemperatureLowWarning}" AutomationProperties.Name="Temperature warning at or below" />
+                                <TextBlock Text="Warning at or above (°C)" Classes="section" />
+                                <TextBox Text="{Binding TemperatureHighWarning}" AutomationProperties.Name="Temperature warning at or above" />
+                                <TextBlock Text="Critical at or above (°C)" Classes="section" />
+                                <TextBox Text="{Binding TemperatureHighCritical}" AutomationProperties.Name="Temperature critical at or above" />
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="Fan speed sensors" HorizontalAlignment="Stretch">
+                            <StackPanel>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,6"
+                                           Text="A stalled or slow fan is the usual failure, but an overspeeding fan can also indicate a fault, so this uses a band too. RPM varies enormously by fan size - these are placeholders to tune per fleet." />
+                                <TextBlock Text="Critical at or below (RPM)" Classes="section" />
+                                <TextBox Text="{Binding FanSpeedLowCritical}" AutomationProperties.Name="Fan critical at or below" />
+                                <TextBlock Text="Warning at or below (RPM)" Classes="section" />
+                                <TextBox Text="{Binding FanSpeedLowWarning}" AutomationProperties.Name="Fan warning at or below" />
+                                <TextBlock Text="Warning at or above (RPM)" Classes="section" />
+                                <TextBox Text="{Binding FanSpeedHighWarning}" AutomationProperties.Name="Fan warning at or above" />
+                                <TextBlock Text="Critical at or above (RPM)" Classes="section" />
+                                <TextBox Text="{Binding FanSpeedHighCritical}" AutomationProperties.Name="Fan critical at or above" />
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+
+                    <!-- ==================== Notifications ==================== -->
+                    <StackPanel IsVisible="{Binding IsNotificationsSectionSelected}">
+                        <TextBlock Text="Notifications" Classes="heading" Margin="0,0,0,10" />
+                        <!-- Notifications on each OS are #251; until then these are kept for when they arrive. -->
+                        <Border Background="{DynamicResource AccentSubtleBrush}" CornerRadius="4" Padding="10,6" Margin="0,0,0,14">
+                            <TextBlock TextWrapping="Wrap"
+                                       Text="Notifications aren't in the cross-platform preview yet. What you choose here is saved for when they are." />
+                        </Border>
+                        <CheckBox Content="Show notifications" IsChecked="{Binding NotificationsEnabled}" Margin="0,0,0,16" />
+
+                        <Border Classes="card" Margin="0,0,0,16" IsEnabled="{Binding NotificationsEnabled}">
+                            <StackPanel>
+                                <TextBlock Text="Which alerts" Classes="section" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding RuleModeOptions}" SelectedItem="{Binding SelectedRuleMode}"
+                                          DisplayMemberBinding="{ReflectionBinding Label}" AutomationProperties.Name="Which alerts notify" />
+                                <TextBlock Text="{Binding SelectedRuleMode.Description}" Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0" />
+
+                                <StackPanel IsVisible="{Binding ShowsNotificationRuleList}">
+                                    <TextBlock Text="{Binding NotificationRuleListHeading}" Classes="section" Margin="0,16,0,6" />
+                                    <ItemsControl ItemsSource="{Binding NotificationRuleRows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:NotificationRuleRow">
+                                                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                                                    <TextBlock Text="{Binding Description}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                    <Button Grid.Column="1" Content="Remove" Command="{Binding RemoveCommand}" Padding="10,3" Margin="12,0,0,0" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="No rules yet. Add one below, or right-click an alert on the Alerts page or a rule on the Rules page."
+                                               Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding HasNoNotificationRules}" />
+                                    <Border Background="{DynamicResource AccentSubtleBrush}" CornerRadius="4" Padding="10,6" Margin="0,8,0,0"
+                                            IsVisible="{Binding ShowsNothingWillNotify}">
+                                        <TextBlock Text="With nothing listed, no alert will notify you." TextWrapping="Wrap" FontWeight="SemiBold" />
+                                    </Border>
+                                    <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+                                        <ComboBox ItemsSource="{Binding RulePickerOptions}" SelectedItem="{Binding RuleToAdd}" HorizontalAlignment="Stretch"
+                                                  ToolTip.Tip="An alert rule, on every device" AutomationProperties.Name="Rule to add" />
+                                        <Button Grid.Column="1" Content="Add rule" Command="{Binding AddNotificationRuleCommand}" Padding="10,4" Margin="8,0,0,0" />
+                                    </Grid>
+                                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                               Text="Added here, a rule counts on every device. To choose one device, right-click its alert on the Alerts page. Alerts left out still list on the Alerts page and still count." />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card" Margin="0,0,0,16" IsEnabled="{Binding NotificationsEnabled}">
+                            <StackPanel>
+                                <TextBlock Text="Critical" Classes="section" Margin="0,0,0,6" />
+                                <CheckBox Content="Notify for critical alerts" IsChecked="{Binding CriticalEnabled}" />
+                                <ComboBox ItemsSource="{Binding PersistenceOptions}" SelectedItem="{Binding CriticalPersistence}"
+                                          DisplayMemberBinding="{ReflectionBinding Label}" IsEnabled="{Binding CriticalEnabled}" Margin="0,10,0,0"
+                                          AutomationProperties.Name="How long critical notifications stay" />
+                                <TextBlock Text="{Binding CriticalPersistence.Description}" Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                <CheckBox Content="Play a sound" IsChecked="{Binding CriticalPlaySound}" IsEnabled="{Binding CriticalEnabled}" Margin="0,10,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card" Margin="0,0,0,16" IsEnabled="{Binding NotificationsEnabled}">
+                            <StackPanel>
+                                <TextBlock Text="Warning" Classes="section" Margin="0,0,0,6" />
+                                <CheckBox Content="Notify for warning alerts" IsChecked="{Binding WarningEnabled}" />
+                                <ComboBox ItemsSource="{Binding PersistenceOptions}" SelectedItem="{Binding WarningPersistence}"
+                                          DisplayMemberBinding="{ReflectionBinding Label}" IsEnabled="{Binding WarningEnabled}" Margin="0,10,0,0"
+                                          AutomationProperties.Name="How long warning notifications stay" />
+                                <TextBlock Text="{Binding WarningPersistence.Description}" Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                <CheckBox Content="Play a sound" IsChecked="{Binding WarningPlaySound}" IsEnabled="{Binding WarningEnabled}" Margin="0,10,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card" Margin="0,0,0,16" IsEnabled="{Binding NotificationsEnabled}">
+                            <StackPanel>
+                                <TextBlock Text="Other events" Classes="section" Margin="0,0,0,6" />
+                                <CheckBox Content="Notify when an alert recovers" IsChecked="{Binding NotifyOnRecovery}" />
+                                <CheckBox Content="Notify when an alert is acknowledged" IsChecked="{Binding NotifyOnAcknowledge}" Margin="0,8,0,0" />
+                                <CheckBox Content="Stay quiet about alerts that were already open at start-up" IsChecked="{Binding SuppressOnFirstPoll}" Margin="0,8,0,0" />
+                                <TextBlock Text="Collapse into one summary above" Classes="section" Margin="0,16,0,6" />
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Slider Minimum="1" Maximum="25" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                            Value="{Binding MaxToastsPerPoll}" AutomationProperties.Name="Notifications before collapsing into a summary" />
+                                    <TextBlock Grid.Column="1" Text="{Binding MaxToastsPerPoll, StringFormat='{}{0} notifications'}" Classes="subtle"
+                                               VerticalAlignment="Center" MinWidth="96" TextAlignment="Right" Margin="12,0,0,0" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card" IsEnabled="{Binding NotificationsEnabled}">
+                            <StackPanel>
+                                <TextBlock Text="Quiet hours" Classes="section" Margin="0,0,0,6" />
+                                <CheckBox Content="Suppress notifications overnight" IsChecked="{Binding QuietHoursEnabled}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0" Spacing="8" IsEnabled="{Binding QuietHoursEnabled}">
+                                    <TextBlock Text="From" Classes="subtle" VerticalAlignment="Center" />
+                                    <ComboBox Width="80" ItemsSource="{Binding Hours}" SelectedItem="{Binding QuietHoursStartHour}" AutomationProperties.Name="Quiet hours start" />
+                                    <TextBlock Text="to" Classes="subtle" VerticalAlignment="Center" Margin="4,0,0,0" />
+                                    <ComboBox Width="80" ItemsSource="{Binding Hours}" SelectedItem="{Binding QuietHoursEndHour}" AutomationProperties.Name="Quiet hours end" />
+                                    <TextBlock Text="(24 hour clock, local time)" Classes="subtle" VerticalAlignment="Center" Margin="4,0,0,0" />
+                                </StackPanel>
+                                <CheckBox Content="Still notify for critical alerts during quiet hours" IsChecked="{Binding QuietHoursAllowCritical}"
+                                          IsEnabled="{Binding QuietHoursEnabled}" Margin="0,10,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Devices ==================== -->
+                    <StackPanel IsVisible="{Binding IsDevicesSectionSelected}">
+                        <TextBlock Text="Devices" Classes="heading" Margin="0,0,0,14" />
+                        <Border Classes="card">
+                            <StackPanel>
+                                <TextBlock Text="Recently viewed" Classes="section" Margin="0,0,0,6" />
+                                <CheckBox Content="Show recently viewed devices on the Devices tab" IsChecked="{Binding ShowRecentlyViewedDevices}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="A quick way back into a device you were just looking at. Also available as its own Dashboard widget regardless of this setting." />
+                                <TextBlock Text="How many to remember" Classes="section" Margin="0,16,0,6" />
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Slider Minimum="1" Maximum="25" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                            Value="{Binding RecentlyViewedDeviceCount}" AutomationProperties.Name="Recently viewed devices to remember" />
+                                    <TextBlock Grid.Column="1" Text="{Binding RecentlyViewedDeviceCount, StringFormat='{}{0} devices'}" Classes="subtle"
+                                               VerticalAlignment="Center" MinWidth="86" TextAlignment="Right" Margin="12,0,0,0" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card" Margin="0,12,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Pinned devices" Classes="section" Margin="0,0,0,6" />
+                                <CheckBox Content="Let me pin devices to the top of the Devices tab" IsChecked="{Binding EnablePinnedDevices}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="Off hides the pin column and pin actions, stops pinned devices sorting first and removes the Pinned devices Dashboard widget from the add menu. Your pins are kept, so turning this back on restores them." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Maps ==================== -->
+                    <StackPanel IsVisible="{Binding IsMapsSectionSelected}">
+                        <TextBlock Text="Maps" Classes="heading" Margin="0,0,0,14" />
+                        <Border Classes="card">
+                            <StackPanel>
+                                <TextBlock Text="Geographical map tiles" Classes="section" Margin="0,0,0,6" />
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBox Text="{Binding MapTileUrl, Delay=300}" ToolTip.Tip="Leave blank for OpenStreetMap" AutomationProperties.Name="Map tile server" />
+                                    <Button Grid.Column="1" Content="Use OpenStreetMap" Command="{Binding ResetMapTileUrlCommand}" Padding="10,5" Margin="8,0,0,0" />
+                                </Grid>
+                                <TextBlock Text="{Binding MapTileUrlStatusText}" Classes="subtle" Classes.warning="{Binding MapTileUrlIsInvalid}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,10,0,0">
+                                    <Run Text="Blank uses OpenStreetMap's standard tiles, the same as LibreNMS's own world map by default. To use another tile server, enter its address with {z}/{x}/{y}, or paste LibreNMS's leaflet.tile_url setting as-is. Tiles are cached on" />
+                                    <Run Text="{x:Static infra:PlatformText.ThisComputer}" /><Run Text=" for a week." />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card" Margin="0,12,0,0">
+                            <StackPanel>
+                                <CheckBox Content="Jiggle physics" IsChecked="{Binding JigglePhysicsOnMaps}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="Nodes wobble like jelly when you drag them on the network map or a custom map, and their links bow and settle. Just for fun: a node is always saved where you drop it. Nothing moves while animations are turned off." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Window ==================== -->
+                    <!-- The tray and start at login come with #252 and #253. -->
+                    <StackPanel IsVisible="{Binding IsWindowSectionSelected}">
+                        <TextBlock Text="Window and start-up" Classes="heading" Margin="0,0,0,14" />
+                        <Border Classes="card">
+                            <StackPanel>
+                                <TextBlock Text="Tab to show at startup" Classes="section" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding StartupTabOptions}" SelectedItem="{Binding SelectedStartupTab}"
+                                          DisplayMemberBinding="{ReflectionBinding Label}" AutomationProperties.Name="Tab to show at startup" />
+                                <TextBlock Text="Default log" Classes="section" Margin="0,16,0,6" />
+                                <ComboBox ItemsSource="{Binding DefaultLogOptions}" SelectedItem="{Binding SelectedDefaultLog}"
+                                          DisplayMemberBinding="{ReflectionBinding Label}" AutomationProperties.Name="Default log" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="Which log opens when you click Logs. The others are a hover away. Graylog opens the event log until it's set up." />
+                                <TextBlock Text="Default map" Classes="section" Margin="0,16,0,6" />
+                                <ComboBox ItemsSource="{Binding DefaultMapOptions}" SelectedItem="{Binding SelectedDefaultMap}"
+                                          DisplayMemberBinding="{ReflectionBinding Label}" AutomationProperties.Name="Default map" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="Which map opens when you click Maps: Network, Geographical, or one of your custom maps. The others are a hover away." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Appearance ==================== -->
+                    <StackPanel IsVisible="{Binding IsAppearanceSectionSelected}">
+                        <TextBlock Text="Appearance" Classes="heading" Margin="0,0,0,14" />
+                        <Border Classes="card" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Theme" Classes="section" Margin="0,0,0,6" />
+                                <Border Classes="navTabTrack" HorizontalAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton Content="Dark" Classes="navTab" GroupName="Theme" IsChecked="{Binding IsDarkTheme}" />
+                                        <RadioButton Content="Light" Classes="navTab" GroupName="Theme" IsChecked="{Binding IsLightTheme}" />
+                                        <RadioButton Content="Match the system" Classes="navTab" GroupName="Theme" IsChecked="{Binding IsSystemTheme}" />
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,0" IsVisible="{Binding IsSystemTheme}"
+                                           Text="Follows your system's light or dark setting, including when it changes while DashyNMS is open." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card">
+                            <StackPanel>
+                                <TextBlock Text="Accent colour" Classes="section" Margin="0,0,0,14" />
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Grid Grid.Column="0" Margin="0,0,20,0" ColumnDefinitions="44,*,64" RowDefinitions="Auto,Auto,Auto,Auto">
+                                        <TextBlock Grid.Row="0" Text="Red" Classes="subtle" VerticalAlignment="Center" />
+                                        <Slider Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding AccentRed}" VerticalAlignment="Center" Margin="10,0" MinWidth="80" AutomationProperties.Name="Red" />
+                                        <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding AccentRedText}" TextAlignment="Right" VerticalAlignment="Center" AutomationProperties.Name="Red value" />
+                                        <TextBlock Grid.Row="1" Text="Green" Classes="subtle" VerticalAlignment="Center" Margin="0,10,0,0" />
+                                        <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding AccentGreen}" VerticalAlignment="Center" Margin="10,10,10,0" AutomationProperties.Name="Green" />
+                                        <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding AccentGreenText}" TextAlignment="Right" VerticalAlignment="Center" Margin="0,10,0,0" AutomationProperties.Name="Green value" />
+                                        <TextBlock Grid.Row="2" Text="Blue" Classes="subtle" VerticalAlignment="Center" Margin="0,10,0,0" />
+                                        <Slider Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" Value="{Binding AccentBlue}" VerticalAlignment="Center" Margin="10,10,10,0" AutomationProperties.Name="Blue" />
+                                        <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding AccentBlueText}" TextAlignment="Right" VerticalAlignment="Center" Margin="0,10,0,0" AutomationProperties.Name="Blue value" />
+                                        <TextBlock Grid.Row="3" Text="Hex" Classes="subtle" VerticalAlignment="Center" Margin="0,14,0,0" />
+                                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding AccentColorHex}" MaxLength="7" HorizontalAlignment="Left" Width="100" Margin="10,14,0,0" AutomationProperties.Name="Accent colour hex" />
+                                    </Grid>
+                                    <Border Grid.Column="1" Width="90" Height="90" CornerRadius="8"
+                                            Background="{Binding AccentPreviewColour, Converter={x:Static views:Converters.HexToBrush}}"
+                                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" VerticalAlignment="Top" />
+                                </Grid>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,14,0,0" Text="Takes effect as soon as you save - no restart needed." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Server ==================== -->
+                    <StackPanel IsVisible="{Binding IsServerSectionSelected}">
+                        <TextBlock Text="Server" Classes="heading" Margin="0,0,0,14" />
+                        <Border Classes="card" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="Server address" Classes="section" Margin="0,0,0,6" />
+                                <TextBox Text="{Binding ServerAddress}" ToolTip.Tip="For example https://nms.example.com" AutomationProperties.Name="Server address" />
+                                <TextBlock Text="Backup address" Classes="section" Margin="0,14,0,6" />
+                                <TextBox Text="{Binding BackupServerAddress}" ToolTip.Tip="Another address for the same server, e.g. https://192.0.2.20/" AutomationProperties.Name="Backup address" />
+                                <TextBlock Text="{Binding BackupServerAddressError}" Classes="error" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="{Binding HasBackupServerAddressError}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="Optional. Another address for the same LibreNMS server, as a URL like the server address - https://192.0.2.20/ or http://nms-backup:8080/. Used if the server address stops answering twice in a row, until you switch back. If only the host differs, HTTPS still checks the certificate against the server's own name." />
+                                <TextBlock Text="API token" Classes="section" Margin="0,14,0,6" />
+                                <TextBox x:Name="ServerTokenBox" PasswordChar="•" Text="{Binding ServerTokenInput}" AutomationProperties.Name="API token" />
+                                <TextBlock Text="Leave blank to keep the token in use." Classes="subtle" Margin="0,4,0,0" />
+                                <CheckBox Content="Allow an untrusted or self-signed certificate" IsChecked="{Binding ServerAllowUntrustedCertificate}" Margin="0,14,0,0" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,12,0,0"
+                                           Text="Changes here are checked when you save: the server address first, then the backup address if it doesn't answer. Nothing is saved until one of them does." />
+                                <TextBlock Text="Checking the connection…" Classes="subtle" Margin="0,10,0,0" IsVisible="{Binding IsTestingConnection}" />
+                                <Border Classes="errorNotice" Margin="0,10,0,0" IsVisible="{Binding HasConnectionError}">
+                                    <TextBlock Text="{Binding ConnectionError}" TextWrapping="Wrap" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="{Binding ServerUrlText}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshServerInfoCommand}" Padding="10,6" Margin="12,0,0,0" />
+                                </Grid>
+                                <TextBlock Text="{Binding ServerInfoStatusText}" Classes="error" TextWrapping="Wrap" Margin="0,8,0,0" IsVisible="{Binding HasServerInfoStatus}" />
+                                <Grid Margin="0,16,0,0" IsVisible="{Binding HasServerInfo}" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="LibreNMS version" Classes="section" /><TextBlock Text="{Binding ServerVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Branch" Classes="section" /><TextBlock Text="{Binding ServerBranchText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="Commit" Classes="section" /><TextBlock Text="{Binding ServerCommitText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Release date" Classes="section" /><TextBlock Text="{Binding ServerDateText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="Database version" Classes="section" /><TextBlock Text="{Binding DatabaseVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Database schema" Classes="section" /><TextBlock Text="{Binding DatabaseSchemaText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="PHP version" Classes="section" /><TextBlock Text="{Binding PhpVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Python version" Classes="section" /><TextBlock Text="{Binding PythonVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,10,0"><TextBlock Text="RRDtool version" Classes="section" /><TextBlock Text="{Binding RrdToolVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="4" Grid.Column="1"><TextBlock Text="Net-SNMP version" Classes="section" /><TextBlock Text="{Binding NetSnmpVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                </Grid>
+                                <TextBlock Text="Not connected to a server." Classes="subtle" Margin="0,16,0,0" IsVisible="{Binding !HasServerInfo}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Unimus ==================== -->
+                    <StackPanel IsVisible="{Binding IsIntegrationsSectionSelected}">
+                        <TextBlock Text="Unimus" Classes="heading" Margin="0,0,0,14" />
+                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,14"
+                                   Text="Shows config backups for a device, lets you diff two revisions, and trigger a backup on demand, from the Config tab in Device Details. Talks to Unimus directly with its own token - not through LibreNMS." />
+                        <Border Classes="card">
+                            <StackPanel>
+                                <CheckBox Content="Enable Unimus integration" IsChecked="{Binding UnimusEnabled}" />
+                                <TextBlock Text="Unimus URL" Classes="section" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding UnimusUrl}" ToolTip.Tip="e.g. https://unimus.example.com" AutomationProperties.Name="Unimus URL" />
+                                <TextBlock Text="API token" Classes="section" Margin="0,16,0,6" />
+                                <TextBox PasswordChar="•" Text="{Binding UnimusTokenInput}" AutomationProperties.Name="Unimus API token" />
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
+                                    <TextBlock Text="{Binding UnimusTokenStatusText}" Classes="subtle" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Content="Clear" Command="{Binding ClearUnimusTokenCommand}" Padding="10,4" />
+                                </Grid>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="Leave blank and save to keep the token already stored. Generate one in Unimus under User management, API tokens." />
+                                <CheckBox Content="Allow an untrusted or self-signed certificate" IsChecked="{Binding UnimusAllowUntrustedCertificate}" Margin="0,16,0,0" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="For a self-signed or internally-issued certificate. Testing the connection shows the certificate and asks before trusting it; after that only that exact certificate is accepted." />
+                                <TextBlock Text="LibreNMS discovery domain (optional)" Classes="section" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding UnimusMyDomain}" ToolTip.Tip="e.g. internal.example.com" AutomationProperties.Name="LibreNMS discovery domain" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="LibreNMS's own 'mydomain' discovery setting, if configured - used as one of the ways a device is matched to its Unimus entry. Not required; LibreNMS's API doesn't expose this, so it has to be entered here too if it's set." />
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,16,0,0">
+                                    <Button Content="Test connection" Command="{Binding TestUnimusConnectionCommand}" Padding="10,6" />
+                                    <TextBlock Grid.Column="1" Text="{Binding UnimusTestStatusText}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="12,0,0,0"
+                                               Classes="ok" Classes.error="{Binding !UnimusTestSucceeded}" IsVisible="{Binding HasUnimusTestStatus}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Graylog ==================== -->
+                    <StackPanel IsVisible="{Binding IsGraylogSectionSelected}">
+                        <TextBlock Text="Graylog" Classes="heading" Margin="0,0,0,14" />
+                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,14"
+                                   Text="Shows a device's log messages from Graylog on the Graylog tab in Device Details, found the same way LibreNMS finds them. Talks to Graylog directly with its own credentials - not through LibreNMS - so copy these from LibreNMS's Settings, External, Graylog." />
+                        <Border Classes="card" Margin="0,0,0,12">
+                            <StackPanel>
+                                <CheckBox Content="Enable Graylog integration" IsChecked="{Binding GraylogEnabled}" />
+                                <Grid ColumnDefinitions="*,12,110" Margin="0,16,0,0">
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Server" Classes="section" Margin="0,0,0,6" />
+                                        <TextBox Text="{Binding GraylogServer}" ToolTip.Tip="e.g. https://graylog.example.com" AutomationProperties.Name="Graylog server" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Port" Classes="section" Margin="0,0,0,6" />
+                                        <TextBox Text="{Binding GraylogPortText, UpdateSourceTrigger=LostFocus}" ToolTip.Tip="e.g. 9000" AutomationProperties.Name="Graylog port" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="The address of the Graylog server's API. With no port, 80 is used for http:// and 443 for https://." />
+                                <TextBlock Text="Version" Classes="section" Margin="0,16,0,6" />
+                                <ComboBox ItemsSource="{Binding GraylogVersionOptions}" SelectedItem="{Binding SelectedGraylogVersion}"
+                                          DisplayMemberBinding="{ReflectionBinding Label}" Width="220" AutomationProperties.Name="Graylog version" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="Used to work out where the API is. If you've changed Graylog's API address from the default, choose Other and enter its base URI." />
+                                <StackPanel IsVisible="{Binding IsGraylogBaseUriVisible}">
+                                    <TextBlock Text="Base URI" Classes="section" Margin="0,16,0,6" />
+                                    <TextBox Text="{Binding GraylogBaseUri}" ToolTip.Tip="e.g. /api/search/universal/relative" AutomationProperties.Name="Graylog base URI" />
+                                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0" Text="The search API's path on the server, if you changed it from Graylog's default." />
+                                </StackPanel>
+                                <TextBlock Text="Username" Classes="section" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding GraylogUsername}" AutomationProperties.Name="Graylog username" />
+                                <TextBlock Text="Password" Classes="section" Margin="0,16,0,6" />
+                                <TextBox PasswordChar="•" Text="{Binding GraylogPasswordInput}" AutomationProperties.Name="Graylog password" />
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
+                                    <TextBlock Text="{Binding GraylogPasswordStatusText}" Classes="subtle" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Content="Clear" Command="{Binding ClearGraylogPasswordCommand}" Padding="10,4" />
+                                </Grid>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="Leave blank and save to keep the password already stored. To use a Graylog access token instead, enter the token as the username and the word token as the password." />
+                                <CheckBox Content="Allow an untrusted or self-signed certificate" IsChecked="{Binding GraylogAllowUntrustedCertificate}" Margin="0,16,0,0" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="For a self-signed or internally-issued certificate. Testing the connection shows the certificate and asks before trusting it; after that only that exact certificate is accepted." />
+                                <TextBlock Text="Display time zone" Classes="section" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding GraylogTimezone, Delay=300}" ToolTip.Tip="e.g. Europe/London" AutomationProperties.Name="Graylog display time zone" />
+                                <TextBlock Text="{Binding GraylogTimezoneStatusText}" Classes="subtle" Classes.warning="{Binding IsGraylogTimezoneInvalid}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,2,0,0"
+                                           Text="Graylog stores times in UTC. Enter a time zone (the same name LibreNMS uses, e.g. Europe/London) to show them in that zone instead." />
+                                <TextBlock Text="Query field" Classes="section" Margin="0,16,0,6" />
+                                <TextBox Text="{Binding GraylogQueryField, UpdateSourceTrigger=LostFocus}" Width="220" HorizontalAlignment="Left" AutomationProperties.Name="Graylog query field" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0" Text="The Graylog message field matched against a device's addresses. LibreNMS's default is source." />
+                                <CheckBox Content="Match any address" IsChecked="{Binding GraylogMatchAnyAddress}" Margin="0,16,0,0" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="Match every IP address on a device, not just its hostname and primary address, against the source of a message." />
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,16,0,0">
+                                    <Button Content="Test connection" Command="{Binding TestGraylogConnectionCommand}" Padding="10,6" />
+                                    <TextBlock Grid.Column="1" Text="{Binding GraylogTestStatusText}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="12,0,0,0"
+                                               Classes="ok" Classes.error="{Binding !GraylogTestSucceeded}" IsVisible="{Binding HasGraylogTestStatus}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel>
+                                <TextBlock Text="Device Graylog tab" Classes="section" Margin="0,0,0,10" />
+                                <StackPanel Orientation="Horizontal" Spacing="24">
+                                    <StackPanel>
+                                        <TextBlock Text="Log level" Classes="subtle" Margin="0,0,0,6" />
+                                        <ComboBox ItemsSource="{Binding GraylogLogLevelOptions}" SelectedItem="{Binding SelectedGraylogLogLevel}"
+                                                  DisplayMemberBinding="{ReflectionBinding Label}" Width="200" AutomationProperties.Name="Graylog log level" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="Row count" Classes="subtle" Margin="0,0,0,6" />
+                                        <TextBox Text="{Binding GraylogRowCountText, UpdateSourceTrigger=LostFocus}" Width="80" HorizontalAlignment="Left" AutomationProperties.Name="Graylog row count" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="What a device's Graylog tab starts on: the least severe level shown (each level includes everything more severe) and how many messages per page. Both can be changed on the tab itself." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== Intelligence ==================== -->
+                    <StackPanel IsVisible="{Binding IsIntelligenceSectionSelected}">
+                        <TextBlock Text="Intelligence" Classes="heading" Margin="0,0,0,14" />
+                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,14"
+                                   Text="Ask about your network in plain words on the Intelligence tab. An AI agent answers using DashyNMS's read-only network tools - it looks things up in LibreNMS, Graylog and Unimus, and can't change anything." />
+                        <Border Classes="card" Margin="0,0,0,12">
+                            <StackPanel>
+                                <CheckBox Content="Show Intelligence" IsChecked="{Binding IntelligenceEnabled}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,4,0,0"
+                                           Text="Off hides the Intelligence tab and stops its network tools. Your agent sign-ins are kept." />
+                                <CheckBox Content="Show Dashy Companion" IsChecked="{Binding IntelligenceMascotEnabled}" Margin="0,12,0,0" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,4,0,0"
+                                           Text="A penguin companion beside your question box. Click Dashy for a smile and a wave, and watch it react as you chat. Off by default." />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="AGENTS" Classes="section" Margin="0,8,0,6" />
+                        <Border Classes="card" Margin="0,0,0,12">
+                            <StackPanel>
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Classes="subtle" Text="Not connected" IsVisible="{Binding Intelligence.IsSignedOut}" />
+                                    <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Classes="ok" Text="Connected" IsVisible="{Binding Intelligence.IsSignedIn}" />
+                                    <TextBlock Text="ChatGPT" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                </DockPanel>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="Uses your own ChatGPT Plus or Pro plan. Sign in through your browser - DashyNMS never sees your ChatGPT password." />
+                                <TextBlock Classes="subtle" Margin="0,10,0,0" Text="{Binding Intelligence.SignedInAsText}" IsVisible="{Binding Intelligence.IsSignedIn}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0" Spacing="8">
+                                    <Button Content="Continue with ChatGPT" Classes="primary" Command="{Binding Intelligence.ConnectCommand}" IsVisible="{Binding Intelligence.IsSignedOut}" />
+                                    <Button Content="Manage usage" Command="{Binding Intelligence.ManageUsageCommand}" IsVisible="{Binding Intelligence.IsSignedIn}" />
+                                    <Button Content="Disconnect" Command="{Binding Intelligence.DisconnectCommand}" IsVisible="{Binding Intelligence.IsSignedIn}" />
+                                </StackPanel>
+                                <TextBlock Classes="error" TextWrapping="Wrap" Margin="0,12,0,0" Text="{Binding Intelligence.ErrorText}" IsVisible="{Binding Intelligence.HasError}" />
+                                <StackPanel Margin="0,16,0,0" IsVisible="{Binding Intelligence.IsSignedIn}">
+                                    <TextBlock Text="Default model" Classes="section" Margin="0,0,0,6" />
+                                    <ComboBox ItemsSource="{Binding Intelligence.Models}" SelectedValue="{Binding IntelligenceModel}"
+                                              SelectedValueBinding="{ReflectionBinding Slug}" DisplayMemberBinding="{ReflectionBinding DisplayName}"
+                                              Width="260" AutomationProperties.Name="Default model" />
+                                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                               Text="What new conversations start with. The picker by the question box changes it for one conversation." />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="REPLIES" Classes="section" Margin="0,8,0,6" />
+                        <Border Classes="card" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Default detail" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding IntelligenceDetailOptions}" SelectedValue="{Binding IntelligenceDetail}"
+                                          SelectedValueBinding="{ReflectionBinding Key}" DisplayMemberBinding="{ReflectionBinding Value}"
+                                          Width="260" AutomationProperties.Name="Default detail" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Text="How much answers say, from Brief (a sentence or two) through Balanced and Detailed to a Full report. Every level cites what it looked at. New chats start here; change it for a chat with the picker beside the model, or ask for more or less in a question." />
+                                <CheckBox Content="Colour status indicators" IsChecked="{Binding IntelligenceColourStatusIndicators}" Margin="0,14,0,0" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,4,0,0"
+                                           Text="Use severity and device-state colours in Intelligence replies. Turn off for neutral colours; status labels and information remain visible. Applies at every detail level and to existing messages." />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="WHAT'S SENT" Classes="section" Margin="0,8,0,6" />
+                        <Border Classes="card">
+                            <StackPanel>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap"
+                                           Text="Your questions, and what's looked up to answer them - device names, addresses, alerts, ports and log lines - go to the agent's provider to be processed. Passwords, tokens and SNMP communities are never sent." />
+                                <CheckBox Content="Allow web search" IsChecked="{Binding IntelligenceWebSearchEnabled}" Margin="0,14,0,0" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,4,0,0"
+                                           Text="Look up current firmware releases, vendor documentation and other public information, with source links. Search terms may be sent to search providers. Available where your selected model and ChatGPT account permit it." />
+                                <TextBlock Text="Config backups" Classes="section" Margin="0,14,0,6" />
+                                <ComboBox ItemsSource="{Binding IntelligenceConfigTextOptions}" SelectedValue="{Binding IntelligenceConfigText}"
+                                          SelectedValueBinding="{ReflectionBinding Key}" DisplayMemberBinding="{ReflectionBinding Value}"
+                                          Width="360" AutomationProperties.Name="Config backups" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="With Unimus connected, how much of a device's config the agent can see. Full sends the config text with passwords, keys and SNMP communities redacted - it's still your network's configuration, so Summary is the default." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ==================== About ==================== -->
+                    <StackPanel IsVisible="{Binding IsAboutSectionSelected}">
+                        <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,14">
+                            <views:DashyMark Width="44" Height="44" Margin="0,0,14,0" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="About" Classes="heading" Margin="0,0,0,4" />
+                                <TextBlock Text="{Binding CurrentVersionText}" Classes="subtle" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Updates on each OS are #256. -->
+                        <Border Classes="card">
+                            <TextBlock TextWrapping="Wrap"
+                                       Text="This is a preview of the cross-platform app, so it doesn't check for updates yet. Get new previews from the releases page." />
+                        </Border>
+
+                        <!-- This release's "What's new" again (#227). -->
+                        <StackPanel IsVisible="{Binding HasWhatsNew}">
+                            <TextBlock Text="What's new" Classes="section" />
+                            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1" CornerRadius="8" Padding="14,12">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <Border Width="34" Height="34" CornerRadius="8" Background="{DynamicResource AccentSubtleBrush}" VerticalAlignment="Center">
+                                        <TextBlock Text="✦" FontSize="16" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding WhatsNewTitle}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding WhatsNewSummary}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0" Classes="subtle" />
+                                    </StackPanel>
+                                    <Button Grid.Column="2" Content="Take a look" Command="{Binding ShowWhatsNewCommand}" Padding="10,6" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0" Spacing="6">
+                            <TextBlock Text="Every release's full notes are on GitHub." Classes="subtle" VerticalAlignment="Center" />
+                            <Button Classes="link" Command="{Binding ViewReleasesPageCommand}">
+                                <TextBlock Text="Release notes" FontSize="12" />
+                            </Button>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0" Spacing="8">
+                            <Button Content="Report a bug" Command="{Binding ReportBugCommand}" Padding="10,6"
+                                    ToolTip.Tip="Opens a new GitHub issue with your DashyNMS, system and LibreNMS versions filled in - nothing is sent until you submit it there" />
+                            <Button Content="Open log folder" Command="{Binding OpenLogFolderCommand}" Padding="10,6"
+                                    ToolTip.Tip="Opens the folder DashyNMS writes its log to - check a log for anything private before sharing it" />
+                            <Button Content="Open-source licences" Command="{Binding ShowLicencesCommand}" Padding="10,6"
+                                    ToolTip.Tip="What DashyNMS is built with, each with its copyright and licence" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding Trademarks}" Classes="subtle" TextWrapping="Wrap" Margin="0,14,0,0" />
+                    </StackPanel>
+                </Panel>
+            </ScrollViewer>
+        </Grid>
+
+        <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="24,14">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
+                <Button Content="Save" Command="{Binding SaveCommand}" Classes="primary" IsDefault="True" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>
