@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Media;
 
 namespace DesktopNMS;
 
@@ -12,6 +13,7 @@ internal static class Program
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
-            .WithInterFont()
+            // The brand font (#216) as every control's default.
+            .With(new FontManagerOptions { DefaultFamilyName = "avares://DashyNMS.Avalonia/Assets/Fonts#IBM Plex Sans" })
             .LogToTrace();
 }

@@ -1,0 +1,12 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DesktopNMS.Views.NotPortedView">
+
+    <!-- A page that isn't in the cross-platform app yet (#250). Each page's
+         own PR replaces it in MainWindow. -->
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="460" Spacing="8">
+        <TextBlock x:Name="PageName" Classes="heading" HorizontalAlignment="Center" />
+        <TextBlock Classes="subtle" TextWrapping="Wrap" TextAlignment="Center"
+                   Text="This page is being ported to the cross-platform app (#250). The Windows app has it in the meantime." />
+    </StackPanel>
+</UserControl>

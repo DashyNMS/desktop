@@ -1,54 +1,340 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:models="using:DesktopNMS.Core.Configuration"
+        xmlns:views="using:DesktopNMS.Views"
+        xmlns:fi="using:FluentIcons.Avalonia"
         x:Class="DesktopNMS.Views.MainWindow"
-        x:DataType="vm:ScaffoldViewModel"
+        x:DataType="vm:MainViewModel"
         Title="DashyNMS"
-        Width="640" Height="520" MinWidth="420" MinHeight="400"
-        WindowStartupLocation="CenterScreen">
+        Width="1180" Height="720" MinWidth="900" MinHeight="480"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="40">
 
-    <!-- A placeholder (#153): sign in, then the open alert count from the
-         shared alert monitor. The real views are ported in #250. -->
-    <ScrollViewer>
-        <StackPanel Margin="32" Spacing="16" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center">
-            <StackPanel Spacing="4">
-                <TextBlock Text="DashyNMS" FontSize="28" FontWeight="SemiBold" />
-                <TextBlock Text="Cross-platform preview: signs in and shows the open alert count. It keeps its own settings, apart from the Windows app's."
-                           TextWrapping="Wrap" Opacity="0.75" />
-            </StackPanel>
+    <!-- The main window (#250, from the WPF app's MainWindow): the app draws its
+         own title bar, the OS keeps its window buttons (and macOS its traffic
+         lights), and the sidebar picks the page. Pages are ported one by one;
+         until then each shows a placeholder. -->
 
-            <!-- Signing in -->
-            <StackPanel Spacing="12" IsVisible="{Binding IsSignedOut}">
-                <StackPanel Spacing="4">
-                    <Label Content="_LibreNMS address" Target="ServerBox" />
-                    <TextBox x:Name="ServerBox" Text="{Binding ServerUrl}"
-                             AutomationProperties.Name="LibreNMS address" />
-                </StackPanel>
-                <StackPanel Spacing="4">
-                    <Label Content="API _token" Target="TokenBox" />
-                    <TextBox x:Name="TokenBox" Text="{Binding Token}" PasswordChar="•"
-                             AutomationProperties.Name="API token" />
-                </StackPanel>
-                <CheckBox Content="Allow an untrusted certificate" IsChecked="{Binding AllowUntrustedCertificate}" />
-                <StackPanel Spacing="2">
-                    <CheckBox Content="_Remember the token on this computer" IsChecked="{Binding RememberToken}" />
-                    <TextBlock Text="{Binding SecretsText}" TextWrapping="Wrap" Opacity="0.75" FontSize="12" Margin="28,0,0,0" />
-                </StackPanel>
-                <Button Content="Sign in" Command="{Binding SignInCommand}" IsDefault="True" HorizontalAlignment="Left"
-                        Classes="accent" />
-                <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" IsVisible="{Binding HasError}"
-                           Foreground="{DynamicResource SystemFillColorCriticalBrush}"
-                           AutomationProperties.LiveSetting="Assertive" />
-            </StackPanel>
+    <Window.KeyBindings>
+        <KeyBinding Gesture="F5" Command="{Binding RefreshCurrentTabCommand}" />
+        <KeyBinding Gesture="Ctrl+A" Command="{Binding AcknowledgeCommand}" />
+        <KeyBinding Gesture="Ctrl+L" Command="{Binding ClearCurrentTabFiltersCommand}" />
+    </Window.KeyBindings>
 
-            <!-- Signed in -->
-            <StackPanel Spacing="6" IsVisible="{Binding IsSignedIn}">
-                <TextBlock Text="{Binding ServerText}" Opacity="0.75" />
-                <TextBlock Text="{Binding AlertSummary}" FontSize="40" FontWeight="SemiBold"
+    <Grid RowDefinitions="40,*">
+
+        <!-- ======================== Title bar ======================== -->
+        <Border x:Name="TitleBar" Grid.Row="0"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                PointerPressed="OnTitleBarPressed"
+                DoubleTapped="OnTitleBarDoubleTapped">
+            <Grid x:Name="TitleBarContent" ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                    <Image Source="/Assets/app.ico" Width="18" Height="18" />
+                    <TextBlock Text="DashyNMS" FontSize="13" FontFamily="{DynamicResource DisplayFont}" FontWeight="Bold" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="4">
+                    <!-- Only while the app is going through the backup address (see ServerFailover). -->
+                    <Button Classes="icon" Width="32" Height="30"
+                            ToolTip.Tip="{Binding BackupAddressStatusText}"
+                            AutomationProperties.Name="Using the backup address"
+                            IsVisible="{Binding IsOnBackupAddress}">
+                        <fi:SymbolIcon Symbol="ArrowSwap" Foreground="{DynamicResource WarningBrush}" />
+                        <Button.Flyout>
+                            <MenuFlyout>
+                                <MenuItem Header="{Binding BackupAddressStatusText}" IsEnabled="False" />
+                                <Separator />
+                                <MenuItem Header="Switch back to the server address" Command="{Binding SwitchBackToMainAddressCommand}" />
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                    <Button Classes="icon" Width="32" Height="30"
+                            Command="{Binding RefreshCurrentTabCommand}"
+                            ToolTip.Tip="Refresh now (F5)"
+                            AutomationProperties.Name="Refresh now">
+                        <fi:SymbolIcon Symbol="ArrowClockwise" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*">
+
+            <!-- ======================== Sidebar ======================== -->
+            <!-- Icons only, or icons and labels once the hamburger widens it
+                 (IsNavExpanded, remembered). Narrow, a section's sub-pages
+                 open in a flyout to its right on hover; wide, they're listed
+                 under the selected section. -->
+            <Border Grid.Column="0"
+                    Width="57"
+                    Classes.wide="{Binding IsNavExpanded}"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,1,0"
+                    ClipToBounds="True">
+                <Border.Styles>
+                    <Style Selector="Border.wide">
+                        <Setter Property="Width" Value="208" />
+                    </Style>
+                </Border.Styles>
+
+                <DockPanel Margin="0,8">
+                    <Button DockPanel.Dock="Top" Classes="rail" Command="{Binding ToggleNavCommand}" Margin="0,0,0,8"
+                            ToolTip.Tip="Show labels" AutomationProperties.Name="Show or hide labels">
+                        <StackPanel Orientation="Horizontal">
+                            <fi:SymbolIcon Symbol="Navigation" />
+                        </StackPanel>
+                    </Button>
+
+                    <StackPanel DockPanel.Dock="Bottom">
+                        <!-- Intelligence sits apart from the network's own pages. -->
+                        <Button Classes="rail" Classes.selected="{Binding IsIntelligenceTabSelected}"
+                                Command="{Binding SelectIntelligenceTabCommand}"
+                                IsVisible="{Binding ShowIntelligenceTab}"
+                                ToolTip.Tip="Intelligence" AutomationProperties.Name="Intelligence">
+                            <StackPanel Orientation="Horizontal">
+                                <fi:SymbolIcon Symbol="Sparkle" />
+                                <TextBlock Text="Intelligence" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
+                            </StackPanel>
+                        </Button>
+                        <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="12,4,12,6" />
+                        <Button Classes="rail" Command="{Binding SettingsCommand}"
+                                ToolTip.Tip="Settings" AutomationProperties.Name="Settings">
+                            <StackPanel Orientation="Horizontal">
+                                <fi:SymbolIcon Symbol="Settings" />
+                                <TextBlock Text="Settings" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="rail" Command="{Binding SignOutCommand}"
+                                ToolTip.Tip="Sign out" AutomationProperties.Name="Sign out">
+                            <StackPanel Orientation="Horizontal">
+                                <fi:SymbolIcon Symbol="SignOut" />
+                                <TextBlock Text="Sign out" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <Button Classes="rail" Classes.selected="{Binding IsDashboardTabSelected}"
+                                    Command="{Binding SelectDashboardTabCommand}"
+                                    ToolTip.Tip="Dashboard" AutomationProperties.Name="Dashboard">
+                                <StackPanel Orientation="Horizontal">
+                                    <fi:SymbolIcon Symbol="Board" />
+                                    <TextBlock Text="Dashboard" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Devices' own click goes to Devices; Groups and Locations are facets of it (#118). -->
+                            <Button x:Name="DevicesSection" Classes="rail" Classes.selected="{Binding IsDevicesFamilyTabSelected}"
+                                    Command="{Binding SelectDevicesTabCommand}" AutomationProperties.Name="Devices">
+                                <StackPanel Orientation="Horizontal">
+                                    <fi:SymbolIcon Symbol="Server" />
+                                    <TextBlock Text="Devices" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
+                                </StackPanel>
+                                <FlyoutBase.AttachedFlyout>
+                                    <Flyout Placement="RightEdgeAlignedTop" ShowMode="TransientWithDismissOnPointerMoveAway">
+                                        <StackPanel MinWidth="150">
+                                            <TextBlock Text="DEVICES" Classes="flyoutHeader" />
+                                            <Button Content="All devices" Classes="flyoutItem" Command="{Binding SelectDevicesTabCommand}" />
+                                            <Button Content="Groups" Classes="flyoutItem" Command="{Binding SelectGroupsTabCommand}" />
+                                            <Button Content="Locations" Classes="flyoutItem" Command="{Binding SelectLocationsTabCommand}" />
+                                        </StackPanel>
+                                    </Flyout>
+                                </FlyoutBase.AttachedFlyout>
+                            </Button>
+                            <StackPanel Margin="0,0,0,4">
+                                <StackPanel.IsVisible>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <Binding Path="IsNavExpanded" />
+                                        <Binding Path="IsDevicesFamilyTabSelected" />
+                                    </MultiBinding>
+                                </StackPanel.IsVisible>
+                                <Button Content="All devices" Classes="railSub" Classes.selected="{Binding IsDevicesTabSelected}" Command="{Binding SelectDevicesTabCommand}" />
+                                <Button Content="Groups" Classes="railSub" Classes.selected="{Binding IsGroupsTabSelected}" Command="{Binding SelectGroupsTabCommand}" />
+                                <Button Content="Locations" Classes="railSub" Classes.selected="{Binding IsLocationsTabSelected}" Command="{Binding SelectLocationsTabCommand}" />
+                            </StackPanel>
+
+                            <!-- Neighbours (#55): its own click shows every neighbour; its sub-pages are the neighbourhoods (#221). -->
+                            <Button x:Name="NeighboursSection" Classes="rail" Classes.selected="{Binding IsNeighboursTabSelected}"
+                                    Command="{Binding SelectNeighboursTabCommand}" AutomationProperties.Name="Neighbours">
+                                <StackPanel Orientation="Horizontal">
+                                    <fi:SymbolIcon Symbol="Link" />
+                                    <TextBlock Text="Neighbours" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
+                                </StackPanel>
+                                <FlyoutBase.AttachedFlyout>
+                                    <Flyout Placement="RightEdgeAlignedTop" ShowMode="TransientWithDismissOnPointerMoveAway">
+                                        <StackPanel MinWidth="170">
+                                            <TextBlock Text="NEIGHBOURS" Classes="flyoutHeader" />
+                                            <Button Content="All neighbours" Classes="flyoutItem" Command="{Binding SelectNeighboursTabCommand}" />
+                                            <ItemsControl ItemsSource="{Binding Neighbours.Views}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="models:NeighbourViewDefinition">
+                                                        <Button Content="{Binding Name}" Classes="flyoutItem"
+                                                                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectNeighbourViewCommand}"
+                                                                CommandParameter="{Binding}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Flyout>
+                                </FlyoutBase.AttachedFlyout>
+                            </Button>
+                            <ItemsControl ItemsSource="{Binding Neighbours.Views}" Margin="0,0,0,4">
+                                <ItemsControl.IsVisible>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <Binding Path="IsNavExpanded" />
+                                        <Binding Path="IsNeighboursTabSelected" />
+                                    </MultiBinding>
+                                </ItemsControl.IsVisible>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:NeighbourViewDefinition">
+                                        <Button Content="{Binding Name}" Classes="railSub"
+                                                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectNeighbourViewCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Maps' own click opens the default map (Settings). -->
+                            <Button x:Name="MapsSection" Classes="rail" Classes.selected="{Binding IsMapsFamilyTabSelected}"
+                                    Command="{Binding SelectMapsTabCommand}" AutomationProperties.Name="Maps">
+                                <StackPanel Orientation="Horizontal">
+                                    <fi:SymbolIcon Symbol="Map" />
+                                    <TextBlock Text="Maps" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
+                                </StackPanel>
+                                <FlyoutBase.AttachedFlyout>
+                                    <Flyout Placement="RightEdgeAlignedTop" ShowMode="TransientWithDismissOnPointerMoveAway">
+                                        <StackPanel MinWidth="150">
+                                            <TextBlock Text="MAPS" Classes="flyoutHeader" />
+                                            <Button Content="Network" Classes="flyoutItem" Command="{Binding SelectNetworkMapTabCommand}" />
+                                            <Button Content="Geographical" Classes="flyoutItem" Command="{Binding SelectGeoMapTabCommand}" />
+                                            <Button Content="Custom Maps" Classes="flyoutItem" Command="{Binding SelectCustomMapsTabCommand}" />
+                                        </StackPanel>
+                                    </Flyout>
+                                </FlyoutBase.AttachedFlyout>
+                            </Button>
+                            <StackPanel Margin="0,0,0,4">
+                                <StackPanel.IsVisible>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <Binding Path="IsNavExpanded" />
+                                        <Binding Path="IsMapsFamilyTabSelected" />
+                                    </MultiBinding>
+                                </StackPanel.IsVisible>
+                                <Button Content="Network" Classes="railSub" Classes.selected="{Binding IsNetworkMapTabSelected}" Command="{Binding SelectNetworkMapTabCommand}" />
+                                <Button Content="Geographical" Classes="railSub" Classes.selected="{Binding IsGeoMapTabSelected}" Command="{Binding SelectGeoMapTabCommand}" />
+                                <Button Content="Custom Maps" Classes="railSub" Classes.selected="{Binding IsCustomMapsTabSelected}" Command="{Binding SelectCustomMapsTabCommand}" />
+                            </StackPanel>
+
+                            <!-- Logs' own click opens the default log (#287); Graylog joins once it's set up. -->
+                            <Button x:Name="LogsSection" Classes="rail" Classes.selected="{Binding IsLogsFamilyTabSelected}"
+                                    Command="{Binding SelectLogsTabCommand}" IsVisible="{Binding ShowLogsTab}" AutomationProperties.Name="Logs">
+                                <StackPanel Orientation="Horizontal">
+                                    <fi:SymbolIcon Symbol="TextBulletList" />
+                                    <TextBlock Text="Logs" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
+                                </StackPanel>
+                                <FlyoutBase.AttachedFlyout>
+                                    <Flyout Placement="RightEdgeAlignedTop" ShowMode="TransientWithDismissOnPointerMoveAway">
+                                        <StackPanel MinWidth="150">
+                                            <TextBlock Text="LOGS" Classes="flyoutHeader" />
+                                            <Button Content="Event log" Classes="flyoutItem" Command="{Binding SelectEventLogTabCommand}" />
+                                            <Button Content="Alert log" Classes="flyoutItem" Command="{Binding SelectAlertLogTabCommand}" />
+                                            <Button Content="Graylog" Classes="flyoutItem" Command="{Binding SelectGraylogTabCommand}" IsVisible="{Binding ShowGraylogLog}" />
+                                        </StackPanel>
+                                    </Flyout>
+                                </FlyoutBase.AttachedFlyout>
+                            </Button>
+                            <StackPanel Margin="0,0,0,4">
+                                <StackPanel.IsVisible>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <Binding Path="IsNavExpanded" />
+                                        <Binding Path="IsLogsFamilyTabSelected" />
+                                    </MultiBinding>
+                                </StackPanel.IsVisible>
+                                <Button Content="Event log" Classes="railSub" Classes.selected="{Binding IsEventLogTabSelected}" Command="{Binding SelectEventLogTabCommand}" />
+                                <Button Content="Alert log" Classes="railSub" Classes.selected="{Binding IsAlertLogTabSelected}" Command="{Binding SelectAlertLogTabCommand}" />
+                                <Button Content="Graylog" Classes="railSub" Classes.selected="{Binding IsGraylogLogsTabSelected}" Command="{Binding SelectGraylogTabCommand}" IsVisible="{Binding ShowGraylogLog}" />
+                            </StackPanel>
+
+                            <Button Classes="rail" Classes.selected="{Binding IsHealthTabSelected}"
+                                    Command="{Binding SelectHealthTabCommand}"
+                                    ToolTip.Tip="Health" AutomationProperties.Name="Health">
+                                <StackPanel Orientation="Horizontal">
+                                    <fi:SymbolIcon Symbol="Heart" />
+                                    <TextBlock Text="Health" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Alerts' own click goes to Alerts; Rules and Templates are facets of it.
+                                 The count badge sits on the bell: red while any counted alert is critical. -->
+                            <Panel>
+                                <Button x:Name="AlertsSection" Classes="rail" Classes.selected="{Binding IsAlertsFamilyTabSelected}"
+                                        Command="{Binding SelectAlertsTabCommand}" AutomationProperties.Name="Alerts">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fi:SymbolIcon Symbol="Alert" />
+                                        <TextBlock Text="Alerts" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
+                                    </StackPanel>
+                                    <FlyoutBase.AttachedFlyout>
+                                        <Flyout Placement="RightEdgeAlignedTop" ShowMode="TransientWithDismissOnPointerMoveAway">
+                                            <StackPanel MinWidth="150">
+                                                <TextBlock Text="ALERTS" Classes="flyoutHeader" />
+                                                <Button Content="Active alerts" Classes="flyoutItem" Command="{Binding SelectAlertsTabCommand}" />
+                                                <Button Content="Rules" Classes="flyoutItem" Command="{Binding SelectRulesTabCommand}" />
+                                                <Button Content="Templates" Classes="flyoutItem" Command="{Binding SelectTemplatesTabCommand}" />
+                                            </StackPanel>
+                                        </Flyout>
+                                    </FlyoutBase.AttachedFlyout>
+                                </Button>
+                                <Border CornerRadius="8" MinWidth="16" Height="16" Padding="4,0"
+                                        HorizontalAlignment="Left" VerticalAlignment="Top" Margin="32,3,0,0"
+                                        IsHitTestVisible="False"
+                                        Background="{DynamicResource WarningBrush}"
+                                        Classes.critical="{Binding AlertBadgeIsCritical}"
+                                        IsVisible="{Binding ShowAlertBadge}"
+                                        AutomationProperties.Name="{Binding AlertBadgeToolTip}">
+                                    <Border.Styles>
+                                        <Style Selector="Border.critical">
+                                            <Setter Property="Background" Value="{DynamicResource CriticalBrush}" />
+                                        </Style>
+                                    </Border.Styles>
+                                    <TextBlock Text="{Binding AlertBadgeText}" Foreground="White" FontSize="10" FontWeight="SemiBold"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                            </Panel>
+                            <StackPanel Margin="0,0,0,4">
+                                <StackPanel.IsVisible>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <Binding Path="IsNavExpanded" />
+                                        <Binding Path="IsAlertsFamilyTabSelected" />
+                                    </MultiBinding>
+                                </StackPanel.IsVisible>
+                                <Button Content="Active alerts" Classes="railSub" Classes.selected="{Binding IsAlertsTabSelected}" Command="{Binding SelectAlertsTabCommand}" />
+                                <Button Content="Rules" Classes="railSub" Classes.selected="{Binding IsRulesTabSelected}" Command="{Binding SelectRulesTabCommand}" />
+                                <Button Content="Templates" Classes="railSub" Classes.selected="{Binding IsTemplatesTabSelected}" Command="{Binding SelectTemplatesTabCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- ======================== Content ======================== -->
+            <views:NotPortedView Grid.Column="1" Page="{Binding SelectedTab}" />
+        </Grid>
+
+        <!-- Launch (#228): while the saved session signs back in, in the theme's own background. -->
+        <Panel Grid.Row="1" Background="{DynamicResource BackgroundBrush}" IsVisible="{Binding IsSigningIn}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,40" Spacing="16">
+                <Image Source="/Assets/app.ico" Width="72" Height="72" />
+                <ProgressBar IsIndeterminate="True" Width="160" />
+                <TextBlock Text="Signing in…" Classes="subtle" HorizontalAlignment="Center"
                            AutomationProperties.LiveSetting="Polite" />
-                <TextBlock Text="{Binding FaultSummary}" />
-                <TextBlock Text="{Binding PollText}" Opacity="0.75" />
             </StackPanel>
-        </StackPanel>
-    </ScrollViewer>
+        </Panel>
+    </Grid>
 </Window>

@@ -1,0 +1,72 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+      The WPF app's Palette.Dark.xaml and Palette.Light.xaml as one dictionary
+      (#250): Avalonia picks the variant from the app's theme, and switches
+      live when Settings' Theme changes - refer to these with DynamicResource.
+      AccentBrush and its partners are replaced in code by AccentTheme.
+    -->
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+            <Color x:Key="BackgroundColor">#FF11141A</Color>
+            <Color x:Key="SurfaceColor">#FF171B23</Color>
+            <Color x:Key="SurfaceAltColor">#FF1E2430</Color>
+            <Color x:Key="SurfaceHoverColor">#FF262E3C</Color>
+            <Color x:Key="BorderColor">#FF2C3442</Color>
+            <Color x:Key="TextPrimaryColor">#FFE6EAF0</Color>
+            <Color x:Key="TextSecondaryColor">#FF98A2B3</Color>
+            <Color x:Key="ScrollBarThumbColor">#FF333C4C</Color>
+            <Color x:Key="ScrollBarThumbHoverColor">#FF4A5568</Color>
+            <SolidColorBrush x:Key="BackgroundBrush" Color="#FF11141A" />
+            <SolidColorBrush x:Key="SurfaceBrush" Color="#FF171B23" />
+            <SolidColorBrush x:Key="SurfaceAltBrush" Color="#FF1E2430" />
+            <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#FF262E3C" />
+            <SolidColorBrush x:Key="BorderBrush" Color="#FF2C3442" />
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFE6EAF0" />
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FF98A2B3" />
+            <SolidColorBrush x:Key="ScrollBarThumbBrush" Color="#FF333C4C" />
+            <SolidColorBrush x:Key="ScrollBarThumbHoverBrush" Color="#FF4A5568" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+            <Color x:Key="BackgroundColor">#FFF5F6F8</Color>
+            <Color x:Key="SurfaceColor">#FFFFFFFF</Color>
+            <Color x:Key="SurfaceAltColor">#FFEEF1F5</Color>
+            <Color x:Key="SurfaceHoverColor">#FFE3E7ED</Color>
+            <Color x:Key="BorderColor">#FFD8DDE5</Color>
+            <Color x:Key="TextPrimaryColor">#FF1A1F29</Color>
+            <Color x:Key="TextSecondaryColor">#FF6B7280</Color>
+            <Color x:Key="ScrollBarThumbColor">#FFC7CCD4</Color>
+            <Color x:Key="ScrollBarThumbHoverColor">#FFAAB1BC</Color>
+            <SolidColorBrush x:Key="BackgroundBrush" Color="#FFF5F6F8" />
+            <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="SurfaceAltBrush" Color="#FFEEF1F5" />
+            <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#FFE3E7ED" />
+            <SolidColorBrush x:Key="BorderBrush" Color="#FFD8DDE5" />
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FF1A1F29" />
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FF6B7280" />
+            <SolidColorBrush x:Key="ScrollBarThumbBrush" Color="#FFC7CCD4" />
+            <SolidColorBrush x:Key="ScrollBarThumbHoverBrush" Color="#FFAAB1BC" />
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+
+    <!-- The same in every theme (see AppSettings.AccentColor's remarks). -->
+    <Color x:Key="CriticalColor">#FFDA3633</Color>
+    <Color x:Key="WarningColor">#FFDB9A04</Color>
+    <Color x:Key="OkColor">#FF2EA043</Color>
+    <Color x:Key="MaintenanceColor">#FF4C9AFF</Color>
+    <SolidColorBrush x:Key="CriticalBrush" Color="#FFDA3633" />
+    <SolidColorBrush x:Key="WarningBrush" Color="#FFDB9A04" />
+    <SolidColorBrush x:Key="OkBrush" Color="#FF2EA043" />
+    <SolidColorBrush x:Key="MaintenanceBrush" Color="#FF4C9AFF" />
+
+    <!-- Until AccentTheme applies Settings' accent colour. -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#FF3B82F6" />
+    <SolidColorBrush x:Key="AccentSubtleBrush" Color="#FF3B82F6" Opacity="0.16" />
+    <SolidColorBrush x:Key="AccentForegroundBrush" Color="White" />
+
+    <!-- The brand fonts (#216), from the WPF app's Assets/Fonts. -->
+    <FontFamily x:Key="BodyFont">avares://DashyNMS.Avalonia/Assets/Fonts#IBM Plex Sans</FontFamily>
+    <FontFamily x:Key="DisplayFont">avares://DashyNMS.Avalonia/Assets/Fonts#Sora</FontFamily>
+    <FontFamily x:Key="MonoFont">avares://DashyNMS.Avalonia/Assets/Fonts#IBM Plex Mono</FontFamily>
+</ResourceDictionary>
