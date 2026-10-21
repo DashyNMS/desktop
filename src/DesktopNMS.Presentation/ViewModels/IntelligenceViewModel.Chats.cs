@@ -6,14 +6,23 @@ using System.Collections;
 using System.ComponentModel;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Infrastructure;
+using DesktopNMS.Services.Intelligence;
 using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.ViewModels;
 
-public sealed partial class IntelligenceViewModel
+public sealed partial class IntelligenceViewModel : IDisposable
 {
+    /// <summary>How long after the last change - typing above all - a chat is saved (#321).</summary>
+    private static readonly TimeSpan ChatSaveDelay = TimeSpan.FromSeconds(3);
+
+    /// <summary>While an answer streams, saved at most this often, so a crash loses little (#321).</summary>
+    private static readonly TimeSpan StreamingSaveInterval = TimeSpan.FromSeconds(20);
+
     private IIntelligenceChatStore _chatStore = null!;
-    private readonly IUiTimer _chatSaveTimer = UiThread.CreateTimer(TimeSpan.FromSeconds(1));
+    private IntelligenceChatWriter _chatWriter = null!;
+    private DateTimeOffset _lastChatSave = DateTimeOffset.MinValue;
+    private readonly IUiTimer _chatSaveTimer = UiThread.CreateTimer(ChatSaveDelay);
     private readonly IUiTimer _chatGroupingTimer = UiThread.CreateTimer(TimeSpan.FromMinutes(1));
     private string? _chatScope;
     private bool _changingChat;
@@ -96,6 +105,8 @@ public sealed partial class IntelligenceViewModel
         };
         _chatGroupingTimer.Start();
         _chatStore = store;
+        _chatWriter = new IntelligenceChatWriter(store, _logger);
+        _chatWriter.Failed += message => _dispatcher.InvokeAsync(() => ErrorText ??= message);
         RenameChatCommand = new RelayCommand(parameter =>
         {
             if (parameter is IntelligenceChatItemViewModel target)
@@ -122,12 +133,7 @@ public sealed partial class IntelligenceViewModel
             if (parameter is not IntelligenceChatItemViewModel chat || _chatScope is null || !Chats.Contains(chat)) return;
             chat.Data.IsPinned = !chat.Data.IsPinned;
             chat.Refresh();
-            try { if (!_chatStorageReadOnly) _chatStore.Save(_chatScope, chat.Data, makeActive: false); }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Intelligence: chat pin could not be saved");
-                ErrorText = "Couldn't save the chat's pin.";
-            }
+            if (!_chatStorageReadOnly) _chatWriter.Save(_chatScope, Snapshot(chat.Data), makeActive: false);
             SortChats();
         }, _ => CanManageChats);
         _chatSaveTimer.Tick += (_, _) => SaveActiveChat();
@@ -147,6 +153,9 @@ public sealed partial class IntelligenceViewModel
         if (scope == _chatScope && (scope is null || SelectedChat is not null)) return;
         if (IsBusy) { _running?.Cancel(); return; }
         SaveActiveChat();
+
+        // Read back only once every save queued so far is on disk.
+        _chatWriter.Flush();
         _changingChat = true;
         _selectedChat = null;
         Chats.Clear();
@@ -237,9 +246,18 @@ public sealed partial class IntelligenceViewModel
         finally { _changingChat = false; }
     }
 
+    /// <summary>Saves the chat shortly, once changes settle - restarting the wait on each one (#321).</summary>
     private void QueueChatSave()
     {
-        if (!_changingChat && _chatStore is not null && !_chatSaveTimer.IsEnabled) _chatSaveTimer.Start();
+        if (_changingChat || _chatStore is null) return;
+        _chatSaveTimer.Stop();
+        _chatSaveTimer.Start();
+    }
+
+    /// <summary>While an answer streams: no save per chunk, just one now and then in case the app is closed mid-answer (#321).</summary>
+    private void SaveWhileStreaming()
+    {
+        if (DateTimeOffset.UtcNow - _lastChatSave >= StreamingSaveInterval) SaveActiveChat();
     }
 
     private void SaveActiveChat(bool recordActivity = false)
@@ -258,13 +276,41 @@ public sealed partial class IntelligenceViewModel
         // Draft saves, selection and renaming do not change conversation activity.
         if (recordActivity) chat.UpdatedAt = DateTimeOffset.UtcNow;
         item.Refresh();
+        _lastChatSave = DateTimeOffset.UtcNow;
         if (_chatStorageReadOnly) return;
-        try { _chatStore.Save(_chatScope, chat); SortChats(); }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Intelligence: chat could not be saved");
-            ErrorText ??= "Couldn't save this chat. Check that your DashyNMS data folder is writable.";
-        }
+
+        // Serialised, encrypted and written off the UI thread (#321).
+        _chatWriter.Save(_chatScope, Snapshot(chat));
+        SortChats();
+    }
+
+    /// <summary>
+    /// A copy for the writer to serialise while the UI thread carries on. Each
+    /// save builds fresh message, history and context lists, so only the
+    /// chat's own fields need copying.
+    /// </summary>
+    private static SavedIntelligenceChat Snapshot(SavedIntelligenceChat chat) => new()
+    {
+        Id = chat.Id,
+        Title = chat.Title,
+        IsRenamed = chat.IsRenamed,
+        IsPinned = chat.IsPinned,
+        UpdatedAt = chat.UpdatedAt,
+        Model = chat.Model,
+        ReplyStyle = chat.ReplyStyle,
+        Outfit = chat.Outfit,
+        Draft = chat.Draft,
+        History = chat.History,
+        Messages = chat.Messages.ToList(),
+        Spotlight = chat.Spotlight.ToList(),
+        LookedAt = chat.LookedAt.ToList(),
+    };
+
+    /// <summary>Writes any chat saves still waiting - the app is closing.</summary>
+    public void Dispose()
+    {
+        SaveActiveChat();
+        _chatWriter?.Dispose();
     }
 
     private void DeleteChat(object? parameter)
@@ -274,13 +320,7 @@ public sealed partial class IntelligenceViewModel
         var scope = _chatScope;
         if (!_windows.Confirm("Delete chat?", $"Delete '{chat.Title}' and its saved messages from this PC?", "Delete", destructive: true)) return;
         if (_chatScope != scope || !Chats.Contains(chat)) return;
-        try { if (!_chatStorageReadOnly) _chatStore.Delete(_chatScope, chat.Data.Id); }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Intelligence: chat could not be deleted");
-            ErrorText = "Couldn't delete the saved chat.";
-            return;
-        }
+        if (!_chatStorageReadOnly) _chatWriter.Delete(_chatScope, chat.Data.Id);
         var wasSelected = ReferenceEquals(chat, SelectedChat);
         if (wasSelected) _selectedChat = null;
         Chats.Remove(chat);

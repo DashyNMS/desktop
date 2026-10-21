@@ -44,6 +44,7 @@
   <!-- Some moved types are internal and used by the app; Avalonia's head will be added here too. -->
   <ItemGroup>
     <InternalsVisibleTo Include="DashyNMS" />
+    <InternalsVisibleTo Include="DesktopNMS.Presentation.Tests" />
   </ItemGroup>
 
   <ItemGroup>
