@@ -33,6 +33,15 @@ dotnet build DesktopNMS.sln
 dotnet run --project src/DesktopNMS/DesktopNMS.csproj
 ```
 
+The cross-platform Avalonia app (#153) builds and runs on Windows, macOS and
+Linux. For now it's a scaffold: sign in, and it shows the open alert count from
+the shared alert monitor. It asks for the API token each time, saves nothing,
+and keeps its own data folder (see "Where things are stored").
+
+```bash
+dotnet run --project src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj
+```
+
 ### Core
 
 The shared code (`DesktopNMS.Core`: the LibreNMS client, models, alerting, graph
@@ -142,6 +151,12 @@ src/
                              UiThread and UiPlatform (the UI thread, timers,
                              clipboard, file dialogs, theme, keyboard)
     Demo/                   Demo mode's example network
+  DesktopNMS.Avalonia/      Avalonia application for Windows, macOS and Linux
+                             (#153), replacing the WPF app once the views are
+                             ported (#250). A scaffold for now
+    Views/                  Avalonia views
+    Infrastructure/         AvaloniaUiThread
+    Security/               Secret storage (session-only until #154)
   DesktopNMS/               WPF application (product name DashyNMS)
     Views/                  WPF views and code-behind; lists' grouping and
                              header sorting are applied here
@@ -196,6 +211,11 @@ Everything lives under `%APPDATA%\DashyNMS`:
 
 Delete `token.dat` to force a fresh sign-in. Delete the folder to reset
 completely.
+
+The Avalonia app keeps its own data in `avalonia\` inside that folder
+(`~/.config/DashyNMS/avalonia` on Linux, `~/Library/Application
+Support/DashyNMS/avalonia` on macOS), so while it's a preview it never touches
+the WPF app's settings or token.
 
 > The app was originally built and shipped as **DesktopNMS**; this folder, the
 > exe name and every user-visible string were renamed to DashyNMS afterwards.

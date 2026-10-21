@@ -1,0 +1,9 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DesktopNMS.App"
+             RequestedThemeVariant="Default">
+    <!-- Follows the OS light or dark setting; DashyNMS's own theme is ported in #250. -->
+    <Application.Styles>
+        <FluentTheme />
+    </Application.Styles>
+</Application>
