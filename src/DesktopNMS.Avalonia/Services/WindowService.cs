@@ -137,6 +137,42 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         return window.Succeeded;
     }
 
+    // --------------------------------------------------------- settings, about
+
+    public bool ShowSettingsDialog(SettingsSection? section = null)
+    {
+        var viewModel = services.GetRequiredService<SettingsViewModel>();
+        if (section is { } open)
+        {
+            viewModel.SelectedSection = open;
+        }
+
+        var window = new SettingsWindow(viewModel);
+        WindowPlacementMemory.Attach(window, services.GetRequiredService<ISettingsStore>());
+        Modal.Show(window, Owner());
+        return window.Saved;
+    }
+
+    public bool ShowWhatsNew()
+    {
+        if (BundledWhatsNew.Current is not { } notes)
+        {
+            return false;
+        }
+
+        var window = new WhatsNewWindow { DataContext = new WhatsNewViewModel(notes, new Uri(UpdateReleases.ReleasePageUrl(notes.Version)), OpenUrl) };
+        Modal.Show(window, Owner());
+
+        // However it was closed, these notes have been seen.
+        var settings = services.GetRequiredService<ISettingsStore>();
+        settings.Current.WhatsNewShownVersion = notes.Version;
+        settings.SaveQuietly();
+        return true;
+    }
+
+    public void ShowLicences()
+        => Modal.Show(new LicencesWindow { DataContext = new LicencesViewModel(OpenUrl) }, Owner());
+
     // --------------------------------------------------------------- dialogs
 
     public void ShowError(string title, string message) => ShowNotice(title, message, isError: true);
@@ -256,7 +292,6 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
     {
     }
 
-    public bool ShowWhatsNew() => false;
 
     public IReadOnlyList<WidgetCatalogEntry> ShowWidgetPicker(IReadOnlyList<WidgetCatalogEntry> catalog)
     {
@@ -264,7 +299,6 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         return [];
     }
 
-    public void ShowLicences() => NotYet("Licences");
 
     public NeighbourViewDefinition? ShowNeighbourViewEditor(NeighbourViewDefinition? existing)
     {
@@ -272,7 +306,6 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         return null;
     }
 
-    public bool ShowSettingsDialog(SettingsSection? section = null) => NotNow("Settings");
 
     public void ShowDeviceFiltersDialog() => NotYet("Device filters");
 

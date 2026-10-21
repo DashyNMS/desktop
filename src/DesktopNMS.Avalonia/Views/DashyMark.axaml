@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DesktopNMS.Views.DashyMark">
+    <!-- The DashyNMS mark, drawn as vectors so it stays crisp at any size:
+         a ring in the accent with the heartbeat line through it. -->
+    <Viewbox>
+        <Canvas Width="100" Height="100">
+            <Ellipse Width="92" Height="92" Canvas.Left="4" Canvas.Top="4" Fill="{DynamicResource SurfaceAltBrush}" />
+            <Ellipse Width="84.5" Height="84.5" Canvas.Left="7.75" Canvas.Top="7.75" Stroke="{DynamicResource AccentBrush}" StrokeThickness="7.5" />
+            <Polyline Points="24,55 38,55 45.5,33 56.5,71 64,50 77,50"
+                      Stroke="{DynamicResource TextPrimaryBrush}" StrokeThickness="8.5"
+                      StrokeLineCap="Round" StrokeJoin="Round" />
+        </Canvas>
+    </Viewbox>
+</UserControl>

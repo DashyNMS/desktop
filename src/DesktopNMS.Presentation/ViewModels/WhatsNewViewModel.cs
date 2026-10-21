@@ -154,6 +154,14 @@ public sealed class WhatsNewItemViewModel
         Title = item.Title;
         Text = item.Text;
         Tone = tone;
+        Icon = item.Icon is { } named && Glyphs.ContainsKey(named)
+            ? named.ToLowerInvariant()
+            : tone switch
+            {
+                WhatsNewTone.Improved => "check",
+                WhatsNewTone.Fixed => "wrench",
+                _ => "star",
+            };
         Glyph = item.Icon is { } icon && Glyphs.TryGetValue(icon, out var glyph)
             ? glyph
             : tone switch
@@ -173,4 +181,7 @@ public sealed class WhatsNewItemViewModel
     public WhatsNewTone Tone { get; }
 
     public string Glyph { get; }
+
+    /// <summary>The icon's name ("map", "bell"; "star", "check" or "wrench" by tone) - for a front end without Segoe Fluent Icons (#250).</summary>
+    public string Icon { get; }
 }

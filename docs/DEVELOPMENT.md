@@ -34,8 +34,9 @@ dotnet run --project src/DesktopNMS/DesktopNMS.csproj
 ```
 
 The cross-platform Avalonia app (#153) builds and runs on Windows, macOS and
-Linux. It has the shell so far (#250): the main window and sidebar, the theme
-and accent, sign-in and the themed dialogs. Pages are ported one by one, and
+Linux. So far (#250) it has the shell - the main window and sidebar, the theme and
+accent, sign-in and the themed dialogs - and Settings, What's New and the
+licences. Pages are ported one by one, and
 each shows a placeholder until it is. It remembers the token encrypted, as the
 WPF app does (#154), and keeps its own data folder (see "Where things are
 stored").
