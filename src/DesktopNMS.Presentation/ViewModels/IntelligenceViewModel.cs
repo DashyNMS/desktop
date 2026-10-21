@@ -19,7 +19,12 @@ namespace DesktopNMS.ViewModels;
 /// The Intelligence tab: ask about the network in plain words, answered by
 /// the user's own ChatGPT plan using DashyNMS's read-only network tools.
 /// </summary>
-public sealed partial class IntelligenceViewModel : ObservableObject
+/// <remarks>
+/// This holds the account, the conversation and asking. The chat list
+/// (<see cref="Chats"/>), the composer (<see cref="Composer"/>) and the context
+/// sidebar (<see cref="Context"/>) are their own view models (#327).
+/// </remarks>
+public sealed partial class IntelligenceViewModel : ObservableObject, IDisposable
 {
     public static readonly Uri ManageUsageUrl = new("https://chatgpt.com/settings/usage");
 
@@ -41,13 +46,11 @@ public sealed partial class IntelligenceViewModel : ObservableObject
 
     private ChatGptCredentials? _credentials;
     private CancellationTokenSource? _running;
-    private string _question = string.Empty;
     private string? _errorText;
     private bool _isBusy;
     private bool _isSigningIn;
     private bool _consentGiven;
     private DashyOutfit _companionOutfit = DashyOutfits.Pick(Random.Shared.Next(100));
-    private ChatGptModel? _selectedModel;
 
     public IntelligenceViewModel(
         IChatGptCredentialStore store,
@@ -66,9 +69,11 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         Context = new IntelligenceContextViewModel(devices, client, settings, windows, alerts, logger);
         _settings = settings;
         _consentGiven = IntelligenceConsent.IsCurrent(settings.Current);
+        _session = session;
+        _windows = windows;
+        _logger = logger;
+        _dispatcher = UiThread.Dispatcher;
 
-        // A new default model in Settings applies to the next conversation,
-        // or straight away if this one hasn't started.
         // A new default model in Settings applies straight away. Only a change
         // to the default itself moves the picker, so a model picked for this
         // conversation stays put when other settings are saved.
@@ -85,14 +90,10 @@ public sealed partial class IntelligenceViewModel : ObservableObject
             _defaultModel = current.IntelligenceModel;
             if (Models.FirstOrDefault(m => m.Slug == _defaultModel) is { } preferred)
             {
-                SelectedModel = preferred;
+                Composer!.SelectedModel = preferred;
             }
         });
         ToggleSidebarCommand = new RelayCommand(() => IsSidebarOpen = !IsSidebarOpen);
-        _session = session;
-        _windows = windows;
-        _logger = logger;
-        _dispatcher = UiThread.Dispatcher;
 
         var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
         _signIn = new ChatGptSignIn(http, "DashyNMS");
@@ -101,13 +102,19 @@ public sealed partial class IntelligenceViewModel : ObservableObject
 
         ConnectCommand = new AsyncRelayCommand(ConnectAsync, () => !_isSigningIn);
         DisconnectCommand = new AsyncRelayCommand(DisconnectAsync, () => IsSignedIn && !_isBusy);
-        SendCommand = new AsyncRelayCommand(SendAsync, () => CanSend);
+        var send = new AsyncRelayCommand(SendAsync, () => CanSend);
+        var stop = new RelayCommand(() => _running?.Cancel(), () => _isBusy);
+        Composer = new IntelligenceComposerViewModel(Models, send, stop, () => IsBusy && !Chats!.IsChangingChat);
+        Composer.Edited += (_, _) => Chats!.QueueSave();
+        Composer.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(IntelligenceComposerViewModel.SelectedModel)) RetryQuestionCommand!.RaiseCanExecuteChanged();
+        };
         EditQuestionCommand = new RelayCommand(p => { if (p is IntelligenceMessageViewModel message) RestoreQuestion(message); }, CanRecoverQuestion);
         RetryQuestionCommand = new AsyncRelayCommand(async p =>
         {
             if (p is IntelligenceMessageViewModel message && RestoreQuestion(message)) await SendAsync().ConfigureAwait(true);
-        }, p => CanRecoverQuestion(p) && SelectedModel is not null);
-        StopCommand = new RelayCommand(() => _running?.Cancel(), () => _isBusy);
+        }, p => CanRecoverQuestion(p) && Composer.SelectedModel is not null);
         ClearCommand = new RelayCommand(Clear, () => !_isBusy && ShowConversation);
         ManageUsageCommand = new RelayCommand(() => _windows.OpenUrl(ManageUsageUrl));
         AcceptConsentCommand = new RelayCommand(() =>
@@ -122,12 +129,15 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         OpenSettingsCommand = new RelayCommand(() => _windows.ShowSettingsSection(SettingsSection.Intelligence));
         AskSuggestionCommand = new AsyncRelayCommand(async p =>
         {
-            Question = p as string ?? string.Empty;
+            Composer.Question = p as string ?? string.Empty;
             await SendAsync().ConfigureAwait(true);
         }, _ => CanSend || (IsSignedIn && !_isBusy));
 
         _credentials = _store.Load();
-        InitializeChats(chats);
+        Chats = new IntelligenceChatListViewModel(this, chats, windows, _dispatcher, logger) { NewChatCommand = ClearCommand };
+        Context.Spotlight.CollectionChanged += (_, _) => Chats.QueueSave();
+        _session.StateChanged += (_, _) => _dispatcher.InvokeAsync(Chats.EnsureScope);
+        Chats.EnsureScope();
         if (IsSignedIn)
         {
             _ = LoadModelsAsync();
@@ -135,6 +145,12 @@ public sealed partial class IntelligenceViewModel : ObservableObject
     }
 
     public ObservableCollection<IntelligenceMessageViewModel> Messages { get; } = new();
+
+    /// <summary>The saved chats for this account and network.</summary>
+    public IntelligenceChatListViewModel Chats { get; }
+
+    /// <summary>The question box, model and detail level, and Ask and Stop.</summary>
+    public IntelligenceComposerViewModel Composer { get; }
 
     /// <summary>The context sidebar: Spotlight, mentioned devices, their alerts, what was looked at.</summary>
     public IntelligenceContextViewModel Context { get; }
@@ -150,6 +166,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         set => SetProperty(ref _isSidebarOpen, value);
     }
 
+    /// <summary>The models the plan offers - the composer's picker and Settings' default.</summary>
     public ObservableCollection<ChatGptModel> Models { get; } = new();
 
     public string[] Suggestions { get; } =
@@ -164,26 +181,23 @@ public sealed partial class IntelligenceViewModel : ObservableObject
 
     public AsyncRelayCommand DisconnectCommand { get; }
 
-    public AsyncRelayCommand SendCommand { get; }
     public RelayCommand EditQuestionCommand { get; }
     public AsyncRelayCommand RetryQuestionCommand { get; }
     public event EventHandler? QuestionFocusRequested;
 
-    private bool CanRecoverQuestion(object? parameter) => CanManageChats && parameter is IntelligenceMessageViewModel message
+    private bool CanRecoverQuestion(object? parameter) => Chats.CanManageChats && parameter is IntelligenceMessageViewModel message
         && Messages.Contains(message) && message.CanRecoverQuestion;
 
     private bool RestoreQuestion(IntelligenceMessageViewModel message)
     {
         if (!CanRecoverQuestion(message)) return false;
-        if (!string.IsNullOrWhiteSpace(Question) && Question != message.SubmittedQuestion
+        if (!string.IsNullOrWhiteSpace(Composer.Question) && Composer.Question != message.SubmittedQuestion
             && !_windows.Confirm("Replace draft?", "Replace the unsent draft with this question?", "Replace draft")) return false;
-        Question = message.SubmittedQuestion!;
+        Composer.Question = message.SubmittedQuestion!;
         ErrorText = null;
         QuestionFocusRequested?.Invoke(this, EventArgs.Empty);
         return true;
     }
-
-    public RelayCommand StopCommand { get; }
 
     public RelayCommand ClearCommand { get; }
 
@@ -231,33 +245,6 @@ public sealed partial class IntelligenceViewModel : ObservableObject
 
     public bool ShowSuggestions => ShowConversation && Messages.Count == 0;
 
-    public ChatGptModel? SelectedModel
-    {
-        get => _selectedModel;
-        set
-        {
-            if (SetProperty(ref _selectedModel, value))
-            {
-                QueueChatSave();
-                SendCommand?.RaiseCanExecuteChanged();
-                RetryQuestionCommand?.RaiseCanExecuteChanged();
-            }
-        }
-    }
-
-    public string Question
-    {
-        get => _question;
-        set
-        {
-            if (SetProperty(ref _question, value ?? string.Empty))
-            {
-                SendCommand.RaiseCanExecuteChanged();
-                QueueChatSave();
-            }
-        }
-    }
-
     public bool ShowMascot => _settings.Current.IntelligenceMascotEnabled;
 
     public bool ColourStatusIndicators => _settings.Current.IntelligenceColourStatusIndicators;
@@ -281,6 +268,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
             if (SetProperty(ref _isBusy, value))
             {
                 Context.IsScopeLocked = value;
+                Composer.IsBusy = value;
                 RaiseCommands();
             }
         }
@@ -300,7 +288,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
 
     public bool HasError => !string.IsNullOrEmpty(_errorText);
 
-    private bool CanSend => IsSignedIn && _consentGiven && !_isBusy && !string.IsNullOrWhiteSpace(_question) && _selectedModel is not null;
+    private bool CanSend => IsSignedIn && _consentGiven && !_isBusy && !string.IsNullOrWhiteSpace(Composer.Question) && Composer.SelectedModel is not null;
 
     private async Task ConnectAsync()
     {
@@ -312,10 +300,10 @@ public sealed partial class IntelligenceViewModel : ObservableObject
             using var cancel = new CancellationTokenSource();
             var credentials = await _signIn.SignInAsync(_credentials ?? new ChatGptCredentials(), url => _windows.OpenUrl(url), cancel.Token).ConfigureAwait(true);
 
-            SaveActiveChat();
+            Chats.SaveActive();
 
             _credentials = credentials;
-            EnsureChatScope();
+            Chats.EnsureScope();
             _store.Save(credentials);
             _logger.LogInformation("Intelligence: signed in with ChatGPT (plan usage {CanUse})", credentials.CanUsePlan);
             if (!credentials.CanUsePlan)
@@ -349,15 +337,15 @@ public sealed partial class IntelligenceViewModel : ObservableObject
     /// </summary>
     private async Task DisconnectAsync()
     {
-        SaveActiveChat();
+        Chats.SaveActive();
         _running?.Cancel();
         _store.Clear();
         _credentials = null;
-        EnsureChatScope();
+        Chats.EnsureScope();
         _conversation.Clear();
         Messages.Clear();
         Models.Clear();
-        SelectedModel = null;
+        Composer.SelectedModel = null;
         ErrorText = null;
         await _tools.StopAsync().ConfigureAwait(true);
         RaiseAccount();
@@ -369,16 +357,16 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         {
             var token = await AccessTokenAsync(CancellationToken.None).ConfigureAwait(true);
             var models = await _responses.ListModelsAsync(token, CancellationToken.None).ConfigureAwait(true);
-            var keep = _selectedChat?.Data.Model ?? _selectedModel?.Slug;
+            var keep = Chats.SelectedChat?.Data.Model ?? Composer.SelectedModel?.Slug;
             Models.Clear();
             foreach (var model in models)
             {
                 Models.Add(model);
             }
 
-            SelectedModel = Models.FirstOrDefault(m => m.Slug == keep)
-                            ?? Models.FirstOrDefault(m => m.Slug == _settings.Current.IntelligenceModel)
-                            ?? Models.FirstOrDefault();
+            Composer.SelectedModel = Models.FirstOrDefault(m => m.Slug == keep)
+                                     ?? Models.FirstOrDefault(m => m.Slug == _settings.Current.IntelligenceModel)
+                                     ?? Models.FirstOrDefault();
             if (Models.Count == 0)
             {
                 ErrorText = "Your ChatGPT plan didn't list any models DashyNMS can use.";
@@ -400,22 +388,18 @@ public sealed partial class IntelligenceViewModel : ObservableObject
             return;
         }
 
-        EnsureChatScope();
+        Chats.EnsureScope();
 
-        var question = _question.Trim();
-        Question = string.Empty;
+        var question = Composer.Question.Trim();
+        Composer.Question = string.Empty;
         ErrorText = null;
         Messages.Add(IntelligenceMessageViewModel.User(question));
-        var detail = SelectedDetail;
+        var detail = Composer.SelectedDetail;
         var answer = IntelligenceMessageViewModel.Assistant(detail, question);
         answer.SeedInlineReferences(Messages.Where(message => message.IsAssistant).Reverse().SelectMany(message => message.InlineReferences));
         Messages.Add(answer);
-        if (_selectedChat is { } chat && !chat.Data.IsRenamed && chat.Data.Messages.Count == 0)
-        {
-            chat.Data.Title = ChatTitle(question);
-            chat.Refresh();
-        }
-        SaveActiveChat(recordActivity: true);
+        Chats.NameFromQuestion(question);
+        Chats.SaveActive(recordActivity: true);
         OnPropertyChanged(nameof(ShowSuggestions));
 
         _running = new CancellationTokenSource();
@@ -424,7 +408,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         try
         {
             var spotlight = Context.SpotlightForAgent;
-            var model = _selectedModel!.Slug;
+            var model = Composer.SelectedModel!.Slug;
             var token = _running.Token;
             var webSearchEnabled = IntelligenceConsent.AllowsWebSearch(_settings.Current);
             await Task.Run(() => _conversation.AskAsync(question, model, AccessTokenAsync, listener, token, spotlight, webSearchEnabled, detail)).ConfigureAwait(true);
@@ -460,8 +444,8 @@ public sealed partial class IntelligenceViewModel : ObservableObject
             _running.Dispose();
             _running = null;
             IsBusy = false;
-            SaveActiveChat(recordActivity: !string.IsNullOrWhiteSpace(answer.Text));
-            EnsureChatScope();
+            Chats.SaveActive(recordActivity: !string.IsNullOrWhiteSpace(answer.Text));
+            Chats.EnsureScope();
             OnPropertyChanged(nameof(ShowSuggestions));
         }
     }
@@ -501,19 +485,22 @@ public sealed partial class IntelligenceViewModel : ObservableObject
     public async Task OnDisabledAsync()
     {
         _running?.Cancel();
-        SaveActiveChat();
+        Chats.SaveActive();
         await _tools.StopAsync().ConfigureAwait(true);
-        SaveActiveChat();
+        Chats.SaveActive();
     }
+
+    /// <summary>Writes any chat saves still waiting - the app is closing.</summary>
+    public void Dispose() => Chats.Dispose();
 
     private void Clear()
     {
-        NewChat();
+        Chats.NewChat();
 
         // A new conversation starts on the default model.
         if (Models.FirstOrDefault(m => m.Slug == _defaultModel) is { } preferred)
         {
-            SelectedModel = preferred;
+            Composer.SelectedModel = preferred;
         }
 
         ErrorText = null;
@@ -541,13 +528,17 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         OnPropertyChanged(nameof(NetworkText));
         ConnectCommand.RaiseCanExecuteChanged();
         DisconnectCommand.RaiseCanExecuteChanged();
-        SendCommand.RaiseCanExecuteChanged();
+        Composer.SendCommand.RaiseCanExecuteChanged();
         EditQuestionCommand.RaiseCanExecuteChanged();
         RetryQuestionCommand.RaiseCanExecuteChanged();
-        StopCommand.RaiseCanExecuteChanged();
+        Composer.StopCommand.RaiseCanExecuteChanged();
         ClearCommand.RaiseCanExecuteChanged();
         AskSuggestionCommand.RaiseCanExecuteChanged();
-        RaiseChatCommands();
+
+        // The chat list is made after the commands, and raises its own once it exists.
+        if (Chats is null) return;
+        Chats.RaiseCommands();
+        Composer.CanChangeChat = Chats.CanManageChats;
     }
 
     /// <summary>Streams the answer and tool activity into the panel, on the UI thread.</summary>
@@ -565,7 +556,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         public void OnText(string delta) => _owner._dispatcher.InvokeAsync(() =>
         {
             _answer.Text += delta;
-            _owner.SaveWhileStreaming();
+            _owner.Chats.SaveWhileStreaming();
         });
 
         public void OnAnswerCompleted(string text) => _owner._dispatcher.InvokeAsync(() => _answer.Text = text);
@@ -587,336 +578,13 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         public void OnToolObserved(IntelligenceToolObservation observation) => _owner._dispatcher.InvokeAsync(() =>
         {
             _answer.RecordToolObservation(observation);
-            _owner.QueueChatSave();
+            _owner.Chats.QueueSave();
         });
 
         public void OnStatusCard(IntelligenceStatusCard card) => _owner._dispatcher.InvokeAsync(() =>
         {
             _answer.AddStatusCard(card);
-            _owner.QueueChatSave();
+            _owner.Chats.QueueSave();
         });
     }
-}
-
-/// <summary>One message in the Intelligence conversation.</summary>
-public sealed class IntelligenceMessageViewModel : ObservableObject
-{
-    private string _text = string.Empty;
-    private bool _isStreaming;
-    private string? _restoredActivity;
-    private bool _isCopied;
-    private IUiTimer? _copyFeedbackTimer;
-    private bool _isActivityExpanded;
-    private readonly HashSet<string> _observedToolsAwaitingFinish = new();
-    private readonly List<IntelligenceImage> _savedImages = new();
-
-    private IntelligenceMessageViewModel(bool isUser)
-    {
-        IsUser = isUser;
-        _isStreaming = !isUser;
-        Outcome = isUser ? IntelligenceReplyOutcome.Completed : IntelligenceReplyOutcome.Generating;
-        CreatedAt = DateTimeOffset.UtcNow;
-    }
-
-    public static IntelligenceMessageViewModel User(string text) => new(isUser: true) { _text = text };
-
-    public static IntelligenceMessageViewModel Assistant(string? replyStyle = null, string? question = null) => new(isUser: false) { ReplyStyle = replyStyle, SubmittedQuestion = question };
-
-    /// <summary>The presentation chosen for this reply, kept stable when settings change later.</summary>
-    public string? ReplyStyle { get; private init; }
-
-    public bool IsConversational => ReplyStyle is { } detail && IntelligenceDetail.IsConversational(detail);
-
-    public DateTimeOffset? CreatedAt { get; private init; }
-    public string TimeLabel => CreatedAt?.ToLocalTime().ToString("HH:mm") ?? string.Empty;
-    public string TimeTooltip => CreatedAt?.ToLocalTime().ToString("f") ?? string.Empty;
-    public bool CanCopyAnswer => IsAssistant && !string.IsNullOrWhiteSpace(Text);
-    public string CopyMarkdown => IntelligenceInlineMarkup.ToReadableMarkdown(Text, InlineReferences).Trim();
-    public string CopyAnswerLabel => _isCopied ? "Copied" : "Copy answer";
-    public IntelligenceReplyOutcome Outcome { get; private set; } = IntelligenceReplyOutcome.Generating;
-    public string? SubmittedQuestion { get; private init; }
-    public string? FailureText { get; private set; }
-    public bool HasFailureText => !string.IsNullOrEmpty(FailureText);
-    public bool CanRecoverQuestion => IsAssistant && !IsStreaming
-        && (Outcome is IntelligenceReplyOutcome.Failed or IntelligenceReplyOutcome.Stopped or IntelligenceReplyOutcome.Interrupted)
-        && !string.IsNullOrWhiteSpace(SubmittedQuestion);
-    public string OutcomeLabel => Outcome switch
-    {
-        IntelligenceReplyOutcome.Generating => "Answer in progress",
-        IntelligenceReplyOutcome.Stopped => "Stopped",
-        IntelligenceReplyOutcome.Interrupted => "Interrupted",
-        IntelligenceReplyOutcome.Failed => "Failed",
-        _ => _failedLookups > 0 ? "Completed · some lookups failed" : "Completed",
-    };
-    public string CompletionGlyph => Outcome == IntelligenceReplyOutcome.Stopped ? "■"
-        : _failedLookups > 0 || Outcome is IntelligenceReplyOutcome.Failed or IntelligenceReplyOutcome.Interrupted ? "!" : "✓";
-    public void Finish(IntelligenceReplyOutcome outcome, string? failureText = null)
-    {
-        Outcome = outcome;
-        FailureText = failureText;
-        _currentStep = null;
-        IsStreaming = false;
-        OnPropertyChanged(nameof(Outcome));
-        OnPropertyChanged(nameof(FailureText));
-        OnPropertyChanged(nameof(HasFailureText));
-        OnPropertyChanged(nameof(CanRecoverQuestion));
-        RaiseActivity();
-    }
-    public bool IsActivityExpanded { get => _isActivityExpanded; set => SetProperty(ref _isActivityExpanded, value); }
-    public ObservableCollection<IntelligenceToolObservationViewModel> ToolObservations { get; } = new();
-    public bool HasToolObservations => ToolObservations.Count > 0;
-
-    public void MarkCopied()
-    {
-        _isCopied = true;
-        OnPropertyChanged(nameof(CopyAnswerLabel));
-        if (_copyFeedbackTimer is null)
-        {
-            _copyFeedbackTimer = UiThread.CreateTimer(TimeSpan.FromSeconds(2));
-            _copyFeedbackTimer.Tick += (_, _) =>
-            {
-                _copyFeedbackTimer.Stop();
-                _isCopied = false;
-                OnPropertyChanged(nameof(CopyAnswerLabel));
-            };
-        }
-        _copyFeedbackTimer.Stop();
-        _copyFeedbackTimer.Start();
-    }
-
-    public void RecordToolObservation(IntelligenceToolObservation observation)
-    {
-        if (ToolObservations.Count < 48) ToolObservations.Add(new(observation));
-        _observedToolsAwaitingFinish.Add(observation.Tool);
-        OnPropertyChanged(nameof(HasToolObservations));
-    }
-
-    public SavedIntelligenceMessage Save() => new()
-    {
-        IsUser = IsUser,
-        CreatedAt = CreatedAt,
-        Text = Text,
-        Activity = ActivityText,
-        ReplyStyle = ReplyStyle,
-        StatusCards = _statusSnapshots.ToList(),
-        PriorReferences = _priorReferences.Values.Where(reference => Text.Contains("[[" + reference.Key + "]]", StringComparison.Ordinal)).ToList(),
-        ToolObservations = ToolObservations.Select(item => item.Data).ToList(),
-        IsIncomplete = IsStreaming,
-        Outcome = Outcome,
-        SubmittedQuestion = SubmittedQuestion,
-        FailureText = FailureText,
-        Images = _savedImages.ToList(),
-    };
-
-    public static IntelligenceMessageViewModel Restore(SavedIntelligenceMessage saved)
-    {
-        var message = new IntelligenceMessageViewModel(saved.IsUser)
-        {
-            _text = saved.Text + (saved.IsIncomplete && !saved.IsUser ? "\n\n(Interrupted when DashyNMS closed.)" : string.Empty),
-            _isStreaming = false,
-            _restoredActivity = saved.IsIncomplete ? "Interrupted" : saved.Activity,
-            ReplyStyle = saved.ReplyStyle,
-            CreatedAt = saved.CreatedAt,
-            Outcome = saved.IsIncomplete || saved.Outcome == IntelligenceReplyOutcome.Generating ? IntelligenceReplyOutcome.Interrupted : saved.Outcome ?? IntelligenceReplyOutcome.Completed,
-            SubmittedQuestion = saved.SubmittedQuestion,
-            FailureText = saved.FailureText,
-        };
-        foreach (var image in saved.Images) message.AddImage(image);
-        message.SeedInlineReferences(saved.PriorReferences);
-        foreach (var observation in saved.ToolObservations) message.ToolObservations.Add(new(observation));
-        message._failedLookups = saved.ToolObservations.Count(item => item.IsError);
-        foreach (var card in saved.StatusCards) message.AddStatusCard(card);
-        return message;
-    }
-
-    public bool IsUser { get; }
-
-    public bool IsAssistant => !IsUser;
-
-    private readonly List<IntelligenceStatusCard> _statusSnapshots = new();
-    private readonly Dictionary<string, IntelligenceInlineReference> _inlineReferences = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, IntelligenceInlineReference> _priorReferences = new(StringComparer.OrdinalIgnoreCase);
-    public IReadOnlyList<IntelligenceInlineReference> InlineReferences => _inlineReferences.Values
-        .Concat(_priorReferences.Values.Where(reference => !_inlineReferences.ContainsKey(reference.Key))).ToArray();
-
-    public void SeedInlineReferences(IEnumerable<IntelligenceInlineReference> references)
-    {
-        foreach (var reference in references)
-        {
-            if (_priorReferences.Count >= 2000) break;
-            // A previous lookup may resolve the name, but cannot claim a current operational state.
-            _priorReferences.TryAdd(reference.Key, reference with { Status = "", Tone = "unknown", Detail = "Name verified earlier in this chat; current status not supplied by this reply" });
-        }
-        OnPropertyChanged(nameof(InlineReferences));
-    }
-
-    public void AddStatusCard(IntelligenceStatusCard card)
-    {
-        // Accumulate pages. The first observed status for an object in this reply
-        // stays fixed rather than changing when a later page arrives.
-        if (_statusSnapshots.Count >= 48) return;
-        _statusSnapshots.Add(card);
-        foreach (var reference in IntelligenceInlineReferences.FromSnapshot(card))
-        {
-            if (_inlineReferences.Count >= 2000) break;
-            _inlineReferences.TryAdd(reference.Key, reference);
-        }
-        OnPropertyChanged(nameof(InlineReferences));
-    }
-
-    public string Text
-    {
-        get => _text;
-        set
-        {
-            var wasEmpty = _text.Length == 0;
-            if (SetProperty(ref _text, value))
-            {
-                OnPropertyChanged(nameof(CanCopyAnswer));
-                if (wasEmpty != (_text.Length == 0)) RaiseActivity();
-            }
-        }
-    }
-
-    public bool IsStreaming
-    {
-        get => _isStreaming;
-        set
-        {
-            if (SetProperty(ref _isStreaming, value))
-            {
-                if (!value && Outcome == IntelligenceReplyOutcome.Generating) Outcome = IntelligenceReplyOutcome.Completed;
-                OnPropertyChanged(nameof(CanRecoverQuestion));
-                RaiseActivity();
-            }
-        }
-    }
-
-    /// <summary>Looking something up, or waiting for the first words - drives the heartbeat.</summary>
-    public bool IsWorking => IsAssistant && _isStreaming;
-
-    /// <summary>Graphs the answer drew on, shown above its text.</summary>
-    /// <remarks>The image bytes; the view decodes them, and leaves out any it can't read (#249).</remarks>
-    public ObservableCollection<byte[]> Images { get; } = new();
-
-    public bool HasImages => Images.Count > 0;
-
-    public void AddImage(IntelligenceImage image)
-    {
-        Images.Add(image.Data);
-        _savedImages.Add(image);
-        OnPropertyChanged(nameof(HasImages));
-    }
-
-    // What was looked up for this answer, in the order first looked at.
-    private readonly List<string> _lookedAt = new();
-    private string? _currentStep;
-    private int _failedLookups;
-
-    /// <summary>
-    /// One quiet line above the answer: the step in hand while it works
-    /// ("Checking alerts…"), then what it looked at ("Looked at alerts and
-    /// device health").
-    /// </summary>
-    public string? ActivityText => Outcome is IntelligenceReplyOutcome.Stopped or IntelligenceReplyOutcome.Interrupted or IntelligenceReplyOutcome.Failed ? OutcomeLabel
-        : _currentStep is { } step
-        ? step + "…"
-        : _lookedAt.Count > 0
-            ? "Looked at " + JoinNames(_lookedAt) + (_failedLookups > 0 ? $" ({_failedLookups} couldn't be read)" : string.Empty)
-            : IsWorking ? "Thinking…" : _restoredActivity;
-
-    public bool HasActivity => ActivityText is not null;
-
-    public void ToolStarted(string tool)
-    {
-        _currentStep = Step(tool);
-        RaiseActivity();
-    }
-
-    public void ToolFinished(string tool, bool isError)
-    {
-        if (!_observedToolsAwaitingFinish.Remove(tool))
-        {
-            // Hosted web search reports activity events rather than a local tool payload.
-            RecordToolObservation(new(tool, DateTimeOffset.UtcNow, isError ? "Lookup failed." : "Lookup completed.", isError));
-            _observedToolsAwaitingFinish.Remove(tool);
-        }
-        var subject = Subject(tool);
-        if (!_lookedAt.Contains(subject))
-        {
-            _lookedAt.Add(subject);
-        }
-
-        if (isError)
-        {
-            _failedLookups++;
-        }
-
-        _currentStep = null;
-        RaiseActivity();
-    }
-
-    private void RaiseActivity()
-    {
-        OnPropertyChanged(nameof(ActivityText));
-        OnPropertyChanged(nameof(HasActivity));
-        OnPropertyChanged(nameof(IsWorking));
-        OnPropertyChanged(nameof(CompletionGlyph));
-        OnPropertyChanged(nameof(OutcomeLabel));
-    }
-
-    private static string JoinNames(List<string> names) => names.Count switch
-    {
-        1 => names[0],
-        2 => names[0] + " and " + names[1],
-        _ => string.Join(", ", names.Take(names.Count - 1)) + " and " + names[^1],
-    };
-
-    /// <summary>What a tool is doing, as a person would say it.</summary>
-    private static string Step(string tool) => tool switch
-    {
-        "web_search" => "Searching the web",
-        "active_alerts" => "Checking alerts",
-        "alert_details" => "Reading the alert",
-        "alert_rules" => "Reading alert rules",
-        "config_backup" or "config_diff" or "recent_config_changes" => "Checking config backups",
-        "device_details" => "Reading device details",
-        "device_events" or "network_events" => "Reading the event log",
-        "device_health" => "Checking device health",
-        "device_neighbours" => "Finding neighbours",
-        "device_sensors" or "health_overview" => "Reading sensors",
-        "find_device" => "Finding the device",
-        "graph" => "Drawing the graph",
-        "list_groups_and_locations" => "Listing groups and locations",
-        "network_overview" => "Getting the network overview",
-        "port_status" => "Checking the port",
-        "search_logs" => "Searching Graylog",
-        "top_devices" or "top_interfaces" or "top_errors" => "Ranking devices and ports",
-        "trace_endpoint" => "Tracing the address",
-        "what_changed" => "Finding what changed",
-        _ => "Looking it up",
-    };
-
-    /// <summary>What a tool looked at, for "Looked at …".</summary>
-    internal static string Subject(string tool) => tool switch
-    {
-        "web_search" => "the web",
-        "active_alerts" or "alert_details" => "alerts",
-        "alert_rules" => "alert rules",
-        "config_backup" or "config_diff" or "recent_config_changes" => "config backups",
-        "device_details" or "find_device" => "devices",
-        "graph" => "graphs",
-        "device_events" or "network_events" => "the event log",
-        "device_health" => "device health",
-        "device_neighbours" => "neighbours",
-        "device_sensors" or "health_overview" => "sensors",
-        "list_groups_and_locations" => "groups and locations",
-        "network_overview" => "the network overview",
-        "port_status" => "ports",
-        "search_logs" => "Graylog",
-        "top_devices" or "top_interfaces" or "top_errors" => "the busiest devices and ports",
-        "trace_endpoint" => "where the address is plugged in",
-        "what_changed" => "recent changes",
-        _ => "the network",
-    };
 }
