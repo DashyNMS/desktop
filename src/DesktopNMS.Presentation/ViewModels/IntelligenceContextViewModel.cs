@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
@@ -347,26 +348,26 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
         RefreshMentioned();
     }
 
-    /// <summary>Each mentioned device's current state, and the open alerts on them.</summary>
+    /// <summary>Each mentioned device's current state, and the open alerts on them - one per device and rule, however many faults (#354).</summary>
     private void RefreshMentioned()
     {
+        var ids = Mentioned.Select(m => m.DeviceId).ToHashSet();
+        var groups = AlertGrouping.ByDeviceAndRule(_alerts.Where(a => ids.Contains(a.DeviceId) && a.State != AlertState.Recovered));
         foreach (var mentioned in Mentioned)
         {
             if (_devices.Get(mentioned.DeviceId) is { } device)
             {
-                mentioned.Update(device, _alerts.Count(a => a.DeviceId == device.DeviceId && a.State != AlertState.Recovered));
+                mentioned.Update(device, groups.Count(g => g.DeviceId == device.DeviceId));
             }
         }
 
-        var ids = Mentioned.Select(m => m.DeviceId).ToHashSet();
-        _matchingAlertCount = _alerts.Count(a => ids.Contains(a.DeviceId) && a.State != AlertState.Recovered);
-        var open = _alerts
-            .Where(a => ids.Contains(a.DeviceId) && a.State != AlertState.Recovered)
-            .OrderBy(a => a.IsAcknowledged)
-            .ThenBy(a => a.Severity == AlertSeverity.Critical ? 0 : 1)
-            .ThenByDescending(a => a.Timestamp)
+        _matchingAlertCount = groups.Count;
+        var open = groups
+            .OrderBy(g => g.State == AlertState.Acknowledged)
+            .ThenBy(g => g.Severity == AlertSeverity.Critical ? 0 : 1)
+            .ThenByDescending(g => g.LastChanged)
             .Take(8)
-            .Select(a => new ContextAlertViewModel(a, Mentioned.FirstOrDefault(m => m.DeviceId == a.DeviceId)?.Name ?? $"Device {a.DeviceId}"))
+            .Select(g => new ContextAlertViewModel(g, Mentioned.FirstOrDefault(m => m.DeviceId == g.DeviceId)?.Name ?? $"Device {g.DeviceId}"))
             .ToList();
 
         Alerts.Clear();
@@ -592,14 +593,15 @@ public sealed class MentionedDeviceViewModel : ObservableObject
 /// <summary>An open alert on a mentioned device.</summary>
 public sealed class ContextAlertViewModel
 {
-    public ContextAlertViewModel(Alert alert, string deviceName)
+    public ContextAlertViewModel(AlertGroup group, string deviceName)
     {
-        DeviceId = alert.DeviceId;
-        Rule = alert.DisplayRuleName;
+        DeviceId = group.DeviceId;
+        Rule = group.FaultCount > 1 ? $"{group.DisplayRuleName} · {group.FaultCount} faults" : group.DisplayRuleName;
         DeviceName = deviceName;
-        Severity = alert.Severity switch { AlertSeverity.Critical => "down", AlertSeverity.Warning => "warning", AlertSeverity.Ok => "ok", _ => "other" };
-        StateLabel = alert.Severity.ToDisplayString() + (alert.IsAcknowledged ? " · Acknowledged" : " · Active");
-        Age = alert.Timestamp is { } at ? Ago(DateTime.Now - at) : string.Empty;
+        Severity = group.Severity switch { AlertSeverity.Critical => "down", AlertSeverity.Warning => "warning", AlertSeverity.Ok => "ok", _ => "other" };
+        StateLabel = group.Severity.ToDisplayString()
+            + (group.IsPartlyAcknowledged ? " · Partly acknowledged" : group.State == AlertState.Acknowledged ? " · Acknowledged" : " · Active");
+        Age = group.LastChanged is { } at ? Ago(DateTime.Now - at) : string.Empty;
     }
 
     public int DeviceId { get; }
