@@ -75,6 +75,11 @@ public sealed class AlertItemViewModel : ObservableObject
     /// <summary>Each fault, when <see cref="IsGroup"/>.</summary>
     public IReadOnlyList<AlertFaultRowViewModel> Children => _children;
 
+    /// <summary>The row's arrow: opens or closes the fault list.</summary>
+    public RelayCommand ToggleExpandedCommand => _toggleExpandedCommand ??= new RelayCommand(() => IsExpanded = !IsExpanded);
+
+    private RelayCommand? _toggleExpandedCommand;
+
     /// <summary>Whether the fault list is open. Only a group expands.</summary>
     public bool IsExpanded
     {
