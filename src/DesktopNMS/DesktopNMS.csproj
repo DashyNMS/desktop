@@ -48,7 +48,6 @@
     -->
     <PackageReference Include="System.Drawing.Common" Version="9.0.20" />
     <!-- DPAPI for the stored token, Unimus token and Graylog password - moved here from Core so Core targets plain net9.0 (#152). -->
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
   </ItemGroup>
 
   <!-- View models and services with no WPF in them (#249). Core comes in through it. -->

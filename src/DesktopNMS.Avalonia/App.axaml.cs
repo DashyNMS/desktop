@@ -27,13 +27,16 @@ public partial class App : Application
         {
             // Its own folder inside the usual one, so this preview never
             // touches the WPF app's settings, token or notification state.
+            // Secrets saved here are encrypted per OS (#154).
             AppPaths.UseDataDirectory(Path.Combine(AppPaths.DefaultDataDirectory, "avalonia"));
 
             // Before any view model: they capture the UI thread on construction.
             AvaloniaUiThread.Install();
 
             _services = BuildServices();
-            desktop.MainWindow = new MainWindow { DataContext = _services.GetRequiredService<ScaffoldViewModel>() };
+            var scaffold = _services.GetRequiredService<ScaffoldViewModel>();
+            desktop.MainWindow = new MainWindow { DataContext = scaffold };
+            _ = scaffold.RestoreAsync();
             desktop.Exit += (_, _) => _services.Dispose();
         }
 
@@ -52,8 +55,14 @@ public partial class App : Application
 
         services.AddDesktopNmsCore();
 
-        // Secret storage per OS is #154; until then the token lasts the run.
-        services.AddSingleton<ITokenProtector, SessionOnlyTokenProtector>();
+        // Secrets are encrypted per OS (#154): DPAPI on Windows, a key in the
+        // macOS Keychain or the Linux Secret Service elsewhere.
+        services.AddSingleton<ISecretProtector>(sp => SecretProtectors.ForThisPlatform(sp.GetRequiredService<ILoggerFactory>()));
+        services.AddSingleton<ITokenProtector, TokenProtector>();
+        services.AddSingleton<IUnimusTokenProtector, UnimusTokenProtector>();
+        services.AddSingleton<IGraylogPasswordProtector, GraylogPasswordProtector>();
+        services.AddSingleton<DesktopNMS.Core.Intelligence.IChatGptCredentialStore, ChatGptCredentialStore>();
+        services.AddSingleton<DesktopNMS.Core.Intelligence.IIntelligenceChatStore, IntelligenceChatStore>();
 
         services.AddSingleton<ISessionService, SessionService>();
         services.AddSingleton<IConnectionState>(sp => sp.GetRequiredService<ISessionService>());

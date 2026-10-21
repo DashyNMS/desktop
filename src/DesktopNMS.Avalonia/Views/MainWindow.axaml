@@ -13,7 +13,7 @@
         <StackPanel Margin="32" Spacing="16" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center">
             <StackPanel Spacing="4">
                 <TextBlock Text="DashyNMS" FontSize="28" FontWeight="SemiBold" />
-                <TextBlock Text="Cross-platform preview: signs in and shows the open alert count. Nothing is saved."
+                <TextBlock Text="Cross-platform preview: signs in and shows the open alert count. It keeps its own settings, apart from the Windows app's."
                            TextWrapping="Wrap" Opacity="0.75" />
             </StackPanel>
 
@@ -30,6 +30,10 @@
                              AutomationProperties.Name="API token" />
                 </StackPanel>
                 <CheckBox Content="Allow an untrusted certificate" IsChecked="{Binding AllowUntrustedCertificate}" />
+                <StackPanel Spacing="2">
+                    <CheckBox Content="_Remember the token on this computer" IsChecked="{Binding RememberToken}" />
+                    <TextBlock Text="{Binding SecretsText}" TextWrapping="Wrap" Opacity="0.75" FontSize="12" Margin="28,0,0,0" />
+                </StackPanel>
                 <Button Content="Sign in" Command="{Binding SignInCommand}" IsDefault="True" HorizontalAlignment="Left"
                         Classes="accent" />
                 <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" IsVisible="{Binding HasError}"
