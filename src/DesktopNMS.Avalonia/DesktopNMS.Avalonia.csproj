@@ -3,9 +3,9 @@
   <!--
     The cross-platform DashyNMS app (#153): Avalonia on Windows, macOS and
     Linux, on the same view models and services as the WPF app
-    (DesktopNMS.Presentation, and Core through it). For now a scaffold that
-    signs in and shows the open alert count; the views are ported in #250,
-    and it replaces the WPF app once they're at parity.
+    (DesktopNMS.Presentation, and Core through it). The shell - main window,
+    sidebar, theme, sign-in and dialogs - with the pages ported one by one
+    in #250. It replaces the WPF app once they're at parity.
   -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -20,10 +20,16 @@
     <PackageReference Include="Avalonia" Version="12.1.4" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+    <PackageReference Include="FluentIcons.Avalonia" Version="2.1.344" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.0" />
+  </ItemGroup>
+
+  <!-- The WPF app's brand fonts and icon, shared rather than copied (#216). -->
+  <ItemGroup>
+    <AvaloniaResource Include="..\DesktopNMS\Assets\Fonts\*.ttf" Link="Assets\Fonts\%(Filename)%(Extension)" />
+    <AvaloniaResource Include="..\DesktopNMS\Assets\app.ico" Link="Assets\app.ico" />
   </ItemGroup>
 
   <ItemGroup>

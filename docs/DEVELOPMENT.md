@@ -34,9 +34,11 @@ dotnet run --project src/DesktopNMS/DesktopNMS.csproj
 ```
 
 The cross-platform Avalonia app (#153) builds and runs on Windows, macOS and
-Linux. For now it's a scaffold: sign in, and it shows the open alert count from
-the shared alert monitor. It can remember the token, encrypted as the WPF app's
-is (#154), and keeps its own data folder (see "Where things are stored").
+Linux. It has the shell so far (#250): the main window and sidebar, the theme
+and accent, sign-in and the themed dialogs. Pages are ported one by one, and
+each shows a placeholder until it is. It remembers the token encrypted, as the
+WPF app does (#154), and keeps its own data folder (see "Where things are
+stored").
 
 ```bash
 dotnet run --project src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj
@@ -157,9 +159,16 @@ src/
                              key on macOS and Linux
   DesktopNMS.Avalonia/      Avalonia application for Windows, macOS and Linux
                              (#153), replacing the WPF app once the views are
-                             ported (#250). A scaffold for now
-    Views/                  Avalonia views
-    Infrastructure/         AvaloniaUiThread
+                             ported (#250)
+    Views/                  Avalonia views; pages not ported yet show
+                             NotPortedView
+    Themes/                 Palette (dark and light) and Styles, ported
+                             from the WPF theme as classes
+    Infrastructure/         AvaloniaUiThread and AvaloniaUiPlatform, the
+                             theme, Modal (synchronous dialogs) and window
+                             placement
+    Services/               WindowService, and stand-ins for platform
+                             services not ported yet
   DesktopNMS/               WPF application (product name DashyNMS)
     Views/                  WPF views and code-behind; lists' grouping and
                              header sorting are applied here

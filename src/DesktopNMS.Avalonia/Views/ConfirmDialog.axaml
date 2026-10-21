@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        x:Class="DesktopNMS.Views.ConfirmDialog"
+        x:DataType="vm:ConfirmDialogViewModel"
+        Title="{Binding Title}"
+        Width="420"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- The themed dialog every confirmation and notice uses, never the OS's
+         own message box (#250, as the WPF app's ConfirmDialog). -->
+    <Grid RowDefinitions="Auto,Auto">
+        <StackPanel Grid.Row="0" Margin="24,24,24,10">
+            <TextBlock Text="{Binding Title}" Classes="heading" Margin="0,0,0,10"
+                       Classes.error="{Binding IsError}" />
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+            <CheckBox Content="{Binding DontAskAgainLabel}"
+                      IsChecked="{Binding DontAskAgain}"
+                      Margin="0,18,0,0"
+                      IsVisible="{Binding ShowDontAskAgain}" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="24,14">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <!-- Enter cancels a destructive action rather than confirming
+                     it (#66): deleting takes a click or Tab. -->
+                <Button x:Name="CancelButton"
+                        Content="Cancel"
+                        Command="{Binding CancelCommand}"
+                        IsCancel="True"
+                        IsDefault="{Binding IsDestructive}"
+                        Padding="16,7"
+                        IsVisible="{Binding ShowCancel}" />
+                <Button x:Name="ConfirmButton"
+                        Content="{Binding ConfirmLabel}"
+                        Command="{Binding ConfirmCommand}"
+                        Classes="primary"
+                        Classes.destructive="{Binding IsDestructive}"
+                        IsDefault="{Binding !IsDestructive}"
+                        IsCancel="{Binding !ShowCancel}"
+                        Padding="16,7" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>
