@@ -238,6 +238,7 @@
                       SelectedItem="{Binding SelectedAlert}"
                       SelectionMode="Extended"
                       Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}"
+                      RowDetailsVisibilityMode="Collapsed"
                       SelectionChanged="OnGridSelectionChanged"
                       MouseDoubleClick="OnGridDoubleClick">
                 <DataGrid.Columns>
@@ -283,19 +284,54 @@
                             <DataTemplate>
                                 <Grid Margin="10,0">
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0"
-                                               Text="{Binding RuleName}"
-                                               VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis"
-                                               ToolTip="{Binding RuleName}"
-                                               Opacity="{Binding State, Converter={StaticResource StateToOpacity}}" />
+                                    <!-- A rule firing on several cores, ports or sensors of one
+                                         device is one row (#353); this opens its list of faults. -->
+                                    <ToggleButton Grid.Column="0"
+                                                  IsChecked="{Binding IsExpanded}"
+                                                  Style="{StaticResource IconButtonStyle}"
+                                                  Width="22"
+                                                  Height="22"
+                                                  Margin="0,0,6,0"
+                                                  ToolTip="Show each fault"
+                                                  Visibility="{Binding IsGroup, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="&#xE76C;" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                            <Setter Property="Text" Value="&#xE70D;" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </ToggleButton>
+                                    <StackPanel Grid.Column="1"
+                                                VerticalAlignment="Center"
+                                                Opacity="{Binding State, Converter={StaticResource StateToOpacity}}">
+                                        <TextBlock Text="{Binding RuleName}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding RuleName}" />
+                                        <!-- "8 faults · 3 acknowledged" for a group, "CPU 0" for one fault. -->
+                                        <TextBlock Text="{Binding GroupSummary}"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11"
+                                                   Visibility="{Binding IsGroup, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Text="{Binding EntityName}"
+                                                   Style="{StaticResource SubtleTextStyle}"
+                                                   FontSize="11"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Visibility="{Binding HasEntityName, Converter={StaticResource BoolToVisibility}}" />
+                                    </StackPanel>
                                     <!-- Runbook link (issue #141), like the
                                          icon LibreNMS's own alert list shows
                                          for a rule with a procedure URL. -->
-                                    <Button Grid.Column="1"
+                                    <Button Grid.Column="2"
                                             Style="{StaticResource IconButtonStyle}"
                                             Width="24"
                                             Height="24"
@@ -346,8 +382,63 @@
                                 <Setter Property="Cursor" Value="Wait" />
                             </DataTrigger>
                         </Style.Triggers>
+                        <Setter Property="DetailsVisibility" Value="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}" />
                     </Style>
                 </DataGrid.RowStyle>
+
+                <!-- An expanded group's faults (#353): what each is about, its own
+                     state, and acting on one alone - which LibreNMS only allows when
+                     the rule notifies per entity, so Core checks before sending. -->
+                <DataGrid.RowDetailsTemplate>
+                    <DataTemplate>
+                        <ItemsControl ItemsSource="{Binding Children}" Margin="44,0,12,8">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="110" />
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0"
+                                                Width="3"
+                                                Height="14"
+                                                CornerRadius="1.5"
+                                                Margin="0,0,9,0"
+                                                Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding DisplayName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="2" Text="{Binding StateText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="3" Text="{Binding TimestampText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="4" Orientation="Horizontal">
+                                            <Button Style="{StaticResource IconButtonStyle}"
+                                                    Width="24"
+                                                    Height="24"
+                                                    Command="{Binding DataContext.AcknowledgeFaultCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip="Acknowledge only this fault - if LibreNMS would act on the whole group, nothing is sent and you're told why"
+                                                    Visibility="{Binding IsAcknowledged, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}"
+                                                    views:PermissionGate.Requires="AcknowledgeAlerts">
+                                                <TextBlock Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                                            </Button>
+                                            <Button Style="{StaticResource IconButtonStyle}"
+                                                    Width="24"
+                                                    Height="24"
+                                                    Command="{Binding DataContext.UnacknowledgeFaultCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip="Return only this fault to active"
+                                                    Visibility="{Binding IsAcknowledged, Converter={StaticResource BoolToVisibility}}"
+                                                    views:PermissionGate.Requires="AcknowledgeAlerts">
+                                                <TextBlock Text="&#xE7A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </DataTemplate>
+                </DataGrid.RowDetailsTemplate>
 
                 <DataGrid.ContextMenu>
                     <ContextMenu>
@@ -432,7 +523,7 @@
                        Visibility="{Binding LoadState.IsLoading, Converter={StaticResource BoolToVisibility}}" />
 
             <TextBlock Grid.Column="0"
-                       Text="No alerts."
+                       Text="No alerts visible to this account."
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        IsHitTestVisible="False"

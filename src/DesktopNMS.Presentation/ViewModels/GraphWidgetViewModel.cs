@@ -339,7 +339,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
         catch (LibreNmsApiException ex)
         {
             _logger.LogWarning(ex, "Could not load graph types for device {DeviceId} (Graph widget {WidgetId})", deviceId, Id);
-            ErrorMessage = ex.ToUserMessage();
+            ErrorMessage = GraphErrors.Describe(ex);
             IsLoading = false;
         }
     }
@@ -382,7 +382,7 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
             }
 
             _logger.LogWarning(ex, "Could not load graph {GraphName} for device {DeviceId} (Graph widget {WidgetId})", graph.Name, deviceId, Id);
-            ErrorMessage = ex.ToUserMessage();
+            ErrorMessage = GraphErrors.Describe(ex);
             Svg = null;
         }
         finally

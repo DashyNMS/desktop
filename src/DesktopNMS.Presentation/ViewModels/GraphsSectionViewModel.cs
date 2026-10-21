@@ -354,7 +354,7 @@ public sealed class GraphsSectionViewModel : ObservableObject
         catch (LibreNmsApiException ex)
         {
             _logger.LogWarning(ex, "Could not load graph types for device {DeviceId}", _deviceId);
-            ErrorMessage = ex.ToUserMessage();
+            ErrorMessage = GraphErrors.Describe(ex);
             IsLoading = false;
         }
     }
@@ -440,7 +440,7 @@ public sealed class GraphsSectionViewModel : ObservableObject
         catch (LibreNmsApiException ex)
         {
             _logger.LogWarning(ex, "Could not load graph {GraphName} for device {DeviceId}", graph.Name, _deviceId);
-            ErrorMessage = ex.ToUserMessage();
+            ErrorMessage = GraphErrors.Describe(ex);
             CurrentSvg = null;
             Legend.Clear();
             RaiseLegendChanged();

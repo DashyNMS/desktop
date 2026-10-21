@@ -935,7 +935,7 @@ public partial class App : Application
         {
             switch (request.Action)
             {
-                case ToastAction.Acknowledge when request.AlertId is { } ackId:
+                case ToastAction.Acknowledge when request.Alert is { } ackId:
                     await _mainViewModel.AcknowledgeAsync(ackId).ConfigureAwait(true);
                     break;
 
@@ -945,7 +945,7 @@ public partial class App : Application
 
                 default:
                     _services.GetRequiredService<IWindowService>().ShowMain();
-                    if (request.AlertId is { } showId)
+                    if (request.Alert is { } showId)
                     {
                         _mainViewModel.SelectAlert(showId);
                     }

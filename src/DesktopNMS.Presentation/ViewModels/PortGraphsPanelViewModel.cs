@@ -230,7 +230,7 @@ public sealed class PortGraphsPanelViewModel : ObservableObject
                 _logger.LogWarning(ex, "Could not load the {GraphType} graph for port {IfName} on device {DeviceId}", graph.GraphType, ifName, deviceId);
                 if (version == _version)
                 {
-                    graph.Show(null, ex.ToUserMessage());
+                    graph.Show(null, GraphErrors.Describe(ex));
                 }
             }
         }

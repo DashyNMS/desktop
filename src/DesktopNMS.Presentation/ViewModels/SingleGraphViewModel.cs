@@ -90,7 +90,7 @@ public sealed class SingleGraphViewModel : ObservableObject
             // problem worth surfacing the way the dedicated Graphs
             // section's own failures are.
             _logger.LogDebug(ex, "Could not load the {GraphName} sparkline for device {DeviceId}", _graphName, _deviceId);
-            ErrorMessage = ex.ToUserMessage();
+            ErrorMessage = GraphErrors.Describe(ex);
         }
         finally
         {
