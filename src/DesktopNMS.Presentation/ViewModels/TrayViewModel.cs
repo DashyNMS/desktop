@@ -28,14 +28,14 @@ public sealed class TrayAlertViewModel
 {
     public TrayAlertViewModel(AlertItemViewModel alert)
     {
-        AlertId = alert.Id;
+        Alert = alert.Identity;
         DeviceName = alert.DeviceName;
-        RuleName = alert.RuleName;
+        RuleName = alert.GroupSummary is { } summary ? $"{alert.RuleName} · {summary}" : alert.RuleName;
         AgeText = alert.AgeText;
         Severity = alert.Severity;
     }
 
-    public int AlertId { get; }
+    public AlertKey Alert { get; }
 
     public string DeviceName { get; }
 
@@ -76,7 +76,7 @@ public sealed class TrayViewModel : ObservableObject
             CloseRequested?.Invoke(this, EventArgs.Empty);
             if (p is TrayAlertViewModel alert)
             {
-                AlertRequested?.Invoke(this, alert.AlertId);
+                AlertRequested?.Invoke(this, alert.Alert);
             }
         });
     }
@@ -100,8 +100,8 @@ public sealed class TrayViewModel : ObservableObject
 
     public event EventHandler? InstallUpdateRequested;
 
-    /// <summary>One of the quick look's alerts, by id.</summary>
-    public event EventHandler<int>? AlertRequested;
+    /// <summary>One of the quick look's alerts.</summary>
+    public event EventHandler<AlertKey>? AlertRequested;
 
     /// <summary>Any action taken: the quick look closes.</summary>
     public event EventHandler? CloseRequested;

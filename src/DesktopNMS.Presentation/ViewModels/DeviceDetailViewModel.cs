@@ -2668,11 +2668,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         var serverTimestampsAreUtc = _settings.Current.ServerTimestampsAreUtc;
 
-        var mine = fleet
-            .Where(a => a.DeviceId == _deviceId && a.State is AlertState.Active or AlertState.Acknowledged)
-            .OrderByDescending(a => a.Severity.SortRank())
-            .ThenByDescending(a => a.Timestamp)
-            .Select(a => new ActiveAlertItemViewModel(a, serverTimestampsAreUtc))
+        // One row per rule firing on this device (#353), worst first - Core's own order.
+        var mine = AlertGrouping.ByDeviceAndRule(fleet.Where(a => a.DeviceId == _deviceId && a.State is AlertState.Active or AlertState.Acknowledged))
+            .Select(g => new ActiveAlertItemViewModel(g, serverTimestampsAreUtc))
             .ToList();
 
         using (ActiveAlerts.BeginBatch())
@@ -5093,26 +5091,30 @@ public sealed class ArpItemViewModel : ObservableObject
 /// <summary>One row in a device's currently active alerts, shown on the Overview tab.</summary>
 public sealed class ActiveAlertItemViewModel
 {
-    private readonly Alert _alert;
+    private readonly AlertGroup _group;
     private readonly bool _serverTimestampsAreUtc;
 
-    public ActiveAlertItemViewModel(Alert alert, bool serverTimestampsAreUtc)
+    /// <summary>One rule firing on this device - every fault LibreNMS 26.10 keeps for it (#353).</summary>
+    public ActiveAlertItemViewModel(AlertGroup group, bool serverTimestampsAreUtc)
     {
-        _alert = alert;
+        _group = group;
         _serverTimestampsAreUtc = serverTimestampsAreUtc;
     }
 
-    public string RuleName => _alert.DisplayRuleName;
+    /// <summary>"Processor usage · 8 faults" for a group, "Port down · Gi1/0/24" for one fault about something, else the rule.</summary>
+    public string RuleName => !_group.IsSingle
+        ? $"{_group.DisplayRuleName} · {_group.FaultCount} faults"
+        : AlertGrouping.EntityName(_group.Primary) is { } entity ? $"{_group.DisplayRuleName} · {entity}" : _group.DisplayRuleName;
 
-    public AlertSeverity Severity => _alert.Severity;
+    public AlertSeverity Severity => _group.Severity;
 
     public string SeverityText => Severity.ToDisplayString();
 
-    public AlertState State => _alert.State;
+    public AlertState State => _group.State;
 
-    public string StateText => State.ToDisplayString();
+    public string StateText => _group.IsPartlyAcknowledged ? "Partly acknowledged" : State.ToDisplayString();
 
-    private DateTime? LocalTimestamp => _alert.Timestamp is { } t
+    private DateTime? LocalTimestamp => (_group.LastChanged ?? _group.Primary.Timestamp) is { } t
         ? (_serverTimestampsAreUtc ? DateTime.SpecifyKind(t, DateTimeKind.Utc).ToLocalTime() : t)
         : null;
 

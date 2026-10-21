@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
@@ -24,7 +25,7 @@ public sealed class AlertsWidgetViewModel : DashboardWidgetViewModel, IDisposabl
     private readonly ISettingsStore _settings;
     private readonly IDeviceCache _devices;
     private readonly IUiDispatcher _dispatcher;
-    private readonly Dictionary<int, AlertItemViewModel> _index = new();
+    private readonly Dictionary<AlertGroupKey, AlertItemViewModel> _index = new();
 
     private IReadOnlyList<Alert> _lastAlerts = Array.Empty<Alert>();
     private bool _showCritical;
@@ -193,35 +194,36 @@ public sealed class AlertsWidgetViewModel : DashboardWidgetViewModel, IDisposabl
         });
     }
 
-    /// <summary>Re-applies the current filter to the last-seen alerts. Cheap - no API call.</summary>
+    /// <summary>Re-applies the current filter to the last-seen alerts. Cheap - no API call. One row per device and rule (#353).</summary>
     private void Render()
     {
         var context = AlertDisplayContext.Create(_settings.Current, _session.Connection, _devices);
 
-        var filtered = _lastAlerts
+        var groups = AlertGrouping.ByDeviceAndRule(_lastAlerts.Where(a => a.State != AlertState.Recovered));
+        var filtered = groups
             .Where(PassesFilter)
-            .OrderByDescending(a => a.Severity)
-            .ThenByDescending(a => a.Timestamp)
+            .OrderByDescending(g => g.Severity)
+            .ThenByDescending(g => g.LastChanged)
             .ToList();
 
-        var incoming = filtered.Select(a => a.Id).ToHashSet();
+        var incoming = filtered.Select(g => g.Key).ToHashSet();
 
         for (var i = Alerts.Count - 1; i >= 0; i--)
         {
-            if (!incoming.Contains(Alerts[i].Id))
+            if (!incoming.Contains(Alerts[i].Key))
             {
-                _index.Remove(Alerts[i].Id);
+                _index.Remove(Alerts[i].Key);
                 Alerts.RemoveAt(i);
             }
         }
 
         for (var target = 0; target < filtered.Count; target++)
         {
-            var alert = filtered[target];
+            var group = filtered[target];
 
-            if (_index.TryGetValue(alert.Id, out var existing))
+            if (_index.TryGetValue(group.Key, out var existing))
             {
-                existing.Update(alert, context);
+                existing.Update(group, context);
 
                 var currentIndex = Alerts.IndexOf(existing);
                 if (currentIndex >= 0 && currentIndex != target && target < Alerts.Count)
@@ -231,47 +233,41 @@ public sealed class AlertsWidgetViewModel : DashboardWidgetViewModel, IDisposabl
             }
             else
             {
-                var item = new AlertItemViewModel(alert, context);
-                _index[alert.Id] = item;
+                var item = new AlertItemViewModel(group, context);
+                _index[group.Key] = item;
                 Alerts.Insert(Math.Min(target, Alerts.Count), item);
             }
         }
 
         // Recovered alerts are never shown here regardless of the severity/
         // acknowledged toggles, so they don't count as "there's data the
-        // filter is hiding" - only non-recovered alerts count toward the
+        // filter is hiding" - only open groups count toward the
         // empty-vs-no-matches distinction.
-        var totalCount = _lastAlerts.Count(a => a.State != AlertState.Recovered);
-        var active = _lastAlerts.Where(a => a.State != AlertState.Recovered).ToList();
-        CriticalCount = active.Count(a => !a.IsAcknowledged && a.Severity == AlertSeverity.Critical);
-        WarningCount = active.Count(a => !a.IsAcknowledged && a.Severity == AlertSeverity.Warning);
-        AcknowledgedCount = active.Count(a => a.IsAcknowledged);
+        CriticalCount = groups.Count(g => g.State != AlertState.Acknowledged && g.Severity == AlertSeverity.Critical);
+        WarningCount = groups.Count(g => g.State != AlertState.Acknowledged && g.Severity == AlertSeverity.Warning);
+        AcknowledgedCount = groups.Count(g => g.State == AlertState.Acknowledged);
         OnPropertyChanged(nameof(CriticalCount));
         OnPropertyChanged(nameof(WarningCount));
         OnPropertyChanged(nameof(AcknowledgedCount));
-        LoadState.CompleteLoad(totalCount, Alerts.Count);
+        LoadState.CompleteLoad(groups.Count, Alerts.Count);
     }
 
-    private bool PassesFilter(Alert alert)
+    private bool PassesFilter(AlertGroup group)
     {
-        if (alert.State == AlertState.Recovered)
+        // A group still needing attention shows under its severity even with
+        // acknowledged ones hidden - a new fault beside acknowledged ones counts.
+        if (group.State == AlertState.Acknowledged && !IncludeAcknowledged)
         {
             return false;
         }
 
-        if (alert.IsAcknowledged && !IncludeAcknowledged)
-        {
-            return false;
-        }
-
-        return alert.Severity switch
+        return group.Severity switch
         {
             AlertSeverity.Critical => ShowCritical,
             AlertSeverity.Warning => ShowWarning,
             _ => true,
         };
     }
-
     public void Dispose() => _monitor.Polled -= OnPolled;
 }
 

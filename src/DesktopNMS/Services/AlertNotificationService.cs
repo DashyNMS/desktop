@@ -24,7 +24,9 @@ namespace DesktopNMS.Services;
 public sealed class AlertNotificationService : IAlertNotificationService
 {
     private const string ArgumentAction = "action";
-    private const string ArgumentAlertId = "alertId";
+    // The alert's AlertKey ("fault:12"), never a bare id (DashyNMS/core#5).
+    private const string ArgumentAlert = "alert";
+    private const string TagPrefix = "group-";
     // Toast Group is capped at 16 characters on older Windows 10 builds.
     private const string ToastGroup = "DashyNMS";
 
@@ -85,6 +87,15 @@ public sealed class AlertNotificationService : IAlertNotificationService
 
     public void Handle(AlertPollResult result)
     {
+        if (result.Succeeded && result.IsBaseline)
+        {
+            // The server switched between alerts and faults, or this is the first
+            // poll after an upgrade: toasts still showing name ids that may now
+            // mean something else, so their buttons mustn't act on them.
+            WithdrawAlertToasts();
+            return;
+        }
+
         if (!result.Succeeded || result.Changes.Count == 0)
         {
             return;
@@ -149,7 +160,7 @@ public sealed class AlertNotificationService : IAlertNotificationService
 
             var builder = new ToastContentBuilder()
                 .AddArgument(ArgumentAction, "show")
-                .AddArgument(ArgumentAlertId, alert.Id)
+                .AddArgument(ArgumentAlert, alert.Identity.ToString())
                 .AddText(notification.Title)
                 .AddText(notification.Body);
 
@@ -166,8 +177,11 @@ public sealed class AlertNotificationService : IAlertNotificationService
 
             builder.Show(toast =>
             {
-                toast.Tag = BuildTag(alert.Id, change.Kind);
+                // One toast per device and rule (#353): a later change to the group
+                // replaces it, and an update changes it without popping up again.
+                toast.Tag = BuildTag(change);
                 toast.Group = ToastGroup;
+                toast.SuppressPopup = notification.IsUpdate;
 
                 // Keep problems in the notification centre for a day; clear
                 // informational toasts out after an hour.
@@ -175,8 +189,9 @@ public sealed class AlertNotificationService : IAlertNotificationService
             });
 
             _logger.LogInformation(
-                "Toast shown for alert {AlertId} ({Kind}, {Persistence}): {Title}",
-                alert.Id,
+                "Toast {Shown} for {Group} ({Kind}, {Persistence}): {Title}",
+                notification.IsUpdate ? "updated" : "shown",
+                change.Group,
                 change.Kind,
                 notification.Persistence,
                 notification.Title);
@@ -278,18 +293,6 @@ public sealed class AlertNotificationService : IAlertNotificationService
         }
     }
 
-    /// <summary>
-    /// Toast kinds that ask for attention about a problem - the ones worth
-    /// removing once that problem is dealt with. Every toast is tagged per
-    /// alert id and kind (see <see cref="BuildTag"/>), so removing one that
-    /// was never shown is a harmless no-op.
-    /// </summary>
-    private static readonly AlertChangeKind[] ProblemKinds =
-    {
-        AlertChangeKind.New,
-        AlertChangeKind.Reopened,
-        AlertChangeKind.Unacknowledged,
-    };
 
     /// <summary>
     /// Issue #160: a sticky Critical toast that fired while you were away
@@ -315,17 +318,45 @@ public sealed class AlertNotificationService : IAlertNotificationService
                 continue;
             }
 
-            foreach (var kind in ProblemKinds)
+            // Every toast for a group shares its tag (see BuildTag), so this
+            // removes the problem toast; one never shown is a harmless no-op.
+            try
             {
-                try
+                ToastNotificationManagerCompat.History.Remove(BuildTag(change), ToastGroup);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not remove the toast for {Group}", change.Group);
+            }
+        }
+    }
+
+    /// <summary>Removes every alert toast - not the update or preview ones.</summary>
+    private void WithdrawAlertToasts()
+    {
+        if (_toastsUnavailable)
+        {
+            return;
+        }
+
+        try
+        {
+            var removed = 0;
+            foreach (var toast in ToastNotificationManagerCompat.History.GetHistory())
+            {
+                // Tags from before #353 were "alert-<id>-<kind>".
+                if (toast.Tag is { } tag && (tag.StartsWith(TagPrefix, StringComparison.Ordinal) || tag.StartsWith("alert-", StringComparison.Ordinal) || tag == "summary"))
                 {
-                    ToastNotificationManagerCompat.History.Remove(BuildTag(change.Alert.Id, kind), ToastGroup);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug(ex, "Could not remove the {Kind} toast for alert {AlertId}", kind, change.Alert.Id);
+                    ToastNotificationManagerCompat.History.Remove(tag, toast.Group);
+                    removed++;
                 }
             }
+
+            _logger.LogInformation("Withdrew {Count} alert toast(s) after recording a new baseline", removed);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not withdraw alert toasts");
         }
     }
 
@@ -352,13 +383,14 @@ public sealed class AlertNotificationService : IAlertNotificationService
     {
         var alert = change.Alert;
 
-        // No Acknowledge button once LibreNMS has refused it for this token (#51).
-        if (change.IsProblem && !_permissions.IsRefused(ApiPermission.AcknowledgeAlerts))
+        // No Acknowledge button once LibreNMS has refused it - for this token
+        // (#51), or on 26.10 for this alert or device (DashyNMS/core#9).
+        if (change.IsProblem && !_permissions.IsAcknowledgeRefused(alert.Identity))
         {
             builder.AddButton(new ToastButton()
-                .SetContent("Acknowledge")
+                .SetContent(change.OutstandingCount > 1 ? $"Acknowledge all {change.OutstandingCount}" : "Acknowledge")
                 .AddArgument(ArgumentAction, "acknowledge")
-                .AddArgument(ArgumentAlertId, alert.Id)
+                .AddArgument(ArgumentAlert, alert.Identity.ToString())
                 .SetBackgroundActivation());
         }
 
@@ -408,10 +440,11 @@ public sealed class AlertNotificationService : IAlertNotificationService
         return time is null ? host : $"{host} at {time}";
     }
 
-    private static string BuildTag(int alertId, AlertChangeKind kind)
+    /// <summary>"group-device:7/rule:3" - one per device and rule, so its toasts replace each other.</summary>
+    private static string BuildTag(AlertChange change)
     {
         // Toast tags are limited to 64 characters.
-        var tag = $"alert-{alertId}-{kind}";
+        var tag = TagPrefix + change.NotificationTag;
         return tag.Length <= 64 ? tag : tag[..64];
     }
 
@@ -422,8 +455,7 @@ public sealed class AlertNotificationService : IAlertNotificationService
             var arguments = ToastArguments.Parse(args.Argument);
 
             var action = arguments.Contains(ArgumentAction) ? arguments[ArgumentAction] : "show";
-            int? alertId = arguments.Contains(ArgumentAlertId)
-                           && int.TryParse(arguments[ArgumentAlertId], NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            AlertKey? alertId = arguments.Contains(ArgumentAlert) && AlertKey.TryParse(arguments[ArgumentAlert], out var parsed)
                 ? parsed
                 : null;
 

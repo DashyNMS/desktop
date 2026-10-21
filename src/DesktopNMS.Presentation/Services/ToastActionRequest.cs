@@ -1,4 +1,5 @@
 using System;
+using DesktopNMS.Core.Models;
 
 namespace DesktopNMS.Services;
 
@@ -18,14 +19,18 @@ public enum ToastAction
 /// <summary>A toast activation, marshalled onto the UI thread by the app.</summary>
 public sealed class ToastActionRequest : EventArgs
 {
-    public ToastActionRequest(ToastAction action, int? alertId)
+    public ToastActionRequest(ToastAction action, AlertKey? alert)
     {
         Action = action;
-        AlertId = alertId;
+        Alert = alert;
     }
 
     public ToastAction Action { get; }
 
-    /// <summary>Null for toasts that are not about a specific alert.</summary>
-    public int? AlertId { get; }
+    /// <summary>
+    /// The alert or fault the toast was about - "fault:12", never a bare id,
+    /// so a toast from before LibreNMS 26.10 can't act on an unrelated fault
+    /// (DashyNMS/core#5). Null for toasts that are not about a specific alert.
+    /// </summary>
+    public AlertKey? Alert { get; }
 }

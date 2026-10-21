@@ -150,7 +150,7 @@
                         Margin="14,6,14,0" />
             </StackPanel>
 
-            <TextBlock Text="Nothing needs attention."
+            <TextBlock Text="Nothing this account can see needs attention."
                        Style="{StaticResource SubtleTextStyle}"
                        Margin="14,0,14,2"
                        Visibility="{Binding ShowNoAlerts, Converter={StaticResource BoolToVisibility}}" />

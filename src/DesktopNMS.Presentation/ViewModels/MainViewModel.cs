@@ -49,7 +49,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly DemoMode _demo;
     private readonly ILogger<MainViewModel> _logger;
     private readonly IUiDispatcher _dispatcher;
-    private readonly Dictionary<int, AlertItemViewModel> _index = new();
+    // One row per device and rule (#353), found by its key or by any fault in it.
+    private readonly Dictionary<AlertGroupKey, AlertItemViewModel> _index = new();
+
+    private AlertActions? _alertActions;
+
+    /// <summary>Acknowledging and unmuting with the scope LibreNMS 26.10 applies (DashyNMS/core#6).</summary>
+    private AlertActions Actions => _alertActions ??= new AlertActions(_client.Alerts, _client.Rules);
     private readonly IUiTimer _ageTimer;
     private readonly AutoRefreshTimer _refreshCountdown;
 
@@ -891,7 +897,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private AlertChangeKind? _bulkKind;
     private string? _actionToastText;
     private bool _actionToastIsError;
-    private IReadOnlyList<AlertItemViewModel> _actionToastUndo = Array.Empty<AlertItemViewModel>();
+    private IReadOnlyList<(AlertItemViewModel Item, AlertActionResult Result)> _actionToastUndo = Array.Empty<(AlertItemViewModel, AlertActionResult)>();
     private IUiTimer? _actionToastTimer;
 
     /// <summary>"Acknowledged core-sw-01 · Port down" - shown for a few seconds after acknowledging or returning to active.</summary>
@@ -927,7 +933,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private RelayCommand? _dismissActionToastCommand;
 
-    private void ShowActionToast(string text, bool isError, IReadOnlyList<AlertItemViewModel> undo)
+    private void ShowActionToast(string text, bool isError, IReadOnlyList<(AlertItemViewModel Item, AlertActionResult Result)> undo)
     {
         _actionToastUndo = undo;
         ActionToastIsError = isError;
@@ -944,7 +950,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void HideActionToast()
     {
         _actionToastTimer?.Stop();
-        _actionToastUndo = Array.Empty<AlertItemViewModel>();
+        _actionToastUndo = Array.Empty<(AlertItemViewModel, AlertActionResult)>();
         ActionToastText = null;
         OnPropertyChanged(nameof(ActionToastCanUndo));
         UndoAcknowledgeCommand.RaiseCanExecuteChanged();
@@ -960,12 +966,34 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // Only what the acknowledgement verifiably changed goes back: the whole
+        // group when nothing in it was acknowledged before, otherwise fault by fault.
+        var results = items.ToDictionary(i => i.Item, i => i.Result);
         await RunAlertActionAsync(
-            items,
+            items.Select(i => i.Item).ToList(),
             "Could not undo",
-            item => _client.Alerts.UnmuteAsync(item.Id, "Unacknowledged from DashyNMS"),
-            "Returned to active",
+            item => UndoAsync(item, results[item]),
             AlertChangeKind.Unacknowledged).ConfigureAwait(true);
+    }
+
+    private async Task<AlertActionResult> UndoAsync(AlertItemViewModel item, AlertActionResult acknowledged)
+    {
+        if (acknowledged.AlreadyDone.Count == 0 && acknowledged.Changed.Count >= item.FaultCount)
+        {
+            return await Actions.UnacknowledgeGroupAsync(item.Key, "Unacknowledged from DashyNMS").ConfigureAwait(true);
+        }
+
+        AlertActionResult? last = null;
+        foreach (var fault in acknowledged.Changed)
+        {
+            last = await Actions.UnacknowledgeFaultAsync(fault, "Unacknowledged from DashyNMS").ConfigureAwait(true);
+            if (last.RefusedScope is not null)
+            {
+                break;
+            }
+        }
+
+        return last ?? await Actions.UnacknowledgeGroupAsync(item.Key, "Unacknowledged from DashyNMS").ConfigureAwait(true);
     }
 
     /// <summary>"core-sw-01 · Port down" for one alert, "3 alerts" for several.</summary>
@@ -1125,8 +1153,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// the tray and the badge always agree.
     /// </summary>
     private IEnumerable<AlertItemViewModel> BadgeAlerts => Alerts.Where(a => AlertCounting.Counts(
-        a.State,
-        a.Severity,
+        a.Group,
         _settings.Current.Notifications.CountFrom,
         _settings.Current.AlertTabBadgeIncludesAcknowledged));
 
@@ -1419,10 +1446,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>The row holding the alert or fault <paramref name="key"/>, if it's listed.</summary>
+    private AlertItemViewModel? RowFor(AlertKey key) => Alerts.FirstOrDefault(a => a.Contains(key));
+
     /// <summary>Selects the given alert, bringing it into view. Used by toast activation.</summary>
-    public void SelectAlert(int alertId)
+    public void SelectAlert(AlertKey alert)
     {
-        if (_index.TryGetValue(alertId, out var item))
+        if (RowFor(alert) is { } item)
         {
             // A filter chip may be hiding the alert the user just clicked on.
             if (!FilterAlert(item))
@@ -1435,13 +1465,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Acknowledges an alert by id, regardless of what is currently selected
-    /// in the grid. Used by the toast button, which acts on whichever alert
-    /// the toast was about.
+    /// Acknowledges the device/rule group an alert or fault belongs to,
+    /// regardless of what is currently selected in the grid. Used by the
+    /// toast button, which acts on whichever alert the toast was about.
     /// </summary>
-    public async Task AcknowledgeAsync(int alertId)
+    public async Task AcknowledgeAsync(AlertKey alert)
     {
-        if (!_index.TryGetValue(alertId, out var item) || !_session.IsConnected)
+        if (RowFor(alert) is not { } item || !_session.IsConnected)
         {
             return;
         }
@@ -1450,20 +1480,35 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         try
         {
-            await _client.Alerts.AcknowledgeAsync(item.Id, "Acknowledged from DashyNMS", untilClear: true).ConfigureAwait(true);
-            _selfActions.Record(item.Id, AlertChangeKind.Acknowledged);
-            StatusMessage = $"Acknowledged alert #{item.Id}.";
-            _logger.LogInformation("Acknowledged alert {AlertId}", item.Id);
+            var result = await Actions.AcknowledgeGroupAsync(item.Key, "Acknowledged from DashyNMS", untilClear: true).ConfigureAwait(true);
+            RecordSelfActions(result);
+            StatusMessage = result.Summary + ".";
+            _logger.LogInformation("{Summary} for {Group}", result.Summary, item.Key);
+            if (!result.Succeeded)
+            {
+                _windows.ShowError("Acknowledge failed", result.Summary);
+            }
+
             RequestRefresh();
         }
         catch (LibreNmsApiException ex)
         {
-            _logger.LogWarning(ex, "Could not acknowledge alert {AlertId}", item.Id);
+            _logger.LogWarning(ex, "Could not acknowledge {Group}", item.Key);
             _windows.ShowError("Acknowledge failed", ex.ToUserMessage());
         }
         finally
         {
             item.IsUpdating = false;
+        }
+    }
+
+    /// <summary>Tells the notification planner which changes were this app's own, so it doesn't announce them back.</summary>
+    private void RecordSelfActions(AlertActionResult result)
+    {
+        var kind = result.Kind == AlertActionKind.Acknowledge ? AlertChangeKind.Acknowledged : AlertChangeKind.Unacknowledged;
+        foreach (var fault in result.Changed)
+        {
+            _selfActions.Record(fault.Id, kind);
         }
     }
 
@@ -1501,7 +1546,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ApplyAlerts(result.Alerts);
 
         StatusMessage = TotalCount == 0
-            ? "No alerts."
+            ? VisibleTotals.Describe(SourceOutcome.Empty, 0, "alerts") + "."
             : $"{CriticalCount} critical, {WarningCount} warning, {AcknowledgedCount} acknowledged.";
 
         OnPropertyChanged(nameof(LastUpdatedText));
@@ -1512,7 +1557,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void ApplyAlerts(IReadOnlyList<Alert> alerts)
     {
         var context = CreateDisplayContext();
-        var incoming = alerts.Select(a => a.Id).ToHashSet();
+
+        // One row per device and rule (#353) - a rule firing on eight cores is one row of eight faults.
+        var groups = AlertGrouping.ByDeviceAndRule(alerts);
+        var incoming = groups.Select(g => g.Key).ToHashSet();
 
         var visibilityChanged = false;
 
@@ -1524,27 +1572,27 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             // Drop anything the server no longer reports.
             for (var i = Alerts.Count - 1; i >= 0; i--)
             {
-                if (!incoming.Contains(Alerts[i].Id))
+                if (!incoming.Contains(Alerts[i].Key))
                 {
-                    _index.Remove(Alerts[i].Id);
+                    _index.Remove(Alerts[i].Key);
                     Alerts.RemoveAt(i);
                 }
             }
 
             // Align the collection with the server's ordering, updating in place so
             // the selection and scroll position survive a refresh.
-            for (var target = 0; target < alerts.Count; target++)
+            for (var target = 0; target < groups.Count; target++)
             {
-                var alert = alerts[target];
+                var group = groups[target];
 
-                if (_index.TryGetValue(alert.Id, out var existing))
+                if (_index.TryGetValue(group.Key, out var existing))
                 {
                     // The view only filters an item when it's added, so an alert
                     // updated in place - e.g. now acknowledged, with acknowledged
                     // alerts hidden - would otherwise stay showing until a filter
                     // is next changed.
                     var wasShown = FilterAlert(existing);
-                    existing.Update(alert, context);
+                    existing.Update(group, context);
                     visibilityChanged |= FilterAlert(existing) != wasShown;
 
                     var currentIndex = Alerts.IndexOf(existing, target);
@@ -1555,8 +1603,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 }
                 else
                 {
-                    var item = new AlertItemViewModel(alert, context);
-                    _index[alert.Id] = item;
+                    var item = new AlertItemViewModel(group, context);
+                    _index[group.Key] = item;
                     Alerts.Insert(Math.Min(target, Alerts.Count), item);
                 }
             }
@@ -1573,7 +1621,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RebuildGroupFilter();
 
         // The selected row may have been removed by this refresh.
-        if (SelectedAlert is not null && !_index.ContainsKey(SelectedAlert.Id))
+        if (SelectedAlert is not null && !_index.ContainsKey(SelectedAlert.Key))
         {
             SelectedAlert = null;
         }
@@ -1659,7 +1707,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             // The alert log filters by device but not by rule, so take a deep
             // window: a busy device can log a lot in 30 days.
-            var entries = await _client.Logs.ListAlertLogAsync(item.DeviceId, limit: 500, cancellationToken).ConfigureAwait(true);
+            const int depth = 500;
+            var entries = await _client.Logs.ListAlertLogAsync(item.DeviceId, limit: depth, cancellationToken).ConfigureAwait(true);
             if (cancellationToken.IsCancellationRequested)
             {
                 return;
@@ -1670,7 +1719,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 item.RuleId,
                 item.DeviceId,
                 DateTime.Now,
-                _settings.Current.ServerTimestampsAreUtc);
+                _settings.Current.ServerTimestampsAreUtc,
+                truncated: entries.Count >= depth);
             item.SetHistory(summary.Describe(DateTime.Now));
         }
         catch (OperationCanceledException)
@@ -1696,16 +1746,37 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 .GetConditionFieldsAsync(item.RuleId, cancellationToken)
                 .ConfigureAwait(true);
 
-            var entry = await _client.Logs
-                .GetLatestForRuleAsync(item.DeviceId, item.RuleId, cancellationToken: cancellationToken)
-                .ConfigureAwait(true);
+            // LibreNMS 26.10 keeps each fault's own details on it (DashyNMS/core#7);
+            // a group shows every fault's. Only a legacy alert needs the log.
+            var own = item.Group.Faults
+                .Select(f => AlertFaultDetails.Current(f, conditionFields))
+                .OfType<AlertDetail>()
+                .ToList();
+
+            AlertDetail detail;
+            if (own.Count > 0)
+            {
+                detail = new AlertDetail(
+                    own.SelectMany(d => d.Faults).ToList(),
+                    Array.Empty<AlertFault>(),
+                    Array.Empty<AlertFault>(),
+                    own[0].RecordedAt,
+                    own[0].RuleConditionKnown);
+            }
+            else
+            {
+                var entry = await _client.Logs
+                    .GetLatestForAlertAsync(item.Model, cancellationToken: cancellationToken)
+                    .ConfigureAwait(true);
+                detail = AlertFaultParser.Parse(entry, conditionFields);
+            }
 
             if (cancellationToken.IsCancellationRequested)
             {
                 return;
             }
 
-            item.SetDetail(AlertFaultParser.Parse(entry, conditionFields));
+            item.SetDetail(detail);
         }
         catch (OperationCanceledException)
         {
@@ -1732,35 +1803,93 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     // --------------------------------------------------------------- commands
 
     private Task AcknowledgeSelectedAsync()
-        => RunBulkAsync(
+    {
+        var note = string.IsNullOrWhiteSpace(AcknowledgeNote) ? "Acknowledged from DashyNMS" : AcknowledgeNote.Trim();
+        return RunBulkAsync(
             "Acknowledge failed",
-            item => _client.Alerts.AcknowledgeAsync(
-                item.Id,
-                string.IsNullOrWhiteSpace(AcknowledgeNote) ? "Acknowledged from DashyNMS" : AcknowledgeNote.Trim(),
-                untilClear: true),
-            successCountVerb: "Acknowledged",
-            selfActionKind: AlertChangeKind.Acknowledged,
+            item => Actions.AcknowledgeGroupAsync(item.Key, note, untilClear: true),
+            AlertChangeKind.Acknowledged,
             onAllSucceeded: () => AcknowledgeNote = string.Empty);
+    }
+
+    /// <summary>Acknowledges one fault of an expanded group - sent only when LibreNMS will touch that fault alone (DashyNMS/core#6).</summary>
+    public AsyncRelayCommand AcknowledgeFaultCommand => _acknowledgeFaultCommand ??= new AsyncRelayCommand(
+        p => ActOnFaultAsync(p, acknowledge: true),
+        p => p is AlertFaultRowViewModel { IsAcknowledged: false } && _isConnected && !_isBulkUpdating);
+
+    private AsyncRelayCommand? _acknowledgeFaultCommand;
+
+    /// <summary>Returns one acknowledged fault of an expanded group to active, on the same terms.</summary>
+    public AsyncRelayCommand UnacknowledgeFaultCommand => _unacknowledgeFaultCommand ??= new AsyncRelayCommand(
+        p => ActOnFaultAsync(p, acknowledge: false),
+        p => p is AlertFaultRowViewModel { IsAcknowledged: true } && _isConnected && !_isBulkUpdating);
+
+    private AsyncRelayCommand? _unacknowledgeFaultCommand;
+
+    private async Task ActOnFaultAsync(object? parameter, bool acknowledge)
+    {
+        if (parameter is not AlertFaultRowViewModel row || !_session.IsConnected)
+        {
+            return;
+        }
+
+        HideActionToast();
+        var item = RowFor(row.Identity);
+        if (item is not null)
+        {
+            item.IsUpdating = true;
+        }
+
+        var none = Array.Empty<(AlertItemViewModel, AlertActionResult)>();
+        try
+        {
+            var result = acknowledge
+                ? await Actions.AcknowledgeFaultAsync(row.Fault, string.IsNullOrWhiteSpace(AcknowledgeNote) ? "Acknowledged from DashyNMS" : AcknowledgeNote.Trim()).ConfigureAwait(true)
+                : await Actions.UnacknowledgeFaultAsync(row.Fault, "Unacknowledged from DashyNMS").ConfigureAwait(true);
+            RecordSelfActions(result);
+
+            if (result.RefusedScope is { } scope)
+            {
+                // LibreNMS would act on more than this fault, or that can't be ruled out: nothing was sent.
+                ShowActionToast($"{scope.Explanation} Use {(acknowledge ? "Acknowledge" : "Return to active")} for the whole group.", isError: true, none);
+                return;
+            }
+
+            var undo = acknowledge && result.CanUndo && item is not null ? new[] { (item, result) } : none;
+            ShowActionToast($"{result.Summary} · {row.DisplayName}", isError: !result.Succeeded, undo);
+            StatusMessage = result.Summary + ".";
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogWarning(ex, "Could not change fault {Fault}", row.Identity);
+            ShowActionToast($"{(acknowledge ? "Acknowledge failed" : "Could not unacknowledge")}: {ex.ToUserMessage()}", isError: true, none);
+        }
+        finally
+        {
+            if (item is not null)
+            {
+                item.IsUpdating = false;
+            }
+
+            RequestRefresh();
+        }
+    }
 
     private Task UnacknowledgeSelectedAsync()
         => RunBulkAsync(
             "Could not unacknowledge",
-            item => _client.Alerts.UnmuteAsync(item.Id, "Unacknowledged from DashyNMS"),
-            successCountVerb: "Returned to active",
-            selfActionKind: AlertChangeKind.Unacknowledged);
+            item => Actions.UnacknowledgeGroupAsync(item.Key, "Unacknowledged from DashyNMS"),
+            AlertChangeKind.Unacknowledged);
 
     /// <summary>
-    /// Applies <paramref name="action"/> to every selected alert concurrently.
-    /// One alert failing does not stop the others; failures are reported
-    /// together once everything has finished. Every alert that succeeds is
-    /// recorded against <paramref name="selfActionKind"/> so the poll that
-    /// picks up the change does not also raise a toast about it.
+    /// Applies <paramref name="action"/> to every selected row concurrently.
+    /// One failing does not stop the others; failures are reported together
+    /// once everything has finished.
     /// </summary>
     private async Task RunBulkAsync(
         string failureTitle,
-        Func<AlertItemViewModel, Task> action,
-        string successCountVerb,
-        AlertChangeKind selfActionKind,
+        Func<AlertItemViewModel, Task<AlertActionResult>> action,
+        AlertChangeKind kind,
         Action? onAllSucceeded = null)
     {
         if (!_session.IsConnected || SelectedAlerts.Count == 0)
@@ -1774,7 +1903,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         if (items.Count > Confirmations.BulkThreshold && !_settings.Current.SuppressBulkAlertActionConfirmation)
         {
-            var (title, message, confirmLabel) = BulkConfirmText(selfActionKind, items.Count);
+            var (title, message, confirmLabel) = BulkConfirmText(kind, items.Count);
             var (confirmed, dontAskAgain) = _windows.ConfirmWithOptOut(title, message, confirmLabel);
 
             if (dontAskAgain)
@@ -1789,29 +1918,34 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             }
         }
 
-        await RunAlertActionAsync(items, failureTitle, action, successCountVerb, selfActionKind, onAllSucceeded).ConfigureAwait(true);
+        await RunAlertActionAsync(items, failureTitle, action, kind, onAllSucceeded).ConfigureAwait(true);
     }
 
     /// <summary>
     /// Runs <paramref name="action"/> on <paramref name="items"/> together: the
     /// button says what's happening and the rows dim while it runs, then a
-    /// toast says how it went - with Undo after an acknowledgement.
+    /// toast says what LibreNMS actually did (DashyNMS/core#6) - with Undo for
+    /// what an acknowledgement verifiably changed.
     /// </summary>
     private async Task RunAlertActionAsync(
         IReadOnlyList<AlertItemViewModel> items,
         string failureTitle,
-        Func<AlertItemViewModel, Task> action,
-        string successCountVerb,
-        AlertChangeKind selfActionKind,
+        Func<AlertItemViewModel, Task<AlertActionResult>> action,
+        AlertChangeKind kind,
         Action? onAllSucceeded = null)
     {
         HideActionToast();
-        _bulkKind = selfActionKind;
+        _bulkKind = kind;
         OnPropertyChanged(nameof(AcknowledgeButtonLabel));
         OnPropertyChanged(nameof(UnacknowledgeButtonLabel));
 
+        // On LibreNMS 26.10 one alert or device can be off limits while the rest
+        // aren't (DashyNMS/core#9): skip those, rather than the whole action.
+        var refused = items.Where(i => _client.Permissions.IsAcknowledgeRefused(i.Identity)).ToList();
+        var allowed = items.Except(refused).ToList();
+
         _isBulkUpdating = true;
-        foreach (var item in items)
+        foreach (var item in allowed)
         {
             item.IsUpdating = true;
         }
@@ -1820,26 +1954,35 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanUnacknowledge));
         RaiseCommandStates();
 
+        var results = new List<(AlertItemViewModel Item, AlertActionResult Result)>();
         var failures = new List<(AlertItemViewModel Item, string Message)>();
 
-        await Task.WhenAll(items.Select(async item =>
+        await Task.WhenAll(allowed.Select(async item =>
         {
             try
             {
-                await action(item).ConfigureAwait(true);
-                _selfActions.Record(item.Id, selfActionKind);
+                var result = await action(item).ConfigureAwait(true);
+                RecordSelfActions(result);
+                lock (results)
+                {
+                    results.Add((item, result));
+                    if (!result.Succeeded)
+                    {
+                        failures.Add((item, result.Summary));
+                    }
+                }
             }
             catch (LibreNmsApiException ex)
             {
-                _logger.LogWarning(ex, "Bulk action failed for alert {AlertId}", item.Id);
-                lock (failures)
+                _logger.LogWarning(ex, "Alert action failed for {Group}", item.Key);
+                lock (results)
                 {
                     failures.Add((item, ex.ToUserMessage()));
                 }
             }
         })).ConfigureAwait(true);
 
-        foreach (var item in items)
+        foreach (var item in allowed)
         {
             item.IsUpdating = false;
         }
@@ -1852,36 +1995,47 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanUnacknowledge));
         RaiseCommandStates();
 
-        var succeeded = items.Count - failures.Count;
-        var done = items.Where(i => failures.All(f => f.Item != i)).ToList();
-        var undo = selfActionKind == AlertChangeKind.Acknowledged ? done : (IReadOnlyList<AlertItemViewModel>)Array.Empty<AlertItemViewModel>();
+        var verb = kind == AlertChangeKind.Acknowledged ? "Acknowledged" : "Returned to active";
+        var undo = kind == AlertChangeKind.Acknowledged
+            ? results.Where(r => r.Result.CanUndo).ToList()
+            : new List<(AlertItemViewModel Item, AlertActionResult Result)>();
+        var faultsChanged = results.Sum(r => r.Result.Changed.Count);
+        _logger.LogInformation("{Verb}: {Groups} group(s), {Faults} fault(s) changed, {Failed} failed, {Refused} not allowed", verb, results.Count, faultsChanged, failures.Count, refused.Count);
 
-        if (failures.Count == 0)
+        if (refused.Count > 0)
         {
-            StatusMessage = items.Count == 1
-                ? $"{successCountVerb} alert #{items[0].Id}."
-                : $"{successCountVerb} {succeeded} alerts.";
-            _logger.LogInformation("{Verb} {Count} alert(s): {Ids}", successCountVerb, succeeded, string.Join(", ", items.Select(i => i.Id)));
-            ShowActionToast($"{successCountVerb} {Describe(items)}", isError: false, undo);
+            var reason = ApiPermissions.Describe(ApiPermission.AcknowledgeAlerts);
+            StatusMessage = $"{refused.Count} of {items.Count} not allowed for this account.";
+            ShowActionToast(
+                refused.Count == items.Count ? reason : $"{verb} {items.Count - refused.Count - failures.Count} of {items.Count}. {refused.Count} not allowed: {reason}",
+                isError: true,
+                undo);
+        }
+        else if (failures.Count == 0)
+        {
+            var text = items.Count == 1
+                ? (items[0].IsGroup ? $"{results[0].Result.Summary} · {Describe(items)}" : $"{verb} {Describe(items)}")
+                : faultsChanged > items.Count ? $"{verb} {items.Count} alerts ({faultsChanged} faults)" : $"{verb} {items.Count} alerts";
+            StatusMessage = text + ".";
+            ShowActionToast(text, isError: false, undo);
             onAllSucceeded?.Invoke();
         }
-        else if (succeeded == 0)
+        else if (failures.Count == items.Count)
         {
             StatusMessage = "Last action failed.";
-            ShowActionToast($"{failureTitle}: {failures[0].Message}", isError: true, Array.Empty<AlertItemViewModel>());
+            ShowActionToast($"{failureTitle}: {failures[0].Message}", isError: true, undo);
         }
         else
         {
-            StatusMessage = $"{successCountVerb} {succeeded} of {items.Count} alerts; {failures.Count} failed.";
+            StatusMessage = $"{verb} {items.Count - failures.Count} of {items.Count} alerts; {failures.Count} failed.";
             ShowActionToast(
-                $"{successCountVerb} {succeeded} of {items.Count}. Alert #{failures[0].Item.Id} failed: {failures[0].Message}",
+                $"{verb} {items.Count - failures.Count} of {items.Count}. {failures[0].Item.DeviceName} · {failures[0].Item.RuleName}: {failures[0].Message}",
                 isError: true,
                 undo);
         }
 
         RequestRefresh();
     }
-
     /// <summary>Confirmation dialog text for a bulk action above <see cref="Confirmations.BulkThreshold"/>, phrased per action rather than sharing one generic verb.</summary>
     private static (string Title, string Message, string ConfirmLabel) BulkConfirmText(AlertChangeKind kind, int count) => kind switch
     {
@@ -2369,6 +2523,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RefreshCommand.RaiseCanExecuteChanged();
         AcknowledgeCommand.RaiseCanExecuteChanged();
         UnacknowledgeCommand.RaiseCanExecuteChanged();
+        AcknowledgeFaultCommand.RaiseCanExecuteChanged();
+        UnacknowledgeFaultCommand.RaiseCanExecuteChanged();
         OpenDeviceCommand.RaiseCanExecuteChanged();
         OpenProcedureCommand.RaiseCanExecuteChanged();
         FilterBySelectedRuleCommand.RaiseCanExecuteChanged();
