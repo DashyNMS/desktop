@@ -159,7 +159,7 @@
                 <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,8,0,8"
                            Text="Your questions, and what DashyNMS looks up to answer them - device names, addresses, alerts, ports and log lines from your network - are sent to OpenAI to be processed, using your ChatGPT plan." />
                 <TextBlock Style="{StaticResource SubtleTextStyle}" TextWrapping="Wrap" Margin="0,0,0,16"
-                           Text="Passwords, tokens and SNMP communities are never sent. Config backups are summarised unless you choose otherwise in Settings › Intelligence. Web search can check public information; search terms may be sent to search providers. You can turn it off in Settings. This notice won't be shown again." />
+                           Text="Passwords, tokens and SNMP communities are never sent. Config backups are summarised unless you choose otherwise in Settings › Intelligence. Web search can check public information; search terms may be sent to search providers. You can turn it off in Settings. You'll see this again only if what's sent changes." />
                 <Button Content="OK, continue"
                         Style="{StaticResource PrimaryButtonStyle}"
                         HorizontalAlignment="Left"

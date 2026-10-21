@@ -65,7 +65,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         _tools = tools;
         Context = new IntelligenceContextViewModel(devices, client, settings, windows, alerts, logger);
         _settings = settings;
-        _consentGiven = settings.Current.IntelligenceConsentGiven;
+        _consentGiven = IntelligenceConsent.IsCurrent(settings.Current);
 
         // A new default model in Settings applies to the next conversation,
         // or straight away if this one hasn't started.
@@ -114,8 +114,9 @@ public sealed partial class IntelligenceViewModel : ObservableObject
         {
             ConsentGiven = true;
 
-            // Remembered, so the notice is shown once rather than every launch.
-            _settings.Current.IntelligenceConsentGiven = true;
+            // Remembered, so the notice is shown once rather than every launch -
+            // and again only when what it says changes (#323).
+            IntelligenceConsent.Accept(_settings.Current);
             _settings.Save();
         });
         OpenSettingsCommand = new RelayCommand(() => _windows.ShowSettingsSection(SettingsSection.Intelligence));
@@ -425,7 +426,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject
             var spotlight = Context.SpotlightForAgent;
             var model = _selectedModel!.Slug;
             var token = _running.Token;
-            var webSearchEnabled = _settings.Current.IntelligenceWebSearchEnabled;
+            var webSearchEnabled = IntelligenceConsent.AllowsWebSearch(_settings.Current);
             await Task.Run(() => _conversation.AskAsync(question, model, AccessTokenAsync, listener, token, spotlight, webSearchEnabled, replyStyle)).ConfigureAwait(true);
             Context.OnAnswer(IntelligenceInlineMarkup.ToReadableText(answer.Text, answer.InlineReferences));
             if (string.IsNullOrWhiteSpace(answer.Text))
