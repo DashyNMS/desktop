@@ -238,7 +238,6 @@
                       SelectedItem="{Binding SelectedAlert}"
                       SelectionMode="Extended"
                       Visibility="{Binding LoadState.HasVisibleItems, Converter={StaticResource BoolToVisibility}}"
-                      RowDetailsVisibilityMode="Collapsed"
                       SelectionChanged="OnGridSelectionChanged"
                       MouseDoubleClick="OnGridDoubleClick">
                 <DataGrid.Columns>
@@ -382,6 +381,7 @@
                                 <Setter Property="Cursor" Value="Wait" />
                             </DataTrigger>
                         </Style.Triggers>
+                        <!-- Each row decides (#379): a grid-wide RowDetailsVisibilityMode would outrank this. -->
                         <Setter Property="DetailsVisibility" Value="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}" />
                     </Style>
                 </DataGrid.RowStyle>
