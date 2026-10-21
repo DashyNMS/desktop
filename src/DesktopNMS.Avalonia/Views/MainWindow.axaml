@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        x:Class="DesktopNMS.Views.MainWindow"
+        x:DataType="vm:ScaffoldViewModel"
+        Title="DashyNMS"
+        Width="640" Height="520" MinWidth="420" MinHeight="400"
+        WindowStartupLocation="CenterScreen">
+
+    <!-- A placeholder (#153): sign in, then the open alert count from the
+         shared alert monitor. The real views are ported in #250. -->
+    <ScrollViewer>
+        <StackPanel Margin="32" Spacing="16" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel Spacing="4">
+                <TextBlock Text="DashyNMS" FontSize="28" FontWeight="SemiBold" />
+                <TextBlock Text="Cross-platform preview: signs in and shows the open alert count. Nothing is saved."
+                           TextWrapping="Wrap" Opacity="0.75" />
+            </StackPanel>
+
+            <!-- Signing in -->
+            <StackPanel Spacing="12" IsVisible="{Binding IsSignedOut}">
+                <StackPanel Spacing="4">
+                    <Label Content="_LibreNMS address" Target="ServerBox" />
+                    <TextBox x:Name="ServerBox" Text="{Binding ServerUrl}"
+                             AutomationProperties.Name="LibreNMS address" />
+                </StackPanel>
+                <StackPanel Spacing="4">
+                    <Label Content="API _token" Target="TokenBox" />
+                    <TextBox x:Name="TokenBox" Text="{Binding Token}" PasswordChar="•"
+                             AutomationProperties.Name="API token" />
+                </StackPanel>
+                <CheckBox Content="Allow an untrusted certificate" IsChecked="{Binding AllowUntrustedCertificate}" />
+                <Button Content="Sign in" Command="{Binding SignInCommand}" IsDefault="True" HorizontalAlignment="Left"
+                        Classes="accent" />
+                <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" IsVisible="{Binding HasError}"
+                           Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                           AutomationProperties.LiveSetting="Assertive" />
+            </StackPanel>
+
+            <!-- Signed in -->
+            <StackPanel Spacing="6" IsVisible="{Binding IsSignedIn}">
+                <TextBlock Text="{Binding ServerText}" Opacity="0.75" />
+                <TextBlock Text="{Binding AlertSummary}" FontSize="40" FontWeight="SemiBold"
+                           AutomationProperties.LiveSetting="Polite" />
+                <TextBlock Text="{Binding FaultSummary}" />
+                <TextBlock Text="{Binding PollText}" Opacity="0.75" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Window>
