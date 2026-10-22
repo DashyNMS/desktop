@@ -16,7 +16,12 @@ namespace DesktopNMS.Views;
 public partial class DeviceView : Window
 {
     /// <summary>The sections ported so far; any other shows "Not here yet".</summary>
-    private static readonly HashSet<DeviceDetailSection> PortedSections = [DeviceDetailSection.Overview];
+    private static readonly HashSet<DeviceDetailSection> PortedSections =
+    [
+        DeviceDetailSection.Overview,
+        DeviceDetailSection.Neighbours,
+        DeviceDetailSection.Sensors,
+    ];
 
     private DeviceDetailViewModel? _viewModel;
 

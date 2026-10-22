@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             x:Class="DesktopNMS.Views.DeviceDetail.SensorsSection"
+             x:DataType="vm:DeviceDetailViewModel">
+
+    <!-- The device's sensors, a card per class, with a link to each class's
+         graph (#9). -->
+    <Grid Margin="24" RowDefinitions="Auto,*">
+        <Grid Grid.Row="0" Margin="0,0,0,10" ColumnDefinitions="Auto,*,Auto">
+            <TextBox Classes="search" PlaceholderText="Search sensors" Text="{Binding SensorSearchText, Delay=200}"
+                     ToolTip.Tip="Search by device name, description or sensor id" Width="320" HorizontalAlignment="Left" />
+
+            <!-- One link per sensor class the device reports, to that class's graph. -->
+            <ItemsControl Grid.Column="1" ItemsSource="{Binding SensorGraphLinks}" HorizontalAlignment="Right" Margin="0,0,8,0" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="6" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SensorGraphLinkViewModel">
+                        <Button Classes="chip" Command="{Binding Command}">
+                            <TextBlock Text="{Binding Label, StringFormat='{}{0} graph'}" />
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <views:CsvExportButton Grid.Column="2" Export="{Binding SensorsCsv}" VerticalAlignment="Center" />
+        </Grid>
+
+        <Panel Grid.Row="1">
+            <!-- A card per class rather than a grouped table: no sorting or selection needed. -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasVisibleSensorGroups}">
+                <ItemsControl ItemsSource="{Binding SensorGroups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SensorGroupViewModel">
+                            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="14,10">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding WorstSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Count, StringFormat='({0})'}" Classes="subtle" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                    <ItemsControl ItemsSource="{Binding Sensors}" Margin="0,4,0,6">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:SensorItemViewModel">
+                                                <Grid Margin="14,6" ColumnDefinitions="100,*,120,150">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                        <TextBlock Text="{Binding SeverityText}" Classes="subtle" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding RowLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding ValueText}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="3" Text="{Binding LastUpdateText}" Classes="subtle" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <views:LoadingOverlay Text="Loading sensors…" IsVisible="{Binding IsLoadingSensors}" />
+            <views:EmptyState Icon="TopSpeed" Title="No sensors" Hint="LibreNMS reports none for this device." IsVisible="{Binding ShowSensorsEmptyMessage}" />
+            <views:EmptyState Icon="Filter" Title="No sensors match" Hint="Clear the search to see them all." IsVisible="{Binding ShowSensorsNoMatchesMessage}" />
+        </Panel>
+    </Grid>
+</UserControl>

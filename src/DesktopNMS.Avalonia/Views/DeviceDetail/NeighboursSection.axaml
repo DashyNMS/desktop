@@ -1,0 +1,104 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:dd="using:DesktopNMS.Views.DeviceDetail"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.DeviceDetail.NeighboursSection"
+             x:DataType="vm:DeviceDetailViewModel">
+
+    <!-- Everything this device is connected to, from either side's LLDP/CDP,
+         matched to LibreNMS devices where it can be: the graph, and a card each
+         with both ends of the cable and how it was found. A device opens in this
+         window (#58). Hovering either highlights the neighbour in both. -->
+    <UserControl.Styles>
+        <Style Selector="Button.neighbourCard">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.neighbourCard:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+        </Style>
+        <Style Selector="Button.neighbourCard.highlighted /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Border.pill">
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Margin" Value="0,0,6,4" />
+            <Setter Property="Padding" Value="8,1" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid Margin="24,14,24,24" RowDefinitions="Auto,*">
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <TextBox Classes="search" PlaceholderText="Search neighbours" Text="{Binding NeighbourSearchText, Delay=200}"
+                     ToolTip.Tip="Search by name, model, either port, or how it matched" Width="320" HorizontalAlignment="Left" />
+            <TextBlock Text="{Binding NeighboursSummaryText}" Classes="subtle" HorizontalAlignment="Right" VerticalAlignment="Center" />
+        </Grid>
+
+        <views:LoadingOverlay Grid.Row="1" Text="Loading neighbours…" IsVisible="{Binding IsLoadingNeighbours}" />
+        <views:EmptyState Grid.Row="1" Icon="Link" Title="No neighbours" Hint="Neither this device nor any other reports one for it over LLDP or CDP."
+                          IsVisible="{Binding ShowNeighboursEmptyMessage}" />
+
+        <Grid Grid.Row="1" IsVisible="{Binding HasNeighbours}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="320" />
+                <ColumnDefinition Width="400" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Classes="card" Margin="0,0,14,0" Padding="8">
+                <dd:NeighbourGraph Items="{Binding VisibleNeighbours}" CenterName="{Binding Name}" CenterSeverity="{Binding StateSeverity}" />
+            </Border>
+
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding VisibleNeighbours}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DeviceNeighbourItemViewModel">
+                            <Button Classes="neighbourCard" Classes.highlighted="{Binding IsHighlighted}" Command="{Binding OpenCommand}" Margin="0,0,4,10"
+                                    PointerEntered="OnCardPointerEntered" PointerExited="OnCardPointerExited">
+                                <!-- No longer seen, though LibreNMS still has the record: faded. -->
+                                <Grid ColumnDefinitions="Auto,*" Opacity="{Binding IsStale, Converter={x:Static views:Converters.FadeWhenBusy}}">
+                                    <!-- The neighbour's state, on a tile tinted to match. -->
+                                    <Panel Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Top">
+                                        <Border CornerRadius="9" Opacity="0.16" Background="{Binding StateSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                        <Ellipse Width="9" Height="9" Fill="{Binding StateSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                    </Panel>
+
+                                    <StackPanel Grid.Column="1">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="Open ›" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource AccentBrush}" IsVisible="{Binding IsKnownDevice}" />
+                                            <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                        <TextBlock Text="{Binding Description}" Classes="subtle" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+                                        <WrapPanel Margin="0,6,0,0">
+                                            <Border Classes="pill"><TextBlock Text="{Binding MatchText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
+                                            <Border Classes="pill"><TextBlock Text="{Binding StateText}" FontSize="11" Foreground="{Binding StateSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" /></Border>
+                                        </WrapPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,4,0,0">
+                                            <fi:SymbolIcon Symbol="PlugConnected" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding ConnectionText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="20,3,0,0" IsVisible="{Binding HasLocalPort}">
+                                            <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding LocalPortStateText}" />
+                                            <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding LocalPort.InRateText, StringFormat='  ·  In {0}', FallbackValue=''}" />
+                                            <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding LocalPort.OutRateText, StringFormat='  ·  Out {0}', FallbackValue=''}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding SourceText}" Classes="subtle" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>
