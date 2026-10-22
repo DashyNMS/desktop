@@ -23,6 +23,6 @@ internal static class Program
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
             // The brand font (#216) as every control's default.
-            .With(new FontManagerOptions { DefaultFamilyName = "avares://DashyNMS.Avalonia/Assets/Fonts#IBM Plex Sans" })
+            .With(new FontManagerOptions { DefaultFamilyName = "avares://DashyNMS/Assets/Fonts#IBM Plex Sans" })
             .LogToTrace();
 }

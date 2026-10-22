@@ -49,7 +49,7 @@ dotnet run --project src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj
 
 Every merge to `master` produces a self-contained Windows Avalonia development
 build in the **Development build** Actions run. Download its artifact and extract
-the complete folder, including `mcp`, before running `DashyNMS.Avalonia.exe`.
+the complete folder, including `mcp`, before running `DashyNMS.exe`.
 Each build records its desktop and network-tools revisions in `BUILD.txt` and
 remains available for 30 days. These builds do not create GitHub releases.
 
