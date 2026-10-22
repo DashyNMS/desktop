@@ -68,6 +68,7 @@ public sealed class LogsViewModel : ObservableObject
             // OnShown, which follows, loads what's now showing.
             if (value == LogsSection.Graylog)
             {
+                Fleet.Deactivate();
                 return;
             }
 
@@ -120,6 +121,7 @@ public sealed class LogsViewModel : ObservableObject
 
         if (IsGraylogSelected)
         {
+            Fleet.Deactivate();
             Graylog.Activate();
         }
         else
@@ -129,7 +131,11 @@ public sealed class LogsViewModel : ObservableObject
     }
 
     /// <summary>The tab has been left, or the window hidden - auto-update stops until it's shown again.</summary>
-    public void OnHidden() => Graylog.Deactivate();
+    public void OnHidden()
+    {
+        Graylog.Deactivate();
+        Fleet.Deactivate();
+    }
 
     private void OnDevicesPolled(object? sender, DevicePollResult result)
     {
