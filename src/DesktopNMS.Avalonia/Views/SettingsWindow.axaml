@@ -379,9 +379,12 @@
                     </StackPanel>
 
                     <!-- ==================== Window ==================== -->
-                    <!-- Start at login comes with #253. -->
                     <StackPanel IsVisible="{Binding IsWindowSectionSelected}">
                         <TextBlock Text="Window and start-up" Classes="heading" Margin="0,0,0,14" />
+                        <Border Classes="card" Margin="0,0,0,12">
+                            <CheckBox Content="Start DashyNMS when I sign in" IsChecked="{Binding StartWithWindows}"
+                                      AutomationProperties.Name="Start DashyNMS when I sign in" />
+                        </Border>
                         <Border Classes="card">
                             <StackPanel>
                                 <!-- Not on Linux, where there may be no tray to come back from (#252). -->

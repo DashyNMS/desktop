@@ -2446,7 +2446,16 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        _startup.SetEnabled(_draft.StartWithWindows);
+        try
+        {
+            // Don't rewrite a registration the user hasn't changed.
+            if (_startup.IsEnabled != _draft.StartWithWindows) _startup.SetEnabled(_draft.StartWithWindows);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _windows.ShowError("Start at sign-in", ex.Message);
+            return;
+        }
 
         // Keep the window placement, filter chips, dashboard layout,
         // recently-viewed list and pinned devices the running app has, rather

@@ -172,6 +172,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         _session.StateChanged += OnSessionStateChanged;
         _sensorMonitor.PollStarted += OnPollStarted;
         _sensorMonitor.Polled += OnPolled;
+        _alertMonitor.Polled += OnAlertsPolled;
+        _deviceMonitor.Polled += OnDevicesPolled;
     }
 
     /// <summary>The widgets on the canvas, in the order they were created.</summary>
@@ -661,10 +663,34 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
 
     private void OnPolled(object? sender, SensorPollResult result) => _dispatcher.InvokeAsync(() => ApplyPollResult(result));
 
+    private void OnAlertsPolled(object? sender, AlertPollResult result)
+    {
+        if (result.Succeeded) _dispatcher.InvokeAsync(() => RecordRefresh(result.CompletedAt));
+    }
+
+    private void OnDevicesPolled(object? sender, DevicePollResult result)
+    {
+        if (result.Succeeded) _dispatcher.InvokeAsync(() => RecordRefresh(result.CompletedAt));
+    }
+
+    /// <summary>A slow sensor response mustn't move a newer alert/device refresh backwards.</summary>
+    private void RecordRefresh(DateTimeOffset completedAt)
+    {
+        if (_lastUpdated is null || completedAt > _lastUpdated)
+        {
+            _lastUpdated = completedAt;
+            OnPropertyChanged(nameof(LastUpdatedText));
+        }
+    }
+
     private void ApplyPollResult(SensorPollResult result)
     {
         IsBusy = false;
         OnPropertyChanged(nameof(NextRefreshText));
+
+        // A refused sensor resource completed too; other widgets still have
+        // useful data. Record it before the no-widgets/no-sensors returns.
+        if (result.Succeeded || result.IsPermissionDenied) RecordRefresh(result.CompletedAt);
 
         if (!result.Succeeded)
         {
@@ -712,12 +738,9 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         _lastFleet = supported;
         _lastDeviceNameFor = DeviceNameFor;
         _hasLoadedOnce = true;
-        _lastUpdated = result.CompletedAt;
-        OnPropertyChanged(nameof(RefreshText));
 
         var shown = sensorWidgets.Sum(w => w.Sensors.Count);
         StatusMessage = $"{shown} sensor(s) across {sensorWidgets.Count} widget(s).";
-        OnPropertyChanged(nameof(LastUpdatedText));
     }
 
     private void OnSettingsChanged(object? sender, AppSettings settings)
@@ -907,6 +930,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         _session.StateChanged -= OnSessionStateChanged;
         _sensorMonitor.PollStarted -= OnPollStarted;
         _sensorMonitor.Polled -= OnPolled;
+        _alertMonitor.Polled -= OnAlertsPolled;
+        _deviceMonitor.Polled -= OnDevicesPolled;
 
         foreach (var widget in Widgets)
         {
