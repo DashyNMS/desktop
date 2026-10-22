@@ -445,6 +445,14 @@ public sealed class GraphsSectionViewModel : ObservableObject
             Legend.Clear();
             RaiseLegendChanged();
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Could not display graph {GraphName} for device {DeviceId}", graph.Name, _deviceId);
+            ErrorMessage = "This graph couldn't be displayed. Try refreshing it or opening it in LibreNMS.";
+            CurrentSvg = null;
+            Legend.Clear();
+            RaiseLegendChanged();
+        }
         finally
         {
             if (version == _loadVersion)
@@ -521,6 +529,19 @@ public sealed class GraphsSectionViewModel : ObservableObject
     /// <summary>The graph as it should look now: the series shown, and the scale fitted to a lone sensor.</summary>
     private async Task RenderAsync(int version)
     {
+        try { await RenderCoreAsync(version).ConfigureAwait(true); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Could not render a graph for device {DeviceId}", _deviceId);
+            ErrorMessage = "This graph couldn't be displayed. Try refreshing it or opening it in LibreNMS.";
+            CurrentSvg = null;
+            Legend.Clear();
+            RaiseLegendChanged();
+        }
+    }
+
+    private async Task RenderCoreAsync(int version)
+    {
         if (_raw is not { } raw)
         {
             return;
@@ -536,6 +557,19 @@ public sealed class GraphsSectionViewModel : ObservableObject
 
         var hiddenIndexes = entries.Select((e, i) => (e, i)).Where(x => _hidden.Contains(x.e.Name)).Select(x => x.i).ToHashSet();
         var styled = GraphSvgTheming.Restyle(raw, hiddenIndexes, cropLegend: true);
+
+        if (styled.SeriesColours.Count != entries.Count)
+        {
+            // An all-NaN sensor may have a legend entry but no drawn series.
+            // Their indices no longer agree: keep LibreNMS's complete legend
+            // and drawing rather than colouring or hiding the wrong series.
+            _entries = null;
+            _hidden.Clear();
+            Legend.Clear();
+            CurrentSvg = GraphSvgTheming.Restyle(raw).Svg;
+            RaiseLegendChanged();
+            return;
+        }
 
         SyncLegend(entries, styled.SeriesColours);
 

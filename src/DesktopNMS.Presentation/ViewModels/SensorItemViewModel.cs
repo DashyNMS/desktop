@@ -62,9 +62,12 @@ public sealed class SensorItemViewModel : ObservableObject
         }
     }
 
-    public double Value => _sensor.Current;
+    public double? Value => _sensor.HasReading ? _sensor.Current : null;
 
-    public string ValueText => _sensor.Current.ToString("0.###", CultureInfo.InvariantCulture) + _unitSuffix;
+    public string ValueText => Value is { } value
+        ? value.ToString("0.###", CultureInfo.InvariantCulture)
+            + (string.IsNullOrWhiteSpace(_unitSuffix) && !string.IsNullOrWhiteSpace(_sensor.Unit) ? " " + _sensor.Unit.Trim() : _unitSuffix)
+        : "–";
 
     public AlertSeverity Severity => _severity;
 
@@ -77,13 +80,15 @@ public sealed class SensorItemViewModel : ObservableObject
     {
         get
         {
-            if (_sensor.LimitHigh is not { } high)
+            if (Value is not { } value || _sensor.LimitHigh is not { } high || !double.IsFinite(high))
             {
                 return null;
             }
 
-            var low = _sensor.LimitLow is { } l && l < high ? l : Math.Min(0, _sensor.Current);
-            return high > low ? Math.Clamp((_sensor.Current - low) / (high - low), 0, 1) : null;
+            var low = _sensor.LimitLow is { } l && double.IsFinite(l) && l < high ? l : Math.Min(0, value);
+            var span = high - low;
+            var fraction = (value - low) / span;
+            return span > 0 && double.IsFinite(span) && double.IsFinite(fraction) ? Math.Clamp(fraction, 0, 1) : null;
         }
     }
 
