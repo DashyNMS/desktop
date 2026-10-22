@@ -324,7 +324,10 @@
             </Border>
 
             <!-- ======================== Content ======================== -->
-            <views:NotPortedView Grid.Column="1" Page="{Binding SelectedTab}" />
+            <Panel Grid.Column="1">
+            <views:DashboardView DataContext="{Binding Dashboard}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsDashboardTabSelected}" />
+            <views:NotPortedView Page="{Binding SelectedTab}" IsVisible="{Binding !IsDashboardTabSelected}" />
+        </Panel>
         </Grid>
 
         <!-- Launch (#228): while the saved session signs back in, in the theme's own background. -->

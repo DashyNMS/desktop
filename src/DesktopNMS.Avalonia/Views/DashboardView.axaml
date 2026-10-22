@@ -1,0 +1,1125 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:models="using:DesktopNMS.Core.Models"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             xmlns:sys="using:System"
+             x:Class="DesktopNMS.Views.DashboardView"
+             x:DataType="vm:DashboardViewModel"
+             Focusable="True">
+
+    <!-- The Dashboard tab (#250, from the WPF app's DashboardView): widgets on a
+         snapped grid, an edit mode to move, resize and add them, the welcome
+         for a new user, and a panel to set one widget up. -->
+    <UserControl.Styles>
+        <!-- Shown only in edit mode: the dashed outline, the grip, the resize corner. -->
+        <Style Selector=":is(Control).editOnly">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="ItemsControl.editing :is(Control).editOnly">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+
+        <!-- A widget's frame, outlined in the accent while selected, set up, or just added (#204, #274, #275). -->
+        <Style Selector="Border.chrome">
+            <Setter Property="Margin" Value="6" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="Border.chrome.accent">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+
+        <!-- The ⋯ is quiet until the widget's hovered, or in edit mode. -->
+        <Style Selector="Panel.widget Button.more">
+            <Setter Property="Opacity" Value="0.55" />
+        </Style>
+        <Style Selector="Panel.widget:pointerover Button.more">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="ItemsControl.editing Button.more">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Button.small">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+        </Style>
+        <Style Selector="Button.small fi|SymbolIcon">
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+
+        <!-- Title-bar pickers: compact. -->
+        <Style Selector="ComboBox.compact">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="8,0,4,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <!-- Values coloured by how bad they are. -->
+        <Style Selector="TextBlock.warning">
+            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <Style Selector="TextBlock.critical">
+            <Setter Property="Foreground" Value="{DynamicResource CriticalBrush}" />
+        </Style>
+        <Style Selector="ProgressBar.bar">
+            <Setter Property="Height" Value="4" />
+            <Setter Property="MinHeight" Value="4" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="100" />
+            <Setter Property="CornerRadius" Value="2" />
+            <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="ProgressBar.bar.warning">
+            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <Style Selector="ProgressBar.bar.critical">
+            <Setter Property="Foreground" Value="{DynamicResource CriticalBrush}" />
+        </Style>
+
+        <!-- A Top widget's In and Out headings, which rank the rows. -->
+        <Style Selector="Button.rank">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="4,2,0,2" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <Style Selector="Button.rank:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.rank.ranked">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+
+        <!-- Pinned devices: Unpin over the row's end, on hover. -->
+        <Style Selector="Panel.pinnedRow Button.unpin">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="Panel.pinnedRow:pointerover Button.unpin">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+
+        <!-- A log row new since the last refresh is tinted for a few seconds. -->
+        <Style Selector="Border.newTint.isNew">
+            <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+        </Style>
+
+        <!-- The welcome's set-up steps: ticked green and struck through once done. -->
+        <Style Selector="Border.stepTick">
+            <Setter Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <Style Selector="Border.stepTick.done">
+            <Setter Property="Background" Value="{DynamicResource OkBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource OkBrush}" />
+        </Style>
+        <Style Selector="TextBlock.step.done">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="TextDecorations" Value="Strikethrough" />
+        </Style>
+
+        <!-- "+ Add widget": where the next widget fits (#277). -->
+        <Style Selector="Button.addSpace">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Panel Margin="6" Background="Transparent">
+                        <Rectangle Name="Outline" RadiusX="6" RadiusY="6" StrokeThickness="1.5" StrokeDashArray="4,3"
+                                   Stroke="{DynamicResource TextSecondaryBrush}" Fill="Transparent" Opacity="0.6" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <fi:SymbolIcon Symbol="Add" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <TextBlock Text="Add widget" Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </StackPanel>
+                    </Panel>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.addSpace:pointerover /template/ Rectangle#Outline">
+            <Setter Property="Stroke" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Fill" Value="{DynamicResource AccentSubtleBrush}" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+    </UserControl.Styles>
+
+    <UserControl.Resources>
+        <!-- ======================== Widget chrome ======================== -->
+        <!-- Shared by every widget: the title bar (a drag handle in edit mode,
+             the title or its rename box, the widget's own options, the ⋯), the
+             body, and a resize corner in edit mode. The outer panel is exactly
+             the widget's cells; the frame inside is inset, so neighbours show a
+             gutter without moving where their cells are. -->
+        <DataTemplate x:Key="WidgetTemplate" x:DataType="vm:DashboardWidgetViewModel">
+            <Panel Classes="widget"
+                   Width="{Binding ColumnSpan, Converter={x:Static views:Converters.GridUnitToPixels}}"
+                   Height="{Binding RowSpan, Converter={x:Static views:Converters.GridUnitToPixels}}">
+                <Border Classes="chrome">
+                    <Classes.accent>
+                        <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                            <Binding Path="IsSelected" />
+                            <Binding Path="IsEditingWidget" />
+                            <Binding Path="IsHighlighted" />
+                        </MultiBinding>
+                    </Classes.accent>
+                    <Grid RowDefinitions="Auto,*">
+                        <!-- In edit mode, a dashed outline says it can be moved and resized (#274). -->
+                        <Rectangle Grid.RowSpan="2" Classes="editOnly" RadiusX="6" RadiusY="6"
+                                   Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="1" StrokeDashArray="4,3"
+                                   Opacity="0.5" IsHitTestVisible="False" />
+
+                        <Panel Grid.Row="0" MinHeight="44">
+                            <!-- In edit mode the whole title bar drags the widget. -->
+                            <Border Classes="editOnly" Background="Transparent" Cursor="SizeAll"
+                                    PointerPressed="OnMovePressed" PointerMoved="OnMoveMoved"
+                                    PointerReleased="OnMoveReleased" PointerCaptureLost="OnMoveCaptureLost" />
+
+                            <Grid Margin="10,6,8,6" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                                <fi:SymbolIcon Grid.Column="0" Classes="editOnly" Symbol="ReOrderDotsVertical" FontSize="14"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
+                                               Margin="0,0,8,0" IsHitTestVisible="False" />
+
+                                <TextBlock Grid.Column="1" Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" IsHitTestVisible="False" IsVisible="{Binding !IsRenaming}" />
+                                <!-- ⋯ › Rename, or F2: Enter or Esc, or clicking away, finishes. -->
+                                <TextBox Grid.Column="1" Text="{Binding Title, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center"
+                                         MinHeight="30" Margin="0,0,8,0" IsVisible="{Binding IsRenaming}"
+                                         PropertyChanged="OnRenameBoxPropertyChanged" KeyDown="OnRenameBoxKeyDown"
+                                         LostFocus="OnRenameBoxLostFocus" />
+
+                                <!-- Set up in the panel beside the dashboard (#275). -->
+                                <Border Grid.Column="2" CornerRadius="9" Padding="8,1" Margin="0,0,6,0" VerticalAlignment="Center"
+                                        Background="{DynamicResource AccentSubtleBrush}" IsVisible="{Binding IsEditingWidget}">
+                                    <TextBlock Text="Live preview" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" />
+                                </Border>
+
+                                <!-- Widget-specific controls (a Top widget's count and eye), templated by type. -->
+                                <ContentControl Grid.Column="3" Content="{Binding HeaderOptions}" Focusable="False"
+                                                VerticalAlignment="Center" Margin="0,0,4,0" IsVisible="{Binding !IsRenaming}" />
+
+                                <!-- ⋯ (#274): Set up…, Rename, Size, Duplicate, Remove - in or out of edit mode. -->
+                                <Button Grid.Column="4" Classes="icon small more" ToolTip.Tip="More"
+                                        AutomationProperties.Name="{Binding Title, StringFormat='More for {0}'}">
+                                    <fi:SymbolIcon Symbol="MoreHorizontal" />
+                                    <Button.Flyout>
+                                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                            <MenuItem Header="Set up…" Command="{Binding SetUpCommand}">
+                                                <MenuItem.Icon><fi:SymbolIcon Symbol="Settings" /></MenuItem.Icon>
+                                            </MenuItem>
+                                            <MenuItem Header="Rename" InputGesture="F2" Command="{Binding RenameCommand}">
+                                                <MenuItem.Icon><fi:SymbolIcon Symbol="Rename" /></MenuItem.Icon>
+                                            </MenuItem>
+                                            <MenuItem Header="Size">
+                                                <MenuItem.Icon><fi:SymbolIcon Symbol="Resize" /></MenuItem.Icon>
+                                                <MenuItem Header="Small" Command="{Binding SetSizeCommand}" CommandParameter="Small" />
+                                                <MenuItem Header="Medium" Command="{Binding SetSizeCommand}" CommandParameter="Medium" />
+                                                <MenuItem Header="Large" Command="{Binding SetSizeCommand}" CommandParameter="Large" />
+                                                <MenuItem Header="Wide" Command="{Binding SetSizeCommand}" CommandParameter="Wide" />
+                                            </MenuItem>
+                                            <MenuItem Header="Duplicate" InputGesture="Ctrl+D" Command="{Binding DuplicateCommand}" IsVisible="{Binding AllowsSeveral}">
+                                                <MenuItem.Icon><fi:SymbolIcon Symbol="Copy" /></MenuItem.Icon>
+                                            </MenuItem>
+                                            <Separator />
+                                            <MenuItem Header="Remove" InputGesture="Delete" Command="{Binding RemoveCommand}">
+                                                <MenuItem.Icon><fi:SymbolIcon Symbol="Delete" /></MenuItem.Icon>
+                                            </MenuItem>
+                                        </MenuFlyout>
+                                    </Button.Flyout>
+                                </Button>
+                            </Grid>
+                        </Panel>
+
+                        <Border Grid.Row="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="8">
+                            <ContentControl Content="{Binding}" Focusable="False" />
+                        </Border>
+
+                        <!-- Resize corner, bottom right, in edit mode. -->
+                        <Border Grid.Row="1" Classes="editOnly" Width="16" Height="16" Background="Transparent"
+                                HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="BottomRightCorner"
+                                PointerPressed="OnResizePressed" PointerMoved="OnResizeMoved"
+                                PointerReleased="OnResizeReleased" PointerCaptureLost="OnResizeCaptureLost">
+                            <Path Data="M 14,2 L 14,14 L 2,14" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="2" />
+                        </Border>
+                    </Grid>
+                </Border>
+            </Panel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <UserControl.DataTemplates>
+        <!-- ======================== Sensors ======================== -->
+        <!-- Two-line rows (#212): device and sensor, the value on the right in its severity's colour. -->
+        <DataTemplate DataType="vm:SensorWidgetViewModel">
+            <Panel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding LoadState.HasVisibleItems}">
+                    <StackPanel Margin="-2,0">
+                        <Grid Margin="8,0,8,2" ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Device · sensor" Classes="widgetHeading" />
+                            <TextBlock Grid.Column="1" Text="Value" Classes="widgetHeading" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Sensors}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SensorItemViewModel">
+                                    <Button Classes="row"
+                                            Command="{Binding $parent[views:DashboardView].((vm:DashboardViewModel)DataContext).OpenDeviceDetailsCommand}"
+                                            CommandParameter="{Binding}"
+                                            Tag="{Binding $parent[ItemsControl].DataContext}"
+                                            ToolTip.Tip="{Binding LastUpdateText}">
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Open device in LibreNMS"
+                                                          Command="{ReflectionBinding $parent[ContextMenu].PlacementTarget.Tag.OpenDeviceCommand}"
+                                                          CommandParameter="{Binding}" />
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
+                                                <Ellipse Classes="dot" Fill="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Row="1" Text="{Binding Description}" Classes="widgetSubtitle" />
+                                            <TextBlock Grid.Column="1" Grid.RowSpan="2" Text="{Binding ValueText}" TextAlignment="Right" VerticalAlignment="Center"
+                                                       Classes.warning="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:AlertSeverity.Warning}}"
+                                                       Classes.critical="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:AlertSeverity.Critical}}" />
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <TextBlock Text="Loading…" Classes="widgetState" IsVisible="{Binding LoadState.IsLoading}" />
+                <TextBlock Text="No sensors yet. Choose some from ⋯, Set up…" Classes="widgetState" IsVisible="{Binding LoadState.IsEmpty}" />
+                <TextBlock Text="The sensors on this widget weren't found. They may have been removed." Classes="widgetState" IsVisible="{Binding LoadState.IsNoMatches}" />
+            </Panel>
+        </DataTemplate>
+
+        <!-- ======================== Alerts ======================== -->
+        <!-- Two-line rows (#212): a severity dot, the device, the alert under it and its age. -->
+        <DataTemplate DataType="vm:AlertsWidgetViewModel">
+            <Panel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding LoadState.HasVisibleItems}">
+                    <StackPanel Margin="-2,0">
+                        <Grid Margin="8,0,8,2" ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Device · alert" Classes="widgetHeading" />
+                            <TextBlock Grid.Column="1" Text="Age" Classes="widgetHeading" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Alerts}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:AlertItemViewModel">
+                                    <Button Classes="row"
+                                            Command="{Binding $parent[ItemsControl].((vm:AlertsWidgetViewModel)DataContext).OpenDeviceDetailsCommand}"
+                                            CommandParameter="{Binding}"
+                                            Tag="{Binding $parent[ItemsControl].DataContext}">
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Open alert in LibreNMS"
+                                                          Command="{ReflectionBinding $parent[ContextMenu].PlacementTarget.Tag.OpenAlertCommand}"
+                                                          CommandParameter="{Binding}" />
+                                                <MenuItem Header="Open device in LibreNMS"
+                                                          Command="{ReflectionBinding $parent[ContextMenu].PlacementTarget.Tag.OpenDeviceCommand}"
+                                                          CommandParameter="{Binding}" />
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                        <!-- Acknowledged ones are dimmed, as on the Alerts tab. -->
+                                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto"
+                                              Opacity="{Binding IsAcknowledged, Converter={x:Static views:Converters.DimWhen}}">
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
+                                                <Ellipse Classes="dot" Fill="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Row="1" Text="{Binding RuleName}" Classes="widgetSubtitle" />
+                                            <TextBlock Grid.Column="1" Grid.RowSpan="2" Text="{Binding AgeText}" TextAlignment="Right" VerticalAlignment="Center" Classes="subtle" />
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <TextBlock Text="Loading…" Classes="widgetState" IsVisible="{Binding LoadState.IsLoading}" />
+                <TextBlock Text="No active alerts." Classes="widgetState" IsVisible="{Binding LoadState.IsEmpty}" />
+                <TextBlock Text="No alerts match the toggles above." Classes="widgetState" IsVisible="{Binding LoadState.IsNoMatches}" />
+            </Panel>
+        </DataTemplate>
+
+        <!-- The Alerts widget's title-bar toggles (#212): Critical, Warning and
+             Acknowledged with their counts. Shift-click a severity to show only it. -->
+        <DataTemplate DataType="vm:AlertsWidgetHeader">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <ToggleButton Classes="chip severity" Tag="Critical" IsChecked="{Binding Widget.ShowCritical}"
+                              ToolTip.Tip="Critical - shift-click to show only critical">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{DynamicResource CriticalBrush}" />
+                        <TextBlock Text="{Binding Widget.CriticalCount}" />
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton Classes="chip severity" Tag="Warning" IsChecked="{Binding Widget.ShowWarning}"
+                              ToolTip.Tip="Warning - shift-click to show only warning">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{DynamicResource WarningBrush}" />
+                        <TextBlock Text="{Binding Widget.WarningCount}" />
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton Classes="chip" IsChecked="{Binding Widget.IncludeAcknowledged}" ToolTip.Tip="Include acknowledged alerts">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <fi:SymbolIcon Symbol="Checkmark" FontSize="12" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Widget.AcknowledgedCount}" />
+                    </StackPanel>
+                </ToggleButton>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- ======================== Alerts gauge ======================== -->
+        <!-- Three rings - unacknowledged critical, unacknowledged warning and
+             acknowledged - each a share of every active alert. -->
+        <DataTemplate DataType="vm:AlertsGaugeWidgetViewModel">
+            <Grid RowDefinitions="*,Auto">
+                <UniformGrid Columns="3">
+                    <Button Classes="count" Command="{Binding OpenCriticalCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Viewbox Width="80" Height="80">
+                                <Panel Width="100" Height="100">
+                                    <Ellipse Width="80" Height="80" Stroke="{DynamicResource BorderBrush}" StrokeThickness="10" />
+                                    <Path Data="{Binding CriticalFraction, Converter={x:Static views:Converters.GaugeArc}}" Stroke="{DynamicResource CriticalBrush}" StrokeThickness="10" StrokeLineCap="Round" />
+                                    <TextBlock Text="{Binding CriticalCount}" FontSize="26" FontFamily="{DynamicResource DisplayFont}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Panel>
+                            </Viewbox>
+                            <TextBlock Text="Critical" HorizontalAlignment="Center" Margin="0,8,0,0" Classes="subtle" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="count" Command="{Binding OpenWarningCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Viewbox Width="80" Height="80">
+                                <Panel Width="100" Height="100">
+                                    <Ellipse Width="80" Height="80" Stroke="{DynamicResource BorderBrush}" StrokeThickness="10" />
+                                    <Path Data="{Binding WarningFraction, Converter={x:Static views:Converters.GaugeArc}}" Stroke="{DynamicResource WarningBrush}" StrokeThickness="10" StrokeLineCap="Round" />
+                                    <TextBlock Text="{Binding WarningCount}" FontSize="26" FontFamily="{DynamicResource DisplayFont}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Panel>
+                            </Viewbox>
+                            <TextBlock Text="Warning" HorizontalAlignment="Center" Margin="0,8,0,0" Classes="subtle" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="count" Command="{Binding OpenAllCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Viewbox Width="80" Height="80">
+                                <Panel Width="100" Height="100">
+                                    <Ellipse Width="80" Height="80" Stroke="{DynamicResource BorderBrush}" StrokeThickness="10" />
+                                    <Path Data="{Binding AcknowledgedFraction, Converter={x:Static views:Converters.GaugeArc}}" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="10" StrokeLineCap="Round" />
+                                    <TextBlock Text="{Binding AcknowledgedCount}" FontSize="26" FontFamily="{DynamicResource DisplayFont}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Panel>
+                            </Viewbox>
+                            <TextBlock Text="Acknowledged" HorizontalAlignment="Center" Margin="0,8,0,0" Classes="subtle" />
+                        </StackPanel>
+                    </Button>
+                </UniformGrid>
+
+                <TextBlock Grid.Row="1" Text="No active alerts" HorizontalAlignment="Center" Margin="0,12,0,0" Classes="subtle" IsVisible="{Binding HasNoActiveAlerts}" />
+                <TextBlock Grid.Row="1" Text="{Binding TotalActiveText}" HorizontalAlignment="Center" Margin="0,12,0,0" Classes="subtle" IsVisible="{Binding !HasNoActiveAlerts}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- ======================== Device status ======================== -->
+        <!-- Four rings - up, down, maintenance and disabled - each a share of every device. -->
+        <DataTemplate DataType="vm:DeviceStatusWidgetViewModel">
+            <Grid RowDefinitions="*,Auto">
+                <UniformGrid Columns="4" IsVisible="{Binding LoadState.HasVisibleItems}">
+                    <Button Classes="count" Command="{Binding OpenUpCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Viewbox Width="70" Height="70">
+                                <Panel Width="100" Height="100">
+                                    <Ellipse Width="80" Height="80" Stroke="{DynamicResource BorderBrush}" StrokeThickness="10" />
+                                    <Path Data="{Binding UpFraction, Converter={x:Static views:Converters.GaugeArc}}" Stroke="{DynamicResource OkBrush}" StrokeThickness="10" StrokeLineCap="Round" />
+                                    <TextBlock Text="{Binding UpCount}" FontSize="22" FontFamily="{DynamicResource DisplayFont}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Panel>
+                            </Viewbox>
+                            <TextBlock Text="Up" HorizontalAlignment="Center" Margin="0,8,0,0" Classes="subtle" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="count" Command="{Binding OpenDownCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Viewbox Width="70" Height="70">
+                                <Panel Width="100" Height="100">
+                                    <Ellipse Width="80" Height="80" Stroke="{DynamicResource BorderBrush}" StrokeThickness="10" />
+                                    <Path Data="{Binding DownFraction, Converter={x:Static views:Converters.GaugeArc}}" Stroke="{DynamicResource CriticalBrush}" StrokeThickness="10" StrokeLineCap="Round" />
+                                    <TextBlock Text="{Binding DownCount}" FontSize="22" FontFamily="{DynamicResource DisplayFont}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Panel>
+                            </Viewbox>
+                            <TextBlock Text="Down" HorizontalAlignment="Center" Margin="0,8,0,0" Classes="subtle" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="count" Command="{Binding OpenMaintenanceCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Viewbox Width="70" Height="70">
+                                <Panel Width="100" Height="100">
+                                    <Ellipse Width="80" Height="80" Stroke="{DynamicResource BorderBrush}" StrokeThickness="10" />
+                                    <Path Data="{Binding MaintenanceFraction, Converter={x:Static views:Converters.GaugeArc}}" Stroke="{DynamicResource MaintenanceBrush}" StrokeThickness="10" StrokeLineCap="Round" />
+                                    <TextBlock Text="{Binding MaintenanceCount}" FontSize="22" FontFamily="{DynamicResource DisplayFont}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Panel>
+                            </Viewbox>
+                            <TextBlock Text="Maintenance" HorizontalAlignment="Center" Margin="0,8,0,0" Classes="subtle" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="count" Command="{Binding OpenDisabledCommand}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Viewbox Width="70" Height="70">
+                                <Panel Width="100" Height="100">
+                                    <Ellipse Width="80" Height="80" Stroke="{DynamicResource BorderBrush}" StrokeThickness="10" />
+                                    <Path Data="{Binding DisabledFraction, Converter={x:Static views:Converters.GaugeArc}}" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="10" StrokeLineCap="Round" />
+                                    <TextBlock Text="{Binding DisabledCount}" FontSize="22" FontFamily="{DynamicResource DisplayFont}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Panel>
+                            </Viewbox>
+                            <TextBlock Text="Disabled" HorizontalAlignment="Center" Margin="0,8,0,0" Classes="subtle" />
+                        </StackPanel>
+                    </Button>
+                </UniformGrid>
+
+                <TextBlock Grid.Row="1" Text="Loading…" HorizontalAlignment="Center" Margin="0,12,0,0" Classes="subtle" IsVisible="{Binding LoadState.IsLoading}" />
+                <TextBlock Grid.Row="1" Text="No devices." HorizontalAlignment="Center" Margin="0,12,0,0" Classes="subtle" IsVisible="{Binding LoadState.IsEmpty}" />
+                <TextBlock Grid.Row="1" Text="{Binding TotalText}" HorizontalAlignment="Center" Margin="0,12,0,0" Classes="subtle" IsVisible="{Binding LoadState.HasVisibleItems}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- ======================== Wireless (#55) ======================== -->
+        <!-- The fleet's clients, then a row per controller; a row opens its Device Details. -->
+        <DataTemplate DataType="vm:WirelessWidgetViewModel">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8,0,8,6" IsVisible="{Binding HasControllers}">
+                    <TextBlock Text="{Binding TotalClientsText}" FontSize="22" FontFamily="{DynamicResource DisplayFont}" FontWeight="Bold" VerticalAlignment="Bottom" />
+                    <TextBlock Text="{Binding ControllersText, StringFormat='clients · {0}'}" VerticalAlignment="Bottom" Margin="6,0,0,3" Classes="subtle" />
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasControllers}">
+                    <StackPanel Margin="-2,0">
+                        <Grid Margin="8,0,8,2" ColumnDefinitions="*,56,70">
+                            <TextBlock Text="Controller" Classes="widgetHeading" />
+                            <TextBlock Grid.Column="1" Text="APs" TextAlignment="Right" Classes="widgetHeading" />
+                            <TextBlock Grid.Column="2" Text="Clients" TextAlignment="Right" Classes="widgetHeading" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Controllers}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:WirelessControllerItemViewModel">
+                                    <Button Classes="row"
+                                            Command="{Binding $parent[ItemsControl].((vm:WirelessWidgetViewModel)DataContext).OpenDeviceCommand}"
+                                            CommandParameter="{Binding}" ToolTip.Tip="{Binding ToolTip}">
+                                        <Grid ColumnDefinitions="*,Auto,56,70">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Ellipse Classes="dot" Fill="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="Down" Foreground="{DynamicResource CriticalBrush}" FontSize="11" FontWeight="SemiBold"
+                                                       Margin="8,0,0,0" VerticalAlignment="Center" IsVisible="{Binding IsDown}" />
+                                            <TextBlock Grid.Column="2" Text="{Binding ApText}" TextAlignment="Right" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="3" Text="{Binding ClientsText}" TextAlignment="Right" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <TextBlock Grid.Row="1" Text="Loading…" Classes="widgetState" IsVisible="{Binding ShowLoading}" />
+                <TextBlock Grid.Row="1" Text="No devices report wireless data." Classes="widgetState" IsVisible="{Binding ShowEmptyMessage}" />
+
+                <!-- Errors at the foot, as on every widget - the last data stays visible. -->
+                <TextBlock Grid.Row="2" Text="{Binding ErrorMessage}" Margin="12,0,12,6" FontSize="11" TextWrapping="Wrap"
+                           Foreground="{DynamicResource CriticalBrush}" IsVisible="{Binding HasError}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- ======================== Recently viewed ======================== -->
+        <DataTemplate DataType="vm:RecentlyViewedWidgetViewModel">
+            <Panel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasDevices}">
+                    <ItemsControl ItemsSource="{Binding Devices}" Margin="-2,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:RecentlyViewedDeviceItemViewModel">
+                                <Button Classes="row" Command="{Binding OpenCommand}">
+                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
+                                            <Ellipse Classes="dot" Fill="{Binding State, Converter={x:Static views:Converters.DeviceStateToBrush}}" IsVisible="{Binding HasState}" />
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Row="1" Text="{Binding Subtitle}" Classes="widgetSubtitle" IsVisible="{Binding HasSubtitle}" />
+                                        <TextBlock Grid.Column="1" Grid.RowSpan="2" Text="{Binding ViewedText}" VerticalAlignment="Center" Classes="subtle" />
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <TextBlock Text="No devices viewed yet. Devices you open appear here." Classes="widgetState" IsVisible="{Binding !HasDevices}" />
+            </Panel>
+        </DataTemplate>
+
+        <!-- ======================== Top interfaces / errors / devices ======================== -->
+        <!-- One template for all three (#199-#201): device, port, the two numbers
+             and a bar, under headings that rank the rows - click In or Out to rank
+             by it, again for Total (both lit). -->
+        <DataTemplate DataType="vm:TopWidgetViewModel">
+            <Grid RowDefinitions="*,Auto">
+                <Panel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasRows}">
+                        <StackPanel Margin="6,0,6,6">
+                            <Grid Margin="8,0,8,2" ColumnDefinitions="*,78,78">
+                                <TextBlock Text="{Binding NameHeading}" Classes="widgetHeading" />
+                                <Button Grid.Column="1" Classes="rank" Classes.ranked="{Binding IsInRanked}" Command="{Binding RankByInCommand}" ToolTip.Tip="{Binding RankText}">
+                                    <StackPanel Orientation="Horizontal" Spacing="3">
+                                        <TextBlock Text="In" FontSize="11" />
+                                        <fi:SymbolIcon Symbol="ArrowDown" FontSize="10" VerticalAlignment="Center" IsVisible="{Binding IsInRanked}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="2" Classes="rank" Classes.ranked="{Binding IsOutRanked}" Command="{Binding RankByOutCommand}" ToolTip.Tip="{Binding RankText}">
+                                    <StackPanel Orientation="Horizontal" Spacing="3">
+                                        <TextBlock Text="Out" FontSize="11" />
+                                        <fi:SymbolIcon Symbol="ArrowDown" FontSize="10" VerticalAlignment="Center" IsVisible="{Binding IsOutRanked}" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <ItemsControl ItemsSource="{Binding Rows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TopRowViewModel">
+                                        <Button Classes="row"
+                                                Command="{Binding $parent[ItemsControl].((vm:TopWidgetViewModel)DataContext).OpenCommand}"
+                                                CommandParameter="{Binding}" ToolTip.Tip="{Binding Subtitle}">
+                                            <Grid ColumnDefinitions="*,78,78" RowDefinitions="Auto,Auto">
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
+                                                    <Ellipse Classes="dot" Fill="{Binding DeviceState, Converter={x:Static views:Converters.DeviceStateToBrush}}" IsVisible="{Binding HasDeviceState}" />
+                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Text="{Binding InText}" TextAlignment="Right"
+                                                           Classes.warning="{Binding IsWarning}" Classes.critical="{Binding IsCritical}" />
+                                                <TextBlock Grid.Column="2" Text="{Binding OutText}" TextAlignment="Right"
+                                                           Classes.warning="{Binding IsWarning}" Classes.critical="{Binding IsCritical}" />
+                                                <TextBlock Grid.Row="1" Text="{Binding Subtitle}" Classes="widgetSubtitle" IsVisible="{Binding HasSubtitle}" />
+                                                <!-- How full: a port against its speed, a device against the top row. -->
+                                                <ProgressBar Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Classes="bar"
+                                                             Classes.warning="{Binding IsWarning}" Classes.critical="{Binding IsCritical}"
+                                                             Margin="12,6,0,0" VerticalAlignment="Center" Value="{Binding BarPercent}" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <TextBlock Text="Loading…" Classes="widgetState" IsVisible="{Binding ShowLoading}" />
+                    <TextBlock Text="{Binding EmptyText}" Classes="widgetState" IsVisible="{Binding ShowEmptyMessage}" />
+                </Panel>
+
+                <StackPanel Grid.Row="1" Margin="12,0,12,6">
+                    <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource CriticalBrush}" IsVisible="{Binding HasError}" />
+                    <TextBlock Text="{Binding FootnoteText}" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" IsVisible="{Binding HasFootnote}" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <!-- A Top widget's title-bar options: "Top 3" and, for errors, the eye that hides quiet ports. -->
+        <DataTemplate DataType="vm:TopWidgetHeader">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <ComboBox Classes="compact" MinWidth="80" ItemsSource="{Binding CountChoices}" SelectedItem="{Binding Widget.SelectedCount}" ToolTip.Tip="How many to show">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="sys:Int32">
+                            <TextBlock Text="{Binding StringFormat='Top {0}'}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <ToggleButton Classes="glyph" IsChecked="{Binding Widget.HideQuiet}" IsVisible="{Binding Widget.OffersHideQuiet}">
+                    <ToolTip.Tip>
+                        <Panel>
+                            <TextBlock Text="Hiding ports with no errors - click to show them" IsVisible="{Binding Widget.HideQuiet}" />
+                            <TextBlock Text="Showing every port - click to hide ports with no errors" IsVisible="{Binding !Widget.HideQuiet}" />
+                        </Panel>
+                    </ToolTip.Tip>
+                    <Panel>
+                        <fi:SymbolIcon Symbol="EyeOff" IsVisible="{Binding Widget.HideQuiet}" />
+                        <fi:SymbolIcon Symbol="Eye" IsVisible="{Binding !Widget.HideQuiet}" />
+                    </Panel>
+                </ToggleButton>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- ======================== Event log and Graylog ======================== -->
+        <!-- Two-line rows (#202, #203): who it's about with a tag, the message
+             under it and the time; rows new since the last refresh are tinted. -->
+        <DataTemplate DataType="vm:LogFeedWidgetViewModel">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <TextBox Grid.Row="0" Classes="search" PlaceholderText="{Binding SearchHint}" ToolTip.Tip="{Binding SearchHint}"
+                         Text="{Binding SearchText, Delay=500}" Margin="12,0,12,6" IsVisible="{Binding IsSearchOpen}" />
+
+                <Panel Grid.Row="1">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasRows}">
+                        <ItemsControl ItemsSource="{Binding Rows}" Margin="6,0,6,6">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:LogFeedRowViewModel">
+                                    <Border Classes="newTint" Classes.isNew="{Binding IsNew}" CornerRadius="6">
+                                        <Button Classes="row"
+                                                Command="{Binding $parent[ItemsControl].((vm:LogFeedWidgetViewModel)DataContext).OpenCommand}"
+                                                CommandParameter="{Binding}" ToolTip.Tip="{Binding FullTimeText}">
+                                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
+                                                    <Ellipse Classes="dot" Fill="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" IsVisible="{Binding HasSeverity}" />
+                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="4" Padding="5,0" Margin="6,0,0,0"
+                                                            VerticalAlignment="Center" IsVisible="{Binding HasTag}">
+                                                        <TextBlock Text="{Binding Tag}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Grid.Row="1" Text="{Binding Message}" Classes="widgetSubtitle" Margin="0,1,8,0" />
+                                                <TextBlock Grid.Column="1" Grid.RowSpan="2" Text="{Binding TimeText}" TextAlignment="Right" VerticalAlignment="Center" Classes="subtle" />
+                                            </Grid>
+                                        </Button>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <TextBlock Text="Loading…" Classes="widgetState" IsVisible="{Binding ShowLoading}" />
+                    <TextBlock Text="{Binding EmptyText}" Classes="widgetState" IsVisible="{Binding ShowEmptyMessage}" />
+                </Panel>
+
+                <TextBlock Grid.Row="2" Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="11" Margin="12,0,12,6"
+                           Foreground="{DynamicResource CriticalBrush}" IsVisible="{Binding HasError}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- A log widget's title-bar options: the Event log's type, or Graylog's
+             stream and range; the search toggle; the count. -->
+        <DataTemplate DataType="vm:LogFeedHeader">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <ComboBox Classes="compact" MinWidth="96" MaxWidth="150" ToolTip.Tip="Only this type of event"
+                          ItemsSource="{ReflectionBinding Widget.TypeChoices}" SelectedItem="{ReflectionBinding Widget.SelectedType}"
+                          DisplayMemberBinding="{ReflectionBinding Label}" IsVisible="{Binding Widget.OffersTypeFilter}" />
+                <ComboBox Classes="compact" MinWidth="96" MaxWidth="150" ToolTip.Tip="Graylog stream"
+                          ItemsSource="{ReflectionBinding Widget.StreamChoices}" SelectedItem="{ReflectionBinding Widget.SelectedStream}"
+                          DisplayMemberBinding="{ReflectionBinding Label}" IsVisible="{Binding Widget.OffersStream}" />
+                <ComboBox Classes="compact" MinWidth="72" ToolTip.Tip="How far back"
+                          ItemsSource="{ReflectionBinding Widget.Ranges}" SelectedItem="{ReflectionBinding Widget.SelectedRange}"
+                          DisplayMemberBinding="{ReflectionBinding Label}" IsVisible="{Binding Widget.OffersStream}" />
+                <ToggleButton Classes="glyph" IsChecked="{Binding Widget.IsSearchOpen}" ToolTip.Tip="Search">
+                    <fi:SymbolIcon Symbol="Search" />
+                </ToggleButton>
+                <ComboBox Classes="compact" MinWidth="56" ItemsSource="{Binding CountChoices}" SelectedItem="{Binding Widget.SelectedCount}" ToolTip.Tip="How many to show" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- ======================== Unsupported (#196) ======================== -->
+        <DataTemplate DataType="vm:UnsupportedWidgetViewModel">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16">
+                <TextBlock Text="{Binding Message}" TextAlignment="Center" TextWrapping="Wrap" Classes="subtle" />
+                <TextBlock Text="{Binding WidgetType, StringFormat='Widget type: {0}'}" TextAlignment="Center" Margin="0,6,0,0" FontSize="11" Classes="subtle" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- ======================== Pinned devices ======================== -->
+        <!-- Rows in the shared style (#212), with Unpin on hover. -->
+        <DataTemplate DataType="vm:PinnedDevicesWidgetViewModel">
+            <Panel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasDevices}">
+                    <ItemsControl ItemsSource="{Binding Devices}" Margin="-2,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PinnedDeviceItemViewModel">
+                                <Panel Classes="pinnedRow" Background="Transparent">
+                                    <Button Classes="row" Command="{Binding OpenCommand}">
+                                        <Grid RowDefinitions="Auto,Auto">
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,32,0">
+                                                <Ellipse Classes="dot" Fill="{Binding State, Converter={x:Static views:Converters.DeviceStateToBrush}}" IsVisible="{Binding HasState}" />
+                                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Row="1" Text="{Binding Subtitle}" Classes="widgetSubtitle" Margin="14,1,32,0" IsVisible="{Binding HasSubtitle}" />
+                                        </Grid>
+                                    </Button>
+                                    <Button Classes="icon small unpin" Command="{Binding UnpinCommand}" Margin="0,0,4,0"
+                                            HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip.Tip="Unpin this device">
+                                        <fi:SymbolIcon Symbol="PinOff" />
+                                    </Button>
+                                </Panel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <TextBlock Text="No pinned devices yet. Star a device on the Devices tab to pin it." Classes="widgetState" IsVisible="{Binding !HasDevices}" />
+            </Panel>
+        </DataTemplate>
+
+        <!-- ======================== Graph (#12) ======================== -->
+        <!-- A device's graph; clicking it opens it full size in Device Details (#161). -->
+        <DataTemplate DataType="vm:GraphWidgetViewModel">
+            <Panel>
+                <Button Classes="bare" Command="{Binding OpenGraphCommand}" ToolTip.Tip="Open in Device Details" Focusable="False"
+                        IsVisible="{Binding Svg, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <Image Source="{Binding Svg, Converter={x:Static views:Converters.SvgToImage}}" Stretch="Uniform" />
+                </Button>
+
+                <TextBlock Text="Loading…" Classes="widgetState" IsVisible="{Binding IsLoading}" />
+                <TextBlock Text="{Binding ErrorMessage}" Classes="widgetState" MaxWidth="240" IsVisible="{Binding HasError}" />
+                <TextBlock Text="No graph yet. Choose a device and graph from ⋯, Set up…" Classes="widgetState" MaxWidth="240" IsVisible="{Binding !IsConfigured}" />
+            </Panel>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <Grid Background="{DynamicResource BackgroundBrush}" RowDefinitions="Auto,Auto,*,Auto">
+
+        <!-- ======================== Toolbar ======================== -->
+        <!-- Not editing: one pencil to start editing (#274). -->
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                Padding="18,8" IsVisible="{Binding !IsEditMode}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Classes="icon" ToolTip.Tip="Edit dashboard" AutomationProperties.Name="Edit dashboard" Command="{Binding EditCommand}">
+                    <fi:SymbolIcon Symbol="Edit" />
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <!-- Editing (#274): Undo, Tidy up and Add widgets, then Cancel and Done. -->
+        <Border Grid.Row="0" Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="0,0,0,1"
+                Padding="18,8" IsVisible="{Binding IsEditMode}">
+            <DockPanel LastChildFill="True">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                    <Button Classes="icon" ToolTip.Tip="{Binding UndoToolTip}" ToolTip.ShowOnDisabled="True" AutomationProperties.Name="Undo" Command="{Binding UndoCommand}">
+                        <fi:SymbolIcon Symbol="ArrowUndo" />
+                    </Button>
+                    <Button Classes="icon" ToolTip.Tip="Tidy up - close the gaps" AutomationProperties.Name="Tidy up" Command="{Binding TidyUpCommand}">
+                        <fi:SymbolIcon Symbol="Grid" />
+                    </Button>
+                    <Button Classes="icon" ToolTip.Tip="Add widgets" AutomationProperties.Name="Add widgets" Command="{Binding AddWidgetCommand}">
+                        <fi:SymbolIcon Symbol="Add" />
+                    </Button>
+                    <Rectangle Width="1" Height="22" Fill="{DynamicResource BorderBrush}" Margin="10,0" />
+                    <Button Content="Cancel" Command="{Binding CancelCommand}" ToolTip.Tip="Put the dashboard back as it was" Padding="12,5" Margin="0,0,6,0" />
+                    <Button Content="Done" Command="{Binding DoneCommand}" Classes="primary" Padding="14,5" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <fi:SymbolIcon Symbol="Edit" FontSize="16" Foreground="{DynamicResource AccentBrush}" />
+                    <TextBlock Text="Editing dashboard" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Classes="subtle" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                               Text="Drag a title bar to move it, a corner to resize. Arrows move the selected widget, Shift + arrows resize it." />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1" Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="0,0,0,1"
+                Padding="18,10" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Widget canvas ======================== -->
+        <!-- The canvas is at least the viewport, so a widget can be dragged flush
+             to every edge, and grows to the furthest widget so it scrolls. -->
+        <Grid Grid.Row="2" Margin="12" ColumnDefinitions="*,Auto">
+            <ScrollViewer Name="CanvasScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                <Panel>
+                    <!-- The "+ Add widget" space (#277): where the next widget fits. -->
+                    <Canvas IsVisible="{Binding ShowAddSpace}">
+                        <Button Classes="addSpace" Canvas.Left="{Binding AddSpaceLeft}" Canvas.Top="{Binding AddSpaceTop}"
+                                Width="{Binding AddSpaceWidth}" Height="{Binding AddSpaceHeight}"
+                                Command="{Binding AddWidgetCommand}" ToolTip.Tip="Add widgets here" />
+                    </Canvas>
+
+                    <ItemsControl Name="WidgetsHost" ItemsSource="{Binding Widgets}" ItemTemplate="{StaticResource WidgetTemplate}"
+                                  Classes.editing="{Binding IsEditMode}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Canvas />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+
+                    <!-- Alignment guides while dragging or resizing (#278), drawn by the code-behind. -->
+                    <Canvas Name="GuideLayer" IsHitTestVisible="False" />
+                </Panel>
+            </ScrollViewer>
+
+            <!-- With the welcome turned off: just say how to start. -->
+            <TextBlock Text="Your dashboard is empty. Click the pencil to edit it, then + to add widgets."
+                       HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" Classes="subtle">
+                <TextBlock.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="Widgets.Count" Converter="{x:Static views:Converters.IsZero}" />
+                        <Binding Path="!ShowWelcome" />
+                    </MultiBinding>
+                </TextBlock.IsVisible>
+            </TextBlock>
+
+            <!-- Welcome (#233): a new user's first view, until the first widget or "Don't show again". -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding ShowWelcome}">
+                <Border DataContext="{Binding Welcome}" x:DataType="vm:WelcomeViewModel"
+                        Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="12" Padding="26,22" Margin="0,24" MaxWidth="520"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel>
+                        <DockPanel>
+                            <views:DashyMark Width="48" Height="48" Margin="0,0,16,0" />
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Welcome to DashyNMS" Classes="heading" FontSize="20" />
+                                <TextBlock Text="{Binding ServerSummary}" Classes="subtle" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <TextBlock Text="Your dashboard is empty. Start with a ready-made one, or pick the widgets you want."
+                                   Classes="subtle" TextWrapping="Wrap" Margin="0,16,0,12" />
+
+                        <WrapPanel>
+                            <Button Command="{Binding UseStarterCommand}" Classes="primary" Padding="12,6" Margin="0,0,8,6">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <fi:SymbolIcon Symbol="Grid" FontSize="14" />
+                                    <TextBlock Text="Use the starter dashboard" />
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding ChooseWidgetsCommand}" Padding="12,6" Margin="0,0,8,6">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <fi:SymbolIcon Symbol="Add" FontSize="14" />
+                                    <TextBlock Text="Choose widgets…" />
+                                </StackPanel>
+                            </Button>
+                        </WrapPanel>
+                        <TextBlock Text="{Binding StarterContents, StringFormat='Starter: {0}'}" Classes="subtle" FontSize="11.5" TextWrapping="Wrap" />
+
+                        <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,16,0,12" />
+                        <TextBlock Text="Jump in" Classes="subtle" Margin="0,0,0,8" />
+                        <WrapPanel>
+                            <Button Content="Devices" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static vm:MainTab.Devices}" Padding="10,4" Margin="0,0,6,6" />
+                            <Button Content="Alerts" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static vm:MainTab.Alerts}" Padding="10,4" Margin="0,0,6,6" />
+                            <Button Content="Network map" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static vm:MainTab.MapsNetwork}" Padding="10,4" Margin="0,0,6,6" />
+                            <Button Content="Neighbours" Command="{Binding OpenTabCommand}" CommandParameter="{x:Static vm:MainTab.Neighbours}" Padding="10,4" Margin="0,0,6,6" />
+                        </WrapPanel>
+
+                        <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,10" />
+                        <DockPanel Margin="0,0,0,4">
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding StepsText}" Classes="subtle" />
+                            <TextBlock Text="Get set up" Classes="subtle" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding Steps}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:WelcomeStep">
+                                    <DockPanel Margin="0,4">
+                                        <Border Classes="stepTick" Classes.done="{Binding IsDone}" Width="16" Height="16" CornerRadius="8"
+                                                BorderThickness="1.5" Margin="0,0,10,0" VerticalAlignment="Center">
+                                            <fi:SymbolIcon Symbol="Checkmark" FontSize="10" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsDone}" />
+                                        </Border>
+                                        <Button DockPanel.Dock="Right" Classes="link" VerticalAlignment="Center" Command="{Binding Action}" IsVisible="{Binding ShowAction}">
+                                            <TextBlock Text="{Binding ActionText}" />
+                                        </Button>
+                                        <TextBlock Classes="step" Classes.done="{Binding IsDone}" Text="{Binding Text}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Button Classes="link" HorizontalAlignment="Right" Margin="0,12,0,0" Command="{Binding DismissCommand}" Foreground="{DynamicResource TextSecondaryBrush}">
+                            <TextBlock Text="Don't show again" FontSize="11.5" />
+                        </Button>
+                    </StackPanel>
+                </Border>
+            </ScrollViewer>
+
+            <!-- Removed or duplicated, with Undo (#276, #279). -->
+            <Border Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Padding="16,6,8,6"
+                    CornerRadius="10" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                    BoxShadow="0 4 18 0 #73000000" IsVisible="{Binding IsToastVisible}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding ToastText}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Button Content="Set up…" Command="{Binding ToastSetUpCommand}" Padding="10,4" IsVisible="{Binding ToastCanSetUp}" />
+                    <Button Content="Undo" Command="{Binding UndoCommand}" Classes="primary" Padding="12,4" />
+                    <Button Classes="icon small" ToolTip.Tip="Dismiss" Command="{Binding DismissToastCommand}">
+                        <fi:SymbolIcon Symbol="Dismiss" FontSize="12" />
+                    </Button>
+                </StackPanel>
+            </Border>
+
+            <!-- The set-up panel (#275): one widget's options, the widget updating beside it. -->
+            <Border Grid.Column="1" Width="380" Margin="12,0,0,0" Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" IsVisible="{Binding HasSetUpWidget}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="16,12">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Classes="icon small" ToolTip.Tip="Close" Command="{Binding CloseSetUpCommand}" VerticalAlignment="Top">
+                                <fi:SymbolIcon Symbol="Dismiss" FontSize="12" />
+                            </Button>
+                            <StackPanel>
+                                <TextBlock Text="{Binding SetUpKind}" Classes="section" Margin="0" />
+                                <TextBlock Text="{Binding SetUpWidget.Title}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="16,10">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Done" Command="{Binding CloseSetUpCommand}" Classes="primary" Padding="14,5" />
+                            <Button Classes="link" VerticalAlignment="Center" Command="{Binding SetUpWidget.RemoveCommand}" Foreground="{DynamicResource CriticalBrush}">
+                                <TextBlock Text="Remove widget" />
+                            </Button>
+                        </DockPanel>
+                    </Border>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,12">
+                        <StackPanel DataContext="{Binding SetUpWidget}" x:DataType="vm:DashboardWidgetViewModel">
+                            <TextBlock Text="TITLE" Classes="section" Margin="0,0,0,6" />
+                            <TextBox Text="{Binding Title, UpdateSourceTrigger=LostFocus}" />
+
+                            <TextBlock Text="SIZE" Classes="section" Margin="0,16,0,6" />
+                            <UniformGrid Columns="4">
+                                <Button Content="Small" Command="{Binding SetSizeCommand}" CommandParameter="Small" Margin="0,0,4,0" Padding="4,6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                                <Button Content="Medium" Command="{Binding SetSizeCommand}" CommandParameter="Medium" Margin="2,0" Padding="4,6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                                <Button Content="Large" Command="{Binding SetSizeCommand}" CommandParameter="Large" Margin="2,0" Padding="4,6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                                <Button Content="Wide" Command="{Binding SetSizeCommand}" CommandParameter="Wide" Margin="4,0,0,0" Padding="4,6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                            </UniformGrid>
+
+                            <!-- The kind's own options: its set-up template below, or its title-bar options. -->
+                            <ContentControl Content="{Binding}" Focusable="False" Margin="0,16,0,0">
+                                <ContentControl.DataTemplates>
+                                    <!-- Sensors: the ones on it, each removable, and a search to add more. -->
+                                    <DataTemplate DataType="vm:SensorWidgetViewModel">
+                                        <StackPanel>
+                                            <DockPanel Margin="0,0,0,6">
+                                                <Button DockPanel.Dock="Right" Content="Add sensor" Padding="8,3" Command="{Binding TogglePickerCommand}" IsVisible="{Binding !IsPickerOpen}" />
+                                                <Button DockPanel.Dock="Right" Classes="icon small" ToolTip.Tip="Back to the sensors on it" Command="{Binding TogglePickerCommand}" IsVisible="{Binding IsPickerOpen}">
+                                                    <fi:SymbolIcon Symbol="ArrowLeft" />
+                                                </Button>
+                                                <TextBlock Text="SENSORS" Classes="section" Margin="0" VerticalAlignment="Center" />
+                                            </DockPanel>
+
+                                            <!-- On it: each with Remove. -->
+                                            <StackPanel IsVisible="{Binding !IsPickerOpen}">
+                                                <ItemsControl ItemsSource="{Binding Sensors}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:SensorItemViewModel">
+                                                            <DockPanel Margin="0,3">
+                                                                <Button DockPanel.Dock="Right" Classes="icon small" ToolTip.Tip="Remove from widget" VerticalAlignment="Center"
+                                                                        Command="{Binding $parent[ItemsControl].((vm:SensorWidgetViewModel)DataContext).RemoveSensorCommand}"
+                                                                        CommandParameter="{Binding}">
+                                                                    <fi:SymbolIcon Symbol="Delete" />
+                                                                </Button>
+                                                                <StackPanel VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Text="{Binding Description}" Classes="subtle" TextTrimming="CharacterEllipsis" />
+                                                                </StackPanel>
+                                                            </DockPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="None yet. Add sensor finds them by device or sensor." TextWrapping="Wrap" Classes="subtle"
+                                                           IsVisible="{Binding !LoadState.HasVisibleItems}" />
+                                            </StackPanel>
+
+                                            <!-- Adding: search, then Add. -->
+                                            <StackPanel IsVisible="{Binding IsPickerOpen}">
+                                                <TextBox Classes="search" PlaceholderText="Search by device or sensor" Text="{Binding PickerSearchText, Delay=200}" Margin="0,0,0,8" />
+                                                <ItemsControl ItemsSource="{Binding PickerResults}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:SensorPickerItem">
+                                                            <DockPanel Margin="0,3">
+                                                                <Button DockPanel.Dock="Right" Content="Add" Padding="8,3" VerticalAlignment="Center"
+                                                                        Command="{Binding $parent[ItemsControl].((vm:SensorWidgetViewModel)DataContext).AddSensorCommand}"
+                                                                        CommandParameter="{Binding}" />
+                                                                <StackPanel VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Text="{Binding Description}" Classes="subtle" TextTrimming="CharacterEllipsis" />
+                                                                </StackPanel>
+                                                            </DockPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="No matching sensors. Sensors must be visible on the Health tab to show up here."
+                                                           TextWrapping="Wrap" Classes="subtle" IsVisible="{Binding !HasPickerResults}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+
+                                    <!-- Graph: the device, the graph and the range. -->
+                                    <DataTemplate DataType="vm:GraphWidgetViewModel">
+                                        <StackPanel>
+                                            <TextBlock Text="DEVICE" Classes="section" Margin="0,0,0,6" />
+                                            <!-- Choosing: search the devices. -->
+                                            <StackPanel IsVisible="{Binding IsDevicePickerOpen}">
+                                                <DockPanel Margin="0,0,0,6">
+                                                    <Button DockPanel.Dock="Right" Classes="icon small" ToolTip.Tip="Back" Command="{Binding ToggleDevicePickerCommand}">
+                                                        <fi:SymbolIcon Symbol="ArrowLeft" />
+                                                    </Button>
+                                                    <TextBox Classes="search" PlaceholderText="Search devices" Text="{Binding DevicePickerSearchText, Delay=200}" Margin="0,0,8,0" />
+                                                </DockPanel>
+                                                <ItemsControl ItemsSource="{Binding DevicePickerResults}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:DevicePickerItem">
+                                                            <Button Content="{Binding DisplayName}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Margin="0,0,0,2"
+                                                                    Command="{Binding $parent[ItemsControl].((vm:GraphWidgetViewModel)DataContext).SelectDeviceCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="No matching devices." Classes="subtle" IsVisible="{Binding !HasDevicePickerResults}" />
+                                            </StackPanel>
+
+                                            <!-- Chosen: the device, then its graph and range. -->
+                                            <StackPanel IsVisible="{Binding !IsDevicePickerOpen}">
+                                                <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6"
+                                                        Command="{Binding ToggleDevicePickerCommand}" ToolTip.Tip="Choose a device">
+                                                    <Panel>
+                                                        <TextBlock Text="Choose a device" IsVisible="{Binding !HasSelectedDevice}" />
+                                                        <TextBlock Text="{Binding SelectedDeviceName}" IsVisible="{Binding HasSelectedDevice}" />
+                                                    </Panel>
+                                                </Button>
+
+                                                <StackPanel IsVisible="{Binding HasSelectedDevice}">
+                                                    <!-- The device's graphs, or one of its ports' (#285). -->
+                                                    <StackPanel IsVisible="{Binding HasSources}">
+                                                        <TextBlock Text="SHOW" Classes="section" Margin="0,16,0,6" />
+                                                        <ComboBox ItemsSource="{Binding Sources}" SelectedItem="{Binding SelectedSource}" HorizontalAlignment="Stretch"
+                                                                  DisplayMemberBinding="{ReflectionBinding Name}" ToolTip.Tip="The device's own graphs, or one of its ports" />
+                                                    </StackPanel>
+                                                    <TextBlock Text="GRAPH" Classes="section" Margin="0,16,0,6" />
+                                                    <ComboBox ItemsSource="{Binding AvailableGraphs}" SelectedItem="{Binding SelectedGraph}" HorizontalAlignment="Stretch"
+                                                              DisplayMemberBinding="{ReflectionBinding Description}" />
+                                                    <TextBlock Text="RANGE" Classes="section" Margin="0,16,0,6" />
+                                                    <views:GraphTimeRangePicker DataContext="{Binding TimeRange}" HorizontalAlignment="Left" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+
+                                    <!-- Any other widget: the same options as its title bar, if it has any. -->
+                                    <DataTemplate DataType="vm:DashboardWidgetViewModel">
+                                        <StackPanel>
+                                            <TextBlock Text="OPTIONS" Classes="section" Margin="0,0,0,6" IsVisible="{Binding HeaderOptions, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                            <ContentControl Content="{Binding HeaderOptions}" Focusable="False" HorizontalAlignment="Left" />
+                                            <TextBlock Text="Nothing else to set up for this widget." Classes="subtle"
+                                                       IsVisible="{Binding HeaderOptions, Converter={x:Static ObjectConverters.IsNull}}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ContentControl.DataTemplates>
+                            </ContentControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- ======================== Status bar ======================== -->
+        <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,8">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Refreshing..." Classes="subtle" IsVisible="{Binding IsBusy}" />
+                    <TextBlock Text="{Binding StatusMessage}" Classes="subtle" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14">
+                    <TextBlock Text="{Binding LastUpdatedText, StringFormat='updated {0}'}" Classes="subtle" />
+                    <TextBlock Text="{Binding NextRefreshText, StringFormat='next in {0}'}" Classes="subtle" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
