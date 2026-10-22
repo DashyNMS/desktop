@@ -103,8 +103,10 @@ internal static class ToastIdentity
 
             var buffer = new StringBuilder(260);
             link.GetPath(buffer, buffer.Capacity, out _, 0); // discards the WIN32_FIND_DATAW; only the path is wanted
-
-            return string.Equals(buffer.ToString(), exePath, StringComparison.OrdinalIgnoreCase);
+            if (!string.Equals(buffer.ToString(), exePath, StringComparison.OrdinalIgnoreCase)) return false;
+            buffer.Clear();
+            link.GetIconLocation(buffer, buffer.Capacity, out var iconIndex);
+            return iconIndex == 0 && string.Equals(buffer.ToString(), exePath, StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
@@ -127,6 +129,7 @@ internal static class ToastIdentity
         try
         {
             link.SetPath(exePath);
+            link.SetIconLocation(exePath, 0);
             link.SetWorkingDirectory(Path.GetDirectoryName(exePath) ?? string.Empty);
             link.SetDescription("DashyNMS - LibreNMS alert monitor");
 

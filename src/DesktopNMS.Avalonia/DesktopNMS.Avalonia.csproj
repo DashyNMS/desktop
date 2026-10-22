@@ -17,6 +17,7 @@
     <AssemblyName>DashyNMS.Avalonia</AssemblyName>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\DesktopNMS\Assets\app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(WindowsBuild)' == 'true'">
