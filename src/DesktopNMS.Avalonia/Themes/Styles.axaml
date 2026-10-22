@@ -21,7 +21,9 @@
     <!-- The main window draws its own title bar (#250). Avalonia 12 also draws
          the window's title over it, and a full-screen button beside the window
          buttons that lands on Refresh; the WPF app had neither. -->
-    <Style Selector="WindowDrawnDecorations /template/ Panel#PART_TitleTextPanel">
+    <!-- The text, not its panel: the template binds the panel's IsVisible, and
+         that outranks a style. -->
+    <Style Selector="WindowDrawnDecorations /template/ Panel#PART_TitleTextPanel > TextBlock">
         <Setter Property="IsVisible" Value="False" />
     </Style>
     <Style Selector="WindowDrawnDecorations /template/ Button#PART_FullScreenButton">
