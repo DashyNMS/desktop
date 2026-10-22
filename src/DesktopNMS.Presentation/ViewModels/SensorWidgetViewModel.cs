@@ -82,6 +82,9 @@ public sealed class SensorWidgetViewModel : DashboardWidgetViewModel
     /// </summary>
     public ListLoadState LoadState { get; } = new();
 
+    /// <summary>End the first-load state on failure while preserving all readings already shown.</summary>
+    public void CompleteFailedRefresh() => LoadState.CompleteLoad(_ownedSensorIds.Count, Sensors.Count);
+
     public RelayCommand OpenDeviceCommand => _openDeviceCommand;
 
     public RelayCommand RemoveSensorCommand { get; }

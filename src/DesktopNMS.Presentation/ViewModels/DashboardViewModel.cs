@@ -70,6 +70,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
     private bool _isBusy;
     private bool _isEditMode;
     private DateTimeOffset? _lastUpdated;
+    private DateTimeOffset? _lastSensorReadingsAt;
     private bool _hasLoadedOnce;
 
     /// <summary>The last successful fetch, kept so a brand-new widget can be
@@ -171,6 +172,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         _session.StateChanged += OnSessionStateChanged;
         _sensorMonitor.PollStarted += OnPollStarted;
         _sensorMonitor.Polled += OnPolled;
+        _alertMonitor.Polled += OnAlertsPolled;
+        _deviceMonitor.Polled += OnDevicesPolled;
     }
 
     /// <summary>The widgets on the canvas, in the order they were created.</summary>
@@ -592,6 +595,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         ? "never"
         : _lastUpdated.Value.LocalDateTime.ToString("HH:mm:ss");
 
+    public string RefreshText => _hasLoadedOnce ? "Updating…" : "Loading…";
+
     /// <summary>
     /// Called each time the tab is shown; starts the shared sensor monitor if
     /// nothing else has already (e.g. the Health tab), and asks it to poll
@@ -658,22 +663,48 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
 
     private void OnPolled(object? sender, SensorPollResult result) => _dispatcher.InvokeAsync(() => ApplyPollResult(result));
 
+    private void OnAlertsPolled(object? sender, AlertPollResult result)
+    {
+        if (result.Succeeded) _dispatcher.InvokeAsync(() => RecordRefresh(result.CompletedAt));
+    }
+
+    private void OnDevicesPolled(object? sender, DevicePollResult result)
+    {
+        if (result.Succeeded) _dispatcher.InvokeAsync(() => RecordRefresh(result.CompletedAt));
+    }
+
+    /// <summary>A slow sensor response mustn't move a newer alert/device refresh backwards.</summary>
+    private void RecordRefresh(DateTimeOffset completedAt)
+    {
+        if (_lastUpdated is null || completedAt > _lastUpdated)
+        {
+            _lastUpdated = completedAt;
+            OnPropertyChanged(nameof(LastUpdatedText));
+        }
+    }
+
     private void ApplyPollResult(SensorPollResult result)
     {
         IsBusy = false;
         OnPropertyChanged(nameof(NextRefreshText));
+
+        // A refused sensor resource completed too; other widgets still have
+        // useful data. Record it before the no-widgets/no-sensors returns.
+        if (result.Succeeded || result.IsPermissionDenied) RecordRefresh(result.CompletedAt);
 
         if (!result.Succeeded)
         {
             // A token that can't read sensors isn't an error worth a banner
             // on every refresh here (#294) - the Sensors widgets just stay
             // empty, and the Health tab says why.
-            ErrorMessage = result.IsPermissionDenied ? null : result.ErrorMessage;
+            ErrorMessage = result.IsPermissionDenied ? null : SensorRefreshStatus.Failure(result, _lastSensorReadingsAt);
             StatusMessage = result.IsPermissionDenied ? string.Empty : "Last refresh failed.";
+            foreach (var widget in Widgets.OfType<SensorWidgetViewModel>()) widget.CompleteFailedRefresh();
             return;
         }
 
         ErrorMessage = null;
+        _lastSensorReadingsAt = result.ObservedAt ?? result.CompletedAt;
 
         if (Widgets.Count == 0)
         {
@@ -707,11 +738,9 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         _lastFleet = supported;
         _lastDeviceNameFor = DeviceNameFor;
         _hasLoadedOnce = true;
-        _lastUpdated = result.CompletedAt;
 
         var shown = sensorWidgets.Sum(w => w.Sensors.Count);
         StatusMessage = $"{shown} sensor(s) across {sensorWidgets.Count} widget(s).";
-        OnPropertyChanged(nameof(LastUpdatedText));
     }
 
     private void OnSettingsChanged(object? sender, AppSettings settings)
@@ -901,6 +930,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         _session.StateChanged -= OnSessionStateChanged;
         _sensorMonitor.PollStarted -= OnPollStarted;
         _sensorMonitor.Polled -= OnPolled;
+        _alertMonitor.Polled -= OnAlertsPolled;
+        _deviceMonitor.Polled -= OnDevicesPolled;
 
         foreach (var widget in Widgets)
         {

@@ -154,14 +154,7 @@ public partial class App : Application
         // so it's Exit that ends the app - or closing the window when it doesn't.
         SetUpTray();
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        _mainWindow.Closing += (_, e) =>
-        {
-            if (!e.IsProgrammatic && CanLiveInTray && settings.Current.MinimiseToTrayOnClose)
-            {
-                e.Cancel = true;
-                _mainWindow.Hide();
-            }
-        };
+        MainWindowLifetime.Attach(_mainWindow, () => CanLiveInTray && settings.Current.MinimiseToTrayOnClose);
         _mainWindow.Closed += (_, _) => desktop.Shutdown();
 
         // Nothing to sign back in with: just the sign-in window, no empty main window behind it (#231).
@@ -192,10 +185,30 @@ public partial class App : Application
                 ScheduleTrayUpdate();
             }
         };
-        _services.GetRequiredService<AlertMonitor>().Polled += (_, _) => Dispatcher.UIThread.Post(UpdateTrayStatus);
-
-        _mainViewModel.SignedOut += (_, _) =>
+        var notifications = _services.GetRequiredService<IAlertNotificationService>();
+#if WINDOWS
+        ToastIdentity.EnsureStartMenuShortcut(_logger);
+        _services.GetRequiredService<AlertNotificationService>().Initialise();
+#else
+        if (_services.GetRequiredService<INativeNotificationBackend>() is MacNotificationBackend macNotifications)
         {
+            try { macNotifications.Initialise(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Native notifications require the macOS app bundle"); }
+        }
+#endif
+        notifications.ActionRequested += (_, action) => Dispatcher.UIThread.Post(() => _ = HandleNotificationActionAsync(action));
+        _services.GetRequiredService<AlertMonitor>().Polled += (_, result) => Dispatcher.UIThread.Post(() =>
+        {
+            if (!_demo.IsActive) notifications.Handle(result);
+            UpdateTrayStatus();
+        });
+
+        _mainViewModel.SignedOut += async (_, _) =>
+        {
+            notifications.ClearHistory();
+            if (notifications is NativeAlertNotifications native)
+                await Task.WhenAny(native.WhenIdle, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(true);
+
             // Leaving the demo: nothing real to wipe, just the normal app again.
             if (_demo.IsActive)
             {
@@ -303,6 +316,29 @@ public partial class App : Application
     }
 
     // ----------------------------------------------------------------- tray
+
+    private async Task HandleNotificationActionAsync(ToastActionRequest request)
+    {
+        if (_mainViewModel is null || _services is null) return;
+        try
+        {
+            if (!_mainViewModel.IsConnected) { ShowMainOrSignIn(); return; }
+            if (request.Action == ToastAction.InstallUpdate)
+            {
+                await _mainViewModel.InstallUpdateAsync().ConfigureAwait(true);
+                return;
+            }
+
+            if (request.Action == ToastAction.Acknowledge && request.Alert is { } acknowledge)
+                await _mainViewModel.AcknowledgeAsync(acknowledge).ConfigureAwait(true);
+            else
+            {
+                ShowTabOrSignIn(MainTab.Alerts);
+                if (request.Alert is { } alert) _mainViewModel.SelectAlert(alert);
+            }
+        }
+        catch (Exception ex) { _logger?.LogWarning(ex, "A notification action failed"); }
+    }
 
     /// <summary>Whether the app can carry on with no window open: there's a tray icon, on a platform where there's always a tray to find it in (#252).</summary>
     private bool CanLiveInTray => PlatformText.CanHideToTray && _tray?.IsShown == true && !_demo.IsRenderingScreenshots;
@@ -642,8 +678,17 @@ public partial class App : Application
         services.AddSingleton<AlertMonitor>();
         services.AddSingleton<SensorMonitor>();
         services.AddSingleton<DeviceMonitor>();
-        services.AddSingleton<IAlertNotificationService, NoAlertNotifications>();
-        services.AddSingleton<IStartupRegistration, NoStartupRegistration>();
+#if WINDOWS
+        services.AddSingleton<ITrayNotifier, WindowsBalloonNotifier>();
+        services.AddSingleton<AlertNotificationService>();
+        services.AddSingleton<IAlertNotificationService>(sp => sp.GetRequiredService<AlertNotificationService>());
+#else
+        services.AddSingleton<INativeNotificationBackend>(sp => OperatingSystem.IsMacOS()
+            ? new MacNotificationBackend(sp.GetRequiredService<ILogger<MacNotificationBackend>>())
+            : new LinuxNotificationBackend(sp.GetRequiredService<ILogger<LinuxNotificationBackend>>()));
+        services.AddSingleton<IAlertNotificationService, NativeAlertNotifications>();
+#endif
+        services.AddSingleton<IStartupRegistration, PlatformStartupRegistration>();
         services.AddSingleton<IUpdateCheckService, NoUpdates>();
         services.AddSingleton<WindowService>();
         services.AddSingleton<IWindowService>(sp => sp.GetRequiredService<WindowService>());
