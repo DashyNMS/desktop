@@ -70,6 +70,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
     private bool _isBusy;
     private bool _isEditMode;
     private DateTimeOffset? _lastUpdated;
+    private DateTimeOffset? _lastSensorReadingsAt;
     private bool _hasLoadedOnce;
 
     /// <summary>The last successful fetch, kept so a brand-new widget can be
@@ -592,6 +593,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         ? "never"
         : _lastUpdated.Value.LocalDateTime.ToString("HH:mm:ss");
 
+    public string RefreshText => _hasLoadedOnce ? "Updating…" : "Loading…";
+
     /// <summary>
     /// Called each time the tab is shown; starts the shared sensor monitor if
     /// nothing else has already (e.g. the Health tab), and asks it to poll
@@ -668,12 +671,14 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
             // A token that can't read sensors isn't an error worth a banner
             // on every refresh here (#294) - the Sensors widgets just stay
             // empty, and the Health tab says why.
-            ErrorMessage = result.IsPermissionDenied ? null : result.ErrorMessage;
+            ErrorMessage = result.IsPermissionDenied ? null : SensorRefreshStatus.Failure(result, _lastSensorReadingsAt);
             StatusMessage = result.IsPermissionDenied ? string.Empty : "Last refresh failed.";
+            foreach (var widget in Widgets.OfType<SensorWidgetViewModel>()) widget.CompleteFailedRefresh();
             return;
         }
 
         ErrorMessage = null;
+        _lastSensorReadingsAt = result.ObservedAt ?? result.CompletedAt;
 
         if (Widgets.Count == 0)
         {
@@ -708,6 +713,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         _lastDeviceNameFor = DeviceNameFor;
         _hasLoadedOnce = true;
         _lastUpdated = result.CompletedAt;
+        OnPropertyChanged(nameof(RefreshText));
 
         var shown = sensorWidgets.Sum(w => w.Sensors.Count);
         StatusMessage = $"{shown} sensor(s) across {sensorWidgets.Count} widget(s).";
