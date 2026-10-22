@@ -3,6 +3,7 @@
         xmlns:vm="using:DesktopNMS.ViewModels"
         xmlns:models="using:DesktopNMS.Core.Configuration"
         xmlns:views="using:DesktopNMS.Views"
+        xmlns:intel="using:DesktopNMS.Views.Intelligence"
         xmlns:fi="using:FluentIcons.Avalonia"
         x:Class="DesktopNMS.Views.MainWindow"
         x:DataType="vm:MainViewModel"
@@ -349,6 +350,7 @@
             <views:GroupsView DataContext="{Binding Groups}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsGroupsTabSelected}" />
             <views:LocationsView DataContext="{Binding Locations}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsLocationsTabSelected}" />
             <views:LogsView DataContext="{Binding Logs}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsLogsFamilyTabSelected}" />
+            <intel:IntelligenceView DataContext="{Binding Intelligence}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsIntelligenceTabSelected}" />
             <views:NotPortedView Page="{Binding SelectedTab}" IsVisible="{Binding SelectedTab, Converter={x:Static views:Converters.IsNotPorted}}" />
         </Panel>
         </Grid>

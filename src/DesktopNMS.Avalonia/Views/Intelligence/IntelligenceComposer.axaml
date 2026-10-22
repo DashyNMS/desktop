@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             x:Class="DesktopNMS.Views.Intelligence.IntelligenceComposer"
+             x:DataType="vm:IntelligenceComposerViewModel">
+
+    <!-- The question box with the model, detail and Ask/Stop beneath it, as chat apps have it (#327). -->
+    <UserControl.Styles>
+        <!-- The box is the card; the TextBox inside has no frame of its own. -->
+        <Style Selector="TextBox#QuestionBox, TextBox#QuestionBox:pointerover, TextBox#QuestionBox:focus">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="TextBox#QuestionBox:pointerover /template/ Border#PART_BorderElement, TextBox#QuestionBox:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Padding="12,8,8,8" CornerRadius="12" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+        <Grid RowDefinitions="Auto,Auto">
+            <TextBox Name="QuestionBox" Text="{Binding Question}" PlaceholderText="Ask about your network…"
+                     AcceptsReturn="False" TextWrapping="Wrap" MinHeight="48" MaxHeight="140" FontSize="14" Padding="2,4"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Ask about your network" />
+
+            <DockPanel Grid.Row="1" Margin="0,10,0,0">
+                <Panel DockPanel.Dock="Right" VerticalAlignment="Bottom">
+                    <Button Classes="primary" Padding="16,6" Command="{Binding SendCommand}" IsVisible="{Binding !IsBusy}"><TextBlock Text="Ask" /></Button>
+                    <Button Padding="16,6" Command="{Binding StopCommand}" IsVisible="{Binding IsBusy}"><TextBlock Text="Stop" /></Button>
+                </Panel>
+                <WrapPanel HorizontalAlignment="Left">
+                    <StackPanel Margin="0,0,8,0">
+                        <TextBlock Text="Model" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4" />
+                        <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" DisplayMemberBinding="{ReflectionBinding DisplayName}"
+                                  MinWidth="150" IsEnabled="{Binding CanChangeChat}" AutomationProperties.Name="Model for this chat" ToolTip.Tip="Which ChatGPT model answers" />
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="Detail" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4" />
+                        <ComboBox ItemsSource="{Binding DetailOptions}" SelectedValue="{Binding SelectedDetail}" SelectedValueBinding="{ReflectionBinding Key}"
+                                  DisplayMemberBinding="{ReflectionBinding Value}" Width="150" IsEnabled="{Binding CanChangeChat}"
+                                  ToolTip.Tip="How much answers in this chat say. Asking for more or less in a question overrides it."
+                                  AutomationProperties.Name="Detail for this chat" />
+                    </StackPanel>
+                </WrapPanel>
+            </DockPanel>
+        </Grid>
+    </Border>
+</UserControl>

@@ -1,0 +1,315 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:intel="using:DesktopNMS.Views.Intelligence"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.Intelligence.IntelligenceView"
+             x:DataType="vm:IntelligenceViewModel">
+
+    <!-- Intelligence: ask about the network, answered with the user's own
+         ChatGPT plan using DashyNMS's read-only network tools. The account
+         lives in Settings › Intelligence, not here. The context sidebar on
+         the right becomes a drawer when the window is narrow. -->
+    <UserControl.Styles>
+        <Style Selector="Border.paneHeader">
+            <Setter Property="Height" Value="57" />
+            <Setter Property="Padding" Value="18,10" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+        </Style>
+        <Style Selector="TextBlock.paneTitle">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- A flat, full-width row that lights up on hover. -->
+        <Style Selector="Button.contextRow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.contextRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+        </Style>
+        <Style Selector="Ellipse.statusDot">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,9,0" />
+        </Style>
+        <Style Selector="Rectangle.contextRule">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Fill" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="Margin" Value="0,16,0,14" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid Name="Root" ColumnDefinitions="Auto,*,Auto">
+
+        <!-- ======================== Chats ======================== -->
+        <!-- Saved chats are local to this network and ChatGPT account. -->
+        <Border Name="ChatSidebar" Grid.Column="0" Width="220" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+            <Grid RowDefinitions="Auto,*">
+                <Border Classes="paneHeader">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Classes="icon" ToolTip.Tip="New conversation" Command="{Binding ClearCommand}">
+                            <fi:SymbolIcon Symbol="Add" />
+                        </Button>
+                        <TextBlock Text="Chats" Classes="paneTitle" />
+                    </DockPanel>
+                </Border>
+                <intel:IntelligenceChatList Grid.Row="1" DataContext="{Binding Chats}" />
+            </Grid>
+        </Border>
+
+        <!-- ======================== Conversation ======================== -->
+        <Grid Name="ConversationPane" Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto" AutomationProperties.Name="Intelligence conversation">
+            <Border Classes="paneHeader">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Classes="icon" ToolTip.Tip="Intelligence settings" Command="{Binding OpenSettingsCommand}">
+                            <fi:SymbolIcon Symbol="Settings" />
+                        </Button>
+                        <!-- Brings the context sidebar back once it's been collapsed - by the edge it opens from. -->
+                        <Button Name="ShowContextButton" Classes="icon" ToolTip.Tip="Show the context sidebar" AutomationProperties.Name="Show context"
+                                IsVisible="False" Click="OnShowContextClick">
+                            <fi:SymbolIcon Symbol="PanelRight" />
+                        </Button>
+                    </StackPanel>
+                    <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <fi:SymbolIcon Symbol="Sparkle" FontSize="18" VerticalAlignment="Center" />
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Intelligence" Classes="paneTitle" />
+                                <TextBlock Text="{Binding Chats.SelectedChat.Title, FallbackValue=''}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                                           MaxWidth="160" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Chats.SelectedChat.Title, FallbackValue=''}"
+                                           IsVisible="{Binding ShowConversation}" />
+                            </StackPanel>
+                        </StackPanel>
+                        <!-- Spotlight: what the agent is kept to. -->
+                        <Border Grid.Column="1" Background="{DynamicResource AccentSubtleBrush}" CornerRadius="10" Padding="9,2,4,2" Margin="8,0"
+                                VerticalAlignment="Center" HorizontalAlignment="Left" MaxWidth="320" IsVisible="{Binding Context.HasSpotlight}">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Classes="icon" Width="20" Height="20" Margin="4,0,0,0" ToolTip.Tip="Back to the whole network"
+                                        AutomationProperties.Name="Clear Spotlight" Command="{Binding Context.ClearSpotlightCommand}">
+                                    <fi:SymbolIcon Symbol="Dismiss" FontSize="10" />
+                                </Button>
+                                <fi:SymbolIcon DockPanel.Dock="Left" Symbol="Target" FontSize="12" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBlock FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                                    <Run Text="Spotlight: " /><Run Text="{Binding Context.SpotlightSummary, Mode=OneWay}" FontWeight="SemiBold" />
+                                </TextBlock>
+                            </DockPanel>
+                        </Border>
+                    </Grid>
+                </DockPanel>
+            </Border>
+
+            <!-- ======================== Error banner ======================== -->
+            <Border Grid.Row="1" Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="0,0,0,1" Padding="18,10" IsVisible="{Binding HasError}">
+                <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" />
+            </Border>
+
+            <!-- ======================== Not connected ======================== -->
+            <Border Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520" Padding="28,24" CornerRadius="8"
+                    Background="{DynamicResource SurfaceAltBrush}" IsVisible="{Binding IsSignedOut}">
+                <StackPanel>
+                    <TextBlock Text="Ask about your network" Classes="heading" />
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,16"
+                               Text="Ask what's alerting, how a device is doing, where an address is plugged in or what changed overnight. Intelligence answers using your own ChatGPT plan, looking things up with read-only tools - it can't change anything. Needs ChatGPT Plus or Pro." />
+                    <Button Classes="primary" HorizontalAlignment="Left" Padding="16,8" Command="{Binding ConnectCommand}"><TextBlock Text="Continue with ChatGPT" /></Button>
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,12,0,0" Text="Your browser opens to sign in. DashyNMS never sees your ChatGPT password." />
+                </StackPanel>
+            </Border>
+
+            <!-- ======================== Before the first question ======================== -->
+            <Border Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="560" Padding="28,24" CornerRadius="8"
+                    Background="{DynamicResource SurfaceAltBrush}" IsVisible="{Binding NeedsConsent}">
+                <StackPanel>
+                    <TextBlock Text="Before you ask" Classes="heading" />
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,8"
+                               Text="Your questions, and what DashyNMS looks up to answer them - device names, addresses, alerts, ports and log lines from your network - are sent to OpenAI to be processed, using your ChatGPT plan." />
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,16"
+                               Text="Passwords, tokens and SNMP communities are never sent. Config backups are summarised unless you choose otherwise in Settings › Intelligence. Web search can check public information; search terms may be sent to search providers. You can turn it off in Settings. You'll see this again only if what's sent changes." />
+                    <Button Classes="primary" HorizontalAlignment="Left" Padding="16,8" Command="{Binding AcceptConsentCommand}"><TextBlock Text="OK, continue" /></Button>
+                </StackPanel>
+            </Border>
+
+            <intel:IntelligenceTranscript Grid.Row="2" IsVisible="{Binding ShowConversation}" />
+
+            <!-- ======================== Composer ======================== -->
+            <!-- The composer, with the keyboard hint beneath and Dashy standing on top. -->
+            <Grid Grid.Row="3" MaxWidth="860" Margin="24,4,24,18" RowDefinitions="Auto,Auto" IsVisible="{Binding ShowConversation}">
+                <intel:IntelligenceComposer Name="ComposerBox" DataContext="{Binding Composer}" />
+                <TextBlock Grid.Row="1" Text="Enter to ask · Shift+Enter for a new line" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
+                           Margin="2,6,0,0" TextWrapping="Wrap" />
+                <!-- Feet on the composer's top edge: the drawing's feet end 41px into its 44px. -->
+                <intel:IntelligenceMascot HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,6,0" ZIndex="10"
+                                          Outfit="{Binding CompanionOutfit}" IsBusy="{Binding IsBusy}" HasError="{Binding HasError}"
+                                          IsVisible="{Binding ShowMascot}">
+                    <intel:IntelligenceMascot.RenderTransform>
+                        <TranslateTransform Y="-41" />
+                    </intel:IntelligenceMascot.RenderTransform>
+                </intel:IntelligenceMascot>
+            </Grid>
+        </Grid>
+
+        <!-- ======================== Context ======================== -->
+        <!-- What the conversation is about, from DashyNMS's own live data:
+             Spotlight, the devices it mentions with their state, their open
+             alerts, and what it looked at. Docked here when there's room,
+             otherwise moved into the drawer below. -->
+        <Panel Name="DockedSidebarHost" Grid.Column="2">
+            <Border Name="Sidebar" Width="290" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0"
+                    DataContext="{Binding Context}" x:DataType="vm:IntelligenceContextViewModel">
+                <Grid RowDefinitions="Auto,*">
+                    <Border Classes="paneHeader">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Classes="icon" ToolTip.Tip="Collapse the context sidebar" AutomationProperties.Name="Close context" Click="OnCloseContextClick">
+                                <fi:SymbolIcon Symbol="PanelRightContract" />
+                            </Button>
+                            <TextBlock Text="Context" Classes="paneTitle" />
+                        </DockPanel>
+                    </Border>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="12,10,12,16">
+
+                            <!-- ===== Spotlight ===== -->
+                            <DockPanel Margin="8,0,0,6">
+                                <Button DockPanel.Dock="Right" Classes="icon" Width="24" Height="24" ToolTip.Tip="Narrow the conversation to devices, a group or a location"
+                                        Command="{Binding OpenPickerCommand}">
+                                    <fi:SymbolIcon Symbol="Add" FontSize="12" />
+                                </Button>
+                                <TextBlock Text="SPOTLIGHT" Classes="section" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <TextBlock Text="Finish or stop the answer to change Spotlight" FontSize="12" TextWrapping="Wrap" Margin="8,0,0,6"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" IsVisible="{Binding IsScopeLocked}" />
+                            <TextBlock Text="Whole network" Classes="subtle" Margin="8,0,0,4" IsVisible="{Binding !HasSpotlight}" />
+                            <ItemsControl Name="SpotlightList" ItemsSource="{Binding Spotlight}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:SpotlightOption">
+                                        <DockPanel Margin="8,2,0,2">
+                                            <Button DockPanel.Dock="Right" Classes="icon" Width="22" Height="22" ToolTip.Tip="Remove from Spotlight"
+                                                    Command="{Binding #SpotlightList.((vm:IntelligenceContextViewModel)DataContext).RemoveSpotlightCommand}" CommandParameter="{Binding}">
+                                                <fi:SymbolIcon Symbol="Dismiss" FontSize="10" />
+                                            </Button>
+                                            <fi:SymbolIcon DockPanel.Dock="Left" Symbol="Target" FontSize="12" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                            <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                                                <Run Text="{Binding Name, Mode=OneWay}" />
+                                                <Run Text="{Binding KindText, Mode=OneWay}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" />
+                                            </TextBlock>
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Picking what to spotlight. -->
+                            <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="10" Margin="0,6,0,0" IsVisible="{Binding PickerOpen}">
+                                <StackPanel>
+                                    <Border Classes="navTabTrack" HorizontalAlignment="Left" Margin="0,0,0,8">
+                                        <StackPanel Orientation="Horizontal">
+                                            <RadioButton Classes="navTab" GroupName="SpotlightKind" Content="Devices" IsChecked="{Binding IsPickingDevices, Mode=OneWay}" Command="{Binding PickDevicesCommand}" />
+                                            <RadioButton Classes="navTab" GroupName="SpotlightKind" Content="Group" IsChecked="{Binding IsPickingGroup, Mode=OneWay}" Command="{Binding PickGroupCommand}" />
+                                            <RadioButton Classes="navTab" GroupName="SpotlightKind" Content="Location" IsChecked="{Binding IsPickingLocation, Mode=OneWay}" Command="{Binding PickLocationCommand}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <AutoCompleteBox ItemsSource="{Binding PickerOptions}" SelectedItem="{Binding PickerSelection}" ValueMemberBinding="{ReflectionBinding Name}"
+                                                     FilterMode="Contains" MinimumPrefixLength="0" PlaceholderText="Start typing a name" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6" Margin="0,8,0,0">
+                                        <Button Padding="12,5" Command="{Binding ClosePickerCommand}"><TextBlock Text="Cancel" /></Button>
+                                        <Button Classes="primary" Padding="12,5" Command="{Binding AddPickedCommand}"><TextBlock Text="Spotlight" /></Button>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ===== Mentioned devices ===== -->
+                            <Rectangle Classes="contextRule" />
+                            <TextBlock Text="MENTIONED DEVICES" Classes="section" Margin="8,0,0,6" />
+                            <TextBlock Text="{Binding DeviceFreshness}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="8,0,0,8" />
+                            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="8,0,0,0" Text="Devices the conversation mentions appear here, with their state."
+                                       IsVisible="{Binding !HasMentioned}" />
+                            <ItemsControl Name="MentionedList" ItemsSource="{Binding Mentioned}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:MentionedDeviceViewModel">
+                                        <Panel>
+                                            <Button Classes="contextRow" ToolTip.Tip="Open device"
+                                                    Command="{Binding #MentionedList.((vm:IntelligenceContextViewModel)DataContext).OpenDeviceCommand}" CommandParameter="{Binding}">
+                                                <DockPanel>
+                                                    <Ellipse DockPanel.Dock="Left" Classes="statusDot" Fill="{Binding Severity, Converter={x:Static views:Converters.StatusToneToBrush}}" />
+                                                    <StackPanel Margin="0,0,26,0">
+                                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Classes="subtle" FontSize="11" TextTrimming="CharacterEllipsis">
+                                                            <Run Text="{Binding StateText, Mode=OneWay}" /><Run Text="{Binding DetailSuffix, Mode=OneWay}" />
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Classes="icon" Width="24" Height="24" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"
+                                                    ToolTip.Tip="Spotlight this device"
+                                                    Command="{Binding #MentionedList.((vm:IntelligenceContextViewModel)DataContext).SpotlightDeviceCommand}" CommandParameter="{Binding}">
+                                                <fi:SymbolIcon Symbol="Target" FontSize="12" />
+                                            </Button>
+                                        </Panel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- ===== Their open alerts ===== -->
+                            <StackPanel IsVisible="{Binding HasAlerts}">
+                                <Rectangle Classes="contextRule" />
+                                <TextBlock Text="{Binding AlertsHeader}" Classes="section" Margin="8,0,0,6" />
+                                <TextBlock Text="{Binding AlertCountLabel}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="8,0,0,3" />
+                                <TextBlock Text="{Binding AlertFreshness}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="8,0,0,8" />
+                                <ItemsControl Name="AlertList" ItemsSource="{Binding Alerts}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ContextAlertViewModel">
+                                            <Button Classes="contextRow" ToolTip.Tip="Open device"
+                                                    Command="{Binding #AlertList.((vm:IntelligenceContextViewModel)DataContext).OpenDeviceCommand}" CommandParameter="{Binding}">
+                                                <DockPanel>
+                                                    <Ellipse DockPanel.Dock="Left" Classes="statusDot" Fill="{Binding Severity, Converter={x:Static views:Converters.StatusToneToBrush}}" />
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Age}" Classes="subtle" FontSize="11" VerticalAlignment="Top" Margin="6,1,0,0" />
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Rule}" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding DeviceName}" Classes="subtle" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding StateLabel}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
+                            <!-- ===== What it looked at ===== -->
+                            <StackPanel IsVisible="{Binding HasLookedAt}">
+                                <Rectangle Classes="contextRule" />
+                                <TextBlock Text="LOOKED AT" Classes="section" Margin="8,0,0,6" />
+                                <ItemsControl ItemsSource="{Binding LookedAt}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,2,0,2">
+                                                <fi:SymbolIcon Symbol="Search" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding}" Classes="subtle" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Panel>
+
+        <!-- The sidebar as a drawer over a dimmed conversation, when the window's too narrow to dock it. -->
+        <Panel Name="ContextDrawer" Grid.Column="0" Grid.ColumnSpan="3" IsVisible="False" ZIndex="30" AutomationProperties.Name="Context drawer">
+            <Button Background="#66000000" BorderThickness="0" CornerRadius="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                    AutomationProperties.Name="Close context drawer" Click="OnCloseContextClick" />
+        </Panel>
+    </Grid>
+</UserControl>
