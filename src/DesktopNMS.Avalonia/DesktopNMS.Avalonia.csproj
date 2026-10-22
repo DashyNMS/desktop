@@ -38,4 +38,18 @@
     <ProjectReference Include="..\DesktopNMS.Presentation\DesktopNMS.Presentation.csproj" />
   </ItemGroup>
 
+  <!--
+    The DashyNMS MCP server, bundled for Intelligence as the WPF app does:
+    published by tools/Publish-Mcp.ps1 into artifacts/mcp and copied beside
+    the app as mcp/dashynms-mcp.exe. Without it the build still works, and
+    the Intelligence tab says the network tools aren't installed. Windows
+    only for now - macOS and Linux need their own build of it.
+  -->
+  <PropertyGroup>
+    <McpExecutable>$(MSBuildThisFileDirectory)..\..\artifacts\mcp\dashynms-mcp.exe</McpExecutable>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(McpExecutable)')">
+    <None Include="$(MSBuildThisFileDirectory)..\..\artifacts\mcp\**\*" Link="mcp\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
 </Project>
