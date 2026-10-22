@@ -20,17 +20,20 @@ public static class DesktopOpenSourceNotices
 {
     private static readonly OpenSourceNotice[] Own =
     [
-        new("WPF and Windows Forms", "The app's windows", OpenSourceNotices.DotNetFoundation, "MIT",
-            new Uri("https://github.com/dotnet/wpf"), OpenSourceNotices.Mit, NoticePlatforms.Windows),
+        new("Avalonia", "The app's windows on Windows, macOS and Linux", "Copyright (c) AvaloniaUI OÜ", "MIT",
+            new Uri("https://github.com/AvaloniaUI/Avalonia"), OpenSourceNotices.Mit),
+        new("FluentIcons", "The app's icons", "Copyright (c) 2022 davidxuang; Fluent System Icons copyright (c) Microsoft Corporation", "MIT",
+            new Uri("https://github.com/davidxuang/FluentIcons"), OpenSourceNotices.Mit),
+        new("SVG.Skia", "Drawing LibreNMS's graphs", "Copyright (c) Wiesław Šoltés", "MIT",
+            new Uri("https://github.com/wieslawsoltes/Svg.Skia"), OpenSourceNotices.Mit),
+        new("SkiaSharp and HarfBuzzSharp", "Graphics and text rendering", "Copyright (c) 2015-2016 Xamarin, Inc.; copyright (c) 2017-2018 Microsoft Corporation", "MIT",
+            new Uri("https://github.com/mono/SkiaSharp"), OpenSourceNotices.Mit),
         new("Windows Community Toolkit Notifications", "Alert notifications", OpenSourceNotices.DotNetFoundation, "MIT",
             new Uri("https://github.com/CommunityToolkit/WindowsCommunityToolkit"), OpenSourceNotices.Mit, NoticePlatforms.Windows),
-        new("SharpVectors", "Drawing LibreNMS's graphs", "Copyright (c) 2010 - 2026, Elinam LLC", "BSD 3-Clause",
-            new Uri("https://github.com/ElinamLLC/SharpVectors"), OpenSourceNotices.Bsd3SharpVectors, NoticePlatforms.Windows),
-        new("Microsoft Edge WebView2 SDK", "Sign in with LibreNMS", "Copyright (C) Microsoft Corporation", "BSD 3-Clause",
-            new Uri("https://aka.ms/webview2"), OpenSourceNotices.Bsd3WebView2, NoticePlatforms.Windows),
     ];
 
-    /// <summary>In order: the platform first (.NET, WPF), then libraries, fonts and map data.</summary>
+    /// <summary>In order: the runtime, UI libraries, fonts and map data.</summary>
     public static IReadOnlyList<OpenSourceNotice> All { get; } =
-        OpenSourceNotices.For(NoticePlatforms.Windows, OpenSourceNotices.Shared.Take(1).Concat(Own).Concat(OpenSourceNotices.Shared.Skip(1)));
+        OpenSourceNotices.Shared.Take(1).Concat(Own).Concat(OpenSourceNotices.Shared.Skip(1))
+            .Where(notice => notice.Platforms != NoticePlatforms.Windows || OperatingSystem.IsWindows()).ToList();
 }
