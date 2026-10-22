@@ -1,0 +1,74 @@
+name: Native network tools
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/mcp-bundle.yml
+      - tools/Publish-Mcp.ps1
+      - src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj
+      - src/DesktopNMS.Presentation/Services/Intelligence/McpToolHost.cs
+      - tests/DesktopNMS.Presentation.Tests/McpBundleTests.cs
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/mcp-bundle.yml
+      - tools/Publish-Mcp.ps1
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  verify:
+    name: Network tools (${{ matrix.runtime }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            runtime: win-x64
+          - os: macos-15-intel
+            runtime: osx-x64
+          - os: macos-latest
+            runtime: osx-arm64
+          - os: ubuntu-24.04
+            runtime: linux-x64
+          - os: ubuntu-24.04-arm
+            runtime: linux-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/checkout@v7
+        with:
+          repository: DashyNMS/mcp
+          ref: 92394e2ef33e4429fbc7a514883c73e43df768d3
+          path: artifacts/mcp-source
+          submodules: recursive
+          persist-credentials: false
+      - name: Publish native tools and app
+        shell: pwsh
+        run: |
+          ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-source -Runtime '${{ matrix.runtime }}'
+          dotnet publish src/DesktopNMS.Avalonia -c Release -r '${{ matrix.runtime }}' --self-contained true -o artifacts/bundle-check
+          if ($LASTEXITCODE -ne 0) { throw 'Publishing the app failed.' }
+      - name: Exercise the bundled stdio server against the demo
+        shell: pwsh
+        run: |
+          $name = if ($IsWindows) { 'dashynms-mcp.exe' } else { 'dashynms-mcp' }
+          $env:DASHYNMS_TEST_MCP = (Resolve-Path "artifacts/bundle-check/mcp/$name").Path
+          if (-not $IsWindows) { chmod +x $env:DASHYNMS_TEST_MCP }
+          foreach ($file in @('LICENSE', 'BUILD.txt')) {
+            if (-not (Test-Path "artifacts/bundle-check/mcp/$file" -PathType Leaf)) { throw "Missing network-tools $file" }
+          }
+          dotnet test tests/DesktopNMS.Presentation.Tests -c Release --filter FullyQualifiedName~McpBundleTests
+          if ($LASTEXITCODE -ne 0) { throw 'The native network-tools integration check failed.' }

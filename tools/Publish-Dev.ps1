@@ -21,8 +21,8 @@ try {
         throw 'Use a development version such as 2.0.0-dev.42.'
     }
     foreach ($file in @('dashynms-mcp.exe', 'LICENSE', 'BUILD.txt')) {
-        if (-not (Test-Path "artifacts/mcp/$file" -PathType Leaf)) {
-            throw "Missing artifacts/mcp/$file. Run tools/Publish-Mcp.ps1 first."
+        if (-not (Test-Path "artifacts/mcp/win-x64/$file" -PathType Leaf)) {
+            throw "Missing artifacts/mcp/win-x64/$file. Run tools/Publish-Mcp.ps1 -Runtime win-x64 first."
         }
     }
     $output = Join-Path $root "artifacts/dev/$Version/win-x64"
@@ -44,7 +44,7 @@ try {
         "Tracked working-tree changes: $dirty"
         "Built UTC: $([DateTime]::UtcNow.ToString('O'))"
         'Validation: Presentation Release tests passed.'
-        (Get-Content artifacts/mcp/BUILD.txt -Raw).Trim()
+        (Get-Content artifacts/mcp/win-x64/BUILD.txt -Raw).Trim()
     ) | Set-Content (Join-Path $output 'BUILD.txt') -Encoding utf8
     Copy-Item LICENSE (Join-Path $output 'LICENSE')
     Write-Host "Development build: $output"

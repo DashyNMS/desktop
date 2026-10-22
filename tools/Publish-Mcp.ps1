@@ -3,9 +3,9 @@
     Builds the DashyNMS MCP server for bundling with the desktop app.
 
 .DESCRIPTION
-    Publishes DashyNMS/mcp's server as one self-contained Windows exe
-    (no .NET install needed) into artifacts\mcp, where DesktopNMS.Avalonia.csproj
-    picks it up and copies it beside the app as mcp\dashynms-mcp.exe.
+    Publishes DashyNMS/mcp's server as a self-contained native executable
+    into artifacts/mcp/<runtime>, where DesktopNMS.Avalonia.csproj picks
+    the matching runtime up and copies it beside the app in mcp/.
     Needs the .NET 10 SDK.
 
 .EXAMPLE
@@ -20,13 +20,15 @@ param(
     # A tag or commit to build, so the bundled server is pinned; the checkout's current commit if left out.
     [string]$Ref,
 
-    [string]$Runtime = 'win-x64'
+    [ValidateSet('win-x64', 'osx-x64', 'osx-arm64', 'linux-x64', 'linux-arm64')]
+    [string]$Runtime = [System.Runtime.InteropServices.RuntimeInformation]::RuntimeIdentifier
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
 $source = Resolve-Path $Source
-$output = Join-Path $root 'artifacts\mcp'
+$output = Join-Path $root "artifacts/mcp/$Runtime"
+if (Test-Path $output) { throw "A network-tools build already exists at $output. Use a fresh checkout or archive that runtime folder first." }
 
 if ($Ref) {
     git -C $source checkout --quiet $Ref
@@ -55,4 +57,9 @@ try {
 
 Copy-Item (Join-Path $source 'LICENSE') (Join-Path $output 'LICENSE') -Force
 Set-Content -Path (Join-Path $output 'BUILD.txt') -Value "DashyNMS MCP $commit ($Runtime)" -Encoding utf8
-Get-Item (Join-Path $output 'dashynms-mcp.exe') | ForEach-Object { Write-Host ("  {0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB)) }
+$name = if ($Runtime.StartsWith('win-')) { 'dashynms-mcp.exe' } else { 'dashynms-mcp' }
+if (-not $IsWindows -and -not $Runtime.StartsWith('win-')) {
+    chmod +x (Join-Path $output $name)
+    if ($LASTEXITCODE -ne 0) { throw 'Could not mark the network tools executable.' }
+}
+Get-Item (Join-Path $output $name) | ForEach-Object { Write-Host ("  {0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB)) }

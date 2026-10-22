@@ -51,16 +51,20 @@
 
   <!--
     The DashyNMS MCP server, bundled for Intelligence:
-    published by tools/Publish-Mcp.ps1 into artifacts/mcp and copied beside
-    the app as mcp/dashynms-mcp.exe. Without it the build still works, and
-    the Intelligence tab says the network tools aren't installed. Windows
-    only for now - macOS and Linux need their own build of it.
+    published by tools/Publish-Mcp.ps1 into artifacts/mcp/<runtime> and copied
+    beside the app in mcp/. Without it a developer build still works, and
+    the Intelligence tab says the network tools aren't installed.
   -->
   <PropertyGroup>
-    <McpExecutable>$(MSBuildThisFileDirectory)..\..\artifacts\mcp\dashynms-mcp.exe</McpExecutable>
+    <McpRuntime>$(RuntimeIdentifier)</McpRuntime>
+    <McpRuntime Condition="'$(McpRuntime)' == ''">$(NETCoreSdkRuntimeIdentifier)</McpRuntime>
+    <McpOutput>$(MSBuildThisFileDirectory)..\..\artifacts\mcp\$(McpRuntime)</McpOutput>
+    <McpFileName>dashynms-mcp</McpFileName>
+    <McpFileName Condition="$([System.String]::Copy('$(McpRuntime)').StartsWith('win-'))">dashynms-mcp.exe</McpFileName>
+    <McpExecutable>$(McpOutput)\$(McpFileName)</McpExecutable>
   </PropertyGroup>
   <ItemGroup Condition="Exists('$(McpExecutable)')">
-    <None Include="$(MSBuildThisFileDirectory)..\..\artifacts\mcp\**\*" Link="mcp\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <None Include="$(McpOutput)\**\*" Link="mcp\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
 </Project>
