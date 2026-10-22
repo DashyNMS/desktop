@@ -57,13 +57,16 @@ public static class Converters
     });
 
     /// <summary>A device's state as a status dot's colour.</summary>
-    public static readonly IValueConverter DeviceStateToBrush = new FuncValueConverter<DeviceState?, IBrush>(state => state switch
+    public static readonly IValueConverter DeviceStateToBrush = new FuncValueConverter<DeviceState?, IBrush>(StateBrush);
+
+    /// <summary>A device's state as a colour, for what draws its own dots - the maps.</summary>
+    public static IBrush StateBrush(DeviceState? state) => state switch
     {
         DeviceState.Up => OkBrush,
         DeviceState.Down => CriticalBrush,
         DeviceState.Maintenance => MaintenanceBrush,
         _ => UnknownBrush,
-    });
+    };
 
     /// <summary>True for a page not yet ported to this app (#250), which shows the "Not here yet" placeholder.</summary>
     public static readonly IValueConverter IsNotPorted = new FuncValueConverter<MainTab, bool>(tab => tab is not

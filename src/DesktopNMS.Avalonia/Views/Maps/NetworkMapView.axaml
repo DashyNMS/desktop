@@ -1,0 +1,126 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:maps="using:DesktopNMS.Views.Maps"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.Maps.NetworkMapView"
+             x:DataType="vm:NetworkMapViewModel">
+
+    <!-- Maps › Network (#56, #250): the LLDP/CDP topology, one device group
+         or the whole network, with the selected device's connections beside
+         it. Refresh is the tab bar's. -->
+    <UserControl.Styles>
+        <Style Selector="Button.connection">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="6,5" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.connection:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*">
+
+        <!-- ======================== Scope and find ======================== -->
+        <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,12">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <WrapPanel VerticalAlignment="Center">
+                    <TextBlock Text="Show" Classes="subtle" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <ComboBox ItemsSource="{Binding Scopes}" SelectedItem="{Binding SelectedScope}" DisplayMemberBinding="{ReflectionBinding DisplayName}"
+                              Width="240" ToolTip.Tip="The whole network, or one device group" VerticalAlignment="Center" />
+                    <CheckBox IsChecked="{Binding ShowUnlinkedDevices}" VerticalAlignment="Center" Margin="16,0,0,0"
+                              ToolTip.Tip="Also show devices with no discovered links to anything else shown - laid out in a grid below the map">
+                        <TextBlock Text="Devices without links" />
+                    </CheckBox>
+                    <CheckBox IsChecked="{Binding ShowNeighbours}" VerticalAlignment="Center" Margin="16,0,0,0"
+                              ToolTip.Tip="Also show what your neighbourhoods find, for those set to show on the map (edit one on the Neighbours tab) - drawn as small squares joined to their switches. Double-click one to open it in its neighbourhood.">
+                        <TextBlock Text="Neighbours" />
+                    </CheckBox>
+                    <TextBlock Text="{Binding SummaryText}" Classes="subtle" VerticalAlignment="Center" Margin="16,0,0,0" />
+                </WrapPanel>
+
+                <TextBox Grid.Column="1" Name="SearchBox" Width="220" Classes="search" PlaceholderText="Find device" Text="{Binding SearchText, Delay=300}"
+                         ToolTip.Tip="Find a device on the map by name" VerticalAlignment="Center" />
+
+                <Rectangle Grid.Column="2" Classes="toolbarSeparator" Margin="14,4" />
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Button Classes="icon" Command="{Binding FitToViewCommand}" ToolTip.Tip="Fit the whole map in view">
+                        <fi:SymbolIcon Symbol="ArrowMaximize" />
+                    </Button>
+                    <Button Classes="icon" Command="{Binding ResetLayoutCommand}" ToolTip.Tip="Reset layout - forget moved positions and lay the map out again">
+                        <fi:SymbolIcon Symbol="ArrowReset" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1" Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="0,0,0,1" Padding="18,10" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Map and details ======================== -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+            <Border Background="{DynamicResource BackgroundBrush}">
+                <Panel>
+                    <maps:NetworkMapCanvas Name="MapCanvas" Nodes="{Binding Nodes}" Edges="{Binding Edges}" SelectedNode="{Binding SelectedNode}"
+                                           RenderVersion="{Binding RenderVersion}" JiggleEnabled="{Binding JigglePhysics}" />
+
+                    <views:LoadingOverlay Text="{Binding LoadingText}" IsVisible="{Binding ShowLoading}" />
+
+                    <TextBlock Classes="subtle" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="380" TextAlignment="Center"
+                               IsHitTestVisible="False" IsVisible="{Binding IsEmpty}"
+                               Text="No links between these devices. LibreNMS hasn't discovered any LLDP/CDP neighbours between them - tick 'Devices without links' to show them anyway." />
+
+                    <TextBlock Text="Scroll to zoom · drag to pan · drag a device to move it · double-click to open" Classes="subtle" FontSize="11"
+                               HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="14,0,0,10" IsHitTestVisible="False" />
+                </Panel>
+            </Border>
+
+            <!-- ======================== The selected device ======================== -->
+            <Border Grid.Column="1" Width="320" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0"
+                    IsVisible="{Binding HasSelectedNode}">
+                <Grid Margin="18" RowDefinitions="Auto,Auto,*">
+                    <StackPanel>
+                        <TextBlock Text="{Binding SelectedNode.Name, FallbackValue=''}" Classes="heading" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding SelectedNodeStateText}" Classes="subtle" Margin="0,4,0,0" />
+                        <TextBlock Text="{Binding SelectedNodeDetail}" Classes="subtle" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        <Button Command="{Binding OpenSelectedDeviceCommand}" HorizontalAlignment="Left" Padding="12,6" Margin="0,12,0,0">
+                            <TextBlock Text="Open device" />
+                        </Button>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="1" Text="CONNECTIONS" Classes="section" Margin="0,18,0,6" />
+
+                    <!-- One row per cable: this device's port, then the neighbour and its port. Click one to jump to the neighbour. -->
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl Name="ConnectionList" ItemsSource="{Binding SelectedConnections}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:MapConnectionItem">
+                                    <Button Classes="connection" ToolTip.Tip="Show this neighbour on the map"
+                                            Command="{Binding #ConnectionList.((vm:NetworkMapViewModel)DataContext).SelectNeighbourCommand}" CommandParameter="{Binding}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding NeighbourName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Classes="subtle" FontSize="11" TextTrimming="CharacterEllipsis">
+                                                <Run Text="{Binding LocalPort, Mode=OneWay}" />
+                                                <Run Text=" ↔ " />
+                                                <Run Text="{Binding RemotePort, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

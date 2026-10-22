@@ -1,0 +1,151 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:maps="using:DesktopNMS.Views.Maps"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.Maps.GeoMapView"
+             x:DataType="vm:GeoMapViewModel">
+
+    <!-- Maps › Geographical (#250): a pin per location on web map tiles, its
+         ring the mix of its devices' states, with the selected location's
+         devices beside it. Refresh is the tab bar's. -->
+    <UserControl.Styles>
+        <Style Selector="Button.deviceRow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.deviceRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+        </Style>
+        <Style Selector="TextBlock.legend">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="5,0,12,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*">
+
+        <!-- ======================== Scope and find ======================== -->
+        <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,12">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <WrapPanel VerticalAlignment="Center">
+                    <TextBlock Text="Show" Classes="subtle" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <ComboBox ItemsSource="{Binding Scopes}" SelectedItem="{Binding SelectedScope}" DisplayMemberBinding="{ReflectionBinding DisplayName}"
+                              Width="240" ToolTip.Tip="The whole network, or one device group" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding SummaryText}" Classes="subtle" VerticalAlignment="Center" Margin="16,0,0,0"
+                               ToolTip.Tip="Devices without coordinates have no location, or a location LibreNMS hasn't got coordinates for" />
+                </WrapPanel>
+
+                <TextBox Grid.Column="1" Name="SearchBox" Width="220" Classes="search" PlaceholderText="Find location or device" Text="{Binding SearchText, Delay=300}"
+                         ToolTip.Tip="Find a location, or the location of a device, by name" VerticalAlignment="Center" />
+
+                <Rectangle Grid.Column="2" Classes="toolbarSeparator" Margin="14,4" />
+
+                <Button Grid.Column="3" Classes="icon" Command="{Binding FitToViewCommand}" ToolTip.Tip="Fit every location in view" VerticalAlignment="Center">
+                    <fi:SymbolIcon Symbol="ArrowMaximize" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1" Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="0,0,0,1" Padding="18,10" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Map and details ======================== -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+            <Panel>
+                <maps:GeoMapCanvas Name="MapCanvas" Pins="{Binding Pins}" SelectedPins="{Binding SelectedPins}" TileTemplate="{Binding TileTemplate}" Tiles="{Binding Tiles}" />
+
+                <views:LoadingOverlay Text="{Binding LoadingText}" IsVisible="{Binding ShowLoading}" />
+
+                <!-- The pins' colour key: each ring is the share of a location's devices in each state. -->
+                <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12" Padding="10,7" CornerRadius="6" Opacity="0.92" IsHitTestVisible="False"
+                        Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="9" Height="9" Fill="{DynamicResource OkBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="Up" Classes="subtle legend" />
+                        <Ellipse Width="9" Height="9" Fill="{DynamicResource CriticalBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="Down" Classes="subtle legend" />
+                        <Ellipse Width="9" Height="9" Fill="{DynamicResource MaintenanceBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="Maintenance" Classes="subtle legend" />
+                        <Ellipse Width="9" Height="9" Fill="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="Disabled" Classes="subtle legend" Margin="5,0,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="16,10"
+                        IsHitTestVisible="False" IsVisible="{Binding IsEmpty}">
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" MaxWidth="380" TextAlignment="Center"
+                               Text="None of these devices are at a location with coordinates. Set coordinates on a location in the Locations tab (or let LibreNMS geocode it) to see it here." />
+                </Border>
+
+                <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Background="{DynamicResource SurfaceBrush}" Opacity="0.85" Padding="10,4" IsHitTestVisible="False">
+                    <TextBlock Classes="subtle" FontSize="11" Text="Scroll to zoom · drag to pan · click a pin for its devices · double-click a merged pin to zoom in" />
+                </Border>
+
+                <!-- The tile provider's credit. OpenStreetMap's licence requires it
+                     on the map, with a link to their copyright page; any other
+                     tile server just gets named. -->
+                <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Background="{DynamicResource SurfaceBrush}" Opacity="0.85" Padding="8,3">
+                    <Panel>
+                        <Button Classes="link" Command="{Binding OpenAttributionCommand}" IsVisible="{Binding IsOpenStreetMap}">
+                            <TextBlock Text="© OpenStreetMap contributors" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </Button>
+                        <TextBlock Text="{Binding OtherTilesCredit}" Classes="subtle" FontSize="11" IsVisible="{Binding !IsOpenStreetMap}" />
+                    </Panel>
+                </Border>
+            </Panel>
+
+            <!-- ======================== The selected location(s) ======================== -->
+            <Border Grid.Column="1" Width="320" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0"
+                    IsVisible="{Binding HasSelection}">
+                <Grid RowDefinitions="Auto,*">
+                    <!-- Above the list, so it's there however long the device list gets. -->
+                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,14">
+                        <Button Command="{Binding ShowInDevicesCommand}" ToolTip.Tip="Open the Devices tab filtered to just this location"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="12,7">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <fi:SymbolIcon Symbol="Server" FontSize="14" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ShowInDevicesLabel}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl Name="PinList" ItemsSource="{Binding SelectedPins}" Margin="18,12,18,18">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:GeoPin">
+                                    <StackPanel Margin="0,6,0,12">
+                                        <TextBlock Text="{Binding Name}" Classes="heading" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding SummaryText}" Classes="subtle" Margin="0,2,0,8" />
+                                        <ItemsControl ItemsSource="{Binding Devices}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:GeoDeviceRow">
+                                                    <Button Classes="deviceRow" ToolTip.Tip="Open this device"
+                                                            Command="{Binding #PinList.((vm:GeoMapViewModel)DataContext).OpenDeviceCommand}" CommandParameter="{Binding}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding State, Converter={x:Static views:Converters.DeviceStateToBrush}}" />
+                                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

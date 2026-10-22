@@ -72,9 +72,6 @@ public sealed class NoUpdates : IUpdateCheckService
     }
 }
 
-/// <summary>Map tiles for the geographical map - ported with it.</summary>
-public sealed class NoMapTiles : IMapTiles;
-
 /// <summary>
 /// "In the background" when no DashyNMS window is on screen - minimised or
 /// hidden - so the pollers slow down (#52), as the WPF app's AppActivity does.
