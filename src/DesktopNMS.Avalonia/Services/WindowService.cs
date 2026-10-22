@@ -289,6 +289,7 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         var settings = services.GetRequiredService<ISettingsStore>();
         var history = new DeviceBrowseHistory(deviceId);
         var window = new DeviceView(CreateDeviceDetailViewModel(deviceId, history), settings);
+        DeviceWindowTaskbar.Attach(window, _mainWindow);
 
         // Back, forward and the breadcrumbs (#58) move this same window.
         history.NavigateRequested += (_, index) => NavigateDeviceWindow(window, history, history.Entries[index].DeviceId, index);
@@ -309,7 +310,9 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         };
 
         _openDeviceWindows[deviceId] = window;
-        if (Owner() is { IsVisible: true } owner)
+        // All device windows belong to the main window, even when opened from
+        // another device. Nesting owners would close one device with another.
+        if (_mainWindow is { IsVisible: true } owner)
         {
             window.Show(owner);
         }
