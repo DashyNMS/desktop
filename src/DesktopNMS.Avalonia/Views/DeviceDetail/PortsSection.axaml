@@ -1,0 +1,127 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:dd="using:DesktopNMS.Views.DeviceDetail"
+             x:Class="DesktopNMS.Views.DeviceDetail.PortsSection"
+             x:DataType="vm:DeviceDetailViewModel">
+
+    <!-- The device's ports, grouped if chosen (#272), and the picked port's graphs (#8). -->
+    <Grid RowDefinitions="Auto,*,Auto">
+        <Grid Grid.Row="0" Margin="24,24,24,10" ColumnDefinitions="Auto,Auto,*,Auto">
+            <TextBox Classes="search" PlaceholderText="Search ports" Text="{Binding PortSearchText, Delay=200}"
+                     ToolTip.Tip="Search by interface name or description" Width="320" />
+            <!-- #272: group the ports; remembered for every device. -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="16,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="Group by" Classes="subtle" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding PortGroupingOptions}" SelectedItem="{Binding SelectedPortGrouping}"
+                          DisplayMemberBinding="{ReflectionBinding Label}" MinWidth="110" VerticalAlignment="Center" />
+            </StackPanel>
+            <views:CsvExportButton Grid.Column="3" Export="{Binding PortsCsv}" VerticalAlignment="Center" />
+        </Grid>
+
+        <Panel Grid.Row="1" Margin="24,0">
+            <DataGrid Name="PortsGrid" ItemsSource="{Binding PortsView}" SelectedItem="{Binding SelectedPort}" IsVisible="{Binding HasVisiblePorts}">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Status" Width="90" SortMemberPath="IsUp">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:PortItemViewModel">
+                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="8,0">
+                                    <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding StatusSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                    <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="#" Width="44" SortMemberPath="Model.IfIndex">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:PortItemViewModel">
+                                <TextBlock Text="{Binding Model.IfIndex}" Margin="8,0" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Interface" Width="*" MinWidth="140" SortMemberPath="DisplayName">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:PortItemViewModel">
+                                <StackPanel Margin="8,4" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding SecondaryName}" Classes="subtle" FontSize="11" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasSecondaryName}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Media" Width="90" SortMemberPath="MediaText">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:PortItemViewModel">
+                                <TextBlock Text="{Binding MediaText}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Traffic" Width="120" SortMemberPath="InRateText">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:PortItemViewModel">
+                                <StackPanel Margin="8,4" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding InRateText, StringFormat='← {0}'}" Foreground="{DynamicResource OkBrush}" />
+                                    <TextBlock Text="{Binding OutRateText, StringFormat='→ {0}'}" Foreground="{DynamicResource AccentBrush}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Speed" Width="90" SortMemberPath="SpeedText">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:PortItemViewModel">
+                                <StackPanel Margin="8,4" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding SpeedText}" />
+                                    <TextBlock Text="{Binding DuplexText}" Classes="subtle" FontSize="11" IsVisible="{Binding HasDuplex}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Errors" Width="70" SortMemberPath="ErrorCount">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:PortItemViewModel">
+                                <TextBlock Text="{Binding ErrorCount}" Margin="8,0" VerticalAlignment="Center" Foreground="{DynamicResource CriticalBrush}" IsVisible="{Binding HasErrors}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="MAC address" Width="140" SortMemberPath="MacAddressText">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:PortItemViewModel">
+                                <StackPanel Margin="8,4" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding MacAddressText}" />
+                                    <TextBlock Text="{Binding MtuText, StringFormat='MTU {0}'}" Classes="subtle" FontSize="11" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="IP address" Width="160" SortMemberPath="IpAddressesText">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:PortItemViewModel">
+                                <TextBlock Text="{Binding IpAddressesText}" ToolTip.Tip="{Binding IpAddressesText}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Neighbour" Width="180" SortMemberPath="NeighborText">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:PortItemViewModel">
+                                <Panel Margin="8,0">
+                                    <!-- A link only when the neighbour is itself a monitored device. -->
+                                    <Button Classes="link" VerticalAlignment="Center" Command="{Binding OpenNeighborCommand}" ToolTip.Tip="{Binding NeighborToolTip}" IsVisible="{Binding CanOpenNeighbor}">
+                                        <TextBlock Text="{Binding NeighborText}" TextTrimming="CharacterEllipsis" />
+                                    </Button>
+                                    <TextBlock Text="{Binding NeighborText}" Classes="subtle" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" IsVisible="{Binding !CanOpenNeighbor}" />
+                                </Panel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <views:LoadingOverlay Text="Loading ports…" IsVisible="{Binding IsLoadingPorts}" />
+            <views:EmptyState Icon="PlugConnected" Title="No ports" Hint="LibreNMS reports none for this device." IsVisible="{Binding ShowPortsEmptyMessage}" />
+            <views:EmptyState Icon="Filter" Title="No ports match" Hint="Clear the search to see them all." IsVisible="{Binding ShowPortsNoMatchesMessage}" />
+        </Panel>
+
+        <dd:PortGraphsPanel Grid.Row="2" Margin="0,12,0,0" DataContext="{Binding PortGraphs}" />
+    </Grid>
+</UserControl>

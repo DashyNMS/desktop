@@ -1,0 +1,172 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:dd="using:DesktopNMS.Views.DeviceDetail"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.DeviceDetail.UnimusSection"
+             x:DataType="vm:DeviceDetailViewModel">
+
+    <!-- The device's Unimus backups (#115): click one to view it, tick two to
+         compare them. Shown only once the device matched in Unimus, or checking
+         failed. -->
+    <UserControl.Styles>
+        <!-- Diff rows, the status colours faded right down under the text. -->
+        <Style Selector="Border.diffRow.removed">
+            <Setter Property="Background" Value="#2EDA3633" />
+        </Style>
+        <Style Selector="Border.diffRow.removed TextBlock.prefix">
+            <Setter Property="Foreground" Value="{DynamicResource CriticalBrush}" />
+        </Style>
+        <Style Selector="Border.diffRow.added">
+            <Setter Property="Background" Value="#2E2EA043" />
+        </Style>
+        <Style Selector="Border.diffRow.added TextBlock.prefix">
+            <Setter Property="Foreground" Value="{DynamicResource OkBrush}" />
+        </Style>
+        <!-- "N unchanged lines hidden": click to show them. -->
+        <Style Selector="Border.diffRow.hiddenRun">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Border.diffRow.hiddenRun TextBlock.lineText">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="FontStyle" Value="Italic" />
+            <Setter Property="Margin" Value="0,4,12,4" />
+        </Style>
+        <Style Selector="Border.diffRow TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid Margin="24" RowDefinitions="Auto,*">
+        <Grid Margin="0,0,0,10" ColumnDefinitions="*,Auto">
+            <TextBlock Text="Unimus" Classes="heading" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="Refresh" Command="{Binding RefreshConfigCommand}" Padding="10,7" />
+                <!-- LibreNMS's own discovery, here because "rediscover or back up" reads as one group. -->
+                <Button Content="Rediscover now" Command="{Binding RediscoverCommand}" ToolTip.Tip="Ask LibreNMS to rediscover this device now" Padding="10,7" />
+                <Button Content="Backup now" Command="{Binding BackupNowCommand}" ToolTip.Tip="Ask Unimus to back up this device's configuration now" Padding="10,7" />
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1" ColumnDefinitions="320,16,*" IsVisible="{Binding !HasConfigError}">
+            <!-- ==================== Backups ==================== -->
+            <!-- The grid's own selection is the interaction: click one to view it, ctrl-click or tick a second to compare. -->
+            <DataGrid Name="BackupsGrid" Grid.Column="0" ItemsSource="{Binding ConfigBackups}" SelectionMode="Extended">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Width="40" CanUserResize="False" CanUserSort="False">
+                        <DataGridTemplateColumn.Header>
+                            <fi:SymbolIcon Symbol="Checkmark" FontSize="12" HorizontalAlignment="Center" ToolTip.Tip="Tick two backups to compare them" />
+                        </DataGridTemplateColumn.Header>
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:UnimusBackupItemViewModel">
+                                <!-- Shows the row's own selection; a click here toggles the row like ctrl-click (see the code-behind). -->
+                                <Border Classes="tick" Background="Transparent" ToolTip.Tip="Tick two backups to compare them">
+                                    <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center" Focusable="False" IsHitTestVisible="False"
+                                              IsChecked="{Binding $parent[DataGridRow].IsSelected, Mode=OneWay}" />
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Date" Width="*" SortMemberPath="DateText">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:UnimusBackupItemViewModel">
+                                <TextBlock Text="{Binding DateText}" Margin="8,0" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Status" Width="90" SortMemberPath="StatusText">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:UnimusBackupItemViewModel">
+                                <TextBlock Text="{Binding StatusText}" Margin="8,0" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- ==================== Content or comparison ==================== -->
+            <Border Grid.Column="2" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12">
+                <Grid Margin="12" RowDefinitions="Auto,*">
+                    <!-- What's shown; the comparison's options and change navigation; Copy and Export. -->
+                    <Grid Margin="0,0,0,10" ColumnDefinitions="*,Auto,Auto,Auto" IsVisible="{Binding HasConfigLines}">
+                        <StackPanel VerticalAlignment="Center" IsVisible="{Binding HasDiff}">
+                            <TextBlock Text="{Binding DiffHeaderText}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding DiffSummaryText}" Classes="subtle" Margin="0,2,0,0" />
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center" IsVisible="{Binding HasSelectedBackup}">
+                            <TextBlock Text="{Binding SelectedBackup.DateText, FallbackValue=''}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding SelectedBackup.StatusText, FallbackValue=''}" Classes="subtle" Margin="0,2,0,0" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center" Margin="12,0,0,0" IsVisible="{Binding HasDiff}">
+                            <CheckBox Content="Only changed lines" IsChecked="{Binding DiffOnlyChanged}" VerticalAlignment="Center"
+                                      ToolTip.Tip="Collapse unchanged lines away from any change - click a collapsed row to show it" />
+                            <CheckBox Content="Ignore empty lines" IsChecked="{Binding DiffIgnoreEmptyLines}" VerticalAlignment="Center"
+                                      ToolTip.Tip="Leave out blank lines, including changes that only add or remove them" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="16,0,0,0" IsVisible="{Binding HasDiffDifferences}">
+                            <Button Command="{Binding PreviousChangeCommand}" ToolTip.Tip="Previous change" Padding="10,4"><fi:SymbolIcon Symbol="ArrowUp" FontSize="13" /></Button>
+                            <Button Command="{Binding NextChangeCommand}" ToolTip.Tip="Next change" Padding="10,4"><fi:SymbolIcon Symbol="ArrowDown" FontSize="13" /></Button>
+                            <TextBlock Text="{Binding ChangePositionText}" Classes="subtle" VerticalAlignment="Center" MinWidth="48" Margin="4,0,0,0" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" Margin="12,0,0,0" VerticalAlignment="Center">
+                            <Button Content="Copy" Command="{Binding CopyConfigLinesCommand}" ToolTip.Tip="Copy what's shown here to the clipboard" Padding="10,4" />
+                            <Button Content="Export…" Command="{Binding ExportConfigCommand}" ToolTip.Tip="Save this backup, or this comparison as a .diff, to a file" Padding="10,4" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Grid.Row="1" Text="Click a backup to view it, or tick two to compare them." Classes="widgetState" MaxWidth="320">
+                        <TextBlock.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="!HasConfigLines" />
+                                <Binding Path="!HasTooManySelected" />
+                                <Binding Path="!IsDiffing" />
+                            </MultiBinding>
+                        </TextBlock.IsVisible>
+                    </TextBlock>
+                    <TextBlock Grid.Row="1" Text="Comparing…" Classes="widgetState" IsVisible="{Binding IsDiffing}" />
+                    <TextBlock Grid.Row="1" Text="Tick exactly two backups to compare them." Classes="widgetState" MaxWidth="320" IsVisible="{Binding HasTooManySelected}" />
+
+                    <!-- One virtualised list for a backup or a comparison - configs run to thousands of lines. -->
+                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" IsVisible="{Binding HasConfigLines}">
+                        <ScrollViewer Name="LinesScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding ConfigLines}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:UnimusDiffLineViewModel">
+                                        <Border Classes="diffRow" Classes.removed="{Binding IsRemoved}" Classes.added="{Binding IsAdded}" Classes.hiddenRun="{Binding IsHidden}"
+                                                Background="Transparent" PointerReleased="OnLinePointerReleased">
+                                            <Grid ColumnDefinitions="46,46,22,Auto">
+                                                <TextBlock Text="{Binding OldNumberText}" Foreground="{DynamicResource TextSecondaryBrush}" TextAlignment="Right" Margin="0,1,8,1" />
+                                                <!-- The new-side number only means anything in a comparison. -->
+                                                <TextBlock Grid.Column="1" Text="{Binding NewNumberText}" Foreground="{DynamicResource TextSecondaryBrush}" TextAlignment="Right" Margin="0,1,8,1"
+                                                           IsVisible="{Binding $parent[UserControl].((vm:DeviceDetailViewModel)DataContext).HasDiff}" />
+                                                <TextBlock Grid.Column="2" Classes="prefix" Text="{Binding Prefix}" FontWeight="Bold" TextAlignment="Center" Margin="0,1" />
+                                                <TextBlock Grid.Column="3" Classes="lineText" Text="{Binding Text}" TextWrapping="NoWrap" Margin="0,1,12,1" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- Where the changes are in the whole comparison, and the part in view: click or drag to jump. -->
+                        <dd:DiffOverviewRuler Name="DiffRuler" Grid.Column="1" Width="12" Margin="6,0,0,0" Lines="{Binding ConfigLines}"
+                                              ToolTip.Tip="Changes in this comparison - click to jump there" IsVisible="{Binding HasDiff}" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <TextBlock Grid.Row="1" Text="{Binding ConfigErrorMessage}" Classes="widgetState error" MaxWidth="360" IsVisible="{Binding HasConfigError}" />
+    </Grid>
+</UserControl>

@@ -29,6 +29,24 @@ public static class Converters
         _ => UnknownBrush,
     });
 
+    /// <summary>A routing session's health as its dot: fine, worth a look, down, or shut down on purpose.</summary>
+    public static readonly IValueConverter RoutingHealthToBrush = new FuncValueConverter<RoutingHealth, IBrush>(health => health switch
+    {
+        RoutingHealth.Warning => WarningBrush,
+        RoutingHealth.Critical => CriticalBrush,
+        RoutingHealth.Disabled => UnknownBrush,
+        _ => OkBrush,
+    });
+
+    /// <summary>A Graylog message's colour band (GraylogMessageItemViewModel.Severity) as its dot: info is blue, as in LibreNMS.</summary>
+    public static readonly IValueConverter GraylogSeverityToBrush = new FuncValueConverter<string?, IBrush>(severity => severity switch
+    {
+        "Critical" => CriticalBrush,
+        "Warning" => WarningBrush,
+        "Debug" => UnknownBrush,
+        _ => MaintenanceBrush,
+    });
+
     /// <summary>A device's state as a status dot's colour.</summary>
     public static readonly IValueConverter DeviceStateToBrush = new FuncValueConverter<DeviceState?, IBrush>(state => state switch
     {
@@ -49,6 +67,9 @@ public static class Converters
         AlertState.Acknowledged => 0.72,
         _ => 1.0,
     });
+
+    /// <summary>A tree row's depth as its indent, 18 px a level.</summary>
+    public static readonly IValueConverter DepthToIndent = new FuncValueConverter<int, Thickness>(depth => new Thickness(depth * 18, 0, 0, 0));
 
     /// <summary>Fades a row while a change to it is on its way.</summary>
     public static readonly IValueConverter FadeWhenBusy = new FuncValueConverter<bool, double>(busy => busy ? 0.45 : 1.0);
@@ -121,6 +142,19 @@ public static class Converters
     /// <summary>"#3B82F6" as a brush; anything unreadable as transparent.</summary>
     public static readonly IValueConverter HexToBrush = new FuncValueConverter<string?, IBrush>(
         hex => Color.TryParse(hex, out var colour) ? new SolidColorBrush(colour) : Brushes.Transparent);
+
+    /// <summary>A device's LibreNMS type ("server", "wireless") as its icon - the WPF app's TypeGlyph, as Fluent icons.</summary>
+    public static readonly IValueConverter DeviceTypeIcon = new FuncValueConverter<string?, Symbol>(type => (type ?? string.Empty).ToLowerInvariant() switch
+    {
+        "server" => Symbol.Server,
+        "wireless" => Symbol.WiFi1,
+        "firewall" => Symbol.Shield,
+        "power" => Symbol.Flash,
+        "storage" => Symbol.Database,
+        "printer" => Symbol.Print,
+        "appliance" or "workstation" => Symbol.Desktop,
+        _ => Symbol.Router,
+    });
 
     /// <summary>What's New's icon names (WhatsNew.md's trailing "{name}") as Fluent icons.</summary>
     public static readonly IValueConverter WhatsNewIcon = new FuncValueConverter<string?, Symbol>(name => name switch

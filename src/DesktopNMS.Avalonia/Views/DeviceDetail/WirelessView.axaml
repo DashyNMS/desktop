@@ -1,0 +1,74 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             x:Class="DesktopNMS.Views.DeviceDetail.WirelessView"
+             x:DataType="vm:WirelessSectionViewModel">
+
+    <!-- Device Details' Wireless: a card per sensor class (clients, frequency,
+         noise...), each reading with its limits and a link to the class's graph. -->
+    <UserControl.Styles>
+        <Style Selector="Border.wirelessCard">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="Margin" Value="0,0,0,14" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Wireless" Classes="heading" />
+                <TextBlock Text="{Binding SummaryText}" Classes="subtle" Margin="0,4,0,14" />
+
+                <Border Background="#33DB9A04" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,0,0,14" IsVisible="{Binding HasError}">
+                    <StackPanel>
+                        <TextBlock Text="Wireless data couldn't be loaded" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <ItemsControl Name="ClassList" ItemsSource="{Binding Classes}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:WirelessClassViewModel">
+                            <Border Classes="wirelessCard">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,10" ColumnDefinitions="*,Auto,Auto">
+                                        <TextBlock Text="{Binding HeaderText}" Classes="section" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1" Text="{Binding TotalText}" Classes="subtle" VerticalAlignment="Center" Margin="0,0,16,0"
+                                                   IsVisible="{Binding TotalText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                        <Button Grid.Column="2" Classes="link" ToolTip.Tip="View this reading's graph" VerticalAlignment="Center"
+                                                Command="{Binding #ClassList.((vm:WirelessSectionViewModel)DataContext).ShowGraphCommand}"
+                                                CommandParameter="{Binding}">
+                                            <TextBlock Text="View graph" />
+                                        </Button>
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding Readings}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:WirelessReadingViewModel">
+                                                <Grid Margin="0,0,0,8" ColumnDefinitions="Auto,*,110,200">
+                                                    <Ellipse Width="9" Height="9" Margin="0,0,10,0" VerticalAlignment="Center"
+                                                             Fill="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Description}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,10,0" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding ValueText}" FontWeight="SemiBold" VerticalAlignment="Center" TextAlignment="Right" />
+                                                    <TextBlock Grid.Column="3" Text="{Binding LimitsText}" Classes="subtle" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="LibreNMS has no wireless data for this device." Classes="subtle" IsVisible="{Binding ShowEmptyMessage}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <views:LoadingOverlay Text="Loading wireless data…" IsVisible="{Binding IsLoading}" />
+    </Panel>
+</UserControl>

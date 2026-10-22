@@ -117,6 +117,13 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
+    <!-- Disabled is a dimmed icon, not Fluent's grey box. -->
+    <Style Selector="Button.icon:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.icon:disabled">
+        <Setter Property="Opacity" Value="0.4" />
+    </Style>
     <Style Selector="Button.icon fi|SymbolIcon">
         <Setter Property="FontSize" Value="16" />
     </Style>

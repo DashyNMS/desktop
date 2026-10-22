@@ -1,0 +1,120 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             x:Class="DesktopNMS.Views.DeviceDetail.ResourcesSection"
+             x:DataType="vm:DeviceDetailViewModel">
+
+    <!-- CPU, memory, storage and PoE, a card each: their rows differ (a pool
+         has used of total bytes, a CPU doesn't), and a device may report any mix. -->
+    <UserControl.Styles>
+        <Style Selector="ProgressBar.usage">
+            <Setter Property="Height" Value="8" />
+            <Setter Property="MinHeight" Value="8" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.resourceCard">
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel Margin="24">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasResources}">
+            <StackPanel>
+                <!-- Processors -->
+                <Border Classes="card resourceCard" IsVisible="{Binding HasProcessors}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,10" ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding Processors.Count, StringFormat='PROCESSORS ({0})'}" Classes="section" Margin="0" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="link" Command="{Binding ShowProcessorGraphCommand}" ToolTip.Tip="View the processor graph"><TextBlock Text="View graph" /></Button>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Processors}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ProcessorItemViewModel">
+                                    <Grid Margin="0,0,0,8" ColumnDefinitions="*,200,55">
+                                        <TextBlock Text="{Binding Description}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,10,0" />
+                                        <ProgressBar Grid.Column="1" Classes="usage" Value="{Binding UsagePercent}" Foreground="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding UsageText}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <!-- Memory pools -->
+                <Border Classes="card resourceCard" IsVisible="{Binding HasMempools}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,10" ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding Mempools.Count, StringFormat='MEMORY ({0})'}" Classes="section" Margin="0" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="link" Command="{Binding ShowMempoolGraphCommand}" ToolTip.Tip="View the memory pool graph"><TextBlock Text="View graph" /></Button>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Mempools}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:MempoolItemViewModel">
+                                    <Grid Margin="0,0,0,8" ColumnDefinitions="*,200,55,150">
+                                        <TextBlock Text="{Binding Description}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,10,0" />
+                                        <ProgressBar Grid.Column="1" Classes="usage" Value="{Binding UsagePercent}" Foreground="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding UsageText}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                        <TextBlock Grid.Column="3" Text="{Binding DetailText}" Classes="subtle" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <!-- Storage -->
+                <Border Classes="card resourceCard" IsVisible="{Binding HasStorage}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,10" ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding Storage.Count, StringFormat='STORAGE ({0})'}" Classes="section" Margin="0" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="link" Command="{Binding ShowStorageGraphCommand}" ToolTip.Tip="View the storage graph"><TextBlock Text="View graph" /></Button>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Storage}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:StorageItemViewModel">
+                                    <Grid Margin="0,0,0,8" ColumnDefinitions="*,200,55,150">
+                                        <TextBlock Text="{Binding Description}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,10,0" />
+                                        <ProgressBar Grid.Column="1" Classes="usage" Value="{Binding UsagePercent}" Foreground="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding UsageText}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                        <TextBlock Grid.Column="3" Text="{Binding DetailText}" Classes="subtle" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <!-- PoE budget (#54): most switches give LibreNMS only each PSE's used and total power. -->
+                <Border Classes="card resourceCard" IsVisible="{Binding HasPoe}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,10" ColumnDefinitions="*,Auto">
+                            <TextBlock Text="POE" Classes="section" Margin="0" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding PoeDevicesConnectedText}" Classes="subtle" VerticalAlignment="Center" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding PoeBudgets}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:PoeBudgetItemViewModel">
+                                    <Grid Margin="0,0,0,8" ColumnDefinitions="*,200,55,150" Background="Transparent" ToolTip.Tip="{Binding RemainingText}">
+                                        <TextBlock Text="{Binding Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,10,0" />
+                                        <ProgressBar Grid.Column="1" Classes="usage" Value="{Binding UsagePercent}" Foreground="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding PercentText}" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                        <TextBlock Grid.Column="3" Text="{Binding UsageText}" Classes="subtle" VerticalAlignment="Center" TextAlignment="Right" Margin="10,0,0,0" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <views:LoadingOverlay Text="Loading resources…" IsVisible="{Binding IsLoadingResources}" />
+        <views:EmptyState Icon="Board" Title="No resources" Hint="LibreNMS reports no CPU, memory or disk data for this device." IsVisible="{Binding ShowResourcesEmptyMessage}" />
+    </Panel>
+</UserControl>

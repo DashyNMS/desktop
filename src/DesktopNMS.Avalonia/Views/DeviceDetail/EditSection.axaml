@@ -1,0 +1,251 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             x:Class="DesktopNMS.Views.DeviceDetail.EditSection"
+             x:DataType="vm:DeviceDetailViewModel">
+
+    <!-- Device Details' Edit: management actions first, then the device's
+         fields in full-width cards, each card's rows split into 2-3 columns
+         so a wide window doesn't stretch one box absurdly. -->
+    <UserControl.Styles>
+        <Style Selector="Border.editCard">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="Margin" Value="0,0,0,16" />
+        </Style>
+        <Style Selector="TextBlock.field">
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style Selector="Button.danger">
+            <Setter Property="Foreground" Value="{DynamicResource CriticalBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CriticalBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Text="Edit device" Classes="heading" Margin="0,0,0,14" />
+
+            <!-- One home for "change this device", the first thing you see. -->
+            <Border Classes="editCard">
+                <StackPanel>
+                    <TextBlock Text="DEVICE MANAGEMENT" Classes="section" Margin="0,0,0,10" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Command="{Binding RediscoverCommand}" ToolTip.Tip="Ask LibreNMS to rediscover this device now" Padding="12,7">
+                            <TextBlock Text="Rediscover" />
+                        </Button>
+                        <Button Command="{Binding ScheduleMaintenanceCommand}" views:PermissionGate.Requires="EditDevices"
+                                ToolTip.Tip="Suppress or mute alerts for this device for a set duration" Padding="12,7">
+                            <TextBlock Text="Schedule maintenance…" />
+                        </Button>
+                        <Button Classes="danger" Command="{Binding DeleteCommand}" views:PermissionGate.Requires="DeleteDevices"
+                                ToolTip.Tip="Permanently remove this device from LibreNMS" Padding="12,7">
+                            <TextBlock Text="Delete device" />
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="editCard">
+                <StackPanel>
+                    <TextBlock Text="GENERAL" Classes="section" Margin="0,0,0,10" />
+                    <Grid ColumnDefinitions="*,16,*,16,*">
+                        <StackPanel>
+                            <TextBlock Text="HOSTNAME / IP" Classes="section field" />
+                            <TextBox Text="{Binding EditHostname}"
+                                     ToolTip.Tip="The address LibreNMS actually polls - changing this renames the device rather than just relabelling it." />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="DISPLAY NAME" Classes="section field" />
+                            <TextBox Text="{Binding EditDisplayName}"
+                                     ToolTip.Tip="A literal name, or a LibreNMS {{ $hostname }}-style template - blank uses LibreNMS's own default naming" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="4">
+                            <TextBlock Text="TYPE" Classes="section field" />
+                            <TextBox Text="{Binding EditType}" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="DESCRIPTION" Classes="section field" Margin="0,14,0,6" />
+                    <TextBox Text="{Binding EditPurpose}" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="editCard">
+                <StackPanel>
+                    <TextBlock Text="LOCATION &amp; CONTACT" Classes="section" Margin="0,0,0,10" />
+                    <Grid ColumnDefinitions="*,24,*">
+                        <StackPanel>
+                            <TextBlock Text="LOCATION" Classes="section field" />
+                            <TextBox Text="{Binding EditLocation}" />
+                            <CheckBox IsChecked="{Binding EditOverrideSysLocation}" Margin="0,8,0,0">
+                                <TextBlock Text="Override sysLocation" />
+                            </CheckBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="CONTACT" Classes="section field" />
+                            <TextBox Text="{Binding EditContact}" />
+                            <CheckBox IsChecked="{Binding EditOverrideSysContact}" Margin="0,8,0,0" IsVisible="{Binding IsSysContactOverrideKnown}">
+                                <TextBlock Text="Override sysContact" />
+                            </CheckBox>
+                            <TextBlock Text="LibreNMS 26.10 doesn't report whether sysContact is overridden. Change that setting in LibreNMS."
+                                       Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,0" IsVisible="{Binding !IsSysContactOverrideKnown}" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="editCard">
+                <StackPanel>
+                    <TextBlock Text="POLLER &amp; STATUS" Classes="section" Margin="0,0,0,10" />
+                    <Grid ColumnDefinitions="*,24,*">
+                        <StackPanel>
+                            <TextBlock Text="POLLER GROUP" Classes="section field" />
+                            <ComboBox ItemsSource="{Binding PollerGroups}" SelectedItem="{Binding SelectedPollerGroup}"
+                                      DisplayMemberBinding="{ReflectionBinding GroupName}" HorizontalAlignment="Stretch" />
+                            <TextBlock Text="For a distributed-poller setup." Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Spacing="4">
+                            <TextBlock Text="STATUS" Classes="section field" />
+                            <CheckBox IsChecked="{Binding EditDisabled}"><TextBlock Text="Disabled (stops polling and alerting)" /></CheckBox>
+                            <CheckBox IsChecked="{Binding EditIgnore}"><TextBlock Text="Ignore (keeps polling, suppresses alerts)" /></CheckBox>
+                            <CheckBox IsChecked="{Binding EditIgnoreStatus}"><TextBlock Text="Ignore status (excludes from availability figures)" /></CheckBox>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="editCard">
+                <StackPanel>
+                    <TextBlock Text="NOTES" Classes="section" Margin="0,0,0,10" />
+                    <TextBox Text="{Binding EditNotes}" AcceptsReturn="True" TextWrapping="Wrap" Height="90" VerticalContentAlignment="Top" />
+                </StackPanel>
+            </Border>
+
+            <!-- ==================== SNMP ==================== -->
+            <!-- LibreNMS's read API never returns stored SNMP credentials, so
+                 this can only set new ones - unticked every time Edit opens,
+                 so saving the rest of the form never touches SNMP. -->
+            <Border Classes="editCard">
+                <StackPanel>
+                    <TextBlock Text="SNMP" Classes="section" Margin="0,0,0,10" />
+                    <CheckBox IsChecked="{Binding EditChangeSnmp}"><TextBlock Text="Change SNMP settings" /></CheckBox>
+                    <TextBlock Text="LibreNMS does not return stored credentials, so this only sets new ones - leave unchecked to leave SNMP untouched."
+                               Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0" IsVisible="{Binding !ShowSnmpEditFields}" />
+
+                    <StackPanel IsVisible="{Binding ShowSnmpEditFields}" Margin="0,14,0,0">
+                        <Border Classes="navTabTrack" HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Classes="navTab" GroupName="EditSnmpOn" Content="Yes" IsChecked="{Binding EditIsSnmpEnabled}" />
+                                <RadioButton Classes="navTab" GroupName="EditSnmpOn" Content="No (ping only)" IsChecked="{Binding EditIsPingOnly}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- SNMP on -->
+                        <StackPanel IsVisible="{Binding ShowEditSnmpFields}">
+                            <Border Classes="navTabTrack" HorizontalAlignment="Left" Margin="0,14,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Classes="navTab" GroupName="EditSnmpVersion" Content="v2c" IsChecked="{Binding EditIsSnmpV2c}" />
+                                    <RadioButton Classes="navTab" GroupName="EditSnmpVersion" Content="v1" IsChecked="{Binding EditIsSnmpV1}" />
+                                    <RadioButton Classes="navTab" GroupName="EditSnmpVersion" Content="v3" IsChecked="{Binding EditIsSnmpV3}" />
+                                </StackPanel>
+                            </Border>
+
+                            <StackPanel IsVisible="{Binding ShowEditCommunity}">
+                                <TextBlock Text="COMMUNITY" Classes="section field" Margin="0,14,0,6" />
+                                <TextBox Text="{Binding EditCommunity}" />
+                            </StackPanel>
+
+                            <StackPanel IsVisible="{Binding ShowEditV3Fields}">
+                                <Grid Margin="0,14,0,0" ColumnDefinitions="*,16,*">
+                                    <StackPanel>
+                                        <TextBlock Text="AUTH LEVEL" Classes="section field" />
+                                        <ComboBox HorizontalAlignment="Stretch" SelectedValueBinding="{ReflectionBinding Content}" SelectedValue="{Binding EditAuthLevel}">
+                                            <ComboBoxItem Content="noAuthNoPriv" />
+                                            <ComboBoxItem Content="authNoPriv" />
+                                            <ComboBoxItem Content="authPriv" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="AUTH ALGORITHM" Classes="section field" />
+                                        <ComboBox HorizontalAlignment="Stretch" SelectedValueBinding="{ReflectionBinding Content}" SelectedValue="{Binding EditAuthAlgo}">
+                                            <ComboBoxItem Content="MD5" />
+                                            <ComboBoxItem Content="SHA" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="AUTH USERNAME" Classes="section field" Margin="0,10,0,6" />
+                                <TextBox Text="{Binding EditAuthName}" />
+
+                                <TextBlock Text="AUTH PASSWORD" Classes="section field" Margin="0,10,0,6" />
+                                <TextBox Text="{Binding EditAuthPass}" PasswordChar="•" />
+
+                                <Grid Margin="0,10,0,0" ColumnDefinitions="*,16,*">
+                                    <StackPanel>
+                                        <TextBlock Text="PRIVACY ALGORITHM" Classes="section field" />
+                                        <ComboBox HorizontalAlignment="Stretch" SelectedValueBinding="{ReflectionBinding Content}" SelectedValue="{Binding EditCryptoAlgo}">
+                                            <ComboBoxItem Content="AES" />
+                                            <ComboBoxItem Content="DES" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="PRIVACY PASSWORD" Classes="section field" />
+                                        <TextBox Text="{Binding EditCryptoPass}" PasswordChar="•" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+
+                            <Grid Margin="0,14,0,0" ColumnDefinitions="*,16,*">
+                                <StackPanel>
+                                    <TextBlock Text="PORT (OPTIONAL)" Classes="section field" />
+                                    <TextBox Text="{Binding EditPort}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="TRANSPORT (OPTIONAL)" Classes="section field" />
+                                    <ComboBox HorizontalAlignment="Stretch" SelectedValueBinding="{ReflectionBinding Content}" SelectedValue="{Binding EditTransport}">
+                                        <ComboBoxItem Content="" />
+                                        <ComboBoxItem Content="udp" />
+                                        <ComboBoxItem Content="tcp" />
+                                        <ComboBoxItem Content="udp6" />
+                                        <ComboBoxItem Content="tcp6" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Ping only -->
+                        <StackPanel IsVisible="{Binding ShowEditPingOnlyFields}">
+                            <TextBlock Text="SYSNAME" Classes="section field" Margin="0,14,0,6" />
+                            <TextBox Text="{Binding EditSysNameOverride}" />
+                            <TextBlock Text="HARDWARE" Classes="section field" Margin="0,10,0,6" />
+                            <TextBox Text="{Binding EditHardwareOverride}" />
+                            <TextBlock Text="OS" Classes="section field" Margin="0,10,0,6" />
+                            <AutoCompleteBox Text="{Binding EditSnmpOs}" ItemsSource="{Binding KnownOperatingSystems}" FilterMode="Contains" MinimumPrefixLength="0" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,0,0,14"
+                    IsVisible="{Binding HasEditError}">
+                <TextBlock Text="{Binding EditErrorMessage}" TextWrapping="Wrap" />
+            </Border>
+            <Border Background="#332EA043" BorderBrush="{DynamicResource OkBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,0,0,14"
+                    IsVisible="{Binding HasEditSuccess}">
+                <TextBlock Text="{Binding EditSuccessMessage}" TextWrapping="Wrap" />
+            </Border>
+
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <TextBlock Text="Saving…" Classes="subtle" VerticalAlignment="Center" IsVisible="{Binding IsSavingEdit}" />
+                <Button Classes="primary" Command="{Binding SaveEditCommand}" views:PermissionGate.Requires="EditDevices" Padding="16,7">
+                    <TextBlock Text="Save" />
+                </Button>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

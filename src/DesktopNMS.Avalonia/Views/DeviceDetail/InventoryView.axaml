@@ -1,0 +1,107 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.DeviceDetail.InventoryView"
+             x:DataType="vm:InventorySectionViewModel">
+
+    <!-- Device Details' Inventory: the device's physical entities as a tree,
+         flattened into grid rows that indent by depth and fold under an arrow,
+         with everything LibreNMS has for the selected one underneath. -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <Grid Margin="0,0,0,4" ColumnDefinitions="*,Auto">
+            <TextBlock Text="Inventory" Classes="heading" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Command="{Binding ExpandAllCommand}" Padding="10,6"><TextBlock Text="Expand all" /></Button>
+                <Button Command="{Binding CollapseAllCommand}" Padding="10,6"><TextBlock Text="Collapse all" /></Button>
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Margin="0,0,0,10">
+            <TextBlock Text="{Binding SummaryText}" Classes="subtle" Margin="0,0,0,10" />
+            <StackPanel Orientation="Horizontal">
+                <TextBox Classes="search" PlaceholderText="Search the inventory" Text="{Binding SearchText, Delay=200}"
+                         ToolTip.Tip="Search by name, description, model, serial, type or firmware" Width="300" />
+                <CheckBox IsChecked="{Binding ShowPorts}" VerticalAlignment="Center" Margin="14,0,0,0"
+                          ToolTip.Tip="Ports are listed in the Ports section too, so they're hidden here unless you ask"
+                          IsVisible="{Binding HasPorts}">
+                    <TextBlock Text="{Binding ShowPortsText}" />
+                </CheckBox>
+            </StackPanel>
+        </StackPanel>
+
+        <Panel Grid.Row="2" MinHeight="120">
+            <DataGrid Name="RowsGrid" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}" CanUserSortColumns="False" SelectionMode="Single">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Name" Width="2*" MinWidth="220">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:InventoryRowViewModel">
+                                <StackPanel Orientation="Horizontal" Margin="{Binding Depth, Converter={x:Static views:Converters.DepthToIndent}}" VerticalAlignment="Center">
+                                    <!-- The expand arrow - a fixed-width slot either way, so names line up. -->
+                                    <Panel Width="26">
+                                        <Button Classes="icon" Width="22" Height="22" Padding="0" IsVisible="{Binding HasVisibleChildren}"
+                                                Command="{Binding #RowsGrid.((vm:InventorySectionViewModel)DataContext).ToggleCommand}"
+                                                CommandParameter="{Binding}">
+                                            <Panel>
+                                                <fi:SymbolIcon Symbol="ChevronRight" FontSize="12" IsVisible="{Binding !IsExpanded}" />
+                                                <fi:SymbolIcon Symbol="ChevronDown" FontSize="12" IsVisible="{Binding IsExpanded}" />
+                                            </Panel>
+                                        </Button>
+                                    </Panel>
+                                    <StackPanel VerticalAlignment="Center" Margin="4,3,8,3">
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Description}" Classes="subtle" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                   IsVisible="{Binding Description, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Type" Width="110" Binding="{Binding TypeText}" />
+                    <DataGridTextColumn Header="Model" Width="130" Binding="{Binding Model}" />
+                    <DataGridTemplateColumn Header="Serial number" Width="170">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:InventoryRowViewModel">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0" Spacing="6">
+                                    <TextBlock Text="{Binding SerialText}" FontFamily="{DynamicResource MonoFont}" VerticalAlignment="Center" />
+                                    <Button Classes="icon" Width="22" Height="22" Padding="0" ToolTip.Tip="Copy serial number" IsVisible="{Binding HasSerial}"
+                                            Command="{Binding #RowsGrid.((vm:InventorySectionViewModel)DataContext).CopySerialCommand}"
+                                            CommandParameter="{Binding}">
+                                        <fi:SymbolIcon Symbol="Copy" FontSize="13" />
+                                    </Button>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Firmware" Width="*" MinWidth="110" Binding="{Binding FirmwareText}" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <views:LoadingOverlay Text="Loading the inventory…" IsVisible="{Binding IsLoading}" />
+
+            <TextBlock Text="{Binding EmptyMessageText}" Classes="subtle" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsHitTestVisible="False" IsVisible="{Binding ShowEmptyMessage}" />
+
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="480" Padding="16,12" CornerRadius="6"
+                    Background="{DynamicResource SurfaceAltBrush}" IsVisible="{Binding HasError}">
+                <StackPanel>
+                    <TextBlock Text="Couldn't load the inventory" FontWeight="SemiBold" Foreground="{DynamicResource CriticalBrush}" />
+                    <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                </StackPanel>
+            </Border>
+        </Panel>
+
+        <!-- Everything LibreNMS has for the selected entry. -->
+        <Border Grid.Row="3" Margin="0,12,0,0" Padding="14,12" CornerRadius="6"
+                Background="{DynamicResource SurfaceAltBrush}" IsVisible="{Binding HasSelectedRow}">
+            <DataGrid ItemsSource="{Binding SelectedRow.Fields}" HeadersVisibility="None" MaxHeight="200"
+                      SelectionMode="Extended" ToolTip.Tip="Select rows and press Ctrl+C to copy">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Width="160" Binding="{Binding Label}" x:DataType="vm:InventoryFieldViewModel" />
+                    <DataGridTextColumn Width="*" Binding="{Binding Value}" x:DataType="vm:InventoryFieldViewModel" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>

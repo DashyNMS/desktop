@@ -1,0 +1,138 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             x:Class="DesktopNMS.Views.DeviceDetail.NetworkTablesSections"
+             x:DataType="vm:DeviceDetailViewModel">
+
+    <!-- Device Details' VLANs, FDB and ARP: three plain tables, one showing at a time. -->
+    <Panel>
+        <!-- ==================== VLANs ==================== -->
+        <Grid Margin="24" RowDefinitions="Auto,*" IsVisible="{Binding IsVlansSelected}">
+            <Grid Margin="0,0,0,10" ColumnDefinitions="*,Auto">
+                <TextBox Classes="search" PlaceholderText="Search VLANs" Text="{Binding VlanSearchText, Delay=200}" ToolTip.Tip="Search by VLAN number, name or port" Width="320" HorizontalAlignment="Left" />
+                <views:CsvExportButton Grid.Column="1" Export="{Binding VlansCsv}" VerticalAlignment="Center" />
+            </Grid>
+            <Panel Grid.Row="1">
+                <DataGrid ItemsSource="{Binding VlansView}" IsVisible="{Binding HasVisibleVlans}">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="VLAN" Width="90" SortMemberPath="NumberText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:VlanItemViewModel">
+                                    <TextBlock Text="{Binding NumberText}" Margin="8,0" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Name" Width="200" SortMemberPath="NameText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:VlanItemViewModel">
+                                    <TextBlock Text="{Binding NameText}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <!-- Every port carrying the VLAN, untagged ones marked (U), as LibreNMS's VLAN page lists them (#99). -->
+                        <DataGridTemplateColumn Width="*" SortMemberPath="PortsSummaryText">
+                            <DataGridTemplateColumn.Header>
+                                <TextBlock Text="Ports" ToolTip.Tip="Ports carrying this VLAN. (U) is untagged - an access port, or a trunk's native VLAN; the rest carry it tagged." />
+                            </DataGridTemplateColumn.Header>
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:VlanItemViewModel">
+                                    <TextBlock Text="{Binding PortsSummaryText}" ToolTip.Tip="{Binding PortsSummaryText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="8,0" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <views:LoadingOverlay Text="Loading VLANs…" IsVisible="{Binding IsLoadingVlans}" />
+                <views:EmptyState Icon="Tag" Title="No VLANs" Hint="LibreNMS reports none for this device." IsVisible="{Binding ShowVlansEmptyMessage}" />
+                <views:EmptyState Icon="Filter" Title="No VLANs match" Hint="Clear the search to see them all." IsVisible="{Binding ShowVlansNoMatchesMessage}" />
+            </Panel>
+        </Grid>
+
+        <!-- ==================== FDB ==================== -->
+        <Grid Margin="24" RowDefinitions="Auto,*" IsVisible="{Binding IsFdbSelected}">
+            <Grid Margin="0,0,0,10" ColumnDefinitions="*,Auto">
+                <TextBox Classes="search" PlaceholderText="Search the FDB" Text="{Binding FdbSearchText, Delay=200}" ToolTip.Tip="Search by MAC address, port or VLAN" Width="320" HorizontalAlignment="Left" />
+                <views:CsvExportButton Grid.Column="1" Export="{Binding FdbCsv}" VerticalAlignment="Center" />
+            </Grid>
+            <Panel Grid.Row="1">
+                <DataGrid ItemsSource="{Binding FdbView}" IsVisible="{Binding HasVisibleFdbEntries}">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="MAC address" Width="150" SortMemberPath="MacAddressText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:FdbItemViewModel">
+                                    <TextBlock Text="{Binding MacAddressText}" Margin="8,0" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Port" Width="140" SortMemberPath="PortText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:FdbItemViewModel">
+                                    <TextBlock Text="{Binding PortText}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="VLAN" Width="150" SortMemberPath="VlanText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:FdbItemViewModel">
+                                    <StackPanel Margin="8,4" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding VlanText}" />
+                                        <TextBlock Text="{Binding VlanNameText}" Classes="subtle" FontSize="11" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasVlanName}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Last seen" Width="150" SortMemberPath="UpdatedText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:FdbItemViewModel">
+                                    <TextBlock Text="{Binding UpdatedText}" Margin="8,0" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <views:LoadingOverlay Text="Loading the FDB…" IsVisible="{Binding IsLoadingFdb}" />
+                <views:EmptyState Icon="AppsListDetail" Title="No FDB entries" Hint="LibreNMS reports none for this device." IsVisible="{Binding ShowFdbEmptyMessage}" />
+                <views:EmptyState Icon="Filter" Title="No FDB entries match" Hint="Clear the search to see them all." IsVisible="{Binding ShowFdbNoMatchesMessage}" />
+            </Panel>
+        </Grid>
+
+        <!-- ==================== ARP ==================== -->
+        <Grid Margin="24" RowDefinitions="Auto,*" IsVisible="{Binding IsArpSelected}">
+            <Grid Margin="0,0,0,10" ColumnDefinitions="*,Auto">
+                <TextBox Classes="search" PlaceholderText="Search the ARP table" Text="{Binding ArpSearchText, Delay=200}" ToolTip.Tip="Search by IP address, MAC address or port" Width="320" HorizontalAlignment="Left" />
+                <views:CsvExportButton Grid.Column="1" Export="{Binding ArpCsv}" VerticalAlignment="Center" />
+            </Grid>
+            <Panel Grid.Row="1">
+                <DataGrid ItemsSource="{Binding ArpView}" IsVisible="{Binding HasVisibleArpEntries}">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="IP address" Width="160" SortMemberPath="Ipv4AddressText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:ArpItemViewModel">
+                                    <TextBlock Text="{Binding Ipv4AddressText}" Margin="8,0" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="MAC address" Width="150" SortMemberPath="MacAddressText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:ArpItemViewModel">
+                                    <TextBlock Text="{Binding MacAddressText}" Margin="8,0" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Port" Width="140" SortMemberPath="PortText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:ArpItemViewModel">
+                                    <TextBlock Text="{Binding PortText}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <views:LoadingOverlay Text="Loading the ARP table…" IsVisible="{Binding IsLoadingArp}" />
+                <views:EmptyState Icon="ArrowSwap" Title="No ARP entries" Hint="LibreNMS reports none for this device." IsVisible="{Binding ShowArpEmptyMessage}" />
+                <views:EmptyState Icon="Filter" Title="No ARP entries match" Hint="Clear the search to see them all." IsVisible="{Binding ShowArpNoMatchesMessage}" />
+            </Panel>
+        </Grid>
+    </Panel>
+</UserControl>

@@ -1,0 +1,168 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             x:Class="DesktopNMS.Views.DeviceDetail.RoutingView"
+             x:DataType="vm:RoutingSectionViewModel">
+
+    <!-- Device Details' Routing (#53): BGP sessions, OSPF neighbours and VRFs, a card each. -->
+    <UserControl.Styles>
+        <Style Selector="Border.routingCard">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="Margin" Value="0,0,0,14" />
+        </Style>
+        <Style Selector="Ellipse.health">
+            <Setter Property="Width" Value="9" />
+            <Setter Property="Height" Value="9" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.cell">
+            <Setter Property="Margin" Value="8,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Routing" Classes="heading" />
+                <TextBlock Text="{Binding SummaryText}" Classes="subtle" Margin="0,4,0,14" />
+
+                <Border Background="#33DB9A04" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,0,0,14" IsVisible="{Binding HasError}">
+                    <StackPanel>
+                        <TextBlock Text="Some routing data couldn't be loaded" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ==================== BGP ==================== -->
+                <Border Classes="routingCard" IsVisible="{Binding HasBgp}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding BgpSessions.Count, StringFormat='BGP SESSIONS ({0})'}" Classes="section" Margin="0,0,0,8" />
+                        <DataGrid ItemsSource="{Binding BgpSessions}" RowDetailsVisibilityMode="Visible">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="State" Width="140" SortMemberPath="StateText">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="vm:BgpSessionItemViewModel">
+                                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="8,0">
+                                                <Ellipse Classes="health" Fill="{Binding Health, Converter={x:Static views:Converters.RoutingHealthToBrush}}" />
+                                                <TextBlock Text="{Binding StateText}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Peer" Width="190" SortMemberPath="Peer">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="vm:BgpSessionItemViewModel">
+                                            <StackPanel Margin="8,3">
+                                                <TextBlock Text="{Binding Peer}" FontFamily="{DynamicResource MonoFont}" />
+                                                <TextBlock Text="{Binding Description}" Classes="subtle" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                           IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Remote AS" Width="180" SortMemberPath="RemoteAsText">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:BgpSessionItemViewModel"><TextBlock Classes="cell" Text="{Binding RemoteAsText}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Up for" Width="80" SortMemberPath="UptimeText">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:BgpSessionItemViewModel"><TextBlock Classes="cell" Text="{Binding UptimeText}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Local address" Width="150" SortMemberPath="LocalAddress">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:BgpSessionItemViewModel"><TextBlock Classes="cell" Text="{Binding LocalAddress}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="VRF" Width="100" SortMemberPath="VrfName">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:BgpSessionItemViewModel"><TextBlock Classes="cell" Text="{Binding VrfName}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Updates" Width="*" MinWidth="120" SortMemberPath="UpdatesText">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:BgpSessionItemViewModel"><TextBlock Classes="cell" Text="{Binding UpdatesText}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                            <DataGrid.RowDetailsTemplate>
+                                <!-- The last error, for a session that has one. -->
+                                <DataTemplate x:DataType="vm:BgpSessionItemViewModel">
+                                    <TextBlock Text="{Binding LastError, StringFormat='Last error: {0}'}" Classes="subtle" TextWrapping="Wrap" Margin="40,0,8,6"
+                                               IsVisible="{Binding LastError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                </DataTemplate>
+                            </DataGrid.RowDetailsTemplate>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ==================== OSPF ==================== -->
+                <Border Classes="routingCard" IsVisible="{Binding HasOspf}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding OspfNeighbours.Count, StringFormat='OSPF NEIGHBOURS ({0})'}" Classes="section" Margin="0,0,0,8" />
+                        <DataGrid ItemsSource="{Binding OspfNeighbours}">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="State" Width="140" SortMemberPath="StateText">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="vm:OspfNeighbourItemViewModel">
+                                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="8,0">
+                                                <Ellipse Classes="health" Fill="{Binding Health, Converter={x:Static views:Converters.RoutingHealthToBrush}}" />
+                                                <TextBlock Text="{Binding StateText}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Neighbour" Width="190" SortMemberPath="Neighbour">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:OspfNeighbourItemViewModel"><TextBlock Classes="cell" Text="{Binding Neighbour}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Router ID" Width="130" SortMemberPath="RouterId">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:OspfNeighbourItemViewModel"><TextBlock Classes="cell" Text="{Binding RouterId}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Interface" Width="140" SortMemberPath="InterfaceName">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:OspfNeighbourItemViewModel"><TextBlock Classes="cell" Text="{Binding InterfaceName}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Version" Width="80" SortMemberPath="Version">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:OspfNeighbourItemViewModel"><TextBlock Classes="cell" Text="{Binding Version}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Priority" Width="70" SortMemberPath="Priority">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:OspfNeighbourItemViewModel"><TextBlock Classes="cell" Text="{Binding Priority}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Context" Width="*" MinWidth="80" SortMemberPath="Context">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:OspfNeighbourItemViewModel"><TextBlock Classes="cell" Text="{Binding Context}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ==================== VRFs ==================== -->
+                <Border Classes="routingCard" IsVisible="{Binding HasVrfs}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Vrfs.Count, StringFormat='VRFS ({0})'}" Classes="section" Margin="0,0,0,8" />
+                        <DataGrid ItemsSource="{Binding Vrfs}">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="Name" Width="170" SortMemberPath="Name">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:VrfItemViewModel"><TextBlock Classes="cell" Text="{Binding Name}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Route distinguisher" Width="150" SortMemberPath="RouteDistinguisher">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:VrfItemViewModel"><TextBlock Classes="cell" Text="{Binding RouteDistinguisher}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Local AS" Width="90" SortMemberPath="LocalAsText">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:VrfItemViewModel"><TextBlock Classes="cell" Text="{Binding LocalAsText}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Interfaces" Width="*" MinWidth="160" SortMemberPath="InterfacesText">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:VrfItemViewModel"><TextBlock Classes="cell" Text="{Binding InterfacesText}" ToolTip.Tip="{Binding InterfacesToolTip}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Description" Width="*" MinWidth="120" SortMemberPath="Description">
+                                    <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="vm:VrfItemViewModel"><TextBlock Classes="cell" Text="{Binding Description}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="LibreNMS has no BGP, OSPF or VRF data for this device." Classes="subtle" IsVisible="{Binding ShowEmptyMessage}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <views:LoadingOverlay Text="Loading routing data…" IsVisible="{Binding IsLoading}" />
+    </Panel>
+</UserControl>
