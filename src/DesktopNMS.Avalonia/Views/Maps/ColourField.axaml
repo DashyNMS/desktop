@@ -1,0 +1,13 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DesktopNMS.Views.Maps.ColourField">
+
+    <!-- A "#RRGGBB" box with a live swatch of the colour - for the custom map
+         editor's colour settings. -->
+    <Grid ColumnDefinitions="56,Auto,*">
+        <TextBlock Name="LabelText" Classes="subtle" VerticalAlignment="Center" />
+        <Border Grid.Column="1" Name="Swatch" Width="20" Height="20" CornerRadius="4" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                Margin="0,0,8,0" VerticalAlignment="Center" />
+        <TextBox Grid.Column="2" Name="Input" FontFamily="{DynamicResource MonoFont}" />
+    </Grid>
+</UserControl>
