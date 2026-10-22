@@ -24,7 +24,7 @@ function Download-Verified([string]$url, [string]$path, [string]$sha256) {
 }
 Push-Location $root
 try {
-    $bundleOptions = if ($IsWindows) {
+    [string[]]$bundleOptions = if ($IsWindows) {
         @('-p:PublishSingleFile=true','-p:IncludeNativeLibrariesForSelfExtract=true','-p:EnableCompressionInSingleFile=true')
     } else { @('-p:PublishSingleFile=false') }
     dotnet publish src/DesktopNMS.Avalonia -c Release -r $Runtime --self-contained true -m:1 `
