@@ -1,0 +1,95 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             x:Class="DesktopNMS.Views.FleetLogsView"
+             x:DataType="vm:FleetLogsViewModel">
+
+    <!-- The Logs tab's Event log and Alert log (#287): every device's
+         entries, with filters across the top, as the Graylog view has. -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+        <!-- ==================== Header ==================== -->
+        <Grid Margin="0,0,0,10" ColumnDefinitions="*,Auto,Auto">
+            <Panel VerticalAlignment="Center">
+                <TextBlock Text="Event log" Classes="heading" IsVisible="{Binding ShowingEventLog}" />
+                <TextBlock Text="Alert log" Classes="heading" IsVisible="{Binding ShowingAlertLog}" />
+            </Panel>
+            <Panel Grid.Column="1" Margin="0,0,8,0" VerticalAlignment="Center">
+                <views:CsvExportButton Export="{Binding EventsCsv}" IsVisible="{Binding ShowingEventLog}" />
+                <views:CsvExportButton Export="{Binding AlertsCsv}" IsVisible="{Binding ShowingAlertLog}" />
+            </Panel>
+            <Button Grid.Column="2" Command="{Binding RefreshCommand}" Padding="10,7"><TextBlock Text="Refresh" /></Button>
+        </Grid>
+
+        <!-- ==================== Filters ==================== -->
+        <WrapPanel Grid.Row="1" Margin="0,0,0,10">
+            <TextBox Classes="search" PlaceholderText="Search" Text="{Binding SearchText, Delay=300}"
+                     ToolTip.Tip="Searches the device, message, rule and detail" Width="240" Margin="0,0,8,6" />
+            <!-- The server filters by device; typing jumps to a match. -->
+            <ComboBox ItemsSource="{Binding DeviceOptions}" SelectedItem="{Binding SelectedDevice}" DisplayMemberBinding="{ReflectionBinding Name}"
+                      IsTextSearchEnabled="True" Width="200" ToolTip.Tip="Whose entries - type to find one" Margin="0,0,8,6" />
+            <ComboBox ItemsSource="{Binding TypeOptions}" SelectedItem="{Binding SelectedType}" Width="150"
+                      ToolTip.Tip="One type of event" Margin="0,0,8,6" IsVisible="{Binding ShowingEventLog}" />
+            <ComboBox ItemsSource="{x:Static vm:FleetLogsViewModel.StateOptions}" SelectedItem="{Binding SelectedState}" DisplayMemberBinding="{ReflectionBinding Label}"
+                      Width="150" ToolTip.Tip="One state" Margin="0,0,8,6" IsVisible="{Binding ShowingAlertLog}" />
+            <ComboBox ItemsSource="{x:Static vm:FleetLogsViewModel.RangeOptions}" SelectedItem="{Binding SelectedRange}" DisplayMemberBinding="{ReflectionBinding Label}"
+                      Width="140" ToolTip.Tip="How far back" Margin="0,0,8,6" />
+            <Button Classes="chip" Command="{Binding ClearFiltersCommand}" VerticalAlignment="Center" Margin="0,0,8,6" IsVisible="{Binding HasActiveFilters}">
+                <TextBlock Text="Clear filters" />
+            </Button>
+        </WrapPanel>
+
+        <!-- ==================== Entries ==================== -->
+        <Panel Grid.Row="2">
+            <DataGrid Name="EventsGrid" ItemsSource="{Binding Events}" SelectedItem="{Binding SelectedEvent}" SelectionMode="Single" IsVisible="{Binding ShowingEventLog}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Time" Binding="{Binding TimeText}" SortMemberPath="Local" Width="130" />
+                    <DataGridTextColumn Header="Device" Binding="{Binding DeviceName}" Width="170" />
+                    <DataGridTextColumn Header="Type" Binding="{Binding TypeText}" Width="110" />
+                    <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" />
+                    <DataGridTextColumn Header="User" Binding="{Binding Username}" Width="100" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <DataGrid Name="AlertsGrid" ItemsSource="{Binding Alerts}" SelectedItem="{Binding SelectedAlert}" SelectionMode="Single" IsVisible="{Binding ShowingAlertLog}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Time" Binding="{Binding TimeText}" SortMemberPath="Local" Width="130" />
+                    <DataGridTextColumn Header="Device" Binding="{Binding DeviceName}" Width="170" />
+                    <DataGridTemplateColumn Header="Rule" Width="220" SortMemberPath="RuleName">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:FleetAlertRow">
+                                <StackPanel Orientation="Horizontal" Spacing="7" Margin="8,0">
+                                    <Ellipse Width="9" Height="9" VerticalAlignment="Center"
+                                             Fill="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                    <TextBlock Text="{Binding RuleName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding SeverityText}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="State" Binding="{Binding StateText}" SortMemberPath="State" Width="110" />
+                    <DataGridTextColumn Header="Detail" Binding="{Binding DetailText}" Width="*" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <views:LoadingOverlay Text="Loading…" IsVisible="{Binding IsLoading}" />
+
+            <TextBlock Text="{Binding EmptyText}" Classes="subtle" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsHitTestVisible="False" IsVisible="{Binding ShowsEmpty}" />
+
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="460" Padding="18,14" CornerRadius="8"
+                    Background="{DynamicResource SurfaceAltBrush}" IsVisible="{Binding HasError}">
+                <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+            </Border>
+        </Panel>
+
+        <!-- ==================== Footer ==================== -->
+        <DockPanel Grid.Row="3" Margin="0,10,0,0">
+            <Button DockPanel.Dock="Right" Command="{Binding LoadMoreCommand}" Padding="12,6" IsVisible="{Binding CanLoadMore}">
+                <TextBlock Text="Load more" />
+            </Button>
+            <TextBlock Text="{Binding CountText}" Classes="subtle" VerticalAlignment="Center"
+                       ToolTip.Tip="Double-click an entry to open that device's log in Device Details" />
+        </DockPanel>
+    </Grid>
+</UserControl>
