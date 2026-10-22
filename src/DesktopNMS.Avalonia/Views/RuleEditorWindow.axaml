@@ -1,0 +1,268 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:views="using:DesktopNMS.Views"
+        xmlns:fi="using:FluentIcons.Avalonia"
+        x:Class="DesktopNMS.Views.RuleEditorWindow"
+        x:DataType="vm:RuleEditorViewModel"
+        Title="{Binding Title}"
+        Width="760" Height="820" MinWidth="640" MinHeight="540"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Add, edit or duplicate an alert rule (#250, from the WPF app's editor):
+         LibreNMS's rule builder - a tree of AND/OR groups of conditions,
+         reordered by dragging their grips - and the rule's other settings, with
+         a SQL override on the Advanced tab. -->
+    <Window.Styles>
+        <!-- Main / Advanced: a segmented pair, the picked one in the accent. -->
+        <Style Selector="Button.segment">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="16,7" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <Style Selector="Button.segment.selected">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.segment.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+        </Style>
+
+        <!-- A condition's or group's drag grip. -->
+        <Style Selector="fi|SymbolIcon.grip">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Cursor" Value="SizeAll" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- Where a dragged condition would land. -->
+        <Style Selector=":is(Control).dropTarget.dropHover">
+            <Setter Property="Opacity" Value="0.6" />
+        </Style>
+
+        <Style Selector="Border.warningNotice">
+            <Setter Property="Background" Value="#33D29922" />
+            <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Margin" Value="0,4,0,8" />
+        </Style>
+    </Window.Styles>
+
+    <Window.DataTemplates>
+        <!-- ================= One condition ================= -->
+        <DataTemplate DataType="vm:RuleConditionRowViewModel">
+            <Grid Classes="dropTarget" Margin="0,0,0,6" Background="Transparent" RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,2*,1.3*,1.2*,Auto">
+                <!-- Drag to reorder, within a group or into another, as in LibreNMS's builder. -->
+                <fi:SymbolIcon Grid.Column="0" Classes="grip" Symbol="ReOrderDotsVertical" ToolTip.Tip="Drag to reorder" Margin="0,0,8,0"
+                               PointerPressed="OnGripPressed" />
+
+                <!-- Typeable, so the ~1,400 fields are found rather than scrolled through. The view model does the filtering. -->
+                <AutoCompleteBox Grid.Column="1" ItemsSource="{Binding Fields}" SelectedItem="{Binding SelectedField}"
+                                 Text="{Binding FieldSearchText, Delay=200}" FilterMode="None" MinimumPrefixLength="0" MaxDropDownHeight="320"
+                                 ToolTip.Tip="Type to filter, e.g. devices.uptime" Margin="0,0,4,0" />
+
+                <ComboBox Grid.Column="2" ItemsSource="{Binding Operators}" SelectedItem="{Binding SelectedOperator}" HorizontalAlignment="Stretch" Margin="0,0,4,0" />
+
+                <!-- None, one or two values, by operator: is null, equals, between. -->
+                <Grid Grid.Column="3" Margin="0,0,4,0" ColumnDefinitions="*,Auto,Auto" IsVisible="{Binding HasValue}">
+                    <TextBox Text="{Binding Value}" ToolTip.Tip="{Binding ValueHint}" />
+                    <TextBlock Grid.Column="1" Text="and" Classes="subtle" VerticalAlignment="Center" Margin="6,0" IsVisible="{Binding HasSecondValue}" />
+                    <TextBox Grid.Column="2" MinWidth="70" Text="{Binding SecondValue}" IsVisible="{Binding HasSecondValue}" />
+                </Grid>
+
+                <Button Grid.Column="4" Classes="icon" Width="28" Height="28" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove condition">
+                    <fi:SymbolIcon Symbol="Delete" FontSize="14" />
+                </Button>
+
+                <!-- A column the server's LibreNMS removed (#350): kept, flagged with what to use instead. -->
+                <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="4" Text="{Binding RemovedWarning}" Classes="warning" TextWrapping="Wrap"
+                           Margin="0,4,0,0" IsVisible="{Binding HasRemovedWarning}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- ================= One AND/OR group ================= -->
+        <!-- Nested groups come back through this template via Children: the tree's recursion. -->
+        <DataTemplate DataType="vm:RuleConditionGroupViewModel">
+            <Border Classes="dropTarget group" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2,0,0,0" Padding="10,0,0,0" Margin="0,0,0,8" Background="Transparent">
+                <StackPanel>
+                    <Grid Margin="0,0,0,8" ColumnDefinitions="Auto,*,Auto">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <fi:SymbolIcon Classes="grip" Symbol="ReOrderDotsVertical" ToolTip.Tip="Drag to reorder this group"
+                                           PointerPressed="OnGripPressed" IsVisible="{Binding !IsRoot}" />
+                            <RadioButton Content="AND" GroupName="{Binding RadioGroupName}" IsChecked="{Binding IsAnd}" VerticalAlignment="Center" />
+                            <RadioButton Content="OR" GroupName="{Binding RadioGroupName}" IsChecked="{Binding IsOr}" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                            <Button Content="Add rule" Command="{Binding AddRuleCommand}" Padding="8,3" />
+                            <Button Content="Add group" Command="{Binding AddGroupCommand}" Padding="8,3" />
+                            <Button Classes="icon" Width="28" Height="28" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this group" IsVisible="{Binding !IsRoot}">
+                                <fi:SymbolIcon Symbol="Delete" FontSize="14" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding Children}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </Window.DataTemplates>
+
+    <Grid Margin="24" RowDefinitions="Auto,*,Auto">
+
+        <!-- ================= Title, and Main / Advanced ================= -->
+        <Grid Grid.Row="0" Margin="0,0,0,14" ColumnDefinitions="*,Auto">
+            <TextBlock Text="{Binding Title}" Classes="heading" VerticalAlignment="Center" />
+            <Border Grid.Column="1" Classes="navTabTrack" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal">
+                    <Button Classes="segment" Classes.selected="{Binding IsMainTabSelected}" Content="Main" Command="{Binding SelectMainTabCommand}" />
+                    <Button Classes="segment" Classes.selected="{Binding IsAdvancedTabSelected}" Content="Advanced" Command="{Binding SelectAdvancedTabCommand}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <Panel Margin="0,0,10,0">
+
+                <!-- ================= Main ================= -->
+                <StackPanel IsVisible="{Binding IsMainTabSelected}">
+                    <TextBlock Text="RULE NAME" Classes="section" Margin="0,0,0,6" />
+                    <TextBox Name="NameBox" Text="{Binding Name}" Margin="0,0,0,14" />
+
+                    <Grid Margin="0,0,0,8" ColumnDefinitions="*,Auto">
+                        <TextBlock Text="CONDITIONS" Classes="section" Margin="0" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="Import from…" Command="{Binding ToggleImportCommand}" Padding="8,3" />
+                    </Grid>
+
+                    <!-- Import from: LibreNMS's own sources - another rule, SQL, or the old format. -->
+                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="12" Margin="0,0,0,10" IsVisible="{Binding IsImportOpen}">
+                        <StackPanel>
+                            <TextBlock Text="Copy the conditions from another rule" Classes="subtle" Margin="0,0,0,4" />
+                            <ComboBox ItemsSource="{Binding ImportableRules}" SelectedItem="{Binding SelectedImportRule}" HorizontalAlignment="Stretch" Margin="0,0,0,12" />
+
+                            <TextBlock Text="Or paste a SQL WHERE clause (a full SELECT from the rule list works too) or an old-format rule" Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding ImportText}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="64" VerticalContentAlignment="Top"
+                                     FontFamily="{DynamicResource MonoFont}" FontSize="12" Margin="0,0,0,8" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Button Content="Import as SQL" Command="{Binding ImportSqlCommand}" Padding="8,3" />
+                                <Button Content="Import as old format" Command="{Binding ImportOldFormatCommand}" Padding="8,3" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding ImportError}" Classes="error" TextWrapping="Wrap" Margin="0,8,0,0" IsVisible="{Binding HasImportError}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- The condition tree; an import replaces it without touching anything else. -->
+                    <ContentControl Content="{Binding Root}" IsVisible="{Binding IsConditionEditable}" />
+
+                    <StackPanel IsVisible="{Binding !IsConditionEditable}">
+                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,8"
+                                   Text="This rule's stored conditions couldn't be read, so they're shown as-is and will be saved back untouched. Use Import from… to replace them, or change them in LibreNMS's web UI." />
+                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10" MaxHeight="120">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <TextBlock Text="{Binding RawConditionJson}" TextWrapping="Wrap" FontFamily="{DynamicResource MonoFont}" FontSize="11" />
+                            </ScrollViewer>
+                        </Border>
+                    </StackPanel>
+
+                    <TextBlock Text="SEVERITY" Classes="section" Margin="0,10,0,6" />
+                    <ComboBox ItemsSource="{Binding Severities}" SelectedItem="{Binding SelectedSeverity}" MinWidth="200" Margin="0,0,0,14" />
+
+                    <CheckBox Content="Disabled" IsChecked="{Binding Disabled}" Margin="0,0,0,4" />
+                    <CheckBox Content="Invert rule match" IsChecked="{Binding Invert}" ToolTip.Tip="Alert when this rule doesn't match." Margin="0,0,0,4" />
+                    <CheckBox Content="Recovery alerts" IsChecked="{Binding Recovery}" ToolTip.Tip="Issue recovery alerts." Margin="0,0,0,4" />
+                    <CheckBox Content="Acknowledgement alerts" IsChecked="{Binding Acknowledgement}" ToolTip.Tip="Issue acknowledgement alerts." Margin="0,0,0,8" />
+
+                    <!-- LibreNMS 26.10's per-entity settings (#350). -->
+                    <StackPanel IsVisible="{Binding SupportsPerEntity}" Margin="0,4,0,8">
+                        <CheckBox Content="Notify per entity" IsChecked="{Binding NotifyPerEntity}"
+                                  ToolTip.Tip="One alert per matching port, sensor or core, rather than one per device." Margin="0,0,0,6" />
+                        <DockPanel Margin="0,0,0,6">
+                            <TextBlock Text="Max entities" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock DockPanel.Dock="Right" Text="Blank uses the server's default" Classes="subtle" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <TextBox Width="80" Text="{Binding MaxEntitiesText}" IsEnabled="{Binding NotifyPerEntity}" HorizontalAlignment="Left"
+                                     ToolTip.Tip="Leave blank to use the server's default (20, unless changed in LibreNMS)." />
+                        </DockPanel>
+                        <TextBlock Text="{Binding PerEntityExplanation}" Classes="subtle" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <!-- Columns LibreNMS 26.10 removed (#350): flagged, never rewritten. -->
+                    <Border Classes="warningNotice" IsVisible="{Binding HasRemovedColumns}">
+                        <StackPanel>
+                            <TextBlock TextWrapping="Wrap" FontWeight="SemiBold"
+                                       Text="This rule uses columns LibreNMS 26.10 removed, so it won't match as it used to. Custom SQL isn't changed for you." />
+                            <TextBlock Text="{Binding RemovedColumnsText}" TextWrapping="Wrap" Margin="0,6" />
+                            <CheckBox Content="I've reviewed these" IsChecked="{Binding ReviewedRemovedColumns}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- LibreNMS's API has no mute field, so a save un-mutes: warned about, not preserved. -->
+                    <Border Classes="warningNotice" IsVisible="{Binding IsMuted}">
+                        <TextBlock TextWrapping="Wrap"
+                                   Text="This rule is muted in LibreNMS. LibreNMS's API has no mute field, so saving from here will un-mute it - mute it again from the web UI afterwards if you need it kept quiet." />
+                    </Border>
+
+                    <TextBlock Text="MATCH DEVICES, GROUPS AND LOCATIONS" Classes="section" Margin="0,6,0,6" />
+                    <TextBox Classes="search" PlaceholderText="Search devices, groups and locations" Text="{Binding MatchPicker.SearchText, Delay=200}" Margin="0,0,0,6" />
+                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10,4" MaxHeight="200">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding MatchPicker.View}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:NamedPickerItemViewModel">
+                                        <CheckBox IsChecked="{Binding IsChecked}" Margin="0,2">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="3" Padding="5,1" Margin="0,0,8,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Kind}" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                </Border>
+                                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </CheckBox>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                    <CheckBox Content="All devices except in list" IsChecked="{Binding InvertMap}" Margin="0,8,0,4"
+                              ToolTip.Tip="If on, the rule runs on every device except the selected devices, groups and locations." />
+                    <TextBlock Text="Leave the list empty to target every device (a global rule)." Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,14" />
+
+                    <TextBlock Text="PROCEDURE URL (OPTIONAL)" Classes="section" Margin="0,0,0,6" />
+                    <TextBox Text="{Binding Procedure}" Margin="0,0,0,14" />
+
+                    <TextBlock Text="NOTES (OPTIONAL)" Classes="section" Margin="0,0,0,6" />
+                    <TextBox Text="{Binding Notes}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60" VerticalContentAlignment="Top" Margin="0,0,0,4" />
+                </StackPanel>
+
+                <!-- ================= Advanced ================= -->
+                <StackPanel IsVisible="{Binding IsAdvancedTabSelected}">
+                    <CheckBox Content="Override SQL" IsChecked="{Binding OverrideQuery}" Margin="0,0,0,6" />
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,10"
+                               Text="With this on, LibreNMS runs the query below exactly as written instead of the SQL it derives from the conditions on the Main tab. It's pre-filled with the SQL the rule currently runs. Every query must select from the devices table and include devices.device_id = ? so it can be evaluated per device." />
+                    <TextBlock Text="QUERY" Classes="section" Margin="0,0,0,6" />
+                    <TextBox Text="{Binding AdvQuery}" IsEnabled="{Binding OverrideQuery}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="220"
+                             VerticalContentAlignment="Top" FontFamily="{DynamicResource MonoFont}" FontSize="12" />
+                </StackPanel>
+            </Panel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2">
+            <Border Classes="errorNotice" Margin="0,14,0,0" IsVisible="{Binding HasError}">
+                <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+            </Border>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
+                <TextBlock Text="Saving…" Classes="subtle" VerticalAlignment="Center" Margin="0,0,4,0" IsVisible="{Binding IsBusy}" />
+                <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
+                <Button Content="Save" Command="{Binding SaveCommand}" Classes="primary" IsDefault="True" views:PermissionGate.Requires="{Binding SavePermission}" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>

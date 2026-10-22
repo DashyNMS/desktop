@@ -334,11 +334,29 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
 
     public bool ShowEditLocationDialog(DesktopNMS.Core.Models.Location location) => NotNow("The location editor");
 
-    public bool ShowAddRuleDialog() => NotNow("The rule editor");
+    public bool ShowAddRuleDialog() => ShowRuleEditor(services.GetRequiredService<RuleEditorViewModel>());
 
-    public bool ShowEditRuleDialog(AlertRule rule) => NotNow("The rule editor");
+    public bool ShowEditRuleDialog(AlertRule rule)
+    {
+        var viewModel = services.GetRequiredService<RuleEditorViewModel>();
+        viewModel.Initialize(rule);
+        return ShowRuleEditor(viewModel);
+    }
 
-    public bool ShowDuplicateRuleDialog(AlertRule rule) => NotNow("The rule editor");
+    public bool ShowDuplicateRuleDialog(AlertRule rule)
+    {
+        var viewModel = services.GetRequiredService<RuleEditorViewModel>();
+        viewModel.InitializeAsCopy(rule);
+        return ShowRuleEditor(viewModel);
+    }
+
+    private bool ShowRuleEditor(RuleEditorViewModel viewModel)
+    {
+        var window = new RuleEditorWindow(viewModel);
+        WindowPlacementMemory.Attach(window, services.GetRequiredService<ISettingsStore>());
+        Modal.Show(window, Owner());
+        return window.Saved;
+    }
 
     public string? ShowScheduleMaintenanceDialog(int deviceId, string deviceName)
     {
@@ -352,9 +370,22 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         return null;
     }
 
-    public bool ShowAddAlertTemplateDialog() => NotNow("The alert template editor");
+    public bool ShowAddAlertTemplateDialog() => ShowAlertTemplateEditor(services.GetRequiredService<AlertTemplateEditorViewModel>());
 
-    public bool ShowEditAlertTemplateDialog(AlertTemplate template) => NotNow("The alert template editor");
+    public bool ShowEditAlertTemplateDialog(AlertTemplate template)
+    {
+        var viewModel = services.GetRequiredService<AlertTemplateEditorViewModel>();
+        viewModel.Initialize(template);
+        return ShowAlertTemplateEditor(viewModel);
+    }
+
+    private bool ShowAlertTemplateEditor(AlertTemplateEditorViewModel viewModel)
+    {
+        var window = new AlertTemplateEditorWindow(viewModel);
+        WindowPlacementMemory.Attach(window, services.GetRequiredService<ISettingsStore>());
+        Modal.Show(window, Owner());
+        return window.Saved;
+    }
 
     private bool NotNow(string what)
     {

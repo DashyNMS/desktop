@@ -327,6 +327,8 @@ public partial class App : Application
         services.AddSingleton<LogsViewModel>();
         services.AddTransient<ConnectionViewModel>();
         services.AddTransient<SettingsViewModel>();
+        services.AddTransient<RuleEditorViewModel>();
+        services.AddTransient<AlertTemplateEditorViewModel>();
         return services.BuildServiceProvider();
     }
 }

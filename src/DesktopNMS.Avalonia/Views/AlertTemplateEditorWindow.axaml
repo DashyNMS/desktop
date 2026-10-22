@@ -1,0 +1,62 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:views="using:DesktopNMS.Views"
+        x:Class="DesktopNMS.Views.AlertTemplateEditorWindow"
+        x:DataType="vm:AlertTemplateEditorViewModel"
+        Title="{Binding Title}"
+        Width="600" Height="860" MinWidth="480" MinHeight="480"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Add or edit an alert template (#23, from the WPF app's editor): its
+         name, titles, the Blade template and the rules it's attached to. -->
+    <Grid Margin="24" RowDefinitions="Auto,*,Auto">
+        <TextBlock Grid.Row="0" Text="{Binding Title}" Classes="heading" Margin="0,0,0,14" />
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,10,0">
+                <TextBlock Text="NAME" Classes="section" Margin="0,0,0,6" />
+                <TextBox Name="NameBox" Text="{Binding Name}" Margin="0,0,0,14" />
+
+                <TextBlock Text="TITLE (OPTIONAL)" Classes="section" Margin="0,0,0,6" />
+                <TextBox Text="{Binding TemplateTitle}" Margin="0,0,0,14" />
+
+                <TextBlock Text="RECOVERY TITLE (OPTIONAL)" Classes="section" Margin="0,0,0,6" />
+                <TextBox Text="{Binding TitleRec}" Margin="0,0,0,14" />
+
+                <TextBlock Text="TEMPLATE" Classes="section" Margin="0,0,0,6" />
+                <!-- AcceptsTab: Blade templates are indented, so Tab inserts rather than moving on. -->
+                <TextBox Text="{Binding Template}" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+                         FontFamily="{DynamicResource MonoFont}" FontSize="12" Height="380" VerticalContentAlignment="Top" Margin="0,0,0,14" />
+
+                <TextBlock Text="ATTACHED RULES" Classes="section" Margin="0,0,0,6" />
+                <TextBox Classes="search" PlaceholderText="Search rules" Text="{Binding RulesPicker.SearchText, Delay=200}" Margin="0,0,0,6" />
+                <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10,4" MaxHeight="160">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding RulesPicker.View}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:NamedPickerItemViewModel">
+                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}" Margin="0,2" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2">
+            <Border Classes="errorNotice" Margin="0,14,0,0" IsVisible="{Binding HasError}">
+                <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+            </Border>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
+                <TextBlock Text="Saving…" Classes="subtle" VerticalAlignment="Center" Margin="0,0,4,0" IsVisible="{Binding IsBusy}" />
+                <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
+                <Button Content="Save" Command="{Binding SaveCommand}" Classes="primary" IsDefault="True" views:PermissionGate.Requires="ChangeTemplates" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>
