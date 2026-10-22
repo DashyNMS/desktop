@@ -9,6 +9,8 @@ public sealed class WindowsBalloonNotifier : ITrayNotifier, IDisposable
 {
     private IntPtr _window;
     private IUiTimer? _expiry;
+    private IntPtr _largeIcon;
+    private IntPtr _smallIcon;
 
     public void ShowBalloon(string title, string message, AlertSeverity severity)
     {
@@ -17,7 +19,10 @@ public sealed class WindowsBalloonNotifier : ITrayNotifier, IDisposable
         if (_window == IntPtr.Zero) return;
         var data = Data();
         data.Flags = 2 | 4 | 16; // icon, tooltip, balloon
-        data.Icon = LoadIcon(IntPtr.Zero, new IntPtr(32512));
+        if (_largeIcon == IntPtr.Zero && _smallIcon == IntPtr.Zero && Environment.ProcessPath is { } path)
+            ExtractIconEx(path, 0, out _largeIcon, out _smallIcon, 1);
+        data.Icon = _smallIcon != IntPtr.Zero ? _smallIcon : _largeIcon != IntPtr.Zero
+            ? _largeIcon : LoadIcon(IntPtr.Zero, new IntPtr(32512));
         data.Tip = "DashyNMS";
         data.InfoTitle = title.Length > 63 ? title[..63] : title;
         data.Info = message.Length > 255 ? message[..255] : message;
@@ -41,6 +46,9 @@ public sealed class WindowsBalloonNotifier : ITrayNotifier, IDisposable
         ShellNotifyIcon(2, ref data);
         DestroyWindow(_window);
         _window = IntPtr.Zero;
+        if (_largeIcon != IntPtr.Zero) DestroyIcon(_largeIcon);
+        if (_smallIcon != IntPtr.Zero && _smallIcon != _largeIcon) DestroyIcon(_smallIcon);
+        _largeIcon = _smallIcon = IntPtr.Zero;
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -65,4 +73,7 @@ public sealed class WindowsBalloonNotifier : ITrayNotifier, IDisposable
     private static extern IntPtr CreateWindowEx(uint extendedStyle, string className, string name, uint style, int x, int y, int width, int height, IntPtr parent, IntPtr menu, IntPtr instance, IntPtr parameter);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool DestroyWindow(IntPtr window);
     [DllImport("user32.dll", EntryPoint = "LoadIconW")] private static extern IntPtr LoadIcon(IntPtr instance, IntPtr icon);
+    [DllImport("shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode)]
+    private static extern uint ExtractIconEx(string file, int index, out IntPtr large, out IntPtr small, uint count);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool DestroyIcon(IntPtr icon);
 }
