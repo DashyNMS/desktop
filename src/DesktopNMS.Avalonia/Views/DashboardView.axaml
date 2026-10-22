@@ -1071,9 +1071,11 @@
                                                 <ItemsControl ItemsSource="{Binding DevicePickerResults}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate x:DataType="vm:DevicePickerItem">
-                                                            <Button Content="{Binding DisplayName}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Margin="0,0,0,2"
+                                                            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Margin="0,0,0,2"
                                                                     Command="{Binding $parent[ItemsControl].((vm:GraphWidgetViewModel)DataContext).SelectDeviceCommand}"
-                                                                    CommandParameter="{Binding}" />
+                                                                    CommandParameter="{Binding}">
+                                                                <TextBlock Text="{Binding DisplayName}" />
+                                                            </Button>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>

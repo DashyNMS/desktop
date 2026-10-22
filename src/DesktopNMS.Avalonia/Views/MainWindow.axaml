@@ -47,7 +47,11 @@
                         <fi:SymbolIcon Symbol="ArrowSwap" Foreground="{DynamicResource WarningBrush}" />
                         <Button.Flyout>
                             <MenuFlyout>
-                                <MenuItem Header="{Binding BackupAddressStatusText}" IsEnabled="False" />
+                                <MenuItem IsEnabled="False">
+                                    <MenuItem.Header>
+                                        <TextBlock Text="{Binding BackupAddressStatusText}" />
+                                    </MenuItem.Header>
+                                </MenuItem>
                                 <Separator />
                                 <MenuItem Header="Switch back to the server address" Command="{Binding SwitchBackToMainAddressCommand}" />
                             </MenuFlyout>
@@ -184,9 +188,11 @@
                                             <ItemsControl ItemsSource="{Binding Neighbours.Views}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="models:NeighbourViewDefinition">
-                                                        <Button Content="{Binding Name}" Classes="flyoutItem"
+                                                        <Button Classes="flyoutItem"
                                                                 Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectNeighbourViewCommand}"
-                                                                CommandParameter="{Binding}" />
+                                                                CommandParameter="{Binding}">
+                                                            <TextBlock Text="{Binding Name}" />
+                                                        </Button>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
@@ -203,9 +209,11 @@
                                 </ItemsControl.IsVisible>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="models:NeighbourViewDefinition">
-                                        <Button Content="{Binding Name}" Classes="railSub"
+                                        <Button Classes="railSub"
                                                 Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectNeighbourViewCommand}"
-                                                CommandParameter="{Binding}" />
+                                                CommandParameter="{Binding}">
+                                            <TextBlock Text="{Binding Name}" />
+                                        </Button>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>

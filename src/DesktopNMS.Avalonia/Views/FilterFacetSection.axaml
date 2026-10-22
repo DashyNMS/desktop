@@ -14,7 +14,10 @@
             <ItemsControl ItemsSource="{Binding OptionsView}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FilterOptionViewModel">
-                        <CheckBox Content="{Binding LabelText}" IsChecked="{Binding IsChecked}" Margin="0,2" />
+                        <!-- The name as plain text: a string caption would hide its first "_" as a shortcut marker. -->
+                        <CheckBox IsChecked="{Binding IsChecked}" Margin="0,2">
+                            <TextBlock Text="{Binding LabelText}" />
+                        </CheckBox>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

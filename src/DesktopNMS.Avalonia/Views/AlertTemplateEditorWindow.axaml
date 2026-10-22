@@ -38,7 +38,9 @@
                         <ItemsControl ItemsSource="{Binding RulesPicker.View}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:NamedPickerItemViewModel">
-                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}" Margin="0,2" />
+                                    <CheckBox IsChecked="{Binding IsChecked}" Margin="0,2">
+                                        <TextBlock Text="{Binding Name}" />
+                                    </CheckBox>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
