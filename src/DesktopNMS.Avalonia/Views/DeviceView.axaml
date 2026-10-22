@@ -204,14 +204,23 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="2">
-                    <Button Classes="icon" Width="30" Height="30" Command="{Binding History.BackCommand}" IsEnabled="{Binding History.CanGoBack, FallbackValue=False}"
-                            ToolTip.Tip="Back (Alt+Left)" WindowDecorationProperties.ElementRole="User">
-                        <fi:SymbolIcon Symbol="ArrowLeft" FontSize="14" />
-                    </Button>
-                    <Button Classes="icon" Width="30" Height="30" Command="{Binding History.ForwardCommand}" IsEnabled="{Binding History.CanGoForward, FallbackValue=False}"
-                            ToolTip.Tip="Forward (Alt+Right)" WindowDecorationProperties.ElementRole="User">
-                        <fi:SymbolIcon Symbol="ArrowRight" FontSize="14" />
-                    </Button>
+                    <!-- Back and forward only once there's been another device in this window. -->
+                    <StackPanel Orientation="Horizontal" Spacing="2">
+                        <StackPanel.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                <Binding Path="History.CanGoBack" FallbackValue="False" />
+                                <Binding Path="History.CanGoForward" FallbackValue="False" />
+                            </MultiBinding>
+                        </StackPanel.IsVisible>
+                        <Button Classes="icon" Width="30" Height="30" Command="{Binding History.BackCommand}" IsEnabled="{Binding History.CanGoBack, FallbackValue=False}"
+                                ToolTip.Tip="Back to the previous device (Alt+Left)" WindowDecorationProperties.ElementRole="User">
+                            <fi:SymbolIcon Symbol="ArrowLeft" FontSize="14" />
+                        </Button>
+                        <Button Classes="icon" Width="30" Height="30" Command="{Binding History.ForwardCommand}" IsEnabled="{Binding History.CanGoForward, FallbackValue=False}"
+                                ToolTip.Tip="Forward to the next device (Alt+Right)" WindowDecorationProperties.ElementRole="User">
+                            <fi:SymbolIcon Symbol="ArrowRight" FontSize="14" />
+                        </Button>
+                    </StackPanel>
                     <Button Classes="icon" Width="30" Height="30" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh now" WindowDecorationProperties.ElementRole="User">
                         <fi:SymbolIcon Symbol="ArrowClockwise" FontSize="15" />
                     </Button>

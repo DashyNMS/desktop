@@ -1,6 +1,8 @@
-using System.Linq;
+﻿using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Layout;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace DesktopNMS.Infrastructure;
@@ -14,6 +16,8 @@ namespace DesktopNMS.Infrastructure;
 /// </summary>
 public static class TitleBarFit
 {
+    private const double Gap = 8;
+
     public static void Attach(Window window, Control content, double left = 16)
     {
         content.Margin = OperatingSystem.IsMacOS() ? new Thickness(80, 0, 12, 0)
@@ -25,20 +29,39 @@ public static class TitleBarFit
             return;
         }
 
+        // The buttons live in a layer beside the window's own content, under
+        // the host the window sits in - not among the window's descendants.
         StackPanel? captionButtons = null;
+        StackPanel? FindCaptionButtons() => captionButtons ??=
+            (window.GetVisualParent() ?? window).GetVisualDescendants().OfType<StackPanel>().FirstOrDefault(p => p.Name == "PART_OverlayPanel");
+
         window.LayoutUpdated += (_, _) =>
         {
-            captionButtons ??= window.GetVisualDescendants().OfType<StackPanel>().FirstOrDefault(p => p.Name == "PART_OverlayPanel");
-            if (captionButtons is not { IsVisible: true } buttons)
+            if (FindCaptionButtons() is not { IsVisible: true } buttons
+                || buttons.Bounds.Width <= 0
+                || buttons.TranslatePoint(default, window) is not { } origin)
             {
                 return;
             }
 
-            var right = buttons.Bounds.Width + 8;
-            if (right > 8 && Math.Abs(content.Margin.Right - right) > 0.5)
+            // From where the buttons actually start, not just how wide they
+            // are: they aren't always flush with the window's right edge.
+            var right = Math.Max(0, window.Bounds.Width - origin.X) + Gap;
+            if (Math.Abs(content.Margin.Right - right) > 0.5)
             {
                 var margin = content.Margin;
                 content.Margin = new Thickness(margin.Left, margin.Top, right, margin.Bottom);
+            }
+        };
+
+        // Maximising or restoring can leave the buttons laid out for the old
+        // size, a slot short of the edge; laying their layer out again once
+        // the window has its new size puts them back.
+        window.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Window.WindowStateProperty)
+            {
+                Dispatcher.UIThread.Post(() => (FindCaptionButtons()?.GetVisualParent() as Layoutable)?.InvalidateMeasure(), DispatcherPriority.Loaded);
             }
         };
     }
