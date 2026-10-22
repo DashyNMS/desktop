@@ -17,12 +17,6 @@ using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.Services;
 
-/// <summary>The balloon-tip fallback used when Windows toasts are unavailable.</summary>
-public interface ITrayNotifier
-{
-    void ShowBalloon(string title, string message, AlertSeverity severity);
-}
-
 /// <summary>
 /// The notification-area icon: the app's home while the window is closed.
 /// </summary>
