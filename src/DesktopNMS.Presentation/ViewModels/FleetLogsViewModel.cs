@@ -132,6 +132,14 @@ public sealed class FleetLogsViewModel : ObservableObject
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
     private readonly ILogger _logger;
+    private readonly IUiTimer _autoUpdateTimer;
+    private bool _isActive;
+    private bool _autoUpdate = true;
+    private bool _isUpdating;
+    private GraylogIntervalOption _selectedAutoUpdateInterval = GraylogIntervalOption.All[1];
+    private DateTimeOffset? _eventsUpdated;
+    private DateTimeOffset? _alertsUpdated;
+    private string? _updateError;
 
     private IReadOnlyList<EventLogEntry> _events = Array.Empty<EventLogEntry>();
     private IReadOnlyList<AlertLogEntry> _alerts = Array.Empty<AlertLogEntry>();
@@ -155,12 +163,19 @@ public sealed class FleetLogsViewModel : ObservableObject
     private FleetAlertRow? _selectedAlert;
 
     public FleetLogsViewModel(ILibreNmsClient client, IDeviceCache devices, ISettingsStore settings, IWindowService windows, ILogger logger)
+        : this(client, devices, settings, windows, logger, UiThread.CreateTimer(TimeSpan.FromSeconds(30)))
+    {
+    }
+
+    internal FleetLogsViewModel(ILibreNmsClient client, IDeviceCache devices, ISettingsStore settings, IWindowService windows, ILogger logger, IUiTimer autoUpdateTimer)
     {
         _client = client;
         _devices = devices;
         _settings = settings;
         _windows = windows;
         _logger = logger;
+        _autoUpdateTimer = autoUpdateTimer;
+        _autoUpdateTimer.Tick += OnAutoUpdateTick;
 
         _selectedDevice = AllDevices;
         DeviceOptions.Add(AllDevices);
@@ -221,6 +236,48 @@ public sealed class FleetLogsViewModel : ObservableObject
 
     public AsyncRelayCommand RefreshCommand { get; }
 
+    /// <summary>Shared by the two LibreNMS logs; preferences last for this session.</summary>
+    public bool AutoUpdate
+    {
+        get => _autoUpdate;
+        set
+        {
+            if (SetProperty(ref _autoUpdate, value))
+            {
+                UpdateTimer();
+                if (value && _isActive) _ = LoadAsync(reset: false, silent: true);
+            }
+        }
+    }
+
+    public IReadOnlyList<GraylogIntervalOption> AutoUpdateIntervalOptions => GraylogIntervalOption.All;
+
+    public GraylogIntervalOption SelectedAutoUpdateInterval
+    {
+        get => _selectedAutoUpdateInterval;
+        set
+        {
+            if (value is not null && AutoUpdateIntervalOptions.Contains(value)
+                && SetProperty(ref _selectedAutoUpdateInterval, value))
+            {
+                _autoUpdateTimer.Interval = TimeSpan.FromSeconds(value.Seconds);
+            }
+        }
+    }
+
+    /// <summary>Failures leave the last good rows visible and say when they were read.</summary>
+    public string LastUpdatedText
+    {
+        get
+        {
+            var updated = ShowingEventLog ? _eventsUpdated : _alertsUpdated;
+            var time = updated?.ToLocalTime().ToString("T", CultureInfo.CurrentCulture);
+            return _updateError is not null
+                ? $"{_updateError} - showing entries from {time ?? "the last refresh"}."
+                : time is null ? string.Empty : $"Updated {time}";
+        }
+    }
+
     public AsyncRelayCommand LoadMoreCommand { get; }
 
     public RelayCommand ClearFiltersCommand { get; }
@@ -244,6 +301,8 @@ public sealed class FleetLogsViewModel : ObservableObject
                 OnPropertyChanged(nameof(EmptyText));
                 OnPropertyChanged(nameof(ShowsEmpty));
                 OnPropertyChanged(nameof(CountText));
+                _updateError = null;
+                OnPropertyChanged(nameof(LastUpdatedText));
                 LoadMoreCommand.RaiseCanExecuteChanged();
                 if (!(value ? _eventsLoaded : _alertsLoaded))
                 {
@@ -381,13 +440,39 @@ public sealed class FleetLogsViewModel : ObservableObject
         ? $"{Events.Count} event{(Events.Count == 1 ? string.Empty : "s")}"
         : $"{Alerts.Count} alert log entr{(Alerts.Count == 1 ? "y" : "ies")}";
 
-    /// <summary>The tab has been shown: load what's showing, once.</summary>
+    /// <summary>The tab has been shown: load once, then catch up if its data is stale.</summary>
     public void Activate()
     {
+        _isActive = true;
         if (!(ShowingEventLog ? _eventsLoaded : _alertsLoaded))
         {
             _ = LoadAsync(reset: false);
         }
+        else if (AutoUpdate && (ShowingEventLog ? _eventsUpdated : _alertsUpdated) is { } updated
+                 && DateTimeOffset.Now - updated >= _autoUpdateTimer.Interval)
+        {
+            _ = LoadAsync(reset: false, silent: true);
+        }
+
+        UpdateTimer();
+    }
+
+    /// <summary>Hidden logs don't poll, including while Graylog is selected.</summary>
+    public void Deactivate()
+    {
+        _isActive = false;
+        UpdateTimer();
+    }
+
+    private void UpdateTimer()
+    {
+        if (_isActive && AutoUpdate) _autoUpdateTimer.Start();
+        else _autoUpdateTimer.Stop();
+    }
+
+    private void OnAutoUpdateTick(object? sender, EventArgs e)
+    {
+        if (_isActive && AutoUpdate) _ = LoadAsync(reset: false, silent: true);
     }
 
     /// <summary>The device list changed: refresh the Device filter, keeping the choice.</summary>
@@ -463,8 +548,10 @@ public sealed class FleetLogsViewModel : ObservableObject
     }
 
     /// <param name="reset">The device changed: start again from one page, for both logs.</param>
-    private async Task LoadAsync(bool reset)
+    private async Task LoadAsync(bool reset, bool silent = false)
     {
+        // A timer never interrupts or overlaps a user request or an earlier tick.
+        if (silent && (IsLoading || _isUpdating)) return;
         if (reset)
         {
             _eventLimit = _alertLimit = PageSize;
@@ -477,8 +564,12 @@ public sealed class FleetLogsViewModel : ObservableObject
         var events = ShowingEventLog;
         var deviceId = _selectedDevice.DeviceId;
 
-        IsLoading = true;
-        ErrorMessage = null;
+        _isUpdating = silent;
+        if (!silent)
+        {
+            IsLoading = true;
+            ErrorMessage = null;
+        }
 
         try
         {
@@ -515,6 +606,10 @@ public sealed class FleetLogsViewModel : ObservableObject
             }
 
             Rebuild();
+            if (events) _eventsUpdated = DateTimeOffset.Now;
+            else _alertsUpdated = DateTimeOffset.Now;
+            _updateError = null;
+            ErrorMessage = null;
         }
         catch (OperationCanceledException)
         {
@@ -523,14 +618,20 @@ public sealed class FleetLogsViewModel : ObservableObject
         catch (LibreNmsApiException ex) when (!token.IsCancellationRequested)
         {
             _logger.LogWarning(ex, "Could not load the {Log} for the Logs tab", events ? "event log" : "alert log");
-            ErrorMessage = ex.ToUserMessage();
+            if (silent) _updateError = ex.ToUserMessage();
+            else ErrorMessage = ex.ToUserMessage();
         }
         finally
         {
             if (ReferenceEquals(_loadCts, cts))
             {
+                _loadCts = null;
                 IsLoading = false;
+                _isUpdating = false;
+                OnPropertyChanged(nameof(LastUpdatedText));
             }
+
+            cts.Dispose();
         }
     }
 
@@ -608,6 +709,8 @@ public sealed class FleetLogsViewModel : ObservableObject
     /// <summary>Applies the filters that narrow what's loaded.</summary>
     private void Rebuild()
     {
+        var selectedEventId = SelectedEvent?.Entry.Id;
+        var selectedAlertId = SelectedAlert?.Entry.Id;
         var utc = _settings.Current.ServerTimestampsAreUtc;
         var since = _selectedRange.Span is { } span ? DateTime.Now - span : (DateTime?)null;
 
@@ -652,6 +755,8 @@ public sealed class FleetLogsViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(ShowsEmpty));
+        SelectedEvent = Events.FirstOrDefault(e => e.Entry.Id == selectedEventId);
+        SelectedAlert = Alerts.FirstOrDefault(a => a.Entry.Id == selectedAlertId);
         OnPropertyChanged(nameof(EmptyText));
         OnPropertyChanged(nameof(CountText));
         OnPropertyChanged(nameof(CanLoadMore));

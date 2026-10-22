@@ -24,6 +24,11 @@
 
         <!-- ==================== Filters ==================== -->
         <WrapPanel Grid.Row="1" Margin="0,0,0,10">
+            <CheckBox Content="Auto-update" IsChecked="{Binding AutoUpdate}" VerticalAlignment="Center" Margin="0,0,8,6"
+                      AutomationProperties.Name="Auto-update the event and alert logs" />
+            <ComboBox ItemsSource="{Binding AutoUpdateIntervalOptions}" SelectedItem="{Binding SelectedAutoUpdateInterval}"
+                      DisplayMemberBinding="{ReflectionBinding Label}" IsEnabled="{Binding AutoUpdate}" Width="165" Margin="0,0,12,6"
+                      AutomationProperties.Name="Log auto-update interval" />
             <TextBox Classes="search" PlaceholderText="Search" Text="{Binding SearchText, Delay=300}"
                      ToolTip.Tip="Searches the device, message, rule and detail" Width="240" Margin="0,0,8,6" />
             <!-- The server filters by device; typing jumps to a match. -->
@@ -88,6 +93,8 @@
             <Button DockPanel.Dock="Right" Command="{Binding LoadMoreCommand}" Padding="12,6" IsVisible="{Binding CanLoadMore}">
                 <TextBlock Text="Load more" />
             </Button>
+            <TextBlock DockPanel.Dock="Right" Text="{Binding LastUpdatedText}" Classes="subtle" Margin="12,0" VerticalAlignment="Center"
+                       TextWrapping="Wrap" MaxWidth="480" />
             <TextBlock Text="{Binding CountText}" Classes="subtle" VerticalAlignment="Center"
                        ToolTip.Tip="Double-click an entry to open that device's log in Device Details" />
         </DockPanel>
