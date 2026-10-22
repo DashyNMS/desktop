@@ -473,6 +473,8 @@
                     <dd:OverviewSection IsVisible="{Binding IsOverviewSelected}" />
                     <dd:NeighboursSection IsVisible="{Binding IsNeighboursSelected}" />
                     <dd:SensorsSection IsVisible="{Binding IsSensorsSelected}" />
+                    <dd:PortsSection IsVisible="{Binding IsPortsSelected}" />
+                    <dd:NetworkTablesSections />
                     <views:EmptyState Name="NotYetSection" Icon="Wrench" Title="Not here yet" Hint="This section is still being ported to the new app." />
 
                 </Panel>

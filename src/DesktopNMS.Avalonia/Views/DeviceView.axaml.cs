@@ -21,6 +21,10 @@ public partial class DeviceView : Window
         DeviceDetailSection.Overview,
         DeviceDetailSection.Neighbours,
         DeviceDetailSection.Sensors,
+        DeviceDetailSection.Ports,
+        DeviceDetailSection.Vlans,
+        DeviceDetailSection.Fdb,
+        DeviceDetailSection.Arp,
     ];
 
     private DeviceDetailViewModel? _viewModel;

@@ -1,0 +1,94 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.DeviceDetail.PortGraphsPanel"
+             x:DataType="vm:PortGraphsPanelViewModel">
+
+    <!-- The picked port's graphs (#8): traffic, packets and errors, four across;
+         the chevron folds it to this header so the table has the height. A click
+         opens one full size in Graphs; right-click adds it to the dashboard. -->
+    <UserControl.Styles>
+        <Style Selector="Button.portGraph">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.portGraph:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Button.portGraph Border.maximise">
+            <Setter Property="Opacity" Value="0.5" />
+        </Style>
+        <Style Selector="Button.portGraph:pointerover Border.maximise">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,8,18,12" IsVisible="{Binding HasPort}">
+        <Grid RowDefinitions="Auto,Auto">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Classes="icon small" Width="30" Height="30" Command="{Binding ToggleCommand}" ToolTip.Tip="Show or hide the port graphs" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <Panel>
+                        <fi:SymbolIcon Symbol="ChevronDown" FontSize="13" IsVisible="{Binding !IsCollapsed}" />
+                        <fi:SymbolIcon Symbol="ChevronRight" FontSize="13" IsVisible="{Binding IsCollapsed}" />
+                    </Panel>
+                </Button>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Subtitle}" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <!-- After Add to dashboard (#285), for a few seconds. -->
+                <Border Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" Padding="10,2" CornerRadius="9"
+                        Background="{DynamicResource AccentSubtleBrush}" IsVisible="{Binding HasNotice}">
+                    <TextBlock Text="{Binding Notice}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" />
+                </Border>
+                <views:GraphTimeRangePicker Grid.Column="2" DataContext="{Binding TimeRange}" VerticalAlignment="Center" IsVisible="{Binding !$parent[UserControl].((vm:PortGraphsPanelViewModel)DataContext).IsCollapsed}" />
+            </Grid>
+
+            <!-- Without their legends, four fit across. -->
+            <ItemsControl Grid.Row="1" Margin="0,10,0,0" ItemsSource="{Binding Graphs}" IsVisible="{Binding !IsCollapsed}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="4" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PortGraphViewModel">
+                        <Button Classes="portGraph" Command="{Binding OpenCommand}" Margin="0,0,10,0"
+                                ToolTip.Tip="Open in Graphs - right-click to add it to the dashboard" AutomationProperties.Name="{Binding Title}">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Open in Graphs" Command="{Binding OpenCommand}" FontWeight="SemiBold" />
+                                    <MenuItem Header="Add to dashboard" Command="{Binding AddToDashboardCommand}">
+                                        <MenuItem.Icon><fi:SymbolIcon Symbol="Add" /></MenuItem.Icon>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                            <Grid RowDefinitions="Auto,150">
+                                <DockPanel Margin="0,0,0,6">
+                                    <Border Classes="maximise" DockPanel.Dock="Right" Width="22" Height="22" CornerRadius="5">
+                                        <fi:SymbolIcon Symbol="ArrowMaximize" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="{Binding Title}" Classes="section" Margin="0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                                <Panel Grid.Row="1">
+                                    <Image Source="{Binding Svg, Converter={x:Static views:Converters.SvgToImage}}" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" />
+                                    <TextBlock Text="Loading graph…" Classes="widgetState" IsVisible="{Binding IsLoading}" />
+                                    <TextBlock Text="{Binding ErrorMessage}" Classes="widgetState" IsVisible="{Binding HasError}" />
+                                </Panel>
+                            </Grid>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
+    </Border>
+</UserControl>
