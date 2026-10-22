@@ -1410,7 +1410,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         var what = release.Prerelease ? $"Preview {release.TagName}" : $"Version {release.TagName}";
         return IsUpdateReady
             ? $"{what} is downloaded and ready to install."
-            : $"{what} is available - downloading it in the background.";
+            : _updates.IsDownloading ? $"{what} is downloading in the background."
+            : $"{what} is available. View the release for installation options.";
     }
 
     private bool _isInstallingUpdate;
@@ -1418,6 +1419,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The newest version found is downloaded and verified - "Restart to update" shows.</summary>
     public bool IsUpdateReady => _updates.ReadyUpdate is { } ready
                                  && (_latestRelease is null || ready.Version == _latestRelease.TagName);
+    public string UpdateActionText => _updates.UpdateActionText;
 
     /// <summary>DashyNMS closes, installs the update and reopens on it - unsaved changes here are discarded.</summary>
     public AsyncRelayCommand InstallUpdateCommand { get; }
@@ -1453,6 +1455,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void RaiseUpdateReadyChanged()
     {
         OnPropertyChanged(nameof(IsUpdateReady));
+        OnPropertyChanged(nameof(UpdateActionText));
         InstallUpdateCommand.RaiseCanExecuteChanged();
     }
 

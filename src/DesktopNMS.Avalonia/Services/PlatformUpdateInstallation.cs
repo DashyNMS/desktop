@@ -1,0 +1,71 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
+using Avalonia.Threading;
+
+namespace DesktopNMS.Services;
+
+/// <summary>Use the installer owned by the running package; package managers retain control on Linux.</summary>
+public sealed class PlatformUpdateInstallation(IWindowService windows) : IUpdateInstallation
+{
+    private readonly string? _appImage = Environment.GetEnvironmentVariable("APPIMAGE");
+    public string? Runtime
+    {
+        get
+        {
+            var architecture = RuntimeInformation.ProcessArchitecture switch { Architecture.X64 => "x64", Architecture.Arm64 => "arm64", _ => null };
+            if (architecture is null) return null;
+            if (OperatingSystem.IsWindows()) return architecture == "x64" ? "win-x64" : null;
+            if (OperatingSystem.IsMacOS()) return "osx-" + architecture;
+            if (OperatingSystem.IsLinux() && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FLATPAK_ID"))
+                && _appImage is not null && Path.IsPathFullyQualified(_appImage) && File.Exists(_appImage)) return "linux-" + architecture;
+            return null;
+        }
+    }
+    public bool RestartsApp => !OperatingSystem.IsMacOS();
+    public string ActionText => OperatingSystem.IsMacOS() ? "Open update disk image" : "Restart to update";
+
+    public async Task<bool> InstallAsync(string verifiedPackage)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var app = Path.Combine(WindowsInstallDirectory(), "DashyNMS.exe");
+            // Encode paths as PowerShell literals rather than interpolate them into cmd syntax.
+            static string Quote(string value) => "'" + value.Replace("'", "''") + "'";
+            var command = "$ErrorActionPreference='Stop'; $installer = Start-Process -FilePath " + Quote(verifiedPackage)
+                + " -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CLOSEAPPLICATIONS' -WindowStyle Hidden -Wait -PassThru; Start-Process -FilePath " + Quote(app);
+            var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe"))
+                { UseShellExecute = false, CreateNoWindow = true };
+            foreach (var argument in new[] { "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(command)) }) start.ArgumentList.Add(argument);
+            return Process.Start(start) is not null;
+        }
+        if (OperatingSystem.IsMacOS())
+        {
+            await Dispatcher.UIThread.InvokeAsync(() => windows.ShowInformation("Install the update",
+                "The verified disk image will open in Finder. Quit DashyNMS, drag the new app into Applications to replace it, then open DashyNMS again. Your saved settings stay in place."));
+            var start = new ProcessStartInfo("/usr/bin/open") { UseShellExecute = false };
+            start.ArgumentList.Add(verifiedPackage);
+            return Process.Start(start) is not null;
+        }
+        if (OperatingSystem.IsLinux() && Runtime is not null && _appImage is not null)
+        {
+            return AppImageReplacement.Apply(verifiedPackage, _appImage, path =>
+            {
+                var start = new ProcessStartInfo(path) { UseShellExecute = false };
+                start.ArgumentList.Add("--after"); start.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                return Process.Start(start) is not null;
+            });
+        }
+        return false;
+    }
+
+    private static string WindowsInstallDirectory()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\{9B3D2C7A-4E1F-4A6B-8C5D-2F7A9E1B3C64}_is1");
+            if (key?.GetValue("InstallLocation") is string location && Path.IsPathFullyQualified(location)) return location;
+        }
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "DashyNMS");
+    }
+}

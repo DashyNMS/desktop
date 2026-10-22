@@ -112,7 +112,7 @@
                 <DockPanel>
                     <fi:SymbolIcon Symbol="ArrowDownload" FontSize="15" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
                     <Button DockPanel.Dock="Right" Classes="link" Command="{Binding InstallUpdateCommand}" VerticalAlignment="Center" Margin="8,0,0,0">
-                        <TextBlock Text="Restart to update" FontSize="12" />
+                        <TextBlock Text="{Binding UpdateActionText}" FontSize="12" />
                     </Button>
                     <TextBlock Text="{Binding UpdateReadyText}" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center" />
                 </DockPanel>
