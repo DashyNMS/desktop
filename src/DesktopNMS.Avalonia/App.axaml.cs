@@ -291,7 +291,9 @@ public partial class App : Application
         services.AddSingleton<IAlertRuleCache, AlertRuleCache>();
         services.AddSingleton<IDeviceGroupMembershipService, DeviceGroupMembershipService>();
         services.AddSingleton<IMapLayoutStore, MapLayoutStore>();
-        services.AddSingleton<IMapTiles, NoMapTiles>();
+        services.AddSingleton<MapTileService>();
+        services.AddSingleton<IMapTileService>(sp => sp.GetRequiredService<MapTileService>());
+        services.AddSingleton<IMapTiles>(sp => sp.GetRequiredService<MapTileService>());
         services.AddSingleton<ICustomMapStore, CustomMapStore>();
         services.AddSingleton<IUnimusDeviceResolver, UnimusDeviceResolver>();
         services.AddSingleton<AvaloniaAppActivity>();

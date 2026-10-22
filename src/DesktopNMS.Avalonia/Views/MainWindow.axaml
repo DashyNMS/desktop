@@ -4,6 +4,7 @@
         xmlns:models="using:DesktopNMS.Core.Configuration"
         xmlns:views="using:DesktopNMS.Views"
         xmlns:intel="using:DesktopNMS.Views.Intelligence"
+        xmlns:maps="using:DesktopNMS.Views.Maps"
         xmlns:fi="using:FluentIcons.Avalonia"
         x:Class="DesktopNMS.Views.MainWindow"
         x:DataType="vm:MainViewModel"
@@ -353,6 +354,9 @@
             <views:NeighboursView DataContext="{Binding Neighbours}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsNeighboursTabSelected}" />
             <views:LogsView DataContext="{Binding Logs}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsLogsFamilyTabSelected}" />
             <intel:IntelligenceView DataContext="{Binding Intelligence}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsIntelligenceTabSelected}" />
+            <maps:NetworkMapView DataContext="{Binding NetworkMap}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsNetworkMapTabSelected}" />
+            <maps:GeoMapView DataContext="{Binding GeoMap}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsGeoMapTabSelected}" />
+            <maps:CustomMapsView DataContext="{Binding CustomMaps}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsCustomMapsTabSelected}" />
             <views:NotPortedView Page="{Binding SelectedTab}" IsVisible="{Binding SelectedTab, Converter={x:Static views:Converters.IsNotPorted}}" />
         </Panel>
         </Grid>
