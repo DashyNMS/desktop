@@ -34,7 +34,7 @@ try {
         -m:1 -p:Version=$Version -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:EnableCompressionInSingleFile=true -p:DebugType=none -o $output --nologo
     if ($LASTEXITCODE -ne 0) { throw 'Publishing the development build failed.' }
-    foreach ($file in @('DashyNMS.Avalonia.exe', 'mcp/dashynms-mcp.exe', 'mcp/LICENSE', 'mcp/BUILD.txt')) {
+    foreach ($file in @('DashyNMS.exe', 'mcp/dashynms-mcp.exe', 'mcp/LICENSE', 'mcp/BUILD.txt')) {
         if (-not (Test-Path (Join-Path $output $file) -PathType Leaf)) { throw "Build is missing $file." }
     }
     $dirty = [bool](git status --porcelain --untracked-files=no)

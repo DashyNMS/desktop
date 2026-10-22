@@ -7,13 +7,13 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceInclude Source="avares://DashyNMS.Avalonia/Themes/Palette.axaml" />
+                <ResourceInclude Source="avares://DashyNMS/Themes/Palette.axaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
     <Application.Styles>
         <FluentTheme />
         <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
-        <StyleInclude Source="avares://DashyNMS.Avalonia/Themes/Styles.axaml" />
+        <StyleInclude Source="avares://DashyNMS/Themes/Styles.axaml" />
     </Application.Styles>
 </Application>
