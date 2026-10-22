@@ -36,6 +36,17 @@
                 </Animation>
             </Style.Animations>
         </Style>
+        <!-- The lookups pill opens and closes on click; the pill is its own look, with no toggle fill behind it. -->
+        <Style Selector="ToggleButton.activity /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ToggleButton.activity:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.activity:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.activity:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.activity:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ToggleButton.activity:pointerover Border.pill">
+            <Setter Property="BorderBrush" Value="#3E5A7A" />
+        </Style>
         <Style Selector="Button.cardAction">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -69,10 +80,10 @@
                                 <StackPanel>
                                     <!-- The lookups, folded away under a summary pill. -->
                                     <StackPanel IsVisible="{Binding HasActivity}">
-                                        <ToggleButton IsChecked="{Binding IsActivityExpanded}" Background="Transparent" BorderThickness="0" Padding="0"
+                                        <ToggleButton Classes="activity" IsChecked="{Binding IsActivityExpanded}" Padding="0"
                                                       HorizontalAlignment="Left" Margin="0,0,0,14" Cursor="Hand"
                                                       AutomationProperties.Name="Show or hide executed lookups">
-                                            <Border Background="#13243A" BorderBrush="#2B405B" BorderThickness="1" CornerRadius="14" Padding="9,5" MaxWidth="700">
+                                            <Border Classes="pill" Background="#13243A" BorderBrush="#2B405B" BorderThickness="1" CornerRadius="14" Padding="9,5" MaxWidth="700">
                                                 <DockPanel>
                                                     <Panel DockPanel.Dock="Right" Margin="9,0,0,0" VerticalAlignment="Center">
                                                         <fi:SymbolIcon Symbol="ChevronDown" FontSize="11" Foreground="#AEC5DF" IsVisible="{Binding !IsActivityExpanded}" />
