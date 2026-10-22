@@ -507,9 +507,21 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         return viewModel.AnyAdded;
     }
 
-    public bool ShowAddDeviceGroupDialog() => NotNow("The device group editor");
+    public bool ShowAddDeviceGroupDialog() => ShowDeviceGroupEditor(services.GetRequiredService<DeviceGroupEditorViewModel>());
 
-    public bool ShowEditDeviceGroupDialog(DeviceGroup group) => NotNow("The device group editor");
+    public bool ShowEditDeviceGroupDialog(DeviceGroup group)
+    {
+        var viewModel = services.GetRequiredService<DeviceGroupEditorViewModel>();
+        viewModel.Initialize(group);
+        return ShowDeviceGroupEditor(viewModel);
+    }
+
+    private bool ShowDeviceGroupEditor(DeviceGroupEditorViewModel viewModel)
+    {
+        var window = new DeviceGroupEditorWindow(viewModel);
+        Modal.Show(window, Owner());
+        return window.Saved;
+    }
 
     public bool ShowAddDevicesToGroupDialog(IReadOnlyList<int> deviceIds)
     {
@@ -520,9 +532,21 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         return window.Saved;
     }
 
-    public bool ShowAddLocationDialog() => NotNow("The location editor");
+    public bool ShowAddLocationDialog() => ShowLocationEditor(services.GetRequiredService<LocationEditorViewModel>());
 
-    public bool ShowEditLocationDialog(DesktopNMS.Core.Models.Location location) => NotNow("The location editor");
+    public bool ShowEditLocationDialog(DesktopNMS.Core.Models.Location location)
+    {
+        var viewModel = services.GetRequiredService<LocationEditorViewModel>();
+        viewModel.Initialize(location);
+        return ShowLocationEditor(viewModel);
+    }
+
+    private bool ShowLocationEditor(LocationEditorViewModel viewModel)
+    {
+        var window = new LocationEditorWindow(viewModel);
+        Modal.Show(window, Owner());
+        return window.Saved;
+    }
 
     public bool ShowAddRuleDialog() => ShowRuleEditor(services.GetRequiredService<RuleEditorViewModel>());
 

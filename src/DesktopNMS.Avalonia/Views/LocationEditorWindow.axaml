@@ -1,0 +1,52 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:views="using:DesktopNMS.Views"
+        x:Class="DesktopNMS.Views.LocationEditorWindow"
+        x:DataType="vm:LocationEditorViewModel"
+        Title="{Binding Title}"
+        Width="380"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Add or edit a location: its name and coordinates. -->
+    <StackPanel Margin="24">
+        <TextBlock Text="{Binding Title}" Classes="heading" />
+
+        <TextBlock Text="NAME" Classes="section" Margin="0,14,0,6" />
+        <TextBox Name="NameBox" Text="{Binding Name}" />
+        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="{Binding IsEditMode}"
+                   Text="Renaming keeps every device at this location. A device that reports its own location over SNMP (and doesn't override it) may bring the old name back as a new location on its next discovery." />
+
+        <Grid Margin="0,14,0,0" ColumnDefinitions="*,12,*">
+            <StackPanel>
+                <TextBlock Text="LATITUDE" Classes="section" Margin="0,0,0,6" />
+                <TextBox Text="{Binding Latitude}" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="LONGITUDE" Classes="section" Margin="0,0,0,6" />
+                <TextBox Text="{Binding Longitude}" />
+            </StackPanel>
+        </Grid>
+
+        <CheckBox IsChecked="{Binding FixedCoordinates}" IsEnabled="{Binding IsFixedCoordinatesEditable}" Margin="0,16,0,0"
+                  ToolTip.Tip="Off lets a device's own reported coordinates overwrite these">
+            <TextBlock Text="Keep coordinates fixed" />
+        </CheckBox>
+        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="{Binding IsEditMode}"
+                   Text="LibreNMS's API only sets this when a location is created - change it in LibreNMS itself for an existing one." />
+
+        <Border Classes="errorNotice" Margin="0,14,0,0" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,20,0,0">
+            <TextBlock Text="Saving…" Classes="subtle" VerticalAlignment="Center" Margin="0,0,4,0" IsVisible="{Binding IsBusy}" />
+            <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
+            <Button Content="Save" Command="{Binding SaveCommand}" Classes="primary" IsDefault="True" views:PermissionGate.Requires="{Binding SavePermission}" />
+        </StackPanel>
+    </StackPanel>
+</Window>

@@ -1,0 +1,104 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.LocationsView"
+             x:DataType="vm:LocationsViewModel">
+
+    <!-- The Locations tab (#250, from the WPF app's LocationsView): search and
+         the locations in a table, each opening its devices on the Devices tab.
+         Refresh is the tab bar's. -->
+    <Grid RowDefinitions="Auto,Auto,*">
+
+        <!-- ======================== Search and Add ======================== -->
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,12">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox Name="SearchBox" Width="240" Classes="search" PlaceholderText="Search locations"
+                             Text="{Binding SearchText, Delay=200}" ToolTip.Tip="Filter by name" Margin="0,0,8,0" />
+                    <Button Classes="icon" Command="{Binding ClearFiltersCommand}" ToolTip.Tip="Clear search" IsVisible="{Binding HasAnyFilterApplied}">
+                        <fi:SymbolIcon Symbol="Dismiss" />
+                    </Button>
+                </StackPanel>
+
+                <Rectangle Grid.Column="2" Classes="toolbarSeparator" Margin="14,4" />
+
+                <Button Grid.Column="3" Classes="icon" Command="{Binding AddLocationCommand}" ToolTip.Tip="Add location" views:PermissionGate.Requires="CreateLocations">
+                    <fi:SymbolIcon Symbol="Add" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1" Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="0,0,0,1" Padding="18,10" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Locations ======================== -->
+        <Panel Grid.Row="2">
+            <DataGrid ItemsSource="{Binding LocationsView}" IsVisible="{Binding LoadState.HasVisibleItems}">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Name" Width="*" SortMemberPath="Name">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:LocationListItemViewModel">
+                                <Button Classes="link" Margin="10,0" VerticalAlignment="Center" Command="{Binding ViewDevicesCommand}"
+                                        ToolTip.Tip="Show this location's devices on the Devices tab">
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Latitude" Width="100" SortMemberPath="Location.Latitude">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:LocationListItemViewModel">
+                                <TextBlock Text="{Binding LatitudeText}" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Longitude" Width="100" SortMemberPath="Location.Longitude">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:LocationListItemViewModel">
+                                <TextBlock Text="{Binding LongitudeText}" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Fixed" Width="70" SortMemberPath="FixedCoordinatesText">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:LocationListItemViewModel">
+                                <TextBlock Text="{Binding FixedCoordinatesText}" Margin="10,0" VerticalAlignment="Center"
+                                           ToolTip.Tip="Whether these coordinates stay fixed, or a device's own reported coordinates can overwrite them" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Devices" Width="80" SortMemberPath="MemberCount">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:LocationListItemViewModel">
+                                <TextBlock Text="{Binding MemberCountText}" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="" Width="90" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:LocationListItemViewModel">
+                                <StackPanel Orientation="Horizontal" Margin="6,0" Spacing="2">
+                                    <Button Classes="icon" Width="28" Height="28" Command="{Binding EditCommand}" ToolTip.Tip="Edit this location">
+                                        <fi:SymbolIcon Symbol="Edit" FontSize="14" />
+                                    </Button>
+                                    <Button Classes="icon" Width="28" Height="28" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete this location"
+                                            Foreground="{DynamicResource CriticalBrush}" views:PermissionGate.Requires="DeleteLocations">
+                                        <fi:SymbolIcon Symbol="Delete" FontSize="14" />
+                                    </Button>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <views:LoadingOverlay Text="Loading locations…" IsVisible="{Binding LoadState.IsLoading}" />
+            <views:EmptyState Icon="Location" Title="No locations yet" Hint="Use + to create one." IsVisible="{Binding LoadState.IsEmpty}" />
+            <views:EmptyState Icon="Search" Title="No locations match" Hint="Nothing matches your search." IsVisible="{Binding LoadState.IsNoMatches}" />
+        </Panel>
+    </Grid>
+</UserControl>

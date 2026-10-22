@@ -1,0 +1,114 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.GroupsView"
+             x:DataType="vm:GroupsViewModel">
+
+    <!-- The Groups tab (#250, from the WPF app's GroupsView): static and
+         dynamic counts that filter, search, and the device groups in a table,
+         each opening its devices on the Devices tab. Refresh is the tab bar's. -->
+    <Grid RowDefinitions="Auto,Auto,*">
+
+        <!-- ======================== Type counts, search and Add ======================== -->
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,12">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <!-- Shift-click shows only that type (see the code-behind). -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ToggleButton Classes="countBadge groupType" Tag="static" IsChecked="{Binding ShowStatic}"
+                                  ToolTip.Tip="Show/hide static groups (shift-click to show only static)" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding StaticCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="static" Classes="subtle" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="countBadge groupType" Tag="dynamic" IsChecked="{Binding ShowDynamic}"
+                                  ToolTip.Tip="Show/hide dynamic groups (shift-click to show only dynamic)">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding DynamicCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="dynamic" Classes="subtle" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox Name="SearchBox" Width="240" Classes="search" PlaceholderText="Search groups"
+                             Text="{Binding SearchText, Delay=200}" ToolTip.Tip="Filter by name or description" Margin="0,0,8,0" />
+                    <Button Classes="icon" Command="{Binding ClearFiltersCommand}" ToolTip.Tip="Clear search and type filters" IsVisible="{Binding HasAnyFilterApplied}">
+                        <fi:SymbolIcon Symbol="Dismiss" />
+                    </Button>
+                </StackPanel>
+
+                <Rectangle Grid.Column="2" Classes="toolbarSeparator" Margin="14,4" />
+
+                <Button Grid.Column="3" Classes="icon" Command="{Binding AddGroupCommand}" ToolTip.Tip="Add device group" views:PermissionGate.Requires="CreateGroups">
+                    <fi:SymbolIcon Symbol="Add" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1" Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="0,0,0,1" Padding="18,10" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Groups ======================== -->
+        <Panel Grid.Row="2">
+            <DataGrid ItemsSource="{Binding GroupsView}" IsVisible="{Binding LoadState.HasVisibleItems}">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Name" Width="200" SortMemberPath="Name">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:GroupListItemViewModel">
+                                <Button Classes="link" Margin="10,0" VerticalAlignment="Center" Command="{Binding ViewDevicesCommand}"
+                                        ToolTip.Tip="Show this group's devices on the Devices tab">
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Description" Width="*" Binding="{ReflectionBinding Description}" SortMemberPath="Description" />
+                    <DataGridTextColumn Header="Type" Width="80" Binding="{ReflectionBinding TypeText}" SortMemberPath="TypeText" />
+                    <DataGridTemplateColumn Header="Devices" Width="80" SortMemberPath="MemberCount">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:GroupListItemViewModel">
+                                <TextBlock Text="{Binding MemberCountText}" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Pattern" Width="2*" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:GroupListItemViewModel">
+                                <TextBlock Text="{Binding Pattern}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Pattern}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="" Width="130" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:GroupListItemViewModel">
+                                <StackPanel Orientation="Horizontal" Margin="6,0" Spacing="2">
+                                    <Button Classes="icon" Width="28" Height="28" Command="{Binding RediscoverCommand}" ToolTip.Tip="Rediscover every device in this group">
+                                        <fi:SymbolIcon Symbol="ArrowSync" FontSize="14" />
+                                    </Button>
+                                    <Button Classes="icon" Width="28" Height="28" Command="{Binding EditCommand}" ToolTip.Tip="Edit this group">
+                                        <fi:SymbolIcon Symbol="Edit" FontSize="14" />
+                                    </Button>
+                                    <Button Classes="icon" Width="28" Height="28" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete this group"
+                                            Foreground="{DynamicResource CriticalBrush}" views:PermissionGate.Requires="DeleteGroups">
+                                        <fi:SymbolIcon Symbol="Delete" FontSize="14" />
+                                    </Button>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <views:LoadingOverlay Text="Loading groups…" IsVisible="{Binding LoadState.IsLoading}" />
+            <views:EmptyState Icon="Grid" Title="No device groups yet" Hint="Use + to create one." IsVisible="{Binding LoadState.IsEmpty}" />
+            <views:EmptyState Icon="Search" Title="No groups match" Hint="Nothing matches your search or filters." IsVisible="{Binding LoadState.IsNoMatches}" />
+        </Panel>
+    </Grid>
+</UserControl>
