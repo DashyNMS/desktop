@@ -9,6 +9,7 @@
         Title="{Binding Name}"
         Width="1200" Height="800" MinWidth="640" MinHeight="480"
         Icon="/Assets/app.ico"
+        ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaTitleBarHeightHint="40">

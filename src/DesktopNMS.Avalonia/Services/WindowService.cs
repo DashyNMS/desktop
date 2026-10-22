@@ -271,6 +271,9 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
 
     public void ShowDeviceDetail(int deviceId)
     {
+        // The main window supplies the taskbar entry, including when a device
+        // is opened from the tray while the main window is hidden.
+        ShowMain();
         if (_openDeviceWindows.TryGetValue(deviceId, out var existing))
         {
             existing.Activate();
@@ -300,7 +303,9 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         };
 
         _openDeviceWindows[deviceId] = window;
-        if (Owner() is { IsVisible: true } owner)
+        // All device windows belong to the main window, even when opened from
+        // another device. Nesting owners would close one device with another.
+        if (_mainWindow is { IsVisible: true } owner)
         {
             window.Show(owner);
         }
