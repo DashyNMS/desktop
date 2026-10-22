@@ -310,7 +310,13 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
     }
 
 
-    public void ShowDeviceFiltersDialog() => NotYet("Device filters");
+    /// <summary>Live: DeviceListViewModel is a singleton, so its filters are the ones filtering the grid.</summary>
+    public void ShowDeviceFiltersDialog()
+    {
+        var window = new DeviceFiltersWindow { DataContext = services.GetRequiredService<DeviceListViewModel>() };
+        WindowPlacementMemory.Attach(window, services.GetRequiredService<ISettingsStore>());
+        Modal.Show(window, Owner());
+    }
 
     /// <summary>Live: MainViewModel is a singleton, so its GroupFilter is the one filtering the grid.</summary>
     public void ShowAlertFiltersDialog()
@@ -320,15 +326,37 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         Modal.Show(window, Owner());
     }
 
-    public bool ShowAddDeviceDialog() => NotNow("Adding a device");
+    public bool ShowAddDeviceDialog()
+    {
+        var window = new AddDeviceWindow(services.GetRequiredService<AddDeviceViewModel>());
+        WindowPlacementMemory.Attach(window, services.GetRequiredService<ISettingsStore>());
+        Modal.Show(window, Owner());
 
-    public bool ShowBulkAddDevicesDialog() => NotNow("Adding devices in bulk");
+        // "Add several…" closes it and opens Bulk add devices in its place.
+        return window.SwitchToBulkAdd ? ShowBulkAddDevicesDialog() : window.Added;
+    }
+
+    public bool ShowBulkAddDevicesDialog()
+    {
+        var viewModel = services.GetRequiredService<BulkAddDevicesViewModel>();
+        var window = new BulkAddDevicesWindow(viewModel);
+        WindowPlacementMemory.Attach(window, services.GetRequiredService<ISettingsStore>());
+        Modal.Show(window, Owner());
+        return viewModel.AnyAdded;
+    }
 
     public bool ShowAddDeviceGroupDialog() => NotNow("The device group editor");
 
     public bool ShowEditDeviceGroupDialog(DeviceGroup group) => NotNow("The device group editor");
 
-    public bool ShowAddDevicesToGroupDialog(IReadOnlyList<int> deviceIds) => NotNow("Adding devices to a group");
+    public bool ShowAddDevicesToGroupDialog(IReadOnlyList<int> deviceIds)
+    {
+        var viewModel = services.GetRequiredService<AddDevicesToGroupViewModel>();
+        viewModel.Initialize(deviceIds);
+        var window = new AddDevicesToGroupWindow(viewModel);
+        Modal.Show(window, Owner());
+        return window.Saved;
+    }
 
     public bool ShowAddLocationDialog() => NotNow("The location editor");
 
@@ -358,16 +386,16 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         return window.Saved;
     }
 
-    public string? ShowScheduleMaintenanceDialog(int deviceId, string deviceName)
-    {
-        NotYet("Scheduling maintenance");
-        return null;
-    }
+    public string? ShowScheduleMaintenanceDialog(int deviceId, string deviceName) => ShowScheduleMaintenanceDialog([new MaintenanceTarget(deviceId, deviceName)]);
 
+    /// <summary>What was scheduled, to confirm, or nothing if it was cancelled.</summary>
     public string? ShowScheduleMaintenanceDialog(IReadOnlyList<MaintenanceTarget> devices)
     {
-        NotYet("Scheduling maintenance");
-        return null;
+        var viewModel = services.GetRequiredService<MaintenanceScheduleViewModel>();
+        viewModel.Initialize(devices);
+        var window = new MaintenanceScheduleWindow(viewModel);
+        Modal.Show(window, Owner());
+        return window.Saved ? viewModel.ConfirmationMessage : null;
     }
 
     public bool ShowAddAlertTemplateDialog() => ShowAlertTemplateEditor(services.GetRequiredService<AlertTemplateEditorViewModel>());

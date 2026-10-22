@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:views="using:DesktopNMS.Views"
+        x:Class="DesktopNMS.Views.AddDeviceWindow"
+        x:DataType="vm:AddDeviceViewModel"
+        Title="Add device"
+        Width="460" SizeToContent="Height" MaxHeight="860"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Add one device to LibreNMS: its hostname and how it's added. -->
+    <Grid Margin="24" RowDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Add device" Classes="heading" />
+            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,14"
+                       Text="Most fields are optional - leave the SNMP credentials blank to try each configured system credential in turn." />
+            <TextBlock Text="HOSTNAME OR IP" Classes="section" Margin="0,0,0,6" />
+            <TextBox Name="HostnameBox" Text="{Binding Hostname}" Margin="0,0,0,14" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,-8,0" Padding="0,0,8,0">
+            <views:DeviceAddOptionsView DataContext="{Binding Options}" />
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2">
+            <Border Classes="errorNotice" Margin="0,14,0,0" IsVisible="{Binding HasError}">
+                <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+            </Border>
+            <Grid Margin="0,20,0,0" ColumnDefinitions="Auto,*,Auto">
+                <Button Content="Add several…" Command="{Binding BulkAddCommand}" ToolTip.Tip="Paste a list of hostnames or import a CSV to add many devices at once" />
+                <TextBlock Grid.Column="1" Text="Adding…" Classes="subtle" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,12,0" IsVisible="{Binding IsBusy}" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
+                    <Button Content="Add device" Command="{Binding AddCommand}" Classes="primary" IsDefault="True" />
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </Grid>
+</Window>

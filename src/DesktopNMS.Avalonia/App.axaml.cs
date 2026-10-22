@@ -88,6 +88,7 @@ public partial class App : Application
         ThemeSetup.Apply(this, settings.Current);
         settings.Changed += (_, current) => Dispatcher.UIThread.Post(() => ThemeSetup.Apply(this, current));
         WindowTheming.Register(this);
+        DataGridSorting.Register();
 
         // Buttons for writes the token has been refused turn off (#51).
         PermissionGate.Source = _services.GetRequiredService<ILibreNmsClient>().Permissions;
@@ -327,6 +328,10 @@ public partial class App : Application
         services.AddSingleton<LogsViewModel>();
         services.AddTransient<ConnectionViewModel>();
         services.AddTransient<SettingsViewModel>();
+        services.AddTransient<AddDeviceViewModel>();
+        services.AddTransient<BulkAddDevicesViewModel>();
+        services.AddTransient<AddDevicesToGroupViewModel>();
+        services.AddTransient<MaintenanceScheduleViewModel>();
         services.AddTransient<RuleEditorViewModel>();
         services.AddTransient<AlertTemplateEditorViewModel>();
         return services.BuildServiceProvider();

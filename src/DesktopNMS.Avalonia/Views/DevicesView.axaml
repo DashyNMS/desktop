@@ -1,0 +1,321 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:models="using:DesktopNMS.Core.Models"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.DevicesView"
+             x:DataType="vm:DeviceListViewModel">
+
+    <!-- The Devices tab (#250, from the WPF app's DevicesView): state counts
+         that filter, search and the type, location and group filters, the
+         devices in a table - pinned ones on top, columns chosen from the
+         header's right-click menu - and the selected device beside it. -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+        <!-- ======================== Counts, search and filters ======================== -->
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,12">
+            <StackPanel>
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+                    <!-- Shift-click shows only that state (see the code-behind). -->
+                    <WrapPanel VerticalAlignment="Center">
+                        <ToggleButton Classes="countBadge state" Tag="{x:Static models:DeviceState.Up}" IsChecked="{Binding ShowUp}"
+                                      ToolTip.Tip="Show/hide up (shift-click to show only up)" Margin="0,0,10,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="9" Height="9" Fill="{DynamicResource OkBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                                <TextBlock Text="up" Classes="subtle" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <ToggleButton Classes="countBadge state" Tag="{x:Static models:DeviceState.Down}" IsChecked="{Binding ShowDown}"
+                                      ToolTip.Tip="Show/hide down (shift-click to show only down)" Margin="0,0,10,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="9" Height="9" Fill="{DynamicResource CriticalBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                                <TextBlock Text="down" Classes="subtle" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <ToggleButton Classes="countBadge state" Tag="{x:Static models:DeviceState.Maintenance}" IsChecked="{Binding ShowMaintenance}"
+                                      ToolTip.Tip="Show/hide maintenance (shift-click to show only maintenance)" Margin="0,0,10,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="9" Height="9" Fill="{DynamicResource MaintenanceBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding MaintenanceCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                                <TextBlock Text="in maintenance" Classes="subtle" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <ToggleButton Classes="countBadge state" Tag="{x:Static models:DeviceState.Disabled}" IsChecked="{Binding ShowDisabled}"
+                                      ToolTip.Tip="Show/hide disabled / ignored (shift-click to show only disabled / ignored)">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="9" Height="9" Fill="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding DisabledCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                                <TextBlock Text="disabled / ignored" Classes="subtle" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                    </WrapPanel>
+
+                    <!-- Search, then the filters; the ✕ only once something filters. -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBox Name="SearchBox" Width="240" Classes="search" PlaceholderText="Search devices"
+                                 Text="{Binding SearchText, Delay=200}" ToolTip.Tip="Filter by name, IP, OS, hardware, location or device id" Margin="0,0,8,0" />
+
+                        <!-- One trigger for every facet (type, location, group); the dot shows one's hiding something. -->
+                        <Panel Margin="0,0,4,0">
+                            <Button Classes="icon" Command="{Binding ShowFiltersCommand}" ToolTip.Tip="Filter by type, location or device group">
+                                <fi:SymbolIcon Symbol="Filter" />
+                            </Button>
+                            <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                     Margin="0,4,4,0" IsHitTestVisible="False" IsVisible="{Binding IsFiltersActive}" />
+                        </Panel>
+
+                        <Button Classes="icon" Command="{Binding ClearFiltersCommand}" ToolTip.Tip="Clear all filters and search" IsVisible="{Binding HasAnyFilterApplied}">
+                            <fi:SymbolIcon Symbol="Dismiss" />
+                        </Button>
+                    </StackPanel>
+
+                    <Rectangle Grid.Column="2" Classes="toolbarSeparator" Margin="14,4" />
+
+                    <Button Grid.Column="3" Classes="icon" Command="{Binding AddDeviceCommand}" ToolTip.Tip="Add device" views:PermissionGate.Requires="AddDevices">
+                        <fi:SymbolIcon Symbol="Add" />
+                    </Button>
+
+                    <!-- A list beside the single +, for adding many at once. -->
+                    <Button Grid.Column="4" Classes="icon" Command="{Binding BulkAddDevicesCommand}" Margin="6,0,0,0"
+                            ToolTip.Tip="Bulk add devices - paste a list or import a CSV" views:PermissionGate.Requires="AddDevices">
+                        <fi:SymbolIcon Symbol="AppsListDetail" />
+                    </Button>
+                </Grid>
+
+                <!-- A quick way back to what you just looked at; nothing at all when empty. -->
+                <StackPanel Orientation="Horizontal" Margin="0,12,0,0" IsVisible="{Binding HasRecentlyViewedDevices}">
+                    <TextBlock Text="Recently viewed:" Classes="subtle" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <ItemsControl ItemsSource="{Binding RecentlyViewedDevices}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="8" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:RecentlyViewedDeviceItemViewModel">
+                                <Button Classes="chip" Command="{Binding OpenCommand}">
+                                    <TextBlock Text="{Binding DisplayName}" />
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1" Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="0,0,0,1" Padding="18,10" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Content ======================== -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="420" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="320" MinWidth="260" />
+            </Grid.ColumnDefinitions>
+
+            <DataGrid Name="DeviceGrid" Grid.Column="0" ItemsSource="{Binding DevicesView}" SelectedItem="{Binding SelectedDevice}"
+                      SelectionMode="Extended" IsVisible="{Binding LoadState.HasVisibleItems}">
+                <DataGrid.Columns>
+                    <!-- Pinned devices always sort to the top - see the code-behind's Sorting handler. -->
+                    <DataGridTemplateColumn Header="" Width="44" CanUserSort="False" CanUserReorder="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:DeviceItemViewModel">
+                                <Button Classes="icon" Width="28" Height="28" Command="{Binding TogglePinCommand}" ToolTip.Tip="Pin this device to the top of the list" HorizontalAlignment="Center">
+                                    <Panel>
+                                        <fi:SymbolIcon Symbol="Star" IconVariant="Filled" FontSize="14" Foreground="{DynamicResource AccentBrush}" IsVisible="{Binding IsPinned}" />
+                                        <fi:SymbolIcon Symbol="Star" FontSize="14" IsVisible="{Binding !IsPinned}" />
+                                    </Panel>
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="State" Width="100" SortMemberPath="State">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:DeviceItemViewModel">
+                                <StackPanel Orientation="Horizontal" Margin="10,0">
+                                    <Ellipse Width="9" Height="9" Margin="0,0,8,0" VerticalAlignment="Center" Fill="{Binding State, Converter={x:Static views:Converters.DeviceStateToBrush}}" />
+                                    <TextBlock Text="{Binding StateText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Device" Width="220" SortMemberPath="Name">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:DeviceItemViewModel">
+                                <StackPanel Margin="10,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding AlternateName}" Classes="subtle" FontSize="11" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasAlternateName}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="IP" Width="130" SortMemberPath="Ip">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:DeviceItemViewModel">
+                                <TextBlock Text="{Binding Ip}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="OS" Width="110" SortMemberPath="Os">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:DeviceItemViewModel">
+                                <TextBlock Text="{Binding Os}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Hardware" Width="*" SortMemberPath="Hardware">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:DeviceItemViewModel">
+                                <TextBlock Text="{Binding Hardware}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Location" Width="140" SortMemberPath="Location">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:DeviceItemViewModel">
+                                <TextBlock Text="{Binding Location}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Uptime" Width="100" SortMemberPath="UptimeText">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:DeviceItemViewModel">
+                                <TextBlock Text="{Binding UptimeText}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Off by default (#40); shown from the header's right-click menu. -->
+                    <DataGridTemplateColumn Header="Type" Width="110" SortMemberPath="Type" IsVisible="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:DeviceItemViewModel">
+                                <TextBlock Text="{Binding Type}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Contact" Width="140" SortMemberPath="Contact" IsVisible="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:DeviceItemViewModel">
+                                <TextBlock Text="{Binding Contact}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Serial" Width="140" SortMemberPath="Serial" IsVisible="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:DeviceItemViewModel">
+                                <TextBlock Text="{Binding Serial}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Last discovered" Width="140" SortMemberPath="LastDiscoveredText" IsVisible="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:DeviceItemViewModel">
+                                <TextBlock Text="{Binding LastDiscoveredText}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+
+                <DataGrid.ContextMenu>
+                    <!-- Open and Show alerts mean one device; the rest work on every selected one (#39). -->
+                    <ContextMenu>
+                        <MenuItem Header="Open device" Command="{Binding ShowDeviceDetailCommand}" IsVisible="{Binding IsSingleSelection}" />
+                        <MenuItem Header="Show alerts for this device" Command="{Binding ShowAlertsCommand}" IsVisible="{Binding IsSingleSelection}" />
+                        <Separator IsVisible="{Binding IsSingleSelection}" />
+                        <MenuItem Header="Add to group…" Command="{Binding AddSelectedToGroupCommand}" />
+                        <MenuItem Header="{Binding PinSelectedLabel}" Command="{Binding PinSelectedCommand}" IsVisible="{Binding ShowPinSelectedAction}" />
+                        <MenuItem Header="{Binding UnpinSelectedLabel}" Command="{Binding UnpinSelectedCommand}" IsVisible="{Binding ShowUnpinSelectedAction}" />
+                        <MenuItem Header="{Binding RediscoverSelectedLabel}" Command="{Binding RediscoverSelectedCommand}" />
+                        <!-- #271: one maintenance window for every selected device. -->
+                        <MenuItem Header="{Binding MaintenanceSelectedLabel}" Command="{Binding MaintenanceSelectedCommand}" views:PermissionGate.Requires="EditDevices" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+            </DataGrid>
+
+            <views:LoadingOverlay Grid.Column="0" Text="Loading devices…" IsVisible="{Binding LoadState.IsLoading}" />
+            <views:EmptyState Grid.Column="0" Icon="Server" Title="No devices yet" Hint="Use + to add one." IsVisible="{Binding LoadState.IsEmpty}" />
+            <views:EmptyState Grid.Column="0" Icon="Filter" Title="Nothing matches the filters" Hint="Clear the search or filters to see more." IsVisible="{Binding LoadState.IsNoMatches}" />
+
+            <GridSplitter Grid.Column="1" Width="4" ResizeDirection="Columns" Background="{DynamicResource BorderBrush}" />
+
+            <!-- ==================== Detail pane ==================== -->
+            <Border Grid.Column="2" Background="{DynamicResource SurfaceBrush}">
+                <Grid RowDefinitions="*,Auto">
+                    <TextBlock Grid.RowSpan="2" Text="Select a device to see its detail." Classes="subtle" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               TextWrapping="Wrap" Margin="24" IsVisible="{Binding !HasSelection}" />
+
+                    <!-- Several selected: a summary instead of one device's detail (#39). -->
+                    <StackPanel Grid.Row="0" Margin="18" IsVisible="{Binding HasMultipleSelection}">
+                        <TextBlock Text="{Binding SelectedCountText}" Classes="heading" TextWrapping="Wrap" />
+                        <TextBlock Text="Pin, unpin or add them to a device group together below. Per-device detail needs a single selection."
+                                   Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0" />
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" IsVisible="{Binding IsSingleSelection}">
+                        <StackPanel Margin="18" DataContext="{Binding SelectedDevice}" x:DataType="vm:DeviceItemViewModel">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <Ellipse Width="9" Height="9" Margin="0,0,8,0" VerticalAlignment="Center" Fill="{Binding State, Converter={x:Static views:Converters.DeviceStateToBrush}}" />
+                                <TextBlock Text="{Binding StateText}" Classes="subtle" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding Name}" Classes="heading" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding AlternateName}" Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding HasAlternateName}" />
+
+                            <TextBlock Text="IP ADDRESS" Classes="section" />
+                            <SelectableTextBlock Text="{Binding Ip}" />
+                            <TextBlock Text="OPERATING SYSTEM" Classes="section" />
+                            <TextBlock Text="{Binding Os}" TextWrapping="Wrap" />
+                            <TextBlock Text="HARDWARE" Classes="section" />
+                            <TextBlock Text="{Binding Hardware}" TextWrapping="Wrap" />
+                            <TextBlock Text="TYPE" Classes="section" />
+                            <TextBlock Text="{Binding Type}" TextWrapping="Wrap" />
+                            <TextBlock Text="LOCATION" Classes="section" />
+                            <TextBlock Text="{Binding Location}" TextWrapping="Wrap" />
+                            <TextBlock Text="UPTIME" Classes="section" />
+                            <TextBlock Text="{Binding UptimeText}" />
+                            <TextBlock Text="DEVICE ID" Classes="section" />
+                            <TextBlock Text="{Binding DeviceId}" Classes="subtle" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Grid.Row="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,14" IsVisible="{Binding HasSelection}">
+                        <StackPanel Spacing="8">
+                            <!-- Open and Show alerts mean one device; the rest work on every selected one (#39). -->
+                            <StackPanel Spacing="8" IsVisible="{Binding IsSingleSelection}">
+                                <Button Content="Open device" Command="{Binding ShowDeviceDetailCommand}" Classes="primary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                                <Button Content="Show alerts for this device" Command="{Binding ShowAlertsCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                            </StackPanel>
+                            <Button Content="Add to group…" Command="{Binding AddSelectedToGroupCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                            <Button Content="{Binding PinSelectedLabel}" Command="{Binding PinSelectedCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsVisible="{Binding ShowPinSelectedAction}" />
+                            <Button Content="{Binding UnpinSelectedLabel}" Command="{Binding UnpinSelectedCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsVisible="{Binding ShowUnpinSelectedAction}" />
+                            <Button Content="{Binding RediscoverSelectedLabel}" Command="{Binding RediscoverSelectedCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ======================== Status bar ======================== -->
+        <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,8">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Refreshing…" Classes="subtle" IsVisible="{Binding IsBusy}" />
+                    <TextBlock Text="{Binding StatusMessage}" Classes="subtle" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14">
+                    <TextBlock Text="{Binding VisibleCount, StringFormat='{}{0} shown'}" Classes="subtle" />
+                    <TextBlock Text="{Binding LastUpdatedText, StringFormat='updated {0}'}" Classes="subtle" />
+                    <TextBlock Text="{Binding NextRefreshText, StringFormat='next in {0}'}" Classes="subtle" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

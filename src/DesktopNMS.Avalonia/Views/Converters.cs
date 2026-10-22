@@ -40,7 +40,7 @@ public static class Converters
 
     /// <summary>True for a page not yet ported to this app (#250), which shows the "Not here yet" placeholder.</summary>
     public static readonly IValueConverter IsNotPorted = new FuncValueConverter<MainTab, bool>(tab => tab is not
-        (MainTab.Dashboard or MainTab.Alerts or MainTab.Rules or MainTab.Templates));
+        (MainTab.Dashboard or MainTab.Devices or MainTab.Alerts or MainTab.Rules or MainTab.Templates));
 
     /// <summary>An alert faded by its state: recovered most, acknowledged a little, active not at all.</summary>
     public static readonly IValueConverter AlertStateToOpacity = new FuncValueConverter<AlertState, double>(state => state switch
