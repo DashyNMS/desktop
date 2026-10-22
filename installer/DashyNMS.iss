@@ -31,10 +31,9 @@
 #endif
 
 [Setup]
-; A fresh GUID: this is a new product identity (renamed from DesktopNMS, a
-; different exe name and default install path), so it must not be treated as
-; an in-place upgrade of the old AppId - that old install is removed
-; separately before this one goes on.
+; Keep the shipped DashyNMS 1.0/1.1 identity, executable name and install path
+; so 2.0 replaces the existing app in place. Those installers deployed one
+; self-contained exe, so replacing it also removes their WPF implementation.
 AppId={{9B3D2C7A-4E1F-4A6B-8C5D-2F7A9E1B3C64}
 AppName={#AppName}
 AppVersion={#AppVersion}

@@ -7,7 +7,16 @@ internal static class Program
 {
     [STAThread]
     public static void Main(string[] args)
-        => BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    {
+        if (args.Any(a => a.Equals("--uninstall", StringComparison.OrdinalIgnoreCase)))
+        {
+#if WINDOWS
+            try { Microsoft.Toolkit.Uwp.Notifications.ToastNotificationManagerCompat.Uninstall(); } catch { }
+#endif
+            return;
+        }
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
 
     /// <summary>Also used by the Avalonia designer.</summary>
     public static AppBuilder BuildAvaloniaApp()
