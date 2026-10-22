@@ -309,14 +309,16 @@
                                         </Flyout>
                                     </FlyoutBase.AttachedFlyout>
                                 </Button>
-                                <Border CornerRadius="8" MinWidth="16" Height="16" Padding="4,0"
+                                <Border x:Name="AlertBadge" CornerRadius="8" MinWidth="16" Height="16" Padding="4,0"
                                         HorizontalAlignment="Left" VerticalAlignment="Top" Margin="32,3,0,0"
                                         IsHitTestVisible="False"
-                                        Background="{DynamicResource WarningBrush}"
                                         Classes.critical="{Binding AlertBadgeIsCritical}"
                                         IsVisible="{Binding ShowAlertBadge}"
                                         AutomationProperties.Name="{Binding AlertBadgeToolTip}">
                                     <Border.Styles>
+                                        <Style Selector="Border">
+                                            <Setter Property="Background" Value="{DynamicResource WarningBrush}" />
+                                        </Style>
                                         <Style Selector="Border.critical">
                                             <Setter Property="Background" Value="{DynamicResource CriticalBrush}" />
                                         </Style>
