@@ -1,0 +1,179 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:dd="using:DesktopNMS.Views.DeviceDetail"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.NeighboursView"
+             x:DataType="vm:NeighboursViewModel">
+
+    <!-- The Neighbours tab (#55, #221, #250) - see NeighboursViewModel. Every
+         neighbour the switches see over LLDP/CDP, narrowed by a neighbourhood
+         chip, search and the state counts, with the selected neighbour's port
+         graphs underneath. -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+        <!-- One row (#221): the state counts (shift-click shows only that one),
+             the neighbourhood chips, then search and + on the right. -->
+        <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,12">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ToggleButton Classes="countBadge state" Tag="{x:Static vm:NeighbourState.Up}" IsChecked="{Binding ShowUp}"
+                                  ToolTip.Tip="Show/hide those that are up (shift-click to show only these)" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource OkBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding UpCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="up" Classes="subtle" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="countBadge state" Tag="{x:Static vm:NeighbourState.Down}" IsChecked="{Binding ShowDown}"
+                                  ToolTip.Tip="Show/hide those that are down - the device itself, its switch port, or the switch (shift-click to show only these)" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource CriticalBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding DownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="down" Classes="subtle" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="countBadge state" Tag="{x:Static vm:NeighbourState.Other}" IsChecked="{Binding ShowOther}" Margin="0,0,10,0" IsVisible="{Binding HasOther}"
+                                  ToolTip.Tip="Show/hide shut-down ports, disabled or in-maintenance devices, and ones LibreNMS no longer sees (shift-click to show only these)">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding OtherCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="other" Classes="subtle" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                </StackPanel>
+
+                <Rectangle Grid.Column="1" Classes="toolbarSeparator" Margin="4,6,14,6" />
+
+                <!-- Neighbourhoods: All, then each one with its count. Right-click
+                     one to edit, delete, move it or show it on the network map. -->
+                <ItemsControl Grid.Column="2" ItemsSource="{Binding Neighbourhoods}" VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:NeighbourhoodChipViewModel">
+                            <Button Classes="chip" Classes.selected="{Binding IsSelected}" Margin="0,3,6,3" ToolTip.Tip="{Binding RulesText}"
+                                    Command="{Binding $parent[UserControl].((vm:NeighboursViewModel)DataContext).SelectViewCommand}" CommandParameter="{Binding}"
+                                    ContextRequested="OnChipContextRequested">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding Name}" />
+                                    <TextBlock Text="{Binding CountText}" Opacity="0.7" />
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Clear, then search, then + - the same corner as every other tab. -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <Button Classes="icon" Command="{Binding ClearFiltersCommand}" ToolTip.Tip="Clear search and filters" Margin="0,0,4,0" IsVisible="{Binding HasAnyFilterApplied}">
+                        <fi:SymbolIcon Symbol="Dismiss" />
+                    </Button>
+                    <TextBox Name="SearchBox" Width="240" Classes="search" PlaceholderText="Search" Text="{Binding SearchText, Delay=200}"
+                             ToolTip.Tip="Filter by name, description, IP, switch, port or MAC" />
+                </StackPanel>
+
+                <Rectangle Grid.Column="4" Classes="toolbarSeparator" Margin="14,4" />
+
+                <Button Grid.Column="5" Classes="icon" Command="{Binding NewViewCommand}" ToolTip.Tip="New neighbourhood" VerticalAlignment="Center">
+                    <fi:SymbolIcon Symbol="Add" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1" Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="0,0,0,1" Padding="18,10" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Neighbours ======================== -->
+        <!-- Right-click a column header to show or hide columns - the extra port details start hidden. -->
+        <Panel Grid.Row="2">
+            <DataGrid Name="NeighboursGrid" ItemsSource="{Binding ItemsView}" SelectedItem="{Binding SelectedItem}" SelectionMode="Single"
+                      IsVisible="{Binding LoadState.HasVisibleItems}">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="State" Width="120" SortMemberPath="State">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:NeighbourItemViewModel">
+                                <StackPanel Orientation="Horizontal" Spacing="7" Margin="10,0">
+                                    <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                    <TextBlock Text="{Binding StateText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Name" Width="*" MinWidth="160" SortMemberPath="Name">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:NeighbourItemViewModel">
+                                <!-- A LibreNMS device of its own links to it. -->
+                                <Panel Margin="10,0" VerticalAlignment="Center" ToolTip.Tip="{Binding ToolTip}">
+                                    <Button Classes="link" HorizontalAlignment="Left" IsVisible="{Binding IsMonitored}"
+                                            Command="{Binding $parent[UserControl].((vm:NeighboursViewModel)DataContext).OpenDeviceCommand}" CommandParameter="{Binding}">
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    </Button>
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" IsVisible="{Binding !IsMonitored}" />
+                                </Panel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Description" Width="*" MinWidth="150" SortMemberPath="DescriptionText">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:NeighbourItemViewModel">
+                                <TextBlock Text="{Binding DescriptionText}" ToolTip.Tip="{Binding DescriptionText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="10,0" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="IP address" Width="120" Binding="{ReflectionBinding IpText}" SortMemberPath="IpText" />
+
+                    <DataGridTemplateColumn Header="Switch" Width="*" MinWidth="140" SortMemberPath="SwitchName">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:NeighbourItemViewModel">
+                                <Button Classes="link" Margin="10,0" HorizontalAlignment="Left" VerticalAlignment="Center" ToolTip.Tip="Open this switch's Device Details"
+                                        Command="{Binding $parent[UserControl].((vm:NeighboursViewModel)DataContext).OpenSwitchCommand}" CommandParameter="{Binding}">
+                                    <TextBlock Text="{Binding SwitchName}" TextTrimming="CharacterEllipsis" />
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="Port" Width="100" Binding="{ReflectionBinding PortText}" SortMemberPath="PortText" />
+                    <DataGridTextColumn Header="Port description" Width="140" Binding="{ReflectionBinding PortDescriptionText}" SortMemberPath="PortDescriptionText" IsVisible="False" />
+                    <DataGridTextColumn Header="In" Width="90" Binding="{ReflectionBinding InText}" SortMemberPath="InBps" />
+                    <DataGridTextColumn Header="Out" Width="90" Binding="{ReflectionBinding OutText}" SortMemberPath="OutBps" />
+                    <DataGridTemplateColumn Header="Errors" Width="80" SortMemberPath="ErrorsPerSecond">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:NeighbourItemViewModel">
+                                <TextBlock Text="{Binding ErrorsText}" ToolTip.Tip="{Binding ErrorsToolTip}" VerticalAlignment="Center" Margin="10,0" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Utilisation" Width="90" Binding="{ReflectionBinding UtilisationText}" SortMemberPath="UtilisationPercent" IsVisible="False" />
+                    <DataGridTextColumn Header="Packets in" Width="95" Binding="{ReflectionBinding PacketsInText}" SortMemberPath="PacketsInPerSecond" IsVisible="False" />
+                    <DataGridTextColumn Header="Packets out" Width="95" Binding="{ReflectionBinding PacketsOutText}" SortMemberPath="PacketsOutPerSecond" IsVisible="False" />
+                    <DataGridTextColumn Header="Speed" Width="80" Binding="{ReflectionBinding SpeedText}" SortMemberPath="SpeedText" IsVisible="False" />
+                    <DataGridTextColumn Header="Duplex" Width="70" Binding="{ReflectionBinding DuplexText}" SortMemberPath="DuplexText" IsVisible="False" />
+                    <DataGridTextColumn Header="VLAN" Width="60" Binding="{ReflectionBinding VlanText}" SortMemberPath="VlanText" IsVisible="False" />
+                    <DataGridTextColumn Header="MTU" Width="60" Binding="{ReflectionBinding MtuText}" SortMemberPath="MtuText" IsVisible="False" />
+                    <DataGridTextColumn Header="Last change" Width="100" Binding="{ReflectionBinding LastChangeText}" SortMemberPath="SecondsSinceChange" IsVisible="False" />
+                    <DataGridTextColumn Header="MAC" Width="140" Binding="{ReflectionBinding MacText}" SortMemberPath="MacText" />
+                    <DataGridTextColumn Header="Announced port" Width="140" Binding="{ReflectionBinding AnnouncedPortText}" SortMemberPath="AnnouncedPortText" IsVisible="False" />
+                    <DataGridTextColumn Header="Protocol" Width="70" Binding="{ReflectionBinding ProtocolText}" SortMemberPath="ProtocolText" IsVisible="False" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <views:LoadingOverlay Text="Loading neighbours…" IsVisible="{Binding LoadState.IsLoading}" />
+            <views:EmptyState Icon="Link" Title="No neighbours here" Hint="Nothing your switches see matches this neighbourhood's rules." IsVisible="{Binding LoadState.IsEmpty}" />
+            <views:EmptyState Icon="Search" Title="Nothing matches" Hint="Nothing matches your search or filters." IsVisible="{Binding LoadState.IsNoMatches}" />
+        </Panel>
+
+        <!-- ======================== The selected neighbour's port graphs ======================== -->
+        <dd:PortGraphsPanel Grid.Row="3" DataContext="{Binding PortGraphs}" />
+    </Grid>
+</UserControl>

@@ -1,0 +1,76 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:fi="using:FluentIcons.Avalonia"
+        x:Class="DesktopNMS.Views.NeighbourViewEditorWindow"
+        x:DataType="vm:NeighbourViewEditorViewModel"
+        Title="{Binding Title}"
+        Width="720"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- A neighbourhood's name and rules - see NeighbourViewEditorViewModel. -->
+    <StackPanel Margin="24">
+        <TextBlock Text="{Binding Title}" Classes="heading" />
+        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                   Text="Narrows the Neighbours tab down to the neighbours whose LLDP or CDP details match the rules below." />
+
+        <TextBlock Text="NAME" Classes="section" Margin="0,16,0,6" />
+        <TextBox Name="NameBox" Text="{Binding Name}" />
+
+        <Grid Margin="0,16,0,6" ColumnDefinitions="Auto,*">
+            <TextBlock Text="RULES" Classes="section" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="16">
+                <RadioButton GroupName="MatchMode" IsChecked="{Binding MatchAll}"><TextBlock Text="Match all rules" /></RadioButton>
+                <RadioButton GroupName="MatchMode" IsChecked="{Binding MatchAny}"><TextBlock Text="Match any rule" /></RadioButton>
+            </StackPanel>
+        </Grid>
+
+        <ItemsControl ItemsSource="{Binding Rules}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:NeighbourRuleRowViewModel">
+                    <StackPanel Margin="0,0,0,8">
+                        <Grid ColumnDefinitions="190,150,*,Auto">
+                            <ComboBox ItemsSource="{x:Static vm:NeighbourViewEditorViewModel.FieldChoices}" SelectedItem="{Binding Field}"
+                                      DisplayMemberBinding="{ReflectionBinding Name}" HorizontalAlignment="Stretch" Margin="0,0,8,0" />
+                            <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:NeighbourViewEditorViewModel.OperatorChoices}" SelectedItem="{Binding Operator}"
+                                      DisplayMemberBinding="{ReflectionBinding Name}" HorizontalAlignment="Stretch" Margin="0,0,8,0" />
+                            <TextBox Grid.Column="2" Text="{Binding Value}" />
+                            <Button Grid.Column="3" Classes="icon" Width="30" Height="30" Margin="6,0,0,0" ToolTip.Tip="Remove this rule" Command="{Binding RemoveCommand}">
+                                <fi:SymbolIcon Symbol="Dismiss" FontSize="13" />
+                            </Button>
+                        </Grid>
+                        <TextBlock Text="{Binding RegexProblem}" Foreground="{DynamicResource CriticalBrush}" FontSize="11" TextWrapping="Wrap" Margin="348,3,0,0"
+                                   IsVisible="{Binding HasRegexProblem}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Button Classes="link" HorizontalAlignment="Left" Margin="0,2,0,0" Command="{Binding AddRuleCommand}"><TextBlock Text="Add rule" /></Button>
+
+        <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,14,0,0">
+            <TextBlock Text="{Binding PreviewText}" TextWrapping="Wrap" />
+        </Border>
+
+        <CheckBox IsChecked="{Binding ShowOnMap}" Margin="0,14,0,0"
+                  ToolTip.Tip="Draw this neighbourhood's neighbours on the network map, joined to their switches - those LibreNMS doesn't already monitor as devices">
+            <TextBlock Text="Show on the network map" />
+        </CheckBox>
+
+        <!-- Rules made in DashyNMS Mobile or a newer version (#197): kept, not shown. -->
+        <TextBlock Text="{Binding UnsupportedRulesText}" Classes="subtle" TextWrapping="Wrap" Margin="0,12,0,0" IsVisible="{Binding HasUnsupportedRules}" />
+
+        <Border Classes="errorNotice" Margin="0,14,0,0" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,20,0,0">
+            <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
+            <Button Content="Save" Command="{Binding SaveCommand}" Classes="primary" IsDefault="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>

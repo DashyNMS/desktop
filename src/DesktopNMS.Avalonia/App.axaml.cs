@@ -333,6 +333,7 @@ public partial class App : Application
         services.AddTransient<DeviceGroupEditorViewModel>();
         services.AddTransient<AddDevicesToGroupViewModel>();
         services.AddTransient<LocationEditorViewModel>();
+        services.AddTransient<NeighbourViewEditorViewModel>();
         services.AddTransient<MaintenanceScheduleViewModel>();
         services.AddTransient<RuleEditorViewModel>();
         services.AddTransient<AlertTemplateEditorViewModel>();

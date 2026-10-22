@@ -1,0 +1,53 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             x:Class="DesktopNMS.Views.HealthView"
+             x:DataType="vm:HealthViewModel">
+
+    <!-- The Health tab (#250, from the WPF app's HealthView): the fleet's
+         sensors by category, each with its own counts, search and table. -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+        <!-- ======================== Categories ======================== -->
+        <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,12">
+            <Border Classes="navTabTrack" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton Classes="navTab" GroupName="HealthCategory" Content="dBm" IsChecked="{Binding IsDbmCategorySelected, Mode=OneWay}" Command="{Binding SelectDbmCategoryCommand}" />
+                    <RadioButton Classes="navTab" GroupName="HealthCategory" Content="Signal" IsChecked="{Binding IsSignalCategorySelected, Mode=OneWay}" Command="{Binding SelectSignalCategoryCommand}" />
+                    <RadioButton Classes="navTab" GroupName="HealthCategory" Content="Temperature" IsChecked="{Binding IsTemperatureCategorySelected, Mode=OneWay}" Command="{Binding SelectTemperatureCategoryCommand}" />
+                    <RadioButton Classes="navTab" GroupName="HealthCategory" Content="Fan speed" IsChecked="{Binding IsFanSpeedCategorySelected, Mode=OneWay}" Command="{Binding SelectFanSpeedCategoryCommand}" />
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1" Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="0,0,0,1" Padding="18,10" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== The chosen category ======================== -->
+        <!-- The selection on a wrapper: on the view itself it would bind against the category's own view model. -->
+        <Panel Grid.Row="2">
+            <Panel IsVisible="{Binding IsDbmCategorySelected}"><views:SensorCategoryView Name="DbmCategoryView" DataContext="{Binding Dbm}" /></Panel>
+            <Panel IsVisible="{Binding IsSignalCategorySelected}"><views:SensorCategoryView Name="SignalCategoryView" DataContext="{Binding Signal}" /></Panel>
+            <Panel IsVisible="{Binding IsTemperatureCategorySelected}"><views:SensorCategoryView Name="TemperatureCategoryView" DataContext="{Binding Temperature}" /></Panel>
+            <Panel IsVisible="{Binding IsFanSpeedCategorySelected}"><views:SensorCategoryView Name="FanSpeedCategoryView" DataContext="{Binding FanSpeed}" /></Panel>
+        </Panel>
+
+        <!-- ======================== Status bar ======================== -->
+        <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,8">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Refreshing…" Classes="subtle" IsVisible="{Binding IsBusy}" />
+                    <TextBlock Text="{Binding StatusMessage}" Classes="subtle" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14">
+                    <TextBlock Text="{Binding VisibleCount, StringFormat='{}{0} shown'}" Classes="subtle" />
+                    <TextBlock Text="{Binding LastUpdatedText, StringFormat='updated {0}'}" Classes="subtle" />
+                    <TextBlock Text="{Binding NextRefreshText, StringFormat='next in {0}'}" Classes="subtle" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

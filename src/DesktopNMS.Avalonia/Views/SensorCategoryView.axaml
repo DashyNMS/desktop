@@ -1,0 +1,95 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:models="using:DesktopNMS.Core.Models"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.SensorCategoryView"
+             x:DataType="vm:SensorCategoryViewModel">
+
+    <!-- One of the Health tab's sensor categories (dBm, signal, temperature,
+         fan speed): status counts that filter, search, and the sensors. -->
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- ======================== Counts and search ======================== -->
+        <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,12">
+            <Grid ColumnDefinitions="*,Auto">
+                <!-- Shift-click shows only that status (see the code-behind). -->
+                <WrapPanel VerticalAlignment="Center">
+                    <ToggleButton Classes="countBadge severity" Tag="{x:Static models:AlertSeverity.Critical}" IsChecked="{Binding ShowCritical}"
+                                  ToolTip.Tip="Show/hide critical (shift-click to show only critical)" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource CriticalBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding CriticalCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="critical" Classes="subtle" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="countBadge severity" Tag="{x:Static models:AlertSeverity.Warning}" IsChecked="{Binding ShowWarning}"
+                                  ToolTip.Tip="Show/hide warning (shift-click to show only warning)" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource WarningBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding WarningCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="warning" Classes="subtle" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="countBadge severity" Tag="{x:Static models:AlertSeverity.Ok}" IsChecked="{Binding ShowOk}"
+                                  ToolTip.Tip="Show/hide ok (shift-click to show only ok)" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource OkBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding OkCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="ok" Classes="subtle" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="countBadge severity" Tag="{x:Static models:AlertSeverity.Unknown}" IsChecked="{Binding ShowUnknown}"
+                                  ToolTip.Tip="Show/hide no data (shift-click to show only no data)">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding UnknownCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="no data" Classes="subtle" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                </WrapPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox Name="SearchBox" Width="240" Classes="search" PlaceholderText="Search sensors" Text="{Binding SearchText, Delay=200}"
+                             ToolTip.Tip="Filter by device or sensor description" Margin="0,0,8,0" />
+                    <Button Classes="icon" Command="{Binding ClearFiltersCommand}" ToolTip.Tip="Clear search and filters">
+                        <fi:SymbolIcon Symbol="Dismiss" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Sensors ======================== -->
+        <Panel Grid.Row="1">
+            <DataGrid Name="SensorsGrid" ItemsSource="{Binding SensorsView}" SelectedItem="{Binding SelectedSensor}" SelectionMode="Single"
+                      IsVisible="{Binding LoadState.HasVisibleItems}">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Status" Width="110" SortMemberPath="Severity">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:SensorItemViewModel">
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,0">
+                                    <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                    <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Device" Width="220" Binding="{ReflectionBinding DeviceName}" SortMemberPath="DeviceName" />
+                    <DataGridTextColumn Header="Sensor" Width="*" Binding="{ReflectionBinding Description}" SortMemberPath="Description" />
+                    <DataGridTextColumn Header="Value" Width="110" Binding="{ReflectionBinding ValueText}" SortMemberPath="ValueText" />
+                    <DataGridTextColumn Header="Last update" Width="140" Binding="{ReflectionBinding LastUpdateText}" SortMemberPath="LastUpdateText" />
+                </DataGrid.Columns>
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Open device in LibreNMS" Command="{Binding OpenDeviceCommand}" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+            </DataGrid>
+
+            <views:LoadingOverlay Text="Loading sensors…" IsVisible="{Binding LoadState.IsLoading}" />
+            <views:EmptyState Icon="Temperature" Title="{Binding NoneFoundMessage, Converter={x:Static views:Converters.WithoutFullStop}}" IsVisible="{Binding LoadState.IsEmpty}" />
+            <views:EmptyState Icon="Search" Title="Nothing matches" Hint="Nothing matches the current filters." IsVisible="{Binding LoadState.IsNoMatches}" />
+        </Panel>
+    </Grid>
+</UserControl>
