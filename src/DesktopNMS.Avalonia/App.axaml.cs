@@ -35,11 +35,18 @@ public partial class App : Application
     /// <summary>Started again after Sign out, with the old copy's process id: wait for it, then wipe (#231).</summary>
     private const string FreshStartArgument = "--fresh-start";
 
+    /// <summary>Into or out of demo mode: the copy that asked, by process id, to wait for.</summary>
+    private const string AfterArgument = "--after";
+
     private ServiceProvider? _services;
     private ILogger<App>? _logger;
     private MainWindow? _mainWindow;
     private MainViewModel? _mainViewModel;
     private bool _restartFresh;
+    private DemoMode _demo = new(isActive: false);
+    private DemoServer? _demoServer;
+    private bool _startDemoOnExit;
+    private bool _leaveDemoOnExit;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -55,14 +62,29 @@ public partial class App : Application
 
     private void Start(IClassicDesktopStyleApplicationLifetime desktop)
     {
+        var args = desktop.Args ?? [];
+
+        // Demo mode (DemoMode): the whole app on an example network, in its own
+        // data folder emptied each time - the real settings are never touched.
+        _demo = new DemoMode(args.Any(a => a.Equals(DemoMode.Argument, StringComparison.OrdinalIgnoreCase)));
+        var after = Array.FindIndex(args, a => a.Equals(AfterArgument, StringComparison.OrdinalIgnoreCase));
+        if (after >= 0 && after + 1 < args.Length && int.TryParse(args[after + 1], out var earlierProcessId))
+        {
+            WaitForExit(earlierProcessId);
+        }
+
         // Its own folder inside the usual one, so this preview never touches
-        // the WPF app's settings, token or notification state. Secrets saved
-        // here are encrypted per OS (#154).
-        AppPaths.UseDataDirectory(Path.Combine(AppPaths.DefaultDataDirectory, "avalonia"));
+        // the WPF app's settings, token or notification state - or the demo's,
+        // started empty each time. Secrets saved here are encrypted per OS (#154).
+        if (_demo.IsActive)
+        {
+            DemoMode.Reset();
+        }
+
+        AppPaths.UseDataDirectory(_demo.IsActive ? DemoMode.DataDirectory : Path.Combine(AppPaths.DefaultDataDirectory, "avalonia"));
 
         // The fresh copy after Sign out (#231): once the closing copy has
         // really gone, everything it saved goes too.
-        var args = desktop.Args ?? [];
         var fresh = Array.IndexOf(args, FreshStartArgument);
         if (fresh >= 0)
         {
@@ -78,13 +100,29 @@ public partial class App : Application
         AvaloniaUiThread.Install();
         AvaloniaUiPlatform.Install();
 
-        _services = BuildServices();
+        _services = BuildServices(_demo);
         _logger = _services.GetRequiredService<ILogger<App>>();
-        _logger.LogInformation("DashyNMS (cross-platform preview) starting on {OS}", System.Runtime.InteropServices.RuntimeInformation.OSDescription);
+        _logger.LogInformation(_demo.IsActive ? "DashyNMS (cross-platform preview) starting in demo mode on {OS}" : "DashyNMS (cross-platform preview) starting on {OS}", System.Runtime.InteropServices.RuntimeInformation.OSDescription);
         AsyncRelayCommand.UnhandledError += (_, ex) => _logger.LogError(ex, "A command failed");
 
         var settings = _services.GetRequiredService<ISettingsStore>();
         settings.Load();
+
+        if (_demo.IsActive)
+        {
+            var fleet = new DemoFleet();
+            _demoServer = new DemoServer(fleet, _logger);
+            _demoServer.Start();
+            DemoMode.Seed(settings, _services.GetRequiredService<ITokenProtector>(), _demoServer.Address, fleet, forScreenshots: false);
+        }
+
+        // "Try the demo" on the sign-in window: this copy closes and a demo one starts.
+        _demo.StartRequested += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            _startDemoOnExit = true;
+            desktop.Shutdown();
+        });
+
         ThemeSetup.Apply(this, settings.Current);
         settings.Changed += (_, current) => Dispatcher.UIThread.Post(() => ThemeSetup.Apply(this, current));
         WindowTheming.Register(this);
@@ -116,6 +154,14 @@ public partial class App : Application
 
         _mainViewModel.SignedOut += (_, _) =>
         {
+            // Leaving the demo: nothing real to wipe, just the normal app again.
+            if (_demo.IsActive)
+            {
+                _leaveDemoOnExit = true;
+                desktop.Shutdown();
+                return;
+            }
+
             _restartFresh = true;
             desktop.Shutdown();
         };
@@ -183,6 +229,17 @@ public partial class App : Application
     private void OnExit()
     {
         _services?.Dispose();
+        _demoServer?.Dispose();
+
+        if (_leaveDemoOnExit)
+        {
+            DemoMode.Reset();
+        }
+
+        if (_startDemoOnExit || _leaveDemoOnExit)
+        {
+            StartAnotherCopy(_startDemoOnExit ? DemoMode.Argument : null);
+        }
 
         // Sign out (#231): a new copy wipes what this one saved once it's gone,
         // and starts at sign-in.
@@ -196,6 +253,32 @@ public partial class App : Application
             {
                 _logger?.LogError(ex, "Couldn't start again after signing out");
             }
+        }
+    }
+
+    /// <summary>Into or out of demo mode: a new copy, which waits for this one to exit.</summary>
+    private void StartAnotherCopy(string? argument)
+    {
+        if (Environment.ProcessPath is not { Length: > 0 } exe)
+        {
+            return;
+        }
+
+        try
+        {
+            var start = new ProcessStartInfo(exe) { UseShellExecute = false };
+            if (argument is not null)
+            {
+                start.ArgumentList.Add(argument);
+            }
+
+            start.ArgumentList.Add(AfterArgument);
+            start.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Process.Start(start);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Couldn't start DashyNMS again for the demo");
         }
     }
 
@@ -262,10 +345,10 @@ public partial class App : Application
     /// App.BuildServices does - with this app's own window service, and
     /// stand-ins for what isn't here yet (PreviewPlatformServices).
     /// </summary>
-    private static ServiceProvider BuildServices()
+    private static ServiceProvider BuildServices(DemoMode demo)
     {
         var services = new ServiceCollection();
-        services.AddSingleton(new DemoMode(isActive: false));
+        services.AddSingleton(demo);
 
         services.AddLogging(builder =>
         {
