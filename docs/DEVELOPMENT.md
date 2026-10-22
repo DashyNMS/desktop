@@ -45,6 +45,24 @@ stored").
 dotnet run --project src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj
 ```
 
+### Development builds during the port
+
+Every merge to `master` produces a self-contained Windows Avalonia development
+build in the **Development build** Actions run. Download its artifact and extract
+the complete folder, including `mcp`, before running `DashyNMS.Avalonia.exe`.
+Each build records its desktop and network-tools revisions in `BUILD.txt` and
+remains available for 30 days. These builds do not create GitHub releases.
+
+For a local build, publish the pinned MCP source first (requires .NET 10), then:
+
+```powershell
+./tools/Publish-Dev.ps1
+```
+
+This runs the Presentation tests and publishes to a new versioned folder beneath
+`artifacts/dev`. Previous builds remain available. Cross-platform installers and
+release packaging are tracked separately in #157.
+
 ### Core
 
 The shared code (`DesktopNMS.Core`: the LibreNMS client, models, alerting, graph

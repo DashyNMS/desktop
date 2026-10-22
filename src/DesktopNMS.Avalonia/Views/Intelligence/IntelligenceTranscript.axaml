@@ -93,7 +93,9 @@
                                                              IsVisible="{Binding IsWorking}" />
                                                     <Border DockPanel.Dock="Left" Width="14" Height="14" CornerRadius="7" BorderThickness="1" BorderBrush="#8CCBFF"
                                                             VerticalAlignment="Center" Margin="0,0,7,0" ToolTip.Tip="{Binding OutcomeLabel}" IsVisible="{Binding !IsWorking}">
-                                                        <TextBlock Text="{Binding CompletionGlyph}" FontSize="9" Foreground="#8CCBFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        <fi:SymbolIcon Symbol="{Binding CompletionGlyph, Converter={x:Static views:Converters.CompletionIcon}}"
+                                                                       FontSize="9" Width="10" Height="10" Foreground="#8CCBFF"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                     </Border>
                                                     <TextBlock Text="{Binding ActivityText}" Classes="cardSubtle" VerticalAlignment="Center" TextWrapping="Wrap" />
                                                 </DockPanel>
