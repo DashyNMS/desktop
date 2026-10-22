@@ -77,6 +77,12 @@ internal sealed class DemoFleet
 
         switch (parts[0])
         {
+            // This fleet models LibreNMS 26.9. A successful empty response
+            // would tell Core that the 26.10 /faults endpoint exists, so it
+            // would never request the example alerts from /alerts.
+            case "faults":
+                return Fail(404, "Route does not exist");
+
             case "system":
                 return Collection("system", new[]
                 {
