@@ -1,7 +1,6 @@
 ﻿using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 
@@ -35,6 +34,21 @@ public static class TitleBarFit
         StackPanel? FindCaptionButtons() => captionButtons ??=
             (window.GetVisualParent() ?? window).GetVisualDescendants().OfType<StackPanel>().FirstOrDefault(p => p.Name == "PART_OverlayPanel");
 
+        // Avalonia 12.1 keeps the hidden fullscreen button's desired width
+        // in this separately hosted panel. Remove that unused template child
+        // so both measurement and arrangement use the same three buttons
+        // (#406), including when the window opens already maximised.
+        window.Opened += (_, _) => Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (FindCaptionButtons() is { } buttons
+                    && buttons.Children.OfType<Button>().FirstOrDefault(b => b.Name == "PART_FullScreenButton") is { IsVisible: false } fullscreen)
+                {
+                    buttons.Children.Remove(fullscreen);
+                    buttons.InvalidateMeasure();
+                }
+            }, DispatcherPriority.Loaded);
+
         window.LayoutUpdated += (_, _) =>
         {
             if (FindCaptionButtons() is not { IsVisible: true } buttons
@@ -54,15 +68,5 @@ public static class TitleBarFit
             }
         };
 
-        // Maximising or restoring can leave the buttons laid out for the old
-        // size, a slot short of the edge; laying their layer out again once
-        // the window has its new size puts them back.
-        window.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == Window.WindowStateProperty)
-            {
-                Dispatcher.UIThread.Post(() => (FindCaptionButtons()?.GetVisualParent() as Layoutable)?.InvalidateMeasure(), DispatcherPriority.Loaded);
-            }
-        };
     }
 }
