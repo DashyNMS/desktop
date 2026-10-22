@@ -63,6 +63,12 @@ This runs the Presentation tests and publishes to a new versioned folder beneath
 `artifacts/dev`. Previous builds remain available. Cross-platform installers and
 release packaging are tracked separately in #157.
 
+Windows release and preview builds use the existing `%APPDATA%/DashyNMS`
+profile from 1.x, including its DPAPI-encrypted secrets. Debug and `-dev.*`
+builds retain the isolated `avalonia` subfolder. macOS and Linux keep their
+existing Avalonia profile path. Each profile has one background instance;
+launching it again brings the existing window forward.
+
 ### Core
 
 The shared code (`DesktopNMS.Core`: the LibreNMS client, models, alerting, graph

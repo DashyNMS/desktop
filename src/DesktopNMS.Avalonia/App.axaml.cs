@@ -52,6 +52,7 @@ public partial class App : Application
     private bool _leaveDemoOnExit;
     private bool _whatsNewScheduled;
     private IUiTimer? _updateTimer;
+    private DesktopInstance? _instance;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -80,15 +81,32 @@ public partial class App : Application
             WaitForExit(earlierProcessId);
         }
 
-        // Its own folder inside the usual one, so this preview never touches
-        // the WPF app's settings, token or notification state - or the demo's,
-        // started empty each time. Secrets saved here are encrypted per OS (#154).
+        var development = DesktopProfile.IsDevelopment(DesktopUpdateService.RunningVersion(),
+#if DEBUG
+            debug: true);
+#else
+            debug: false);
+#endif
+        var profile = _demo.IsActive ? DemoMode.DataDirectory
+            : DesktopProfile.ForBuild(AppPaths.DefaultDataDirectory, OperatingSystem.IsWindows(), development);
+        if (!_demo.IsRenderingScreenshots)
+        {
+            _instance = new DesktopInstance(profile, legacyWindowsIdentity: !development && !_demo.IsActive);
+            if (!_instance.TryClaim(() => Dispatcher.UIThread.Post(ShowMainOrSignIn)))
+            {
+                _instance.SignalExisting(); _instance.Dispose(); _instance = null;
+                desktop.Shutdown(); return;
+            }
+        }
+
+        // A Windows release reuses the 1.x files and DPAPI purposes directly.
+        // Development and non-Windows builds retain their existing profile.
         if (_demo.IsActive)
         {
             DemoMode.Reset();
         }
 
-        AppPaths.UseDataDirectory(_demo.IsActive ? DemoMode.DataDirectory : Path.Combine(AppPaths.DefaultDataDirectory, "avalonia"));
+        AppPaths.UseDataDirectory(profile);
 
         // The fresh copy after Sign out (#231): once the closing copy has
         // really gone, everything it saved goes too.
@@ -114,6 +132,7 @@ public partial class App : Application
 
         var settings = _services.GetRequiredService<ISettingsStore>();
         settings.Load();
+        if (DesktopProfile.RestoreLegacyWindow(settings.Current)) settings.SaveQuietly();
 
         if (_demo.IsActive)
         {
@@ -544,7 +563,11 @@ public partial class App : Application
     private void OnExit()
     {
         _updateTimer?.Stop();
-        _services?.Dispose();
+        // Stop the sole asynchronous service first, so UI-owned tray resources
+        // are then disposed synchronously on this thread by the container.
+        _services?.GetService<McpToolHost>()?.StopAsync().GetAwaiter().GetResult();
+        _services?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _instance?.Dispose();
         _demoServer?.Dispose();
 
         if (_leaveDemoOnExit)
