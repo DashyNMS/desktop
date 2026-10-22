@@ -122,6 +122,19 @@ public static class Converters
     public static readonly IValueConverter HexToBrush = new FuncValueConverter<string?, IBrush>(
         hex => Color.TryParse(hex, out var colour) ? new SolidColorBrush(colour) : Brushes.Transparent);
 
+    /// <summary>A device's LibreNMS type ("server", "wireless") as its icon - the WPF app's TypeGlyph, as Fluent icons.</summary>
+    public static readonly IValueConverter DeviceTypeIcon = new FuncValueConverter<string?, Symbol>(type => (type ?? string.Empty).ToLowerInvariant() switch
+    {
+        "server" => Symbol.Server,
+        "wireless" => Symbol.WiFi1,
+        "firewall" => Symbol.Shield,
+        "power" => Symbol.Flash,
+        "storage" => Symbol.Database,
+        "printer" => Symbol.Print,
+        "appliance" or "workstation" => Symbol.Desktop,
+        _ => Symbol.Router,
+    });
+
     /// <summary>What's New's icon names (WhatsNew.md's trailing "{name}") as Fluent icons.</summary>
     public static readonly IValueConverter WhatsNewIcon = new FuncValueConverter<string?, Symbol>(name => name switch
     {

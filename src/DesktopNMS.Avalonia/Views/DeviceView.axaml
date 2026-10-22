@@ -1,0 +1,480 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:views="using:DesktopNMS.Views"
+        xmlns:dd="using:DesktopNMS.Views.DeviceDetail"
+        xmlns:fi="using:FluentIcons.Avalonia"
+        x:Class="DesktopNMS.Views.DeviceView"
+        x:DataType="vm:DeviceDetailViewModel"
+        Title="{Binding Name}"
+        Width="1200" Height="800" MinWidth="640" MinHeight="480"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="40">
+
+    <!-- Device Details (#250, from the WPF app's DeviceView): one device in its
+         own window - a sidebar of sections, the device's header above them, and
+         a title bar with the way here (#58), back, forward and refresh. -->
+    <Window.Styles>
+        <!-- ======================== Sidebar ======================== -->
+        <!-- A section: icon and label, the main sidebar's look - a soft accent
+             tint and a bar when it's the one showing. -->
+        <Style Selector="Button.navItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Panel Background="Transparent">
+                        <Border Name="Root" Background="{TemplateBinding Background}" CornerRadius="8" Padding="12,0" />
+                        <Border Name="Bar" Width="3" Height="16" CornerRadius="1.5" HorizontalAlignment="Left"
+                                Background="{DynamicResource AccentBrush}" IsVisible="False" />
+                        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}"
+                                          Margin="12,0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                    </Panel>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.navItem:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style Selector="Button.navItem:pointerover /template/ Border#Root">
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+        </Style>
+        <Style Selector="Button.navItem.selected">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.navItem.selected /template/ Border#Root">
+            <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+        </Style>
+        <Style Selector="Button.navItem.selected /template/ Border#Bar">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+        <Style Selector="Button.navItem.selected fi|SymbolIcon">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Button.navItem fi|SymbolIcon">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="FontSize" Value="16" />
+        </Style>
+
+        <!-- A group heading that folds its sections away: chevron and small caps. -->
+        <Style Selector="Button.navGroup">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Margin" Value="0,10,0,1" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.navGroup:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+
+        <!-- A red count of active alerts. -->
+        <Style Selector="Border.alertBadge">
+            <Setter Property="Background" Value="{DynamicResource CriticalBrush}" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="MinWidth" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.alertBadge > TextBlock">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- ======================== Section pieces ======================== -->
+        <!-- A card: the Overview's, and the sections' panels. -->
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="16,14" />
+        </Style>
+        <!-- A card that opens a section when clicked, without looking like a button. -->
+        <Style Selector="Button.cardButton">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+        </Style>
+        <Style Selector="Button.cardButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <!-- A borderless row inside a card that opens something. -->
+        <Style Selector="Button.cardRow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="4,7" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.cardRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+        </Style>
+        <!-- A card's heading - "ACTIVE ALERTS" - and the note at its right - "2 open". -->
+        <Style Selector="TextBlock.cardTitle">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+        <Style Selector="TextBlock.cardNote">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Opacity" Value="0.75" />
+        </Style>
+        <!-- A label beside its value: the Device card's rows. -->
+        <Style Selector="TextBlock.key">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Width" Value="112" />
+            <Setter Property="Opacity" Value="0.8" />
+        </Style>
+        <Style Selector="DockPanel.keyRow">
+            <Setter Property="Margin" Value="0,0,0,9" />
+        </Style>
+        <!-- A thin usage bar, coloured by its Foreground. -->
+        <Style Selector="ProgressBar.usage">
+            <Setter Property="Height" Value="5" />
+            <Setter Property="MinHeight" Value="5" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="100" />
+            <Setter Property="CornerRadius" Value="2.5" />
+            <Setter Property="Margin" Value="0,5,0,0" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="40,Auto,*,Auto">
+
+        <!-- ======================== Title bar ======================== -->
+        <!-- The way here as breadcrumbs (#58), back, forward and refresh.
+             Alt+Left/Right and the mouse's back and forward buttons work too. -->
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                WindowDecorationProperties.ElementRole="TitleBar">
+            <Grid Name="TitleBarContent" ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                    <Image Source="/Assets/app.ico" Width="18" Height="18" Margin="0,0,2,0" />
+                    <TextBlock Text="Device" Classes="subtle" FontSize="13" VerticalAlignment="Center" />
+                    <fi:SymbolIcon Symbol="ChevronRight" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                    <ItemsControl ItemsSource="{Binding History.Crumbs}" VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="8" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DeviceCrumb">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Classes="link" VerticalAlignment="Center" ToolTip.Tip="Back to this device" WindowDecorationProperties.ElementRole="User"
+                                            Command="{Binding $parent[Window].((vm:DeviceDetailViewModel)DataContext).History.GoToCrumbCommand}" CommandParameter="{Binding}">
+                                        <TextBlock Text="{Binding Name}" FontSize="13" />
+                                    </Button>
+                                    <fi:SymbolIcon Symbol="ChevronRight" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="2">
+                    <Button Classes="icon" Width="30" Height="30" Command="{Binding History.BackCommand}" IsEnabled="{Binding History.CanGoBack, FallbackValue=False}"
+                            ToolTip.Tip="Back (Alt+Left)" WindowDecorationProperties.ElementRole="User">
+                        <fi:SymbolIcon Symbol="ArrowLeft" FontSize="14" />
+                    </Button>
+                    <Button Classes="icon" Width="30" Height="30" Command="{Binding History.ForwardCommand}" IsEnabled="{Binding History.CanGoForward, FallbackValue=False}"
+                            ToolTip.Tip="Forward (Alt+Right)" WindowDecorationProperties.ElementRole="User">
+                        <fi:SymbolIcon Symbol="ArrowRight" FontSize="14" />
+                    </Button>
+                    <Button Classes="icon" Width="30" Height="30" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh now" WindowDecorationProperties.ElementRole="User">
+                        <fi:SymbolIcon Symbol="ArrowClockwise" FontSize="15" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1" Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="0,0,0,1" Padding="18,10" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*">
+
+            <!-- ==================== Sections ==================== -->
+            <!-- Icons and labels, or icons only (IsDeviceNavExpanded, remembered).
+                 Each group folds away (remembered too) except the one holding the
+                 open section; a section hides once it's loaded and found nothing,
+                 and a heading with the last of its sections. -->
+            <Border Grid.Column="0" Classes="deviceNav" Classes.narrow="{Binding !IsDeviceNavExpanded}"
+                    Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0" ClipToBounds="True">
+                <Border.Styles>
+                    <Style Selector="Border.deviceNav">
+                        <Setter Property="Width" Value="208" />
+                        <Setter Property="Transitions">
+                            <Transitions>
+                                <DoubleTransition Property="Width" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                            </Transitions>
+                        </Setter>
+                    </Style>
+                    <Style Selector="Border.deviceNav.narrow">
+                        <Setter Property="Width" Value="68" />
+                    </Style>
+                    <!-- Narrow: labels go, and a section's name shows as its tooltip. -->
+                    <Style Selector="Border.deviceNav.narrow TextBlock.navLabel">
+                        <Setter Property="IsVisible" Value="False" />
+                    </Style>
+                    <Style Selector="Border.deviceNav:not(.narrow) Button.navItem">
+                        <Setter Property="ToolTip.ServiceEnabled" Value="False" />
+                    </Style>
+                    <!-- Narrow: a line in place of each group heading. -->
+                    <Style Selector="Border.deviceNav.narrow Button.navGroup">
+                        <Setter Property="IsVisible" Value="False" />
+                    </Style>
+                    <Style Selector="Border.deviceNav:not(.narrow) Rectangle.navGroupLine">
+                        <Setter Property="IsVisible" Value="False" />
+                    </Style>
+                    <Style Selector="Rectangle.navGroupLine">
+                        <Setter Property="Height" Value="1" />
+                        <Setter Property="Fill" Value="{DynamicResource BorderBrush}" />
+                        <Setter Property="Margin" Value="4,9,4,8" />
+                    </Style>
+                </Border.Styles>
+
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="8,0,8,10">
+                        <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="4,0,4,8" />
+                        <Button Classes="navItem" Command="{Binding ToggleDeviceNavCommand}" ToolTip.Tip="Show labels">
+                            <StackPanel Orientation="Horizontal">
+                                <fi:SymbolIcon Symbol="Navigation" />
+                                <TextBlock Classes="navLabel" Text="Collapse" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="8,12">
+                            <Button Classes="navItem" Classes.selected="{Binding IsOverviewSelected}" Command="{Binding SelectOverviewCommand}" ToolTip.Tip="Overview">
+                                <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="Home" /><TextBlock Classes="navLabel" Text="Overview" VerticalAlignment="Center" /></StackPanel>
+                            </Button>
+
+                            <!-- ==================== Health ==================== -->
+                            <Rectangle Classes="navGroupLine" />
+                            <Button Classes="navGroup" Command="{Binding HealthGroup.ToggleCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Panel Width="12"><fi:SymbolIcon Symbol="ChevronDown" FontSize="10" IsVisible="{Binding HealthGroup.IsExpanded}" /><fi:SymbolIcon Symbol="ChevronRight" FontSize="10" IsVisible="{Binding !HealthGroup.IsExpanded}" /></Panel>
+                                    <TextBlock Text="HEALTH" />
+                                </StackPanel>
+                            </Button>
+                            <StackPanel IsVisible="{Binding HealthGroup.IsExpanded}">
+                                <Button Classes="navItem" Classes.selected="{Binding IsSensorsSelected}" Command="{Binding SelectSensorsCommand}" ToolTip.Tip="Sensors">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="TopSpeed" /><TextBlock Classes="navLabel" Text="Sensors" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                                <Button Classes="navItem" Classes.selected="{Binding IsGraphsSelected}" Command="{Binding SelectGraphsCommand}" ToolTip.Tip="Graphs">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="DataLine" /><TextBlock Classes="navLabel" Text="Graphs" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                            </StackPanel>
+
+                            <!-- ==================== Hardware ==================== -->
+                            <StackPanel IsVisible="{Binding ShowHardwareGroup}">
+                            <Rectangle Classes="navGroupLine" />
+                            <Button Classes="navGroup" Command="{Binding HardwareGroup.ToggleCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Panel Width="12"><fi:SymbolIcon Symbol="ChevronDown" FontSize="10" IsVisible="{Binding HardwareGroup.IsExpanded}" /><fi:SymbolIcon Symbol="ChevronRight" FontSize="10" IsVisible="{Binding !HardwareGroup.IsExpanded}" /></Panel>
+                                    <TextBlock Text="HARDWARE" />
+                                </StackPanel>
+                            </Button>
+                            </StackPanel>
+                            <StackPanel IsVisible="{Binding HardwareGroup.IsExpanded}">
+                                <Button Classes="navItem" Classes.selected="{Binding IsResourcesSelected}" Command="{Binding SelectResourcesCommand}" ToolTip.Tip="Resources" IsVisible="{Binding ShowResourcesNav}">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="Board" /><TextBlock Classes="navLabel" Text="Resources" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                                <Button Classes="navItem" Classes.selected="{Binding IsInventorySelected}" Command="{Binding SelectInventoryCommand}" ToolTip.Tip="Inventory" IsVisible="{Binding Inventory.ShowNav}">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="Box" /><TextBlock Classes="navLabel" Text="Inventory" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                            </StackPanel>
+
+                            <!-- ==================== Network ==================== -->
+                            <StackPanel IsVisible="{Binding HasNetworkSection}">
+                            <Rectangle Classes="navGroupLine" />
+                            <Button Classes="navGroup" Command="{Binding NetworkGroup.ToggleCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Panel Width="12"><fi:SymbolIcon Symbol="ChevronDown" FontSize="10" IsVisible="{Binding NetworkGroup.IsExpanded}" /><fi:SymbolIcon Symbol="ChevronRight" FontSize="10" IsVisible="{Binding !NetworkGroup.IsExpanded}" /></Panel>
+                                    <TextBlock Text="NETWORK" />
+                                </StackPanel>
+                            </Button>
+                            </StackPanel>
+                            <StackPanel IsVisible="{Binding NetworkGroup.IsExpanded}">
+                                <Button Classes="navItem" Classes.selected="{Binding IsPortsSelected}" Command="{Binding SelectPortsCommand}" ToolTip.Tip="Ports" IsVisible="{Binding ShowPortsNav}">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="PlugConnected" /><TextBlock Classes="navLabel" Text="Ports" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                                <Button Classes="navItem" Classes.selected="{Binding IsNeighboursSelected}" Command="{Binding SelectNeighboursCommand}" ToolTip.Tip="Neighbours" IsVisible="{Binding ShowNeighboursNav}">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="Link" /><TextBlock Classes="navLabel" Text="Neighbours" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                                <Button Classes="navItem" Classes.selected="{Binding IsVlansSelected}" Command="{Binding SelectVlansCommand}" ToolTip.Tip="VLANs" IsVisible="{Binding ShowVlansNav}">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="Tag" /><TextBlock Classes="navLabel" Text="VLANs" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                                <Button Classes="navItem" Classes.selected="{Binding IsFdbSelected}" Command="{Binding SelectFdbCommand}" ToolTip.Tip="FDB" IsVisible="{Binding ShowFdbNav}">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="AppsListDetail" /><TextBlock Classes="navLabel" Text="FDB" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                                <Button Classes="navItem" Classes.selected="{Binding IsArpSelected}" Command="{Binding SelectArpCommand}" ToolTip.Tip="ARP" IsVisible="{Binding ShowArpNav}">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="ArrowSwap" /><TextBlock Classes="navLabel" Text="ARP" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                                <Button Classes="navItem" Classes.selected="{Binding IsRoutingSelected}" Command="{Binding SelectRoutingCommand}" ToolTip.Tip="Routing" IsVisible="{Binding Routing.ShowNav}">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="Branch" /><TextBlock Classes="navLabel" Text="Routing" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                                <Button Classes="navItem" Classes.selected="{Binding IsWirelessSelected}" Command="{Binding SelectWirelessCommand}" ToolTip.Tip="Wireless" IsVisible="{Binding Wireless.ShowNav}">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="WiFi1" /><TextBlock Classes="navLabel" Text="Wireless" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                            </StackPanel>
+
+                            <!-- ==================== Alerts & logs ==================== -->
+                            <!-- Folded, the heading carries the active-alert badge, so alerts are never out of sight. -->
+                            <Rectangle Classes="navGroupLine" />
+                            <Button Classes="navGroup" Command="{Binding LogsGroup.ToggleCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Panel Width="12"><fi:SymbolIcon Symbol="ChevronDown" FontSize="10" IsVisible="{Binding LogsGroup.IsExpanded}" /><fi:SymbolIcon Symbol="ChevronRight" FontSize="10" IsVisible="{Binding !LogsGroup.IsExpanded}" /></Panel>
+                                    <TextBlock Text="ALERTS &amp; LOGS" VerticalAlignment="Center" />
+                                    <Border Classes="alertBadge" ToolTip.Tip="Active alerts on this device" IsVisible="{Binding ShowCollapsedAlertBadge}">
+                                        <TextBlock Text="{Binding ActiveAlerts.Count}" />
+                                    </Border>
+                                </StackPanel>
+                            </Button>
+                            <StackPanel IsVisible="{Binding LogsGroup.IsExpanded}">
+                                <Panel>
+                                    <Button Classes="navItem" Classes.selected="{Binding IsAlertsSelected}" Command="{Binding SelectAlertsCommand}" ToolTip.Tip="Alerts">
+                                        <StackPanel Orientation="Horizontal">
+                                            <fi:SymbolIcon Symbol="Alert" />
+                                            <TextBlock Classes="navLabel" Text="Alerts" VerticalAlignment="Center" />
+                                            <!-- A red count only while there are active alerts (#100). -->
+                                            <Border Classes="alertBadge" Margin="8,0,0,0" ToolTip.Tip="Active alerts on this device">
+                                                <Border.IsVisible>
+                                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                        <Binding Path="HasActiveAlerts" />
+                                                        <Binding Path="IsDeviceNavExpanded" />
+                                                    </MultiBinding>
+                                                </Border.IsVisible>
+                                                <TextBlock Text="{Binding ActiveAlerts.Count}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </Button>
+                                    <!-- Icons only, the count sits on the icon instead. -->
+                                    <Border Classes="alertBadge" MinWidth="15" Height="15" Padding="4,0" Margin="28,2,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                            IsHitTestVisible="False" IsVisible="{Binding ShowRailAlertBadge}">
+                                        <TextBlock Text="{Binding ActiveAlerts.Count}" FontSize="9.5" />
+                                    </Border>
+                                </Panel>
+                                <Button Classes="navItem" Classes.selected="{Binding IsEventLogSelected}" Command="{Binding SelectEventLogCommand}" ToolTip.Tip="Event log">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="TextBulletList" /><TextBlock Classes="navLabel" Text="Event log" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                            </StackPanel>
+
+                            <!-- ==================== Integrations ==================== -->
+                            <!-- Unimus once the device has something to show; Graylog whenever it's set up. -->
+                            <StackPanel IsVisible="{Binding ShowIntegrationsGroup}">
+                            <Rectangle Classes="navGroupLine" />
+                            <Button Classes="navGroup" Command="{Binding IntegrationsGroup.ToggleCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Panel Width="12"><fi:SymbolIcon Symbol="ChevronDown" FontSize="10" IsVisible="{Binding IntegrationsGroup.IsExpanded}" /><fi:SymbolIcon Symbol="ChevronRight" FontSize="10" IsVisible="{Binding !IntegrationsGroup.IsExpanded}" /></Panel>
+                                    <TextBlock Text="INTEGRATIONS" />
+                                </StackPanel>
+                            </Button>
+                            </StackPanel>
+                            <StackPanel IsVisible="{Binding IntegrationsGroup.IsExpanded}">
+                                <Button Classes="navItem" Classes.selected="{Binding IsGraylogSelected}" Command="{Binding SelectGraylogCommand}" ToolTip.Tip="Graylog" IsVisible="{Binding ShowGraylogSection}">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="DocumentSearch" /><TextBlock Classes="navLabel" Text="Graylog" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                                <Button Classes="navItem" Classes.selected="{Binding IsConfigSelected}" Command="{Binding SelectConfigCommand}" ToolTip.Tip="Unimus" IsVisible="{Binding ShowUnimusSection}">
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="Archive" /><TextBlock Classes="navLabel" Text="Unimus" VerticalAlignment="Center" /></StackPanel>
+                                </Button>
+                            </StackPanel>
+                            <!-- Edit has no entry here: the header's Edit button is the one way in. -->
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- ==================== The open section ==================== -->
+            <Grid Grid.Column="1" RowDefinitions="Auto,*">
+
+                <!-- ==================== Device header ==================== -->
+                <!-- Above every section: what the device is and its state, with Open in, Edit and Show alerts. -->
+                <Grid Grid.Row="0" Margin="24,18,24,4" ColumnDefinitions="Auto,*,Auto">
+                    <Border Width="48" Height="48" CornerRadius="12" Margin="0,0,16,0" VerticalAlignment="Center" Background="{DynamicResource AccentSubtleBrush}">
+                        <fi:SymbolIcon Symbol="{Binding Type, Converter={x:Static views:Converters.DeviceTypeIcon}}" FontSize="24" Foreground="{DynamicResource AccentBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+
+                    <TextBlock Grid.Column="1" Text="Loading device…" Classes="subtle" VerticalAlignment="Center" IsVisible="{Binding IsLoadingDevice}" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" IsVisible="{Binding !IsLoadingDevice}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{Binding Name}" FontSize="20" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,6,0" />
+                            <!-- State pill: the state's colour, faded behind its own text. -->
+                            <Panel VerticalAlignment="Center" Margin="0,2,0,0">
+                                <Border CornerRadius="10" Opacity="0.16" Background="{Binding State, Converter={x:Static views:Converters.DeviceStateToBrush}}" />
+                                <StackPanel Orientation="Horizontal" Margin="9,3" Spacing="6">
+                                    <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="{Binding State, Converter={x:Static views:Converters.DeviceStateToBrush}}" />
+                                    <TextBlock Text="{Binding StateText}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding State, Converter={x:Static views:Converters.DeviceStateToBrush}}" />
+                                </StackPanel>
+                            </Panel>
+                            <Border CornerRadius="10" Margin="0,2,0,0" Padding="9,3" VerticalAlignment="Center" Background="{DynamicResource SurfaceHoverBrush}">
+                                <TextBlock Text="{Binding Type}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding HeroSubtitle}" Classes="subtle" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0" Spacing="8">
+                        <!-- Web, Telnet or SSH to this device's address, through whatever the OS has for each;
+                             disabled, not hidden, without an address so the tooltip says why. -->
+                        <Button Classes="chip" Content="Open in" IsEnabled="{Binding CanOpenExternally}" ToolTip.Tip="Launch this device's address in an external tool">
+                            <Button.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                    <MenuItem Header="Web (HTTP)" Command="{Binding OpenWebHttpCommand}" />
+                                    <MenuItem Header="Web (HTTPS)" Command="{Binding OpenWebHttpsCommand}" />
+                                    <MenuItem Header="Telnet" Command="{Binding OpenTelnetCommand}" />
+                                    <MenuItem Header="SSH" Command="{Binding OpenSshCommand}" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                        <Button Classes="chip" Content="Edit" Command="{Binding SelectEditCommand}" ToolTip.Tip="Edit this device" />
+                        <Button Content="Show alerts" Classes="primary" Padding="14,6" Command="{Binding SelectAlertsCommand}" ToolTip.Tip="This device's active alerts and history" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- ==================== Sections ==================== -->
+                <Panel Name="Sections" Grid.Row="1">
+                    <dd:OverviewSection IsVisible="{Binding IsOverviewSelected}" />
+                    <views:EmptyState Name="NotYetSection" Icon="Wrench" Title="Not here yet" Hint="This section is still being ported to the new app." />
+
+                </Panel>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Security;
@@ -272,24 +273,185 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         ShowInformation("Not here yet", $"{what} isn't in the cross-platform preview yet. It's being ported (#250); the Windows app has it.");
     }
 
-    public void ShowDeviceDetail(int deviceId) => NotYet("Device Details");
+    // ------------------------------------------------------------ device windows
 
-    public void ShowDeviceGraph(int deviceId, string graphName) => NotYet("Device Details");
+    /// <summary>One window per device: opening a device that's already open brings its window forward.</summary>
+    private readonly Dictionary<int, DeviceView> _openDeviceWindows = new();
 
-    public void ShowDevicePortGraph(int deviceId, string ifName, string graphType) => NotYet("Device Details");
+    public void ShowDeviceDetail(int deviceId)
+    {
+        if (_openDeviceWindows.TryGetValue(deviceId, out var existing))
+        {
+            existing.Activate();
+            return;
+        }
 
-    public void ShowDeviceWireless(int deviceId) => NotYet("Device Details");
+        var settings = services.GetRequiredService<ISettingsStore>();
+        var history = new DeviceBrowseHistory(deviceId);
+        var window = new DeviceView(CreateDeviceDetailViewModel(deviceId, history), settings);
 
-    public void ShowDevicePort(int deviceId, int portId) => NotYet("Device Details");
+        // Back, forward and the breadcrumbs (#58) move this same window.
+        history.NavigateRequested += (_, index) => NavigateDeviceWindow(window, history, history.Entries[index].DeviceId, index);
 
-    public void ShowDeviceEventLog(int deviceId, int? eventId = null) => NotYet("Device Details");
+        window.Closed += (_, _) =>
+        {
+            // Whichever device the window ended up on.
+            foreach (var key in _openDeviceWindows.Where(kv => ReferenceEquals(kv.Value, window)).Select(kv => kv.Key).ToList())
+            {
+                _openDeviceWindows.Remove(key);
+            }
 
-    public void ShowDeviceAlerts(int deviceId, int? alertLogId = null) => NotYet("Device Details");
+            if (window.DataContext is DeviceDetailViewModel current)
+            {
+                current.OpenDeviceRequested -= OnOpenDeviceRequested;
+                current.Dispose();
+            }
+        };
 
-    public void ShowDeviceGraylog(int deviceId, GraylogMessage? message = null) => NotYet("Device Details");
+        _openDeviceWindows[deviceId] = window;
+        if (Owner() is { IsVisible: true } owner)
+        {
+            window.Show(owner);
+        }
+        else
+        {
+            window.Show();
+        }
+    }
+
+    private DeviceDetailViewModel CreateDeviceDetailViewModel(int deviceId, DeviceBrowseHistory history)
+    {
+        var viewModel = new DeviceDetailViewModel(
+            deviceId,
+            services.GetRequiredService<DeviceMonitor>(),
+            services.GetRequiredService<SensorMonitor>(),
+            services.GetRequiredService<AlertMonitor>(),
+            services.GetRequiredService<IDeviceCache>(),
+            services.GetRequiredService<ILibreNmsClient>(),
+            services.GetRequiredService<IAlertRuleCache>(),
+            services.GetRequiredService<ISessionService>(),
+            services.GetRequiredService<ISettingsStore>(),
+            this,
+            services.GetRequiredService<IUnimusApi>(),
+            services.GetRequiredService<IUnimusDeviceResolver>(),
+            services.GetRequiredService<IGraylogApi>(),
+            services.GetRequiredService<IFleetLinks>(),
+            services.GetRequiredService<ILogger<DeviceDetailViewModel>>())
+        {
+            History = history,
+        };
+
+        viewModel.OpenDeviceRequested += OnOpenDeviceRequested;
+        return viewModel;
+    }
+
+    /// <summary>A link in a device window (a neighbour) opens that device in the same window, with the way back.</summary>
+    private void OnOpenDeviceRequested(object? sender, int deviceId)
+    {
+        if (sender is DeviceDetailViewModel { History: { } history } source
+            && _openDeviceWindows.TryGetValue(source.DeviceId, out var window))
+        {
+            NavigateDeviceWindow(window, history, deviceId, historyIndex: null);
+        }
+        else
+        {
+            ShowDeviceDetail(deviceId);
+        }
+    }
+
+    /// <summary>
+    /// Moves a device window to another device (#58): a new stop in its history,
+    /// or back or forward to one it's been to, on the section it was left on. A
+    /// device already open in another window is brought forward there instead.
+    /// </summary>
+    private void NavigateDeviceWindow(DeviceView window, DeviceBrowseHistory history, int deviceId, int? historyIndex)
+    {
+        if (_openDeviceWindows.TryGetValue(deviceId, out var other) && !ReferenceEquals(other, window))
+        {
+            other.Activate();
+            return;
+        }
+
+        if (window.DataContext is not DeviceDetailViewModel previous || previous.DeviceId == deviceId)
+        {
+            return;
+        }
+
+        history.UpdateCurrent(previous.Name, previous.SelectedSection);
+        if (historyIndex is { } index)
+        {
+            history.GoTo(index);
+        }
+        else
+        {
+            history.Visit(deviceId);
+        }
+
+        var next = CreateDeviceDetailViewModel(deviceId, history);
+        if (history.Current.Section != DeviceDetailSection.Overview)
+        {
+            next.SelectedSection = history.Current.Section;
+        }
+
+        _openDeviceWindows.Remove(previous.DeviceId);
+        _openDeviceWindows[deviceId] = window;
+        window.ShowViewModel(next);
+
+        previous.OpenDeviceRequested -= OnOpenDeviceRequested;
+        previous.Dispose();
+    }
+
+    /// <summary>Opens a device (or brings its window forward) and acts on its view model there.</summary>
+    private void ShowDevice(int deviceId, Action<DeviceDetailViewModel> then)
+    {
+        ShowDeviceDetail(deviceId);
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window) && window.DataContext is DeviceDetailViewModel viewModel)
+        {
+            then(viewModel);
+        }
+    }
+
+    public void ShowDeviceGraph(int deviceId, string graphName) => ShowDevice(deviceId, vm => vm.ShowGraph(graphName));
+
+    public void ShowDevicePortGraph(int deviceId, string ifName, string graphType) => ShowDevice(deviceId, vm => vm.ShowPortGraph(ifName, graphType));
+
+    public void ShowDeviceWireless(int deviceId) => ShowDevice(deviceId, vm => vm.SelectWirelessCommand.Execute(null));
+
+    public void ShowDevicePort(int deviceId, int portId) => ShowDevice(deviceId, vm => vm.ShowPort(portId));
+
+    public void ShowDeviceEventLog(int deviceId, int? eventId = null) => ShowDevice(deviceId, vm =>
+    {
+        vm.SelectEventLogCommand.Execute(null);
+        if (eventId is { } id)
+        {
+            vm.ShowEventLogEntry(id);
+        }
+    });
+
+    public void ShowDeviceAlerts(int deviceId, int? alertLogId = null) => ShowDevice(deviceId, vm =>
+    {
+        vm.SelectAlertsCommand.Execute(null);
+        if (alertLogId is { } id)
+        {
+            vm.ShowAlertLogEntry(id);
+        }
+    });
+
+    public void ShowDeviceGraylog(int deviceId, GraylogMessage? message = null) => ShowDevice(deviceId, vm =>
+    {
+        vm.SelectGraylogCommand.Execute(null);
+        if (message is not null)
+        {
+            vm.Graylog.ShowMessage(message);
+        }
+    });
 
     public void CloseDeviceDetail(int deviceId)
     {
+        if (_openDeviceWindows.TryGetValue(deviceId, out var window))
+        {
+            window.Close();
+        }
     }
 
 
