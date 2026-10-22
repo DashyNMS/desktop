@@ -2008,7 +2008,7 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <TextBlock Text="Refreshing..."
+                    <TextBlock Text="{Binding RefreshText}"
                                Style="{StaticResource SubtleTextStyle}"
                                Margin="0,0,10,0"
                                Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
