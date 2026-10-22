@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Infrastructure;
@@ -63,10 +64,13 @@ public partial class MainWindow : Window
             };
             section.Click += (_, _) => HideSectionFlyouts();
 
-            // Picking a page from the flyout closes it.
+            // Picking a page from the flyout closes it - once the click is done:
+            // a button's Click comes before its Command, and closing the flyout
+            // there takes the button out of the window, unbinding the Command
+            // before it runs.
             if (flyout.Content is Control content)
             {
-                content.AddHandler(Button.ClickEvent, (_, _) => flyout.Hide(), RoutingStrategies.Bubble);
+                content.AddHandler(Button.ClickEvent, (_, _) => Dispatcher.UIThread.Post(flyout.Hide), RoutingStrategies.Bubble);
             }
         }
     }
