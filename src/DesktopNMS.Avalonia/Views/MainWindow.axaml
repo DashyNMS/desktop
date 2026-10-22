@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:DesktopNMS.ViewModels"
         xmlns:models="using:DesktopNMS.Core.Configuration"
@@ -31,8 +31,7 @@
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1"
-                PointerPressed="OnTitleBarPressed"
-                DoubleTapped="OnTitleBarDoubleTapped">
+                WindowDecorationProperties.ElementRole="TitleBar">
             <Grid x:Name="TitleBarContent" ColumnDefinitions="Auto,*,Auto">
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
                     <Image Source="/Assets/app.ico" Width="18" Height="18" />
@@ -41,7 +40,7 @@
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="4">
                     <!-- Only while the app is going through the backup address (see ServerFailover). -->
-                    <Button Classes="icon" Width="32" Height="30"
+                    <Button Classes="icon" Width="32" Height="30" WindowDecorationProperties.ElementRole="User"
                             ToolTip.Tip="{Binding BackupAddressStatusText}"
                             AutomationProperties.Name="Using the backup address"
                             IsVisible="{Binding IsOnBackupAddress}">
@@ -54,7 +53,7 @@
                             </MenuFlyout>
                         </Button.Flyout>
                     </Button>
-                    <Button Classes="icon" Width="32" Height="30"
+                    <Button Classes="icon" Width="32" Height="30" WindowDecorationProperties.ElementRole="User"
                             Command="{Binding RefreshCurrentTabCommand}"
                             ToolTip.Tip="Refresh now (F5)"
                             AutomationProperties.Name="Refresh now">
@@ -71,15 +70,24 @@
                  (IsNavExpanded, remembered). Narrow, a section's sub-pages
                  open in a flyout to its right on hover; wide, they're listed
                  under the selected section. -->
-            <Border Grid.Column="0"
-                    Width="57"
+            <Border x:Name="Rail" Grid.Column="0"
+                    Classes="sidebar"
                     Classes.wide="{Binding IsNavExpanded}"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,0,1,0"
                     ClipToBounds="True">
                 <Border.Styles>
-                    <Style Selector="Border.wide">
+                    <!-- In a style, not set on the Border, so .wide can override it; it slides. -->
+                    <Style Selector="Border.sidebar">
+                        <Setter Property="Width" Value="57" />
+                        <Setter Property="Transitions">
+                            <Transitions>
+                                <DoubleTransition Property="Width" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                            </Transitions>
+                        </Setter>
+                    </Style>
+                    <Style Selector="Border.sidebar.wide">
                         <Setter Property="Width" Value="208" />
                     </Style>
                 </Border.Styles>
@@ -142,9 +150,9 @@
                                     <Flyout Placement="RightEdgeAlignedTop" ShowMode="TransientWithDismissOnPointerMoveAway">
                                         <StackPanel MinWidth="150">
                                             <TextBlock Text="DEVICES" Classes="flyoutHeader" />
-                                            <Button Content="All devices" Classes="flyoutItem" Command="{Binding SelectDevicesTabCommand}" />
-                                            <Button Content="Groups" Classes="flyoutItem" Command="{Binding SelectGroupsTabCommand}" />
-                                            <Button Content="Locations" Classes="flyoutItem" Command="{Binding SelectLocationsTabCommand}" />
+                                            <Button Content="All devices" Classes="flyoutItem" Classes.selected="{Binding IsDevicesTabSelected}" Command="{Binding SelectDevicesTabCommand}" />
+                                            <Button Content="Groups" Classes="flyoutItem" Classes.selected="{Binding IsGroupsTabSelected}" Command="{Binding SelectGroupsTabCommand}" />
+                                            <Button Content="Locations" Classes="flyoutItem" Classes.selected="{Binding IsLocationsTabSelected}" Command="{Binding SelectLocationsTabCommand}" />
                                         </StackPanel>
                                     </Flyout>
                                 </FlyoutBase.AttachedFlyout>
@@ -213,9 +221,9 @@
                                     <Flyout Placement="RightEdgeAlignedTop" ShowMode="TransientWithDismissOnPointerMoveAway">
                                         <StackPanel MinWidth="150">
                                             <TextBlock Text="MAPS" Classes="flyoutHeader" />
-                                            <Button Content="Network" Classes="flyoutItem" Command="{Binding SelectNetworkMapTabCommand}" />
-                                            <Button Content="Geographical" Classes="flyoutItem" Command="{Binding SelectGeoMapTabCommand}" />
-                                            <Button Content="Custom Maps" Classes="flyoutItem" Command="{Binding SelectCustomMapsTabCommand}" />
+                                            <Button Content="Network" Classes="flyoutItem" Classes.selected="{Binding IsNetworkMapTabSelected}" Command="{Binding SelectNetworkMapTabCommand}" />
+                                            <Button Content="Geographical" Classes="flyoutItem" Classes.selected="{Binding IsGeoMapTabSelected}" Command="{Binding SelectGeoMapTabCommand}" />
+                                            <Button Content="Custom Maps" Classes="flyoutItem" Classes.selected="{Binding IsCustomMapsTabSelected}" Command="{Binding SelectCustomMapsTabCommand}" />
                                         </StackPanel>
                                     </Flyout>
                                 </FlyoutBase.AttachedFlyout>
@@ -243,9 +251,9 @@
                                     <Flyout Placement="RightEdgeAlignedTop" ShowMode="TransientWithDismissOnPointerMoveAway">
                                         <StackPanel MinWidth="150">
                                             <TextBlock Text="LOGS" Classes="flyoutHeader" />
-                                            <Button Content="Event log" Classes="flyoutItem" Command="{Binding SelectEventLogTabCommand}" />
-                                            <Button Content="Alert log" Classes="flyoutItem" Command="{Binding SelectAlertLogTabCommand}" />
-                                            <Button Content="Graylog" Classes="flyoutItem" Command="{Binding SelectGraylogTabCommand}" IsVisible="{Binding ShowGraylogLog}" />
+                                            <Button Content="Event log" Classes="flyoutItem" Classes.selected="{Binding IsEventLogTabSelected}" Command="{Binding SelectEventLogTabCommand}" />
+                                            <Button Content="Alert log" Classes="flyoutItem" Classes.selected="{Binding IsAlertLogTabSelected}" Command="{Binding SelectAlertLogTabCommand}" />
+                                            <Button Content="Graylog" Classes="flyoutItem" Classes.selected="{Binding IsGraylogLogsTabSelected}" Command="{Binding SelectGraylogTabCommand}" IsVisible="{Binding ShowGraylogLog}" />
                                         </StackPanel>
                                     </Flyout>
                                 </FlyoutBase.AttachedFlyout>
@@ -284,9 +292,9 @@
                                         <Flyout Placement="RightEdgeAlignedTop" ShowMode="TransientWithDismissOnPointerMoveAway">
                                             <StackPanel MinWidth="150">
                                                 <TextBlock Text="ALERTS" Classes="flyoutHeader" />
-                                                <Button Content="Active alerts" Classes="flyoutItem" Command="{Binding SelectAlertsTabCommand}" />
-                                                <Button Content="Rules" Classes="flyoutItem" Command="{Binding SelectRulesTabCommand}" />
-                                                <Button Content="Templates" Classes="flyoutItem" Command="{Binding SelectTemplatesTabCommand}" />
+                                                <Button Content="Active alerts" Classes="flyoutItem" Classes.selected="{Binding IsAlertsTabSelected}" Command="{Binding SelectAlertsTabCommand}" />
+                                                <Button Content="Rules" Classes="flyoutItem" Classes.selected="{Binding IsRulesTabSelected}" Command="{Binding SelectRulesTabCommand}" />
+                                                <Button Content="Templates" Classes="flyoutItem" Classes.selected="{Binding IsTemplatesTabSelected}" Command="{Binding SelectTemplatesTabCommand}" />
                                             </StackPanel>
                                         </Flyout>
                                     </FlyoutBase.AttachedFlyout>
@@ -335,7 +343,7 @@
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,40" Spacing="16">
                 <Image Source="/Assets/app.ico" Width="72" Height="72" />
                 <ProgressBar IsIndeterminate="True" Width="160" />
-                <TextBlock Text="Signing in…" Classes="subtle" HorizontalAlignment="Center"
+                <TextBlock Text="Signing inâ€¦" Classes="subtle" HorizontalAlignment="Center"
                            AutomationProperties.LiveSetting="Polite" />
             </StackPanel>
         </Panel>

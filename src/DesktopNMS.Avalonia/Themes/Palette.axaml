@@ -83,6 +83,9 @@
             <SolidColorBrush x:Key="ToolTipForeground" Color="#FFE6EAF0" />
             <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#FF2C3442" />
 
+            <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="#FF171B23" />
+            <SolidColorBrush x:Key="FlyoutBorderThemeBrush" Color="#FF2C3442" />
+
             <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUnchecked" Color="#FF98A2B3" />
             <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPointerOver" Color="#FFE6EAF0" />
             <SolidColorBrush x:Key="CheckBoxForegroundUnchecked" Color="#FFE6EAF0" />
@@ -166,6 +169,9 @@
             <SolidColorBrush x:Key="ToolTipBackground" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="ToolTipForeground" Color="#FF1A1F29" />
             <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#FFD8DDE5" />
+
+            <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FlyoutBorderThemeBrush" Color="#FFD8DDE5" />
 
             <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUnchecked" Color="#FF6B7280" />
             <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPointerOver" Color="#FF1A1F29" />

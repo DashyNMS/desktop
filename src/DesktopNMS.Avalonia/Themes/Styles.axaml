@@ -18,6 +18,16 @@
         <Setter Property="FontSize" Value="13" />
     </Style>
 
+    <!-- The main window draws its own title bar (#250). Avalonia 12 also draws
+         the window's title over it, and a full-screen button beside the window
+         buttons that lands on Refresh; the WPF app had neither. -->
+    <Style Selector="WindowDrawnDecorations /template/ Panel#PART_TitleTextPanel">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="WindowDrawnDecorations /template/ Button#PART_FullScreenButton">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+
     <Style Selector="TextBlock.heading">
         <Setter Property="FontSize" Value="16" />
         <Setter Property="FontFamily" Value="{DynamicResource DisplayFont}" />
@@ -217,6 +227,13 @@
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
     </Style>
+    <Style Selector="Button.flyoutItem.selected">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.flyoutItem.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
     <Style Selector="TextBlock.flyoutHeader">
         <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
         <Setter Property="FontSize" Value="11" />
@@ -339,6 +356,10 @@
     </Style>
     <Style Selector="MenuFlyoutPresenter, ContextMenu">
         <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="FlyoutPresenter">
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="4,6" />
     </Style>
     <Style Selector="ToolTip">
         <Setter Property="CornerRadius" Value="5" />
