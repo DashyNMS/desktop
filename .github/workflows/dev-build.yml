@@ -1,0 +1,52 @@
+name: Development build
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/dev-build.yml
+      - tools/Publish-Dev.ps1
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - name: Checkout the pinned network tools
+        uses: actions/checkout@v7
+        with:
+          repository: DashyNMS/mcp
+          ref: 92394e2ef33e4429fbc7a514883c73e43df768d3
+          path: artifacts/mcp-source
+          submodules: recursive
+          persist-credentials: false
+      - name: Build the network tools
+        shell: pwsh
+        run: ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-source
+      - name: Test and publish the development build
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content Directory.Build.props
+          ./tools/Publish-Dev.ps1 -Version "$($props.Project.PropertyGroup.Version)-dev.${{ github.run_number }}.${{ github.run_attempt }}"
+      - name: Retain the build
+        uses: actions/upload-artifact@v7
+        with:
+          name: DashyNMS-dev-windows-x64-${{ github.run_number }}-${{ github.run_attempt }}
+          path: artifacts/dev/**/win-x64/**
+          if-no-files-found: error
+          retention-days: 30
