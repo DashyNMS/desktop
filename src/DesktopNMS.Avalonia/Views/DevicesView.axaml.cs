@@ -9,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Infrastructure;
 using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views;
@@ -109,8 +110,9 @@ public partial class DevicesView : UserControl
         using (view.DeferRefresh())
         {
             view.SortDescriptions.Clear();
-            view.SortDescriptions.Add(DataGridSortDescription.FromPath(nameof(DeviceItemViewModel.IsPinned), ListSortDirection.Descending));
-            view.SortDescriptions.Add(DataGridSortDescription.FromPath(e.Column.SortMemberPath, _sortDirection));
+            // Comparers, not paths: see DataGridSorting for why a path sort reads nothing here.
+            view.SortDescriptions.Add(DataGridSortDescription.FromComparer(new PropertyComparer(nameof(DeviceItemViewModel.IsPinned)), ListSortDirection.Descending));
+            view.SortDescriptions.Add(DataGridSortDescription.FromComparer(new PropertyComparer(e.Column.SortMemberPath), _sortDirection));
         }
     }
 
