@@ -467,8 +467,15 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
 
     public NeighbourViewDefinition? ShowNeighbourViewEditor(NeighbourViewDefinition? existing)
     {
-        NotYet("The neighbourhood editor");
-        return null;
+        var viewModel = services.GetRequiredService<NeighbourViewEditorViewModel>();
+        if (existing is not null)
+        {
+            viewModel.Initialize(existing);
+        }
+
+        var window = new NeighbourViewEditorWindow(viewModel);
+        Modal.Show(window, Owner());
+        return window.Saved ? viewModel.Result : null;
     }
 
 

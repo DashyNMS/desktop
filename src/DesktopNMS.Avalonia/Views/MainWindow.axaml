@@ -349,6 +349,8 @@
             <views:TemplatesView DataContext="{Binding Templates}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsTemplatesTabSelected}" />
             <views:GroupsView DataContext="{Binding Groups}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsGroupsTabSelected}" />
             <views:LocationsView DataContext="{Binding Locations}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsLocationsTabSelected}" />
+            <views:HealthView DataContext="{Binding Health}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsHealthTabSelected}" />
+            <views:NeighboursView DataContext="{Binding Neighbours}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsNeighboursTabSelected}" />
             <views:LogsView DataContext="{Binding Logs}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsLogsFamilyTabSelected}" />
             <intel:IntelligenceView DataContext="{Binding Intelligence}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsIntelligenceTabSelected}" />
             <views:NotPortedView Page="{Binding SelectedTab}" IsVisible="{Binding SelectedTab, Converter={x:Static views:Converters.IsNotPorted}}" />
