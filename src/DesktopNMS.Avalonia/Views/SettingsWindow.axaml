@@ -379,11 +379,25 @@
                     </StackPanel>
 
                     <!-- ==================== Window ==================== -->
-                    <!-- The tray and start at login come with #252 and #253. -->
+                    <!-- Start at login comes with #253. -->
                     <StackPanel IsVisible="{Binding IsWindowSectionSelected}">
                         <TextBlock Text="Window and start-up" Classes="heading" Margin="0,0,0,14" />
                         <Border Classes="card">
                             <StackPanel>
+                                <!-- Not on Linux, where there may be no tray to come back from (#252). -->
+                                <StackPanel Spacing="8" Margin="0,0,0,16" IsVisible="{x:Static infra:PlatformText.CanHideToTray}">
+                                    <CheckBox IsChecked="{Binding MinimiseToTrayOnClose}">
+                                        <TextBlock>
+                                            <Run Text="Closing the window keeps DashyNMS running in" /><Run Text=" " /><Run Text="{x:Static infra:PlatformText.TrayPlace}" />
+                                        </TextBlock>
+                                    </CheckBox>
+                                    <CheckBox IsChecked="{Binding StartMinimised}">
+                                        <TextBlock>
+                                            <Run Text="Start hidden in" /><Run Text=" " /><Run Text="{x:Static infra:PlatformText.TrayPlace}" />
+                                        </TextBlock>
+                                    </CheckBox>
+                                </StackPanel>
+
                                 <TextBlock Text="Tab to show at startup" Classes="section" Margin="0,0,0,6" />
                                 <ComboBox ItemsSource="{Binding StartupTabOptions}" SelectedItem="{Binding SelectedStartupTab}"
                                           DisplayMemberBinding="{ReflectionBinding Label}" AutomationProperties.Name="Tab to show at startup" />

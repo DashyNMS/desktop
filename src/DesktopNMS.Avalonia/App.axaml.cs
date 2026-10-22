@@ -43,6 +43,8 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private MainViewModel? _mainViewModel;
     private bool _restartFresh;
+    private TrayIconService? _tray;
+    private bool _trayUpdatePending;
     private DemoMode _demo = new(isActive: false);
     private DemoServer? _demoServer;
     private DemoFleet? _demoFleet;
@@ -145,15 +147,50 @@ public partial class App : Application
         windows.AttachMainWindow(_mainWindow);
         windows.ExitRequested += (_, _) => desktop.Shutdown();
         desktop.MainWindow = _mainWindow;
-        desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
+
+        // The tray (#252): closing the window can leave DashyNMS running there,
+        // so it's Exit that ends the app - or closing the window when it doesn't.
+        SetUpTray();
+        desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        _mainWindow.Closing += (_, e) =>
+        {
+            if (!e.IsProgrammatic && CanLiveInTray && settings.Current.MinimiseToTrayOnClose)
+            {
+                e.Cancel = true;
+                _mainWindow.Hide();
+            }
+        };
+        _mainWindow.Closed += (_, _) => desktop.Shutdown();
 
         // Nothing to sign back in with: just the sign-in window, no empty main window behind it (#231).
         var hasSavedSession = !string.IsNullOrWhiteSpace(settings.Current.ServerUrl)
                               && _services.GetRequiredService<ITokenProtector>().HasStoredToken;
-        if (hasSavedSession)
+        // Started hidden in the tray, with a session to restore, it stays there.
+        var startHidden = settings.Current.StartMinimised
+                          || args.Any(a => a.Equals("--minimised", StringComparison.OrdinalIgnoreCase) || a.Equals("--minimized", StringComparison.OrdinalIgnoreCase));
+        if (hasSavedSession && !(startHidden && CanLiveInTray))
         {
             _mainWindow.Show();
         }
+
+        // The tray follows the app's state as it changes, not just on each
+        // poll (#232): signing in, failover, a ready update, an acknowledgement.
+        _mainViewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(MainViewModel.IsConnected)
+                or nameof(MainViewModel.IsSigningIn)
+                or nameof(MainViewModel.IsOnBackupAddress)
+                or nameof(MainViewModel.IsUpdateReady)
+                or nameof(MainViewModel.HasError)
+                or nameof(MainViewModel.IsTokenRejected)
+                or nameof(MainViewModel.CriticalCount)
+                or nameof(MainViewModel.AlertBadgeCount)
+                or nameof(MainViewModel.LastUpdatedText))
+            {
+                ScheduleTrayUpdate();
+            }
+        };
+        _services.GetRequiredService<AlertMonitor>().Polled += (_, _) => Dispatcher.UIThread.Post(UpdateTrayStatus);
 
         _mainViewModel.SignedOut += (_, _) =>
         {
@@ -215,17 +252,33 @@ public partial class App : Application
                 _logger?.LogInformation("Saved session unusable: {Error}", restored.ErrorMessage);
             }
 
-            // There's no tray yet (#252) to come back from, so closing sign-in closes the app.
+            // Dismissing sign-in leaves the app in the tray, where there is one
+            // to come back from (#252); otherwise it closes the app.
             if (!windows.ShowSignInDialog())
             {
-                desktop.Shutdown();
+                if (CanLiveInTray)
+                {
+                    _mainWindow.Hide();
+                    UpdateTrayStatus();
+                }
+                else
+                {
+                    desktop.Shutdown();
+                }
+
                 return;
             }
         }
 
-        windows.ShowMain();
+        // A restored session started hidden stays in the tray.
+        if (_mainWindow.IsVisible || restored is not { Succeeded: true })
+        {
+            windows.ShowMain();
+        }
+
         _services.GetRequiredService<AlertMonitor>().Start();
         _mainViewModel.OnConnected();
+        UpdateTrayStatus();
 
         // Rendering the README screenshots: the tour, then close.
         if (_demo.ScreenshotFolder is { } folder && _demoFleet is not null && _logger is not null)
@@ -244,6 +297,168 @@ public partial class App : Application
         }
 
         ConfigureUnimusIfEnabled();
+    }
+
+    // ----------------------------------------------------------------- tray
+
+    /// <summary>Whether the app can carry on with no window open: there's a tray icon, on a platform where there's always a tray to find it in (#252).</summary>
+    private bool CanLiveInTray => PlatformText.CanHideToTray && _tray?.IsShown == true && !_demo.IsRenderingScreenshots;
+
+    private void SetUpTray()
+    {
+        if (_services is null || Current is not { } app)
+        {
+            return;
+        }
+
+        var tray = _services.GetRequiredService<TrayViewModel>();
+        _tray = _services.GetRequiredService<TrayIconService>();
+        _tray.Initialise(app);
+        _tray.Opening += (_, _) => UpdateTrayStatus();
+
+        // Signed out, everything but Exit leads to the sign-in window (#231).
+        var windows = _services.GetRequiredService<IWindowService>();
+        tray.OpenRequested += (_, _) => ShowMainOrSignIn();
+        tray.DashboardRequested += (_, _) => ShowTabOrSignIn(MainTab.Dashboard);
+        tray.AlertsRequested += (_, _) => ShowTabOrSignIn(MainTab.Alerts);
+        tray.DevicesRequested += (_, _) => ShowTabOrSignIn(MainTab.Devices);
+        tray.RefreshRequested += (_, _) => _mainViewModel?.RequestRefresh();
+        tray.AlertRequested += (_, alert) =>
+        {
+            ShowTabOrSignIn(MainTab.Alerts);
+            _mainViewModel?.SelectAlert(alert);
+        };
+        tray.InstallUpdateRequested += (_, _) =>
+        {
+            if (_mainViewModel?.InstallUpdateCommand.CanExecute(null) == true)
+            {
+                _mainViewModel.InstallUpdateCommand.Execute(null);
+            }
+        };
+        tray.SettingsRequested += (_, _) =>
+        {
+            if (_mainViewModel?.IsConnected != true)
+            {
+                ShowMainOrSignIn();
+                return;
+            }
+
+            windows.ShowMain();
+            _mainViewModel.SettingsCommand.Execute(null);
+        };
+        tray.SignInOrOutRequested += (_, _) =>
+        {
+            // The same item reads "Sign in…" while signed out.
+            if (_mainViewModel?.SignOutCommand.CanExecute(null) != true)
+            {
+                ShowMainOrSignIn();
+                return;
+            }
+
+            windows.ShowMain();
+            _mainViewModel.SignOutCommand.Execute(null);
+        };
+        tray.ExitRequested += (_, _) => windows.Exit();
+    }
+
+    /// <summary>A tab from the tray: there when signed in, otherwise the sign-in window (#231).</summary>
+    private void ShowTabOrSignIn(MainTab tab)
+    {
+        if (_mainViewModel?.IsConnected == true)
+        {
+            _services?.GetRequiredService<IWindowService>().ShowMainTab(tab);
+        }
+        else
+        {
+            ShowMainOrSignIn();
+        }
+    }
+
+    private bool _signInOpen;
+
+    /// <summary>The tray's Open: the main window when signed in, otherwise the sign-in window (#231).</summary>
+    private void ShowMainOrSignIn()
+    {
+        if (_services is null || _mainViewModel is null || _mainWindow is null)
+        {
+            return;
+        }
+
+        var windows = _services.GetRequiredService<IWindowService>();
+        if (_mainViewModel.IsConnected)
+        {
+            windows.ShowMain();
+            return;
+        }
+
+        if (_mainViewModel.IsSigningIn || _signInOpen)
+        {
+            return;
+        }
+
+        _signInOpen = true;
+        try
+        {
+            if (!windows.ShowSignInDialog())
+            {
+                return;
+            }
+        }
+        finally
+        {
+            _signInOpen = false;
+        }
+
+        windows.ShowMain();
+        _services.GetRequiredService<AlertMonitor>().Start();
+        _mainViewModel.OnConnected();
+        ConfigureUnimusIfEnabled();
+        UpdateTrayStatus();
+    }
+
+    private void UpdateTrayStatus()
+    {
+        if (_tray is null || _mainViewModel is not { } main || _services is null)
+        {
+            return;
+        }
+
+        _trayUpdatePending = false;
+
+        var connection = main.IsSigningIn
+            ? TrayConnection.SigningIn
+            : !main.IsConnected
+                ? TrayConnection.SignedOut
+                : main.IsTokenRejected
+                    ? TrayConnection.TokenRejected
+                    : main.HasError ? TrayConnection.Unreachable : TrayConnection.Connected;
+
+        _services.GetRequiredService<TrayViewModel>().Update(new TraySnapshot(
+            connection,
+            main.IsOnBackupAddress,
+            main.CriticalCount,
+            // Warnings only count when Settings counts them (#269).
+            main.CountFrom == DesktopNMS.Core.Models.AlertSeverity.Critical ? 0 : main.WarningCount,
+            main.AcknowledgedCount,
+            main.AlertBadgeCount,
+            main.AlertBadgeIsCritical,
+            main.LastUpdatedAt is { } at ? DateTimeOffset.Now - at : null,
+            main.NextRefreshText,
+            main.Alerts.ToList(),
+            main.IsUpdateReady ? main.UpdateReadyText : null,
+            main.CountFrom));
+    }
+
+    /// <summary>Several properties change together: the tray catches up once, after them.</summary>
+    private void ScheduleTrayUpdate()
+    {
+        if (_trayUpdatePending)
+        {
+            return;
+        }
+
+        _trayUpdatePending = true;
+        Dispatcher.UIThread.Post(UpdateTrayStatus, DispatcherPriority.Background);
     }
 
     private void OnExit()
@@ -419,6 +634,8 @@ public partial class App : Application
         services.AddSingleton<McpToolHost>();
 
         services.AddSingleton<MainViewModel>();
+        services.AddSingleton<TrayViewModel>();
+        services.AddSingleton<TrayIconService>();
         services.AddSingleton<DeviceListViewModel>();
         services.AddSingleton<HealthViewModel>();
         services.AddSingleton<IntelligenceViewModel>();

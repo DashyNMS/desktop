@@ -1,0 +1,131 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:views="using:DesktopNMS.Views"
+        xmlns:fi="using:FluentIcons.Avalonia"
+        x:Class="DesktopNMS.Views.TrayFlyoutWindow"
+        x:DataType="vm:TrayViewModel"
+        Title="DashyNMS"
+        Width="340"
+        SizeToContent="Height"
+        SystemDecorations="None"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Topmost="True"
+        WindowStartupLocation="Manual"
+        Background="{DynamicResource SurfaceBrush}">
+
+    <!-- The tray icon's quick look (#232, #252): what's wrong, without opening
+         the main window. Closes as soon as it loses focus, as the system's own
+         tray flyouts do. -->
+    <Window.Styles>
+        <Style Selector="Border.tile">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Margin" Value="4,0" />
+        </Style>
+        <Style Selector="Button.alertRow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.alertRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+        </Style>
+    </Window.Styles>
+
+    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+        <StackPanel>
+            <!-- Header -->
+            <DockPanel Margin="14,14,10,10">
+                <Button DockPanel.Dock="Right" Classes="icon" Width="30" Height="30" ToolTip.Tip="Settings" Command="{Binding SettingsCommand}">
+                    <fi:SymbolIcon Symbol="Settings" FontSize="15" />
+                </Button>
+                <Button DockPanel.Dock="Right" Classes="icon" Width="30" Height="30" ToolTip.Tip="{Binding RefreshText}" Command="{Binding RefreshCommand}">
+                    <fi:SymbolIcon Symbol="ArrowClockwise" FontSize="15" />
+                </Button>
+                <views:HeartbeatLogo Width="32" Height="32" Margin="0,0,10,0" IsMuted="{Binding IsMarkMuted}" IsBeating="{Binding IsSigningIn}" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" />
+                    <TextBlock Text="{Binding Detail}" Classes="subtle" FontSize="11.5" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Counts -->
+            <UniformGrid Columns="3" Margin="10,0,10,12" IsVisible="{Binding ShowCounts}">
+                <Border Classes="tile">
+                    <StackPanel>
+                        <TextBlock Text="{Binding CriticalCount}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource CriticalBrush}" />
+                        <TextBlock Text="Critical" Classes="subtle" FontSize="11.5" />
+                    </StackPanel>
+                </Border>
+                <Border Classes="tile">
+                    <StackPanel>
+                        <TextBlock Text="{Binding WarningCount}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource WarningBrush}" />
+                        <TextBlock Text="Warning" Classes="subtle" FontSize="11.5" />
+                    </StackPanel>
+                </Border>
+                <Border Classes="tile">
+                    <StackPanel>
+                        <TextBlock Text="{Binding AcknowledgedCount}" FontSize="20" FontWeight="SemiBold" />
+                        <TextBlock Text="Acknowledged" Classes="subtle" FontSize="11.5" />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <!-- Latest alerts -->
+            <StackPanel IsVisible="{Binding HasLatestAlerts}">
+                <TextBlock Text="Latest alerts" Classes="subtle" FontSize="11.5" Margin="14,0,14,4" />
+                <ItemsControl Name="LatestAlerts" ItemsSource="{Binding LatestAlerts}" Margin="6,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:TrayAlertViewModel">
+                            <Button Classes="alertRow" ToolTip.Tip="Show this alert"
+                                    Command="{Binding #LatestAlerts.((vm:TrayViewModel)DataContext).OpenAlertCommand}" CommandParameter="{Binding}">
+                                <DockPanel>
+                                    <Ellipse Width="8" Height="8" Margin="0,0,10,0" VerticalAlignment="Center"
+                                             Fill="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding AgeText}" Classes="subtle" FontSize="11.5" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding DeviceName}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding RuleName}" Classes="subtle" FontSize="11.5" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Classes="link" Command="{Binding AlertsCommand}" HorizontalAlignment="Left" Margin="14,6,14,0">
+                    <TextBlock Text="{Binding ViewAllText}" FontSize="12" />
+                </Button>
+            </StackPanel>
+            <TextBlock Text="Nothing this account can see needs attention." Classes="subtle" Margin="14,0,14,2" IsVisible="{Binding ShowNoAlerts}" />
+            <TextBlock Text="Open DashyNMS to sign in." Classes="subtle" Margin="14,0,14,2" IsVisible="{Binding ShowSignedOutMessage}" />
+
+            <!-- Update ready -->
+            <Border Margin="14,12,14,0" Padding="10,8" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource AccentBrush}"
+                    Background="{DynamicResource SurfaceAltBrush}" IsVisible="{Binding IsUpdateReady}">
+                <DockPanel>
+                    <fi:SymbolIcon Symbol="ArrowDownload" FontSize="15" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <Button DockPanel.Dock="Right" Classes="link" Command="{Binding InstallUpdateCommand}" VerticalAlignment="Center" Margin="8,0,0,0">
+                        <TextBlock Text="Restart to update" FontSize="12" />
+                    </Button>
+                    <TextBlock Text="{Binding UpdateReadyText}" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
+
+            <!-- Actions -->
+            <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Margin="0,12,0,0" Padding="14,12">
+                <WrapPanel>
+                    <Button Classes="primary" Command="{Binding OpenCommand}" Padding="12,5" Margin="0,0,6,0"><TextBlock Text="Open DashyNMS" /></Button>
+                    <Button Command="{Binding DashboardCommand}" Padding="10,5" Margin="0,0,6,0"><TextBlock Text="Dashboard" /></Button>
+                    <Button Command="{Binding DevicesCommand}" Padding="10,5"><TextBlock Text="Devices" /></Button>
+                </WrapPanel>
+            </Border>
+        </StackPanel>
+    </Border>
+</Window>
