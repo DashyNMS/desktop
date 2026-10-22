@@ -1,7 +1,9 @@
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.ViewModels;
@@ -11,6 +13,8 @@ namespace DesktopNMS.Views;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel? _viewModel;
+    private readonly List<Flyout> _sectionFlyouts = new();
+    private StackPanel? _captionButtons;
 
     /// <summary>For the designer.</summary>
     public MainWindow()
@@ -26,39 +30,77 @@ public partial class MainWindow : Window
         WindowPlacementMemory.Attach(this, settings);
 
         // Room for the OS's own window controls: macOS's traffic lights on the
-        // left, Windows' buttons on the right. Linux window managers draw their
-        // own title bar above this one.
+        // left, the window buttons on the right - measured once they're drawn
+        // (see LayoutUpdated). Linux window managers draw their own title bar
+        // above this one.
         TitleBarContent.Margin = OperatingSystem.IsMacOS() ? new Thickness(80, 0, 12, 0)
             : OperatingSystem.IsWindows() ? new Thickness(19, 0, 146, 0)
             : new Thickness(19, 0, 12, 0);
+        LayoutUpdated += (_, _) => FitTitleBarToWindowButtons();
 
         // Narrow, a section's sub-pages open in a flyout to its right on hover (#118).
         foreach (var section in new[] { DevicesSection, NeighboursSection, MapsSection, LogsSection, AlertsSection })
         {
+            if (FlyoutBase.GetAttachedFlyout(section) is not Flyout flyout)
+            {
+                continue;
+            }
+
+            // The sidebar stays live under an open flyout: the section keeps its
+            // highlight and opens its page on a click, and the next section can
+            // open its own flyout. A click anywhere else closes it and still acts.
+            flyout.OverlayInputPassThroughElement = Rail;
+            flyout.OverlayDismissEventPassThrough = true;
+            _sectionFlyouts.Add(flyout);
+
             section.PointerEntered += (_, _) =>
             {
-                if (_viewModel is { IsNavExpanded: false })
+                if (_viewModel is { IsNavExpanded: false } && !flyout.IsOpen)
                 {
+                    HideSectionFlyouts();
                     FlyoutBase.ShowAttachedFlyout(section);
                 }
             };
+            section.Click += (_, _) => HideSectionFlyouts();
+
+            // Picking a page from the flyout closes it.
+            if (flyout.Content is Control content)
+            {
+                content.AddHandler(Button.ClickEvent, (_, _) => flyout.Hide(), RoutingStrategies.Bubble);
+            }
         }
     }
 
-    /// <summary>The title bar moves the window, as the OS's own would.</summary>
-    private void OnTitleBarPressed(object? sender, PointerPressedEventArgs e)
+    private void HideSectionFlyouts()
     {
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && e.Source is not Button && e.ClickCount == 1)
+        foreach (var flyout in _sectionFlyouts.Where(f => f.IsOpen))
         {
-            BeginMoveDrag(e);
+            flyout.Hide();
         }
     }
 
-    private void OnTitleBarDoubleTapped(object? sender, TappedEventArgs e)
+    /// <summary>
+    /// Keeps the title bar's own buttons clear of the window buttons Avalonia
+    /// draws over its right-hand end, whatever their number and size.
+    /// </summary>
+    private void FitTitleBarToWindowButtons()
     {
-        if (e.Source is not Button)
+        if (OperatingSystem.IsMacOS())
         {
-            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            return;
+        }
+
+        _captionButtons ??= this.GetVisualDescendants().OfType<StackPanel>().FirstOrDefault(p => p.Name == "PART_OverlayPanel");
+        if (_captionButtons is not { IsVisible: true } buttons)
+        {
+            return;
+        }
+
+        var right = buttons.Bounds.Width + 8;
+        if (right > 8 && Math.Abs(TitleBarContent.Margin.Right - right) > 0.5)
+        {
+            var margin = TitleBarContent.Margin;
+            TitleBarContent.Margin = new Thickness(margin.Left, margin.Top, right, margin.Bottom);
         }
     }
 }

@@ -1,0 +1,240 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:fi="using:FluentIcons.Avalonia"
+        x:Class="DesktopNMS.Views.WidgetPickerWindow"
+        x:DataType="vm:WidgetPickerViewModel"
+        Title="Add widgets"
+        Width="720" Height="520" MinWidth="560" MinHeight="380"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- The Dashboard's "Add widget" picker (#204, from the WPF app's
+         WidgetPickerWindow): categories down the side, a card per widget.
+         Click cards to choose several (#277), double-click to add one now. -->
+    <Window.Styles>
+        <!-- The side list of categories: flat, the picked one in the accent. -->
+        <Style Selector="ListBox#CategoryList ListBoxItem">
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="ListBox#CategoryList ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+        </Style>
+        <Style Selector="ListBox#CategoryList ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+        </Style>
+        <Style Selector="ListBox#CategoryList ListBoxItem:selected TextBlock.name">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <!-- The cards: the item itself has no chrome; the card inside it does. -->
+        <Style Selector="ListBox#WidgetList ListBoxItem" x:DataType="vm:WidgetCatalogEntry">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,10,10" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="IsEnabled" Value="{Binding IsAvailable}" />
+            <Setter Property="ToolTip.Tip" Value="{Binding UnavailableReason}" />
+            <Setter Property="ToolTip.ShowOnDisabled" Value="True" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <!-- Every state, not just the plain one: Fluent's selected and hover
+             backgrounds outrank a plain style and showed as square corners
+             behind the rounded card. -->
+        <Style Selector="ListBox#WidgetList ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox#WidgetList ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox#WidgetList ListBoxItem:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox#WidgetList ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox#WidgetList ListBoxItem:disabled">
+            <Setter Property="Opacity" Value="0.55" />
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Width" Value="196" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="ListBoxItem:pointerover Border.card, ListBoxItem:focus-visible Border.card">
+            <Setter Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <Style Selector="Border.card.chosen">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="Padding" Value="9" />
+        </Style>
+
+        <!-- The tick: empty, then filled in the accent once chosen. -->
+        <Style Selector="Border.tick">
+            <Setter Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <Style Selector="Border.tick.chosen">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+
+        <Style Selector="Border.previewLine">
+            <Setter Property="Height" Value="5" />
+            <Setter Property="CornerRadius" Value="2.5" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+        </Style>
+        <Style Selector="Border.bar">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="StackPanel.warning Border.bar.first">
+            <Setter Property="Background" Value="{DynamicResource CriticalBrush}" />
+        </Style>
+        <Style Selector="StackPanel.warning Border.bar.rest">
+            <Setter Property="Background" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <Style Selector="Border.pill">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="7,1" />
+            <Setter Property="Margin" Value="0,0,4,4" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        <TextBox Name="SearchBox" Grid.Row="0" Margin="16,16,16,12" Classes="search"
+                 PlaceholderText="Search widgets"
+                 Text="{Binding SearchText}" />
+
+        <Grid Grid.Row="1" ColumnDefinitions="170,*">
+            <ListBox Name="CategoryList" Grid.Column="0" Margin="12,0,8,0" Background="Transparent"
+                     ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:WidgetCategory">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Classes="name" Text="{Binding Name}" />
+                            <TextBlock Grid.Column="1" Text="{Binding CountText}" Margin="8,0,0,0" Classes="subtle" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <Panel Grid.Column="1">
+                <ListBox Name="WidgetList" Margin="0,0,6,0" Padding="0" Background="Transparent"
+                         ItemsSource="{Binding Widgets}" SelectedItem="{Binding SelectedWidget}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <!-- A hint of each widget's shape - not a live rendering. -->
+                        <DataTemplate x:DataType="vm:WidgetCatalogEntry">
+                            <Border Classes="card" Classes.chosen="{Binding IsChosen}">
+                                <StackPanel>
+                                    <Border Height="64" CornerRadius="5" Background="{DynamicResource SurfaceAltBrush}" Padding="10,9" Margin="0,0,0,8" ClipToBounds="True">
+                                        <Panel>
+                                            <!-- List: rows with a dot. -->
+                                            <StackPanel IsVisible="{Binding Preview, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:WidgetPreviewKind.List}}">
+                                                <StackPanel Orientation="Horizontal"><Ellipse Width="6" Height="6" Fill="{DynamicResource CriticalBrush}" Margin="0,0,6,6" /><Border Classes="previewLine" Width="110" /></StackPanel>
+                                                <StackPanel Orientation="Horizontal"><Ellipse Width="6" Height="6" Fill="{DynamicResource WarningBrush}" Margin="0,0,6,6" /><Border Classes="previewLine" Width="86" /></StackPanel>
+                                                <StackPanel Orientation="Horizontal"><Ellipse Width="6" Height="6" Fill="{DynamicResource OkBrush}" Margin="0,0,6,6" /><Border Classes="previewLine" Width="98" /></StackPanel>
+                                            </StackPanel>
+
+                                            <!-- Gauges: three rings. -->
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                                        IsVisible="{Binding Preview, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:WidgetPreviewKind.Gauges}}">
+                                                <Ellipse Width="40" Height="40" Stroke="{DynamicResource CriticalBrush}" StrokeThickness="4" Margin="6,0" />
+                                                <Ellipse Width="40" Height="40" Stroke="{DynamicResource WarningBrush}" StrokeThickness="4" Margin="6,0" />
+                                                <Ellipse Width="40" Height="40" Stroke="{DynamicResource BorderBrush}" StrokeThickness="4" Margin="6,0" />
+                                            </StackPanel>
+
+                                            <!-- Tiles: four count tiles. -->
+                                            <UniformGrid Columns="4" IsVisible="{Binding Preview, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:WidgetPreviewKind.Tiles}}">
+                                                <Border CornerRadius="4" Margin="2" Background="{DynamicResource OkBrush}" Opacity="0.75" />
+                                                <Border CornerRadius="4" Margin="2" Background="{DynamicResource CriticalBrush}" Opacity="0.75" />
+                                                <Border CornerRadius="4" Margin="2" Background="{DynamicResource MaintenanceBrush}" Opacity="0.75" />
+                                                <Border CornerRadius="4" Margin="2" Background="{DynamicResource BorderBrush}" />
+                                            </UniformGrid>
+
+                                            <!-- Graph: a line over a baseline. -->
+                                            <Panel IsVisible="{Binding Preview, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:WidgetPreviewKind.Graph}}">
+                                                <Polyline Points="0,38 18,30 34,34 52,18 70,24 88,10 106,20 124,14 150,22"
+                                                          Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeJoin="Round" />
+                                                <Border Height="1" VerticalAlignment="Bottom" Background="{DynamicResource BorderBrush}" />
+                                            </Panel>
+
+                                            <!-- Ranked: bars of falling length; red and amber for the warning kind. -->
+                                            <StackPanel Classes.warning="{Binding Preview, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:WidgetPreviewKind.RankedWarning}}">
+                                                <StackPanel.IsVisible>
+                                                    <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                                        <Binding Path="Preview" Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="{x:Static vm:WidgetPreviewKind.Ranked}" />
+                                                        <Binding Path="Preview" Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="{x:Static vm:WidgetPreviewKind.RankedWarning}" />
+                                                    </MultiBinding>
+                                                </StackPanel.IsVisible>
+                                                <Border Classes="previewLine bar first" Width="150" />
+                                                <Border Classes="previewLine bar rest" Width="104" Opacity="0.75" />
+                                                <Border Classes="previewLine bar rest" Width="66" Opacity="0.5" />
+                                            </StackPanel>
+                                        </Panel>
+                                    </Border>
+
+                                    <DockPanel>
+                                        <!-- Ticked to add with the others (#277). -->
+                                        <Border DockPanel.Dock="Right" Classes="tick" Classes.chosen="{Binding IsChosen}"
+                                                Width="18" Height="18" CornerRadius="4" BorderThickness="1.5" VerticalAlignment="Center"
+                                                IsVisible="{Binding IsAvailable}">
+                                            <fi:SymbolIcon Symbol="Checkmark" FontSize="12" Foreground="White"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsChosen}" />
+                                        </Border>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding Subtitle}" TextWrapping="Wrap" FontSize="11.5" Margin="0,2,0,0"
+                                               Classes="subtle" Classes.warning="{Binding !IsAvailable}" />
+
+                                    <!-- What's there already, and why it's suggested (#277). -->
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <Border Classes="pill" IsVisible="{Binding HasOnDashboardText}">
+                                            <TextBlock Text="{Binding OnDashboardText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        </Border>
+                                        <Border Classes="pill" Background="{DynamicResource AccentSubtleBrush}" IsVisible="{Binding IsSuggested}">
+                                            <TextBlock Text="{Binding SuggestedBecause}" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
+                                        </Border>
+                                        <Border Classes="pill" IsVisible="{Binding AllowsSeveral}">
+                                            <TextBlock Text="Add as many as you like" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        </Border>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <TextBlock Text="No widgets match." HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Classes="subtle" IsVisible="{Binding HasNoMatches}" />
+            </Panel>
+        </Grid>
+
+        <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="16,12">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
+                    <Button Content="{Binding AddText}" Command="{Binding AddCommand}" Classes="primary" />
+                </StackPanel>
+                <TextBlock Text="{Binding ChosenText}" Classes="subtle" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

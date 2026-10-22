@@ -1,0 +1,22 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.EmptyState"
+             x:Name="Root"
+             HorizontalAlignment="Center"
+             VerticalAlignment="Center"
+             IsHitTestVisible="False">
+
+    <!-- A widget with nothing to show: a muted icon, what's missing, and what
+         to do about it if there's anything useful to say. -->
+    <StackPanel MaxWidth="230" Spacing="4" Margin="12">
+        <fi:SymbolIcon Symbol="{Binding #Root.Icon}" FontSize="22" HorizontalAlignment="Center" Margin="0,0,0,4"
+                       Foreground="{DynamicResource TextSecondaryBrush}" Opacity="0.7" />
+        <TextBlock Text="{Binding #Root.Title, Converter={x:Static views:Converters.WithoutFullStop}}"
+                   FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding #Root.Hint}" FontSize="12" LineHeight="17" TextAlignment="Center" TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   IsVisible="{Binding #Root.Hint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+    </StackPanel>
+</UserControl>

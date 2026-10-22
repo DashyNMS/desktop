@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             x:Class="DesktopNMS.Views.GraphTimeRangePicker"
+             x:DataType="vm:GraphTimeRangeViewModel">
+
+    <!-- A graph's time range: preset pills, the picked one in the accent, and
+         from/to dates for Custom. Plain text boxes rather than a date picker,
+         as in the WPF app. -->
+    <WrapPanel Orientation="Horizontal">
+        <Button Classes="chip" Classes.selected="{Binding IsHourSelected}" Content="1h" Command="{Binding SetHourCommand}" Margin="0,0,4,4" />
+        <Button Classes="chip" Classes.selected="{Binding IsDaySelected}" Content="1d" Command="{Binding SetDayCommand}" Margin="0,0,4,4" />
+        <Button Classes="chip" Classes.selected="{Binding IsWeekSelected}" Content="1w" Command="{Binding SetWeekCommand}" Margin="0,0,4,4" />
+        <Button Classes="chip" Classes.selected="{Binding IsMonthSelected}" Content="1m" Command="{Binding SetMonthCommand}" Margin="0,0,4,4" />
+        <Button Classes="chip" Classes.selected="{Binding IsYearSelected}" Content="1y" Command="{Binding SetYearCommand}" Margin="0,0,4,4" />
+        <Button Classes="chip" Classes.selected="{Binding IsCustomSelected}" Content="Custom" Command="{Binding SetCustomCommand}" Margin="0,0,4,4" />
+
+        <StackPanel Orientation="Horizontal" Spacing="6" Margin="6,0,0,4" VerticalAlignment="Center" IsVisible="{Binding IsCustom}">
+            <TextBox Text="{Binding CustomFrom, StringFormat='{}{0:dd MMM yyyy}'}" Width="110" />
+            <TextBlock Text="to" Classes="subtle" VerticalAlignment="Center" />
+            <TextBox Text="{Binding CustomTo, StringFormat='{}{0:dd MMM yyyy}'}" Width="110" />
+        </StackPanel>
+    </WrapPanel>
+</UserControl>

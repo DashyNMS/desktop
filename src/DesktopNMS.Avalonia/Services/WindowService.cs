@@ -295,8 +295,11 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
 
     public IReadOnlyList<WidgetCatalogEntry> ShowWidgetPicker(IReadOnlyList<WidgetCatalogEntry> catalog)
     {
-        NotYet("Adding dashboard widgets");
-        return [];
+        var viewModel = new WidgetPickerViewModel(catalog);
+        var window = new WidgetPickerWindow(viewModel);
+        WindowPlacementMemory.Attach(window, services.GetRequiredService<ISettingsStore>());
+        Modal.Show(window, Owner());
+        return window.Added ? viewModel.Chosen : [];
     }
 
 

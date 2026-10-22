@@ -34,7 +34,22 @@ public static class ThemeSetup
         app.Resources["AccentBrush"] = new SolidColorBrush(color);
         app.Resources["AccentSubtleBrush"] = new SolidColorBrush(color, 0.16);
         app.Resources["AccentForegroundBrush"] = new SolidColorBrush(ContrastingForeground(color));
+
+        // Fluent's own controls draw focus, ticks and selection in SystemAccentColor
+        // and its lighter and darker steps; without these they'd use the OS's accent.
+        app.Resources["SystemAccentColor"] = color;
+        for (var step = 1; step <= 3; step++)
+        {
+            app.Resources[$"SystemAccentColorLight{step}"] = Mix(color, Colors.White, 0.15 * step);
+            app.Resources[$"SystemAccentColorDark{step}"] = Mix(color, Colors.Black, 0.15 * step);
+        }
     }
+
+    private static Color Mix(Color from, Color to, double amount) => Color.FromArgb(
+        from.A,
+        (byte)Math.Round(from.R + ((to.R - from.R) * amount)),
+        (byte)Math.Round(from.G + ((to.G - from.G) * amount)),
+        (byte)Math.Round(from.B + ((to.B - from.B) * amount)));
 
     /// <summary>Perceived (ITU-R BT.601) luminance, as the WPF app's AccentTheme decides it.</summary>
     private static Color ContrastingForeground(Color background)
