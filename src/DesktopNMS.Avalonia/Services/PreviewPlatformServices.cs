@@ -11,28 +11,6 @@ namespace DesktopNMS.Services;
 // shared view models run unchanged: each does nothing, or says it isn't
 // available, until its own issue lands.
 
-/// <summary>Toast notifications - #251.</summary>
-public sealed class NoAlertNotifications : IAlertNotificationService
-{
-    public event EventHandler<ToastActionRequest>? ActionRequested
-    {
-        add { }
-        remove { }
-    }
-
-    public void Handle(AlertPollResult result)
-    {
-    }
-
-    public void ShowPreview(AlertSeverity severity)
-    {
-    }
-
-    public void ClearHistory()
-    {
-    }
-}
-
 /// <summary>Start at login - #253.</summary>
 public sealed class NoStartupRegistration : IStartupRegistration
 {

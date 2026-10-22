@@ -60,3 +60,7 @@ jobs:
 
       - name: Test
         run: dotnet test tests/DesktopNMS.Presentation.Tests -c Debug
+
+      - name: Compile the macOS notification bridge
+        if: runner.os == 'macOS'
+        run: swiftc -swift-version 5 -target "$(uname -m)-apple-macos13" -emit-library tools/macos/Notifications.swift -o "$RUNNER_TEMP/libdashynms-notifications.dylib"
