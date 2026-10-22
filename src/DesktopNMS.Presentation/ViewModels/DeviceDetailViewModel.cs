@@ -2865,9 +2865,35 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// search box currently filters to - which classes exist doesn't depend
     /// on a search term.
     /// </summary>
+    private HashSet<string>? _listedSensorGraphs;
+    private bool _loadingSensorGraphNames;
+
+    private async Task LoadSensorGraphNamesAsync()
+    {
+        _loadingSensorGraphNames = true;
+        try
+        {
+            var graphs = _client.Graphs.ListAsync(_deviceId);
+            var health = _client.Graphs.ListHealthAsync(_deviceId);
+            await Task.WhenAll(graphs, health).ConfigureAwait(true);
+            _listedSensorGraphs = graphs.Result.Concat(health.Result).Select(g => g.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            RebuildSensorGraphLinks();
+        }
+        catch (LibreNmsApiException ex)
+        {
+            _logger.LogDebug(ex, "Could not list sensor graphs for device {DeviceId}", _deviceId);
+        }
+        finally { _loadingSensorGraphNames = false; }
+    }
+
     private void RebuildSensorGraphLinks()
     {
         SensorGraphLinks.Clear();
+        if (_listedSensorGraphs is null)
+        {
+            if (!_loadingSensorGraphNames && Sensors.Count > 0) _ = LoadSensorGraphNamesAsync();
+            return;
+        }
 
         // Grouped by class (not Distinct()) so ClassDisplayText - a
         // per-item computed property, since SensorClassDisplay's own
@@ -2881,6 +2907,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         foreach (var group in classes)
         {
             var graphName = "device_" + group.Key;
+            if (!_listedSensorGraphs.Contains(graphName)) continue;
             SensorGraphLinks.Add(new SensorGraphLinkViewModel(group.First().ClassDisplayText, new RelayCommand(() => ShowGraph(graphName))));
         }
     }
@@ -4588,6 +4615,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
         public AlertSeverity Evaluate(double value)
         {
+            if (!double.IsFinite(value)) return AlertSeverity.Unknown;
             if (_sensor.LimitLow is null && _sensor.LimitLowWarn is null
                 && _sensor.LimitHigh is null && _sensor.LimitHighWarn is null)
             {
