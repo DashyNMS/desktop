@@ -1,0 +1,318 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:cm="using:DesktopNMS.Core.CustomMaps"
+             xmlns:maps="using:DesktopNMS.Views.Maps"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.Maps.CustomMapsView"
+             x:DataType="vm:CustomMapsViewModel">
+
+    <!-- Maps › Custom (#250): LibreNMS-style diagrams of devices and links,
+         with live device state and link traffic. The list on the left, the
+         map in the middle, and the selection's properties (editing) or
+         details (viewing) on the right. -->
+    <UserControl.Styles>
+        <Style Selector="TextBlock.field">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="0,10,0,3" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="ListBox#MapList ListBoxItem.heading">
+            <Setter Property="IsHitTestVisible" Value="False" />
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+    </UserControl.Styles>
+
+    <UserControl.DataTemplates>
+        <!-- ================= A node's properties ================= -->
+        <DataTemplate DataType="vm:CustomMapNodeEditor">
+            <StackPanel>
+                <TextBlock Text="Node" Classes="heading" />
+
+                <TextBlock Text="Label" Classes="field" />
+                <TextBox Text="{Binding Label, Delay=250}" />
+
+                <TextBlock Text="Device" Classes="field" />
+                <AutoCompleteBox ItemsSource="{Binding Devices}" SelectedItem="{Binding Device}" ValueMemberBinding="{ReflectionBinding Name}"
+                                 FilterMode="Contains" MinimumPrefixLength="0" ToolTip.Tip="Type to find a device - the node shows that device's state" />
+
+                <TextBlock Text="Links to map" Classes="field" />
+                <ComboBox ItemsSource="{Binding Maps}" SelectedItem="{Binding LinkedMap}" DisplayMemberBinding="{ReflectionBinding Name}" HorizontalAlignment="Stretch"
+                          ToolTip.Tip="Double-clicking the node opens this map, and it shows as down if anything on that map is" />
+
+                <TextBlock Text="Style" Classes="field" />
+                <ComboBox ItemsSource="{x:Static vm:CustomMapNodeEditor.Styles}" SelectedItem="{Binding Style}" DisplayMemberBinding="{ReflectionBinding Label}" HorizontalAlignment="Stretch" />
+
+                <StackPanel IsVisible="{Binding IsIconStyle}">
+                    <TextBlock Text="Icon" Classes="field" />
+                    <ComboBox ItemsSource="{x:Static vm:CustomMapNodeEditor.Icons}" SelectedItem="{Binding Icon}" DisplayMemberBinding="{ReflectionBinding Label}" HorizontalAlignment="Stretch" />
+                </StackPanel>
+
+                <Button Padding="10,5" Margin="0,8,0,0" HorizontalAlignment="Left" IsVisible="{Binding IsImageStyle}"
+                        Command="{Binding $parent[UserControl].((vm:CustomMapsViewModel)DataContext).ChooseNodeImageCommand}">
+                    <TextBlock Text="Choose image…" />
+                </Button>
+
+                <Grid ColumnDefinitions="*,10,*">
+                    <StackPanel>
+                        <TextBlock Text="Size" Classes="field" />
+                        <TextBox Text="{Binding Size}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Border width" Classes="field" />
+                        <TextBox Text="{Binding BorderWidth}" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="*,10,*">
+                    <StackPanel>
+                        <TextBlock Text="Font" Classes="field" />
+                        <TextBox Text="{Binding TextFace}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Font size" Classes="field" />
+                        <TextBox Text="{Binding TextSize}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Colours (#RRGGBB)" Classes="field" />
+                <maps:ColourField Label="Text" Value="{Binding TextColour}" />
+                <maps:ColourField Label="Fill" Value="{Binding BackgroundColour}" Margin="0,6,0,0" />
+                <maps:ColourField Label="Border" Value="{Binding BorderColour}" Margin="0,6,0,0" />
+
+                <Button Padding="10,5" Margin="0,16,0,0" HorizontalAlignment="Left"
+                        Command="{Binding $parent[UserControl].((vm:CustomMapsViewModel)DataContext).UseAsNodeDefaultCommand}">
+                    <TextBlock Text="Use as default for new nodes" />
+                </Button>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- ================= A link's properties ================= -->
+        <DataTemplate DataType="vm:CustomMapEdgeEditor">
+            <StackPanel>
+                <TextBlock Text="Link" Classes="heading" />
+                <TextBlock Text="{Binding EndsText}" Classes="subtle" Margin="0,2,0,0" TextWrapping="Wrap" />
+
+                <TextBlock Text="Port (colours the link by its traffic)" Classes="field" />
+                <AutoCompleteBox ItemsSource="{Binding Ports}" SelectedItem="{Binding Port}" ValueMemberBinding="{ReflectionBinding Label}"
+                                 FilterMode="Contains" MinimumPrefixLength="0" />
+
+                <CheckBox IsChecked="{Binding Reverse}" Margin="0,10,0,0"
+                          ToolTip.Tip="Swap which half shows inbound and which outbound - for a port on the far end of the link">
+                    <TextBlock Text="Reverse port direction" />
+                </CheckBox>
+                <CheckBox IsChecked="{Binding ShowPercent}" Margin="0,6,0,0"><TextBlock Text="Show percent usage" /></CheckBox>
+                <CheckBox IsChecked="{Binding ShowBps}" Margin="0,6,0,0"><TextBlock Text="Show bits per second" /></CheckBox>
+
+                <TextBlock Text="Label" Classes="field" />
+                <TextBox Text="{Binding Label, Delay=250}" />
+
+                <TextBlock Text="Line style" Classes="field" />
+                <ComboBox ItemsSource="{x:Static vm:CustomMapEdgeEditor.LineStyles}" SelectedItem="{Binding LineStyle}" DisplayMemberBinding="{ReflectionBinding Label}" HorizontalAlignment="Stretch" />
+
+                <Grid ColumnDefinitions="*,10,*">
+                    <StackPanel>
+                        <TextBlock Text="Width (blank = by speed)" Classes="field" />
+                        <TextBox Text="{Binding FixedWidth}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Font size" Classes="field" />
+                        <TextBox Text="{Binding TextSize}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Label colour" Classes="field" />
+                <maps:ColourField Label="Text" Value="{Binding TextColour}" />
+
+                <Button Padding="10,5" Margin="0,16,0,0" HorizontalAlignment="Left"
+                        Command="{Binding $parent[UserControl].((vm:CustomMapsViewModel)DataContext).UseAsLinkDefaultCommand}">
+                    <TextBlock Text="Use as default for new links" />
+                </Button>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- ================= The map's own settings ================= -->
+        <DataTemplate DataType="vm:CustomMapSettingsEditor">
+            <StackPanel>
+                <TextBlock Text="Map settings" Classes="heading" />
+                <TextBlock Text="Select a node or link to edit it instead." Classes="subtle" Margin="0,2,0,0" />
+
+                <TextBlock Text="Name" Classes="field" />
+                <TextBox Text="{Binding Name, Delay=400}" />
+
+                <TextBlock Text="Menu group (maps in the same group are listed together)" Classes="field" />
+                <TextBox Text="{Binding MenuGroup, Delay=400}" />
+
+                <Grid ColumnDefinitions="*,10,*">
+                    <StackPanel>
+                        <TextBlock Text="Width" Classes="field" />
+                        <TextBox Text="{Binding Width}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Height" Classes="field" />
+                        <TextBox Text="{Binding Height}" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="*,10,*">
+                    <StackPanel>
+                        <TextBlock Text="Snap grid (0 = off)" Classes="field" />
+                        <TextBox Text="{Binding NodeAlign}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Link midpoint gap" Classes="field" />
+                        <TextBox Text="{Binding EdgeSeparation}" />
+                    </StackPanel>
+                </Grid>
+
+                <CheckBox IsChecked="{Binding ReverseArrows}" Margin="0,10,0,0"><TextBlock Text="Reverse arrows (point out from the middle)" /></CheckBox>
+
+                <TextBlock Text="Background" Classes="field" />
+                <ComboBox ItemsSource="{x:Static vm:CustomMapSettingsEditor.BackgroundTypes}" SelectedItem="{Binding BackgroundType}" DisplayMemberBinding="{ReflectionBinding Label}" HorizontalAlignment="Stretch" />
+
+                <maps:ColourField Label="Colour" Value="{Binding BackgroundColour}" Margin="0,8,0,0" IsVisible="{Binding IsColourBackground}" />
+
+                <Button Padding="10,5" Margin="0,8,0,0" HorizontalAlignment="Left" IsVisible="{Binding IsImageBackground}"
+                        Command="{Binding $parent[UserControl].((vm:CustomMapsViewModel)DataContext).ChooseBackgroundImageCommand}">
+                    <TextBlock Text="Choose background image…" />
+                </Button>
+
+                <Grid ColumnDefinitions="*,8,*,8,60" IsVisible="{Binding IsMapBackground}">
+                    <StackPanel>
+                        <TextBlock Text="Latitude" Classes="field" />
+                        <TextBox Text="{Binding Latitude}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Longitude" Classes="field" />
+                        <TextBox Text="{Binding Longitude}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="4">
+                        <TextBlock Text="Zoom" Classes="field" />
+                        <TextBox Text="{Binding Zoom}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Legend" Classes="field" />
+                <CheckBox IsChecked="{Binding ShowLegend}"><TextBlock Text="Show the link utilisation legend (drag it to move)" TextWrapping="Wrap" /></CheckBox>
+                <Grid ColumnDefinitions="*,10,*" Margin="0,4,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Steps" Classes="field" />
+                        <TextBox Text="{Binding LegendSteps}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Font size" Classes="field" />
+                        <TextBox Text="{Binding LegendFontSize}" />
+                    </StackPanel>
+                </Grid>
+                <CheckBox IsChecked="{Binding LegendHideInvalid}" Margin="0,8,0,0"><TextBlock Text="Hide the Unknown row" /></CheckBox>
+                <CheckBox IsChecked="{Binding LegendHideOverspeed}" Margin="0,6,0,0"><TextBlock Text="Scale to 100% (hide overspeed)" /></CheckBox>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <Grid ColumnDefinitions="250,*,Auto">
+
+        <!-- ======================== The maps ======================== -->
+        <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+            <Grid RowDefinitions="Auto,*">
+                <Grid Margin="14,12,10,8" ColumnDefinitions="*,Auto,Auto">
+                    <TextBlock Text="CUSTOM MAPS" Classes="section" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Classes="icon" Command="{Binding ImportMapCommand}" ToolTip.Tip="Import a map (.map file)" Margin="0,0,2,0">
+                        <fi:SymbolIcon Symbol="ArrowImport" />
+                    </Button>
+                    <Button Grid.Column="2" Classes="icon" Command="{Binding NewMapCommand}" ToolTip.Tip="New map">
+                        <fi:SymbolIcon Symbol="Add" />
+                    </Button>
+                </Grid>
+
+                <!-- In their menu groups - the headings are rows of their own; see the code-behind. -->
+                <ListBox Grid.Row="1" Name="MapList" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.DataTemplates>
+                        <DataTemplate DataType="maps:MapGroupHeading">
+                            <TextBlock Text="{Binding Label}" Classes="section" Margin="2,6,0,0" />
+                        </DataTemplate>
+                        <DataTemplate DataType="cm:CustomMapSummary">
+                            <StackPanel Margin="4,1">
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Classes="subtle" FontSize="11">
+                                    <Run Text="{Binding NodeCount, Mode=OneWay}" /><Run Text=" nodes" />
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.DataTemplates>
+                </ListBox>
+
+                <TextBlock Grid.Row="1" Text="No custom maps yet. Use + to create one, or import a .map file." Classes="subtle" TextWrapping="Wrap" Margin="14,10"
+                           IsVisible="{Binding !HasMaps}" />
+            </Grid>
+        </Border>
+
+        <!-- ======================== The map ======================== -->
+        <Grid Grid.Column="1" RowDefinitions="Auto,*">
+            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="16,10" IsVisible="{Binding HasMap}">
+                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{Binding TitleText}" Classes="heading" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+
+                    <!-- Viewing -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsViewing}">
+                        <Button Classes="primary" Command="{Binding EditMapCommand}" Padding="14,6"><TextBlock Text="Edit" /></Button>
+                        <Button Command="{Binding ExportMapCommand}" Padding="10,6" ToolTip.Tip="Save this map as a .map file"><TextBlock Text="Export…" /></Button>
+                        <Button Command="{Binding DuplicateMapCommand}" Padding="10,6"><TextBlock Text="Duplicate" /></Button>
+                        <Button Command="{Binding DeleteMapCommand}" Padding="10,6"><TextBlock Text="Delete" /></Button>
+                        <Button Classes="icon" Click="OnFitClick" ToolTip.Tip="Fit the map in view">
+                            <fi:SymbolIcon Symbol="ArrowMaximize" />
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Editing -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsEditing}">
+                        <Button Classes="chip" Classes.selected="{Binding IsSelectTool}" Command="{Binding SelectToolCommand}" CommandParameter="Select"><TextBlock Text="Select" /></Button>
+                        <Button Classes="chip" Classes.selected="{Binding IsAddNodeTool}" Command="{Binding SelectToolCommand}" CommandParameter="AddNode"><TextBlock Text="Add node" /></Button>
+                        <Button Classes="chip" Classes.selected="{Binding IsAddLinkTool}" Command="{Binding SelectToolCommand}" CommandParameter="AddLink" Margin="0,0,6,0"><TextBlock Text="Add link" /></Button>
+                        <Button Command="{Binding DeleteSelectionCommand}" Padding="10,6" ToolTip.Tip="Delete the selected node or link (Del)"><TextBlock Text="Delete" /></Button>
+                        <Button Command="{Binding RecentreLinksCommand}" Padding="10,6" Margin="0,0,10,0" ToolTip.Tip="Straighten every link - put its midpoint back halfway between its nodes">
+                            <TextBlock Text="Recentre links" />
+                        </Button>
+                        <Button Classes="primary" Command="{Binding SaveMapCommand}" Padding="14,6"><TextBlock Text="Save" /></Button>
+                        <Button Command="{Binding CancelEditCommand}" Padding="10,6"><TextBlock Text="Cancel" /></Button>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding ToolHint}" Classes="subtle" Margin="0,6,0,0" IsVisible="{Binding IsEditing}" />
+                </Grid>
+            </Border>
+
+            <maps:CustomMapCanvas Grid.Row="1" Name="MapCanvas" Map="{Binding Map}" Visuals="{Binding Visuals}" IsEditing="{Binding IsEditing}"
+                                  SelectedNodeId="{Binding SelectedNodeId, Mode=OneWay}" SelectedEdgeId="{Binding SelectedEdgeId, Mode=OneWay}"
+                                  RenderVersion="{Binding RenderVersion}" Tiles="{Binding Tiles}" TileTemplate="{Binding TileTemplate}"
+                                  JiggleEnabled="{Binding JigglePhysics}" IsVisible="{Binding HasMap}" />
+
+            <StackPanel Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Spacing="8" IsVisible="{Binding !HasMap}">
+                <fi:SymbolIcon Symbol="Map" FontSize="40" HorizontalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,6" />
+                <TextBlock Text="Custom maps" Classes="heading" HorizontalAlignment="Center" />
+                <TextBlock Classes="subtle" TextWrapping="Wrap" TextAlignment="Center"
+                           Text="Draw your own diagrams of devices and links, like LibreNMS's Custom Maps - with live device status and link traffic. Pick a map on the left, create one with +, or import a .map file." />
+            </StackPanel>
+        </Grid>
+
+        <!-- ======================== Properties (editing) ======================== -->
+        <Border Grid.Column="2" Width="320" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0"
+                IsVisible="{Binding HasEditor}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ContentControl Content="{Binding Editor}" Margin="18,14,18,18" Focusable="False" />
+            </ScrollViewer>
+        </Border>
+
+        <!-- ======================== Details (viewing) ======================== -->
+        <Border Grid.Column="2" Width="280" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0" Padding="18,14"
+                IsVisible="{Binding HasViewSelection}">
+            <StackPanel>
+                <TextBlock Text="{Binding ViewSelectionName}" Classes="heading" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ViewSelectionState}" Classes="subtle" Margin="0,4,0,0" />
+                <Button Command="{Binding OpenSelectedCommand}" ToolTip.Tip="Open the device, or the map this node links to" HorizontalAlignment="Left" Padding="12,6" Margin="0,12,0,0">
+                    <TextBlock Text="Open" />
+                </Button>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
