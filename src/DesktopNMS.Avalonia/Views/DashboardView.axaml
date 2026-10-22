@@ -1133,7 +1133,7 @@
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" IsVisible="{Binding IsBusy}">
                         <!-- The logo's heartbeat while it refreshes (#228). -->
                         <views:HeartbeatLogo Width="14" Height="14" IsBeating="{Binding IsBusy}" VerticalAlignment="Center" />
-                        <TextBlock Text="Refreshing" Classes="subtle" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding RefreshText}" Classes="subtle" VerticalAlignment="Center" />
                     </StackPanel>
                     <TextBlock Text="{Binding StatusMessage}" Classes="subtle" />
                 </StackPanel>

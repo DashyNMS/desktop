@@ -186,6 +186,8 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         ? "never"
         : _lastUpdated.Value.LocalDateTime.ToString("HH:mm:ss");
 
+    public string RefreshText => _hasLoadedOnce ? "Updating…" : "Loading…";
+
     // --------------------------------------------------------------- lifetime
 
     /// <summary>
@@ -216,7 +218,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
 
     private void OnPolled(object? sender, SensorPollResult result) => _dispatcher.InvokeAsync(() => ApplyPollResult(result));
 
-    private void ApplyPollResult(SensorPollResult result)
+    internal void ApplyPollResult(SensorPollResult result)
     {
         IsBusy = false;
         OnPropertyChanged(nameof(NextRefreshText));
@@ -225,8 +227,10 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         {
             // A refusal here isn't something more permissions fix - LibreNMS
             // wants a role (#294), so say which.
-            ErrorMessage = result.IsPermissionDenied ? ApiPermissions.SensorsNeedUserRole : result.ErrorMessage;
+            ErrorMessage = result.IsPermissionDenied ? ApiPermissions.SensorsNeedUserRole : SensorRefreshStatus.Failure(result, _lastUpdated);
             StatusMessage = "Last refresh failed.";
+            foreach (var category in new[] { Dbm, Signal, Temperature, FanSpeed })
+                category.LoadState.CompleteLoad(category.TotalCount, category.VisibleCount);
             return;
         }
 
@@ -248,6 +252,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
 
         _hasLoadedOnce = true;
         _lastUpdated = result.CompletedAt;
+        OnPropertyChanged(nameof(RefreshText));
 
         StatusMessage = $"{Dbm.TotalCount} dBm, {Signal.TotalCount} signal, {Temperature.TotalCount} temperature, {FanSpeed.TotalCount} fan speed.";
         OnPropertyChanged(nameof(LastUpdatedText));
