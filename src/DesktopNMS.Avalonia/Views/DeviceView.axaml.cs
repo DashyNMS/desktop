@@ -30,6 +30,9 @@ public partial class DeviceView : Window
         DeviceDetailSection.Alerts,
         DeviceDetailSection.EventLog,
         DeviceDetailSection.Config,
+        DeviceDetailSection.Routing,
+        DeviceDetailSection.Wireless,
+        DeviceDetailSection.Inventory,
     ];
 
     private DeviceDetailViewModel? _viewModel;

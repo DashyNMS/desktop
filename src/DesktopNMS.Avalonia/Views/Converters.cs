@@ -29,6 +29,15 @@ public static class Converters
         _ => UnknownBrush,
     });
 
+    /// <summary>A routing session's health as its dot: fine, worth a look, down, or shut down on purpose.</summary>
+    public static readonly IValueConverter RoutingHealthToBrush = new FuncValueConverter<RoutingHealth, IBrush>(health => health switch
+    {
+        RoutingHealth.Warning => WarningBrush,
+        RoutingHealth.Critical => CriticalBrush,
+        RoutingHealth.Disabled => UnknownBrush,
+        _ => OkBrush,
+    });
+
     /// <summary>A device's state as a status dot's colour.</summary>
     public static readonly IValueConverter DeviceStateToBrush = new FuncValueConverter<DeviceState?, IBrush>(state => state switch
     {
@@ -49,6 +58,9 @@ public static class Converters
         AlertState.Acknowledged => 0.72,
         _ => 1.0,
     });
+
+    /// <summary>A tree row's depth as its indent, 18 px a level.</summary>
+    public static readonly IValueConverter DepthToIndent = new FuncValueConverter<int, Thickness>(depth => new Thickness(depth * 18, 0, 0, 0));
 
     /// <summary>Fades a row while a change to it is on its way.</summary>
     public static readonly IValueConverter FadeWhenBusy = new FuncValueConverter<bool, double>(busy => busy ? 0.45 : 1.0);

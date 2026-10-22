@@ -479,6 +479,10 @@
                     <dd:ResourcesSection IsVisible="{Binding IsResourcesSelected}" />
                     <dd:AlertsLogSections />
                     <dd:UnimusSection IsVisible="{Binding IsConfigSelected}" />
+                    <!-- These take their own view model, so the selection is bound on a wrapper. -->
+                    <Panel IsVisible="{Binding IsRoutingSelected}"><dd:RoutingView DataContext="{Binding Routing}" Margin="24" /></Panel>
+                    <Panel IsVisible="{Binding IsWirelessSelected}"><dd:WirelessView DataContext="{Binding Wireless}" Margin="24" /></Panel>
+                    <Panel IsVisible="{Binding IsInventorySelected}"><dd:InventoryView DataContext="{Binding Inventory}" Margin="24" /></Panel>
                     <views:EmptyState Name="NotYetSection" Icon="Wrench" Title="Not here yet" Hint="This section is still being ported to the new app." />
 
                 </Panel>
