@@ -84,7 +84,7 @@ jobs:
 
       - name: Publish the bundled network tools
         shell: pwsh
-        run: ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-source
+        run: ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-source -Runtime win-x64
 
       - name: Publish
         # -p:Version= so the built binary's own InformationalVersion carries
