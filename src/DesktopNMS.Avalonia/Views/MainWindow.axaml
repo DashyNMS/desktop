@@ -344,18 +344,18 @@
             <!-- ======================== Content ======================== -->
             <Panel Grid.Column="1">
             <views:DashboardView DataContext="{Binding Dashboard}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsDashboardTabSelected}" />
-            <views:DevicesView DataContext="{Binding DeviceList}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsDevicesTabSelected}" />
-            <views:AlertsView IsVisible="{Binding IsAlertsTabSelected}" />
+            <views:DevicesView Name="DevicesViewControl" DataContext="{Binding DeviceList}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsDevicesTabSelected}" />
+            <views:AlertsView Name="AlertsViewControl" IsVisible="{Binding IsAlertsTabSelected}" />
             <views:RulesView DataContext="{Binding Rules}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsRulesTabSelected}" />
             <views:TemplatesView DataContext="{Binding Templates}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsTemplatesTabSelected}" />
-            <views:GroupsView DataContext="{Binding Groups}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsGroupsTabSelected}" />
-            <views:LocationsView DataContext="{Binding Locations}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsLocationsTabSelected}" />
-            <views:HealthView DataContext="{Binding Health}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsHealthTabSelected}" />
-            <views:NeighboursView DataContext="{Binding Neighbours}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsNeighboursTabSelected}" />
-            <views:LogsView DataContext="{Binding Logs}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsLogsFamilyTabSelected}" />
+            <views:GroupsView Name="GroupsViewControl" DataContext="{Binding Groups}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsGroupsTabSelected}" />
+            <views:LocationsView Name="LocationsViewControl" DataContext="{Binding Locations}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsLocationsTabSelected}" />
+            <views:HealthView Name="HealthViewControl" DataContext="{Binding Health}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsHealthTabSelected}" />
+            <views:NeighboursView Name="NeighboursViewControl" DataContext="{Binding Neighbours}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsNeighboursTabSelected}" />
+            <views:LogsView Name="LogsViewControl" DataContext="{Binding Logs}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsLogsFamilyTabSelected}" />
             <intel:IntelligenceView DataContext="{Binding Intelligence}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsIntelligenceTabSelected}" />
-            <maps:NetworkMapView DataContext="{Binding NetworkMap}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsNetworkMapTabSelected}" />
-            <maps:GeoMapView DataContext="{Binding GeoMap}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsGeoMapTabSelected}" />
+            <maps:NetworkMapView Name="NetworkMapViewControl" DataContext="{Binding NetworkMap}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsNetworkMapTabSelected}" />
+            <maps:GeoMapView Name="GeoMapViewControl" DataContext="{Binding GeoMap}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsGeoMapTabSelected}" />
             <maps:CustomMapsView DataContext="{Binding CustomMaps}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsCustomMapsTabSelected}" />
             <views:NotPortedView Page="{Binding SelectedTab}" IsVisible="{Binding SelectedTab, Converter={x:Static views:Converters.IsNotPorted}}" />
         </Panel>
@@ -364,8 +364,7 @@
         <!-- Launch (#228): while the saved session signs back in, in the theme's own background. -->
         <Panel Grid.Row="1" Background="{DynamicResource BackgroundBrush}" IsVisible="{Binding IsSigningIn}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,40" Spacing="16">
-                <Image Source="/Assets/app.ico" Width="72" Height="72" />
-                <ProgressBar IsIndeterminate="True" Width="160" />
+                <views:HeartbeatLogo Width="96" Height="96" IsBeating="{Binding IsSigningIn}" HorizontalAlignment="Center" />
                 <TextBlock Text="Signing in…" Classes="subtle" HorizontalAlignment="Center"
                            AutomationProperties.LiveSetting="Polite" />
             </StackPanel>

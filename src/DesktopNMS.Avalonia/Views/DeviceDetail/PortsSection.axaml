@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:infra="using:DesktopNMS.Infrastructure"
              xmlns:vm="using:DesktopNMS.ViewModels"
              xmlns:views="using:DesktopNMS.Views"
              xmlns:dd="using:DesktopNMS.Views.DeviceDetail"
@@ -21,7 +22,7 @@
         </Grid>
 
         <Panel Grid.Row="1" Margin="24,0">
-            <DataGrid Name="PortsGrid" ItemsSource="{Binding PortsView}" SelectedItem="{Binding SelectedPort}" IsVisible="{Binding HasVisiblePorts}">
+            <DataGrid infra:GridLayoutMemory.Key="DeviceDetail.Ports" Name="PortsGrid" ItemsSource="{Binding PortsView}" SelectedItem="{Binding SelectedPort}" IsVisible="{Binding HasVisiblePorts}">
                 <DataGrid.Columns>
                     <DataGridTemplateColumn Header="Status" Width="90" SortMemberPath="IsUp">
                         <DataGridTemplateColumn.CellTemplate>

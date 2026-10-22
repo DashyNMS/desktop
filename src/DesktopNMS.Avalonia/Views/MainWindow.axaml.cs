@@ -31,6 +31,10 @@ public partial class MainWindow : Window
 
         TitleBarFit.Attach(this, TitleBarContent, left: 19);
 
+        // Ctrl+F (Cmd+F on a Mac) to the showing tab's search box - tunnelling,
+        // so it's seen before a focused text box treats it as typing.
+        AddHandler(KeyDownEvent, OnFindKeyDown, RoutingStrategies.Tunnel);
+
         // Narrow, a section's sub-pages open in a flyout to its right on hover (#118).
         foreach (var section in new[] { DevicesSection, NeighboursSection, MapsSection, LogsSection, AlertsSection })
         {
@@ -64,6 +68,38 @@ public partial class MainWindow : Window
             {
                 content.AddHandler(Button.ClickEvent, (_, _) => Dispatcher.UIThread.Post(flyout.Hide), RoutingStrategies.Bubble);
             }
+        }
+    }
+
+    private void OnFindKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key != Avalonia.Input.Key.F
+            || (e.KeyModifiers != Avalonia.Input.KeyModifiers.Control && e.KeyModifiers != Avalonia.Input.KeyModifiers.Meta)
+            || _viewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        Action? focus = viewModel switch
+        {
+            { IsDevicesTabSelected: true } => DevicesViewControl.FocusSearch,
+            { IsHealthTabSelected: true } => HealthViewControl.FocusSearch,
+            { IsAlertsTabSelected: true } => AlertsViewControl.FocusSearch,
+            { IsGroupsTabSelected: true } => GroupsViewControl.FocusSearch,
+            { IsLocationsTabSelected: true } => LocationsViewControl.FocusSearch,
+            { IsNeighboursTabSelected: true } => NeighboursViewControl.FocusSearch,
+            { IsNetworkMapTabSelected: true } => NetworkMapViewControl.FocusSearch,
+            { IsGeoMapTabSelected: true } => GeoMapViewControl.FocusSearch,
+            { IsGraylogLogsTabSelected: true } => LogsViewControl.FocusSearch,
+
+            // The Dashboard has no search box yet.
+            _ => null,
+        };
+
+        if (focus is not null)
+        {
+            focus();
+            e.Handled = true;
         }
     }
 

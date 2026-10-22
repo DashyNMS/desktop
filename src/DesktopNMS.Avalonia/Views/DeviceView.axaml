@@ -500,7 +500,11 @@
 
         <!-- ======================== Status bar ======================== -->
         <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,8" MinHeight="34">
-            <TextBlock Text="Refreshing…" Classes="subtle" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" IsVisible="{Binding IsBusy}">
+                        <!-- The logo's heartbeat while it refreshes (#228). -->
+                        <views:HeartbeatLogo Width="14" Height="14" IsBeating="{Binding IsBusy}" VerticalAlignment="Center" />
+                        <TextBlock Text="Refreshing" Classes="subtle" VerticalAlignment="Center" />
+                    </StackPanel>
         </Border>
     </Grid>
 </Window>
