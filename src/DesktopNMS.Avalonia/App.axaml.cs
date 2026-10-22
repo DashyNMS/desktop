@@ -92,6 +92,7 @@ public partial class App : Application
 
         // Buttons for writes the token has been refused turn off (#51).
         PermissionGate.Source = _services.GetRequiredService<ILibreNmsClient>().Permissions;
+        GridLayoutMemory.Settings = _services.GetRequiredService<ISettingsStore>();
 
         // Graylog and Unimus don't depend on the LibreNMS session.
         ConfigureGraylogIfEnabled();

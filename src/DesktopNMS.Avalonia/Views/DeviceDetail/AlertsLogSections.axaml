@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:infra="using:DesktopNMS.Infrastructure"
              xmlns:vm="using:DesktopNMS.ViewModels"
              xmlns:views="using:DesktopNMS.Views"
              x:Class="DesktopNMS.Views.DeviceDetail.AlertsLogSections"
@@ -37,7 +38,7 @@
             <TextBlock Grid.Row="1" Text="{Binding AlertHistory.Count, StringFormat='HISTORY ({0})'}" Classes="section" Margin="0,0,0,6" />
 
             <Panel Grid.Row="2">
-                <DataGrid Name="AlertHistoryGrid" ItemsSource="{Binding AlertHistory}" SelectedItem="{Binding SelectedAlertLogEntry}" IsVisible="{Binding HasAlertHistory}">
+                <DataGrid infra:GridLayoutMemory.Key="DeviceDetail.AlertHistory" Name="AlertHistoryGrid" ItemsSource="{Binding AlertHistory}" SelectedItem="{Binding SelectedAlertLogEntry}" IsVisible="{Binding HasAlertHistory}">
                     <DataGrid.Columns>
                         <DataGridTemplateColumn Header="Severity" Width="100" SortMemberPath="Severity">
                             <DataGridTemplateColumn.CellTemplate>
@@ -96,7 +97,7 @@
             </StackPanel>
 
             <Panel Grid.Row="1">
-                <DataGrid Name="EventLogGrid" ItemsSource="{Binding EventLogView}" SelectedItem="{Binding SelectedEventLogEntry}" IsVisible="{Binding HasVisibleEventLog}">
+                <DataGrid infra:GridLayoutMemory.Key="DeviceDetail.EventLog" Name="EventLogGrid" ItemsSource="{Binding EventLogView}" SelectedItem="{Binding SelectedEventLogEntry}" IsVisible="{Binding HasVisibleEventLog}">
                     <DataGrid.Columns>
                         <DataGridTemplateColumn Header="Type" Width="110" SortMemberPath="TypeText">
                             <DataGridTemplateColumn.CellTemplate>
