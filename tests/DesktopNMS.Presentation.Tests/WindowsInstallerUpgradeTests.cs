@@ -14,7 +14,7 @@ public sealed class WindowsInstallerUpgradeTests
     [InstallerUpgradeFact]
     public void The_installed_app_preserves_the_legacy_profile_and_encrypted_secrets()
     {
-        Assert.True(OperatingSystem.IsWindows());
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Installer upgrade tests require Windows.");
         var profile=AppPaths.DefaultDataDirectory;
         var seed=Environment.GetEnvironmentVariable("DASHYNMS_UPGRADE_PHASE") == "seed";
         var from=Environment.GetEnvironmentVariable("DASHYNMS_UPGRADE_FROM")!;

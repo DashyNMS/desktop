@@ -29,10 +29,10 @@ Push-Location $root
 try {
     dotnet test tests/DesktopNMS.Presentation.Tests -c Release --filter FullyQualifiedName~WindowsInstallerUpgradeTests
     if($LASTEXITCODE -ne 0) { throw 'Could not seed the legacy profile.' }
-    $profile=Join-Path $env:APPDATA 'DashyNMS'
-    $hashes=@{}; Get-ChildItem $profile -File | ForEach-Object { $hashes[$_.FullName]=(Get-FileHash $_.FullName).Hash }
+    $legacyProfile=Join-Path $env:APPDATA 'DashyNMS'
+    $hashes=@{}; Get-ChildItem $legacyProfile -File | ForEach-Object { $hashes[$_.FullName]=(Get-FileHash $_.FullName).Hash }
     $runKey='HKCU:/Software/Microsoft/Windows/CurrentVersion/Run'
-    New-Item $runKey -Force | Out-Null
+    if (-not (Test-Path $runKey)) { New-Item $runKey -Force | Out-Null }
     $startup="`"$install\DashyNMS.exe`" --minimised"
     Set-ItemProperty $runKey -Name DashyNMS -Value $startup
     $shortcut=Join-Path ([Environment]::GetFolderPath('Programs')) 'DashyNMS.lnk'
