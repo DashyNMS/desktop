@@ -102,6 +102,13 @@ the MCP server (requires the .NET 10 SDK alongside .NET 9):
 ./tools/Publish-Mcp.ps1 -Source ../mcp
 ```
 
+The tools are published under `artifacts/mcp/<runtime>`. `-Runtime` accepts
+`win-x64`, `osx-x64`, `osx-arm64`, `linux-x64` and `linux-arm64`, defaulting to
+the current host. Publish the same runtime as the app; the app build copies
+only that runtime's executable, licence and revision into `mcp/`. Each output
+folder must be fresh. The **Native network tools** CI workflow runs a real
+stdio handshake, tool discovery and a demo-device query on every target.
+
 Then publish the desktop app:
 
 ```bash

@@ -20,7 +20,7 @@ namespace DesktopNMS.Services.Intelligence;
 
 /// <summary>
 /// Desktop's <see cref="IIntelligenceTools"/>: the DashyNMS MCP server,
-/// bundled beside the app (mcp\dashynms-mcp.exe) and started as a private
+/// bundled beside the app in mcp/ and started as a private
 /// child process over stdio, with no console window. It gets only what it
 /// needs - the signed-in LibreNMS connection, and Unimus and Graylog where
 /// they're set up - through its own environment, never inheriting this
@@ -33,7 +33,7 @@ namespace DesktopNMS.Services.Intelligence;
 /// </remarks>
 public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
 {
-    public const string ExecutableName = "dashynms-mcp.exe";
+    public static string ExecutableName => OperatingSystem.IsWindows() ? "dashynms-mcp.exe" : "dashynms-mcp";
 
     private static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(90);
 
