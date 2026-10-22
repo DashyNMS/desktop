@@ -312,6 +312,39 @@
         <Setter Property="Padding" Value="12,10" />
     </Style>
 
+    <!-- ============================= Inputs ============================== -->
+
+    <!-- Text boxes and dropdowns in the WPF app's shape; their colours are
+         Fluent's resource keys, set to ours in Palette.axaml. -->
+    <Style Selector="TextBox">
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="SelectionForegroundBrush" Value="{DynamicResource AccentForegroundBrush}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ComboBox">
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="ComboBoxItem">
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Margin" Value="4,1" />
+    </Style>
+    <Style Selector="MenuFlyoutPresenter, ContextMenu">
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="ToolTip">
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+
     <!-- ========================= Chips and search ======================== -->
 
     <!-- A pill: the time ranges, a widget's severity toggles. Checked or
