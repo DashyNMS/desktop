@@ -465,6 +465,7 @@ public sealed class AlertNotificationService : IAlertNotificationService
             {
                 "acknowledge" => new ToastActionRequest(ToastAction.Acknowledge, alertId),
                 "install-update" => new ToastActionRequest(ToastAction.InstallUpdate, null),
+                "updates" => new ToastActionRequest(ToastAction.OpenUpdates, null),
                 _ => new ToastActionRequest(ToastAction.Show, alertId),
             };
 

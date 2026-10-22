@@ -21,6 +21,13 @@ public interface IUpdateCheckService
     /// <summary>The version of the running build, e.g. "0.1.0".</summary>
     string CurrentVersion { get; }
 
+    /// <summary>Package-manager installs only announce updates; they do not download installers.</summary>
+    bool DownloadsAutomatically => true;
+    bool IsDownloading => DownloadsAutomatically && ReadyUpdate is null;
+
+    /// <summary>The action appropriate to the running package.</summary>
+    string UpdateActionText => "Restart to update";
+
     /// <summary>
     /// Fetches the latest release and compares it to <see cref="CurrentVersion"/>.
     /// Never throws. When <paramref name="notifyIfNewer"/> is true and a newer

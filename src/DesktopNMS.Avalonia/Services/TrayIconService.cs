@@ -91,7 +91,7 @@ public sealed class TrayIconService : IDisposable
 
         _alertsItem = Item("Alerts", _viewModel.AlertsCommand);
         _refreshItem = Item(_viewModel.RefreshText, _viewModel.RefreshCommand);
-        _updateItem = Item("Restart to update", _viewModel.InstallUpdateCommand);
+        _updateItem = Item(_viewModel.UpdateActionText, _viewModel.InstallUpdateCommand);
         _signInOrOutItem = Item(_viewModel.SignInOrOutText, _viewModel.SignInOrOutCommand);
 
         var menu = new NativeMenu
@@ -132,6 +132,7 @@ public sealed class TrayIconService : IDisposable
         _alertsItem.Header = string.IsNullOrEmpty(_viewModel.AlertsCountText) ? "Alerts" : $"Alerts ({_viewModel.AlertsCountText})";
         _refreshItem!.Header = _viewModel.RefreshText;
         _updateItem!.IsVisible = _viewModel.IsUpdateReady;
+        _updateItem.Header = _viewModel.UpdateActionText;
         _signInOrOutItem!.Header = _viewModel.SignInOrOutText;
     }
 

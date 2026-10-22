@@ -51,6 +51,7 @@ public partial class App : Application
     private bool _startDemoOnExit;
     private bool _leaveDemoOnExit;
     private bool _whatsNewScheduled;
+    private IUiTimer? _updateTimer;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -222,6 +223,7 @@ public partial class App : Application
         };
 
         desktop.Exit += (_, _) => OnExit();
+        SetUpUpdates(desktop);
 
         // Restoring the session touches the network, so it must not hold up the window.
         Dispatcher.UIThread.Post(() => _ = RestoreSessionAsync(desktop), DispatcherPriority.Background);
@@ -322,12 +324,19 @@ public partial class App : Application
         if (_mainViewModel is null || _services is null) return;
         try
         {
-            if (!_mainViewModel.IsConnected) { ShowMainOrSignIn(); return; }
+            if (request.Action == ToastAction.OpenUpdates)
+            {
+                _services.GetRequiredService<IWindowService>().ShowMain();
+                _services.GetRequiredService<IWindowService>().ShowSettingsDialog(SettingsSection.About);
+                return;
+            }
             if (request.Action == ToastAction.InstallUpdate)
             {
                 await _mainViewModel.InstallUpdateAsync().ConfigureAwait(true);
                 return;
             }
+
+            if (!_mainViewModel.IsConnected) { ShowMainOrSignIn(); return; }
 
             if (request.Action == ToastAction.Acknowledge && request.Alert is { } acknowledge)
                 await _mainViewModel.AcknowledgeAsync(acknowledge).ConfigureAwait(true);
@@ -456,6 +465,19 @@ public partial class App : Application
         UpdateTrayStatus();
     }
 
+    /// <summary>Check at launch and while monitoring continues in the background.</summary>
+    private void SetUpUpdates(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_services is null || _demo.IsActive) return;
+        var updates = _services.GetRequiredService<IUpdateCheckService>();
+        updates.InstallStarted += (_, _) => Dispatcher.UIThread.Post(() => desktop.Shutdown());
+        updates.OnStartup();
+        _updateTimer = UiThread.CreateTimer(TimeSpan.FromHours(6));
+        _updateTimer.Tick += (_, _) => _ = updates.CheckAsync(notifyIfNewer: true);
+        _updateTimer.Start();
+        _ = updates.CheckAsync(notifyIfNewer: true);
+    }
+
     /// <summary>After an upgrade, wait for a connected, visible window before showing the notes.</summary>
     private void ScheduleWhatsNew()
     {
@@ -504,7 +526,7 @@ public partial class App : Application
             main.NextRefreshText,
             main.Alerts.ToList(),
             main.IsUpdateReady ? main.UpdateReadyText : null,
-            main.CountFrom));
+            main.CountFrom, main.UpdateActionText));
     }
 
     /// <summary>Several properties change together: the tray catches up once, after them.</summary>
@@ -521,6 +543,7 @@ public partial class App : Application
 
     private void OnExit()
     {
+        _updateTimer?.Stop();
         _services?.Dispose();
         _demoServer?.Dispose();
 
@@ -689,7 +712,9 @@ public partial class App : Application
         services.AddSingleton<IAlertNotificationService, NativeAlertNotifications>();
 #endif
         services.AddSingleton<IStartupRegistration, PlatformStartupRegistration>();
-        services.AddSingleton<IUpdateCheckService, NoUpdates>();
+        services.AddSingleton<IUpdateInstallation, PlatformUpdateInstallation>();
+        services.AddSingleton<IUpdateAnnouncements, PlatformUpdateAnnouncements>();
+        services.AddSingleton<IUpdateCheckService, DesktopUpdateService>();
         services.AddSingleton<WindowService>();
         services.AddSingleton<IWindowService>(sp => sp.GetRequiredService<WindowService>());
         services.AddSingleton<ISelfActionTracker, SelfActionTracker>();

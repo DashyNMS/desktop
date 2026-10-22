@@ -14,6 +14,9 @@ public enum ToastAction
 
     /// <summary>"Restart to update" on the update-ready toast.</summary>
     InstallUpdate,
+
+    /// <summary>Open Settings, About for release and installation options.</summary>
+    OpenUpdates,
 }
 
 /// <summary>A toast activation, marshalled onto the UI thread by the app.</summary>

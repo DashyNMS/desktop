@@ -369,6 +369,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>A newer version is downloaded and verified - the main bar's update icon shows.</summary>
     public bool IsUpdateReady => _updates.ReadyUpdate is not null;
+    public string UpdateActionText => _updates.UpdateActionText;
 
     /// <summary>The update icon's tooltip and menu line: "DashyNMS v1.2.0 is ready to install (running 1.1.0)."</summary>
     public string UpdateReadyText => _updates.ReadyUpdate is { } ready
@@ -421,6 +422,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(IsUpdateReady));
         OnPropertyChanged(nameof(UpdateReadyText));
+        OnPropertyChanged(nameof(UpdateActionText));
         InstallUpdateCommand.RaiseCanExecuteChanged();
     });
 

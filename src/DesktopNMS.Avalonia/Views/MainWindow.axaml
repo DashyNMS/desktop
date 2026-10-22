@@ -41,6 +41,16 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="4">
+                    <Button Classes="icon" Width="32" Height="30" WindowDecorationProperties.ElementRole="User"
+                            IsVisible="{Binding IsUpdateReady}" ToolTip.Tip="{Binding UpdateReadyText}" AutomationProperties.Name="Update available">
+                        <fi:SymbolIcon Symbol="ArrowDownload" Foreground="{DynamicResource AccentBrush}" />
+                        <Button.Flyout>
+                            <MenuFlyout>
+                                <MenuItem Header="{Binding UpdateActionText}" Command="{Binding InstallUpdateCommand}" />
+                                <MenuItem Header="What's new" Command="{Binding ViewUpdateNotesCommand}" />
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
                     <!-- Only while the app is going through the backup address (see ServerFailover). -->
                     <Button Classes="icon" Width="32" Height="30" WindowDecorationProperties.ElementRole="User"
                             ToolTip.Tip="{Binding BackupAddressStatusText}"

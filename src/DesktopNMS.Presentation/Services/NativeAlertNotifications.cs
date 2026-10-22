@@ -9,7 +9,7 @@ namespace DesktopNMS.Services;
 
 /// <summary>The platform-independent content and identity of a native notification.</summary>
 public sealed record NativeNotification(string Id, string Title, string Body, string? Alert,
-    bool CanAcknowledge, AlertSeverity Severity, bool Persistent, bool PlaySound, bool IsUpdate);
+    bool CanAcknowledge, AlertSeverity Severity, bool Persistent, bool PlaySound, bool IsUpdate, string? DefaultAction = null);
 
 public interface INativeNotificationBackend : IDisposable
 {

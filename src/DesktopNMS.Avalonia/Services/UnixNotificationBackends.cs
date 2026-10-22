@@ -59,7 +59,9 @@ public sealed class LinuxNotificationBackend(ILogger<LinuxNotificationBackend> l
                 && action is "default" or "acknowledge")
             {
                 AlertKey? alert = AlertKey.TryParse(delivery.Notification.Alert, out var key) ? key : null;
-                ActionRequested?.Invoke(this, new(action == "acknowledge" && delivery.Notification.CanAcknowledge ? ToastAction.Acknowledge : ToastAction.Show, alert));
+                var request = action == "acknowledge" && delivery.Notification.CanAcknowledge ? ToastAction.Acknowledge
+                    : delivery.Notification.DefaultAction switch { "install-update" => ToastAction.InstallUpdate, "updates" => ToastAction.OpenUpdates, _ => ToastAction.Show };
+                ActionRequested?.Invoke(this, new(request, alert));
             }
             await delivery.Process.WaitForExitAsync().ConfigureAwait(false);
             var error = await errors.ConfigureAwait(false);
@@ -140,7 +142,8 @@ public sealed class MacNotificationBackend : INativeNotificationBackend
             var action = data.RootElement.GetProperty("action").GetString();
             var value = data.RootElement.TryGetProperty("alert", out var alert) ? alert.GetString() : null;
             AlertKey? key = AlertKey.TryParse(value, out var parsed) ? parsed : null;
-            ActionRequested?.Invoke(this, new(action == "acknowledge" ? ToastAction.Acknowledge : ToastAction.Show, key));
+            var request = action switch { "acknowledge" => ToastAction.Acknowledge, "install-update" => ToastAction.InstallUpdate, "updates" => ToastAction.OpenUpdates, _ => ToastAction.Show };
+            ActionRequested?.Invoke(this, new(request, key));
         }
         catch (Exception ex) { _logger.LogWarning(ex, "Could not handle a macOS notification action"); }
     }

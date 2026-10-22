@@ -20,7 +20,7 @@ private final class NotificationDelegate: NSObject, UNUserNotificationCenterDele
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse, withCompletionHandler completion: @escaping () -> Void) {
-        let action = response.actionIdentifier == "acknowledge" ? "acknowledge" : "show"
+        let action = response.actionIdentifier == "acknowledge" ? "acknowledge" : response.notification.request.content.userInfo["defaultAction"] as? String ?? "show"
         if response.actionIdentifier != UNNotificationDismissActionIdentifier {
             emit(["action": action, "alert": response.notification.request.content.userInfo["alert"] as? String ?? ""])
         }
@@ -87,7 +87,7 @@ private func deliverNext() {
         let id = value["Id"] as? String ?? "preview"
         content.threadIdentifier = id
         content.categoryIdentifier = value["CanAcknowledge"] as? Bool == true ? "dashynms-alert" : "dashynms-info"
-        content.userInfo = ["alert": value["Alert"] as? String ?? ""]
+        content.userInfo = ["alert": value["Alert"] as? String ?? "", "defaultAction": value["DefaultAction"] as? String ?? "show"]
         if value["PlaySound"] as? Bool == true && value["IsUpdate"] as? Bool != true { content.sound = .default }
         center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { error in
             if let error = error { emit(["error": error.localizedDescription]) }
