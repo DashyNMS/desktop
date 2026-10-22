@@ -47,6 +47,15 @@ public static class Converters
         _ => MaintenanceBrush,
     });
 
+    /// <summary>Intelligence's status words ("ok", "down", "warning") as a dot's colour.</summary>
+    public static readonly IValueConverter StatusToneToBrush = new FuncValueConverter<string?, IBrush>(tone => tone switch
+    {
+        "ok" => OkBrush,
+        "down" => CriticalBrush,
+        "warning" => WarningBrush,
+        _ => UnknownBrush,
+    });
+
     /// <summary>A device's state as a status dot's colour.</summary>
     public static readonly IValueConverter DeviceStateToBrush = new FuncValueConverter<DeviceState?, IBrush>(state => state switch
     {
@@ -59,7 +68,7 @@ public static class Converters
     /// <summary>True for a page not yet ported to this app (#250), which shows the "Not here yet" placeholder.</summary>
     public static readonly IValueConverter IsNotPorted = new FuncValueConverter<MainTab, bool>(tab => tab is not
         (MainTab.Dashboard or MainTab.Devices or MainTab.Groups or MainTab.Locations or MainTab.Alerts or MainTab.Rules or MainTab.Templates
-        or MainTab.LogsEvents or MainTab.LogsAlerts or MainTab.LogsGraylog));
+        or MainTab.LogsEvents or MainTab.LogsAlerts or MainTab.LogsGraylog or MainTab.Intelligence));
 
     /// <summary>An alert faded by its state: recovered most, acknowledged a little, active not at all.</summary>
     public static readonly IValueConverter AlertStateToOpacity = new FuncValueConverter<AlertState, double>(state => state switch

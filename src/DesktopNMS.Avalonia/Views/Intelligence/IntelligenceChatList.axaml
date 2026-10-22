@@ -1,0 +1,65 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:intel="using:DesktopNMS.Views.Intelligence"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.Intelligence.IntelligenceChatList"
+             x:DataType="vm:IntelligenceChatListViewModel">
+
+    <!-- Saved chats for this network and ChatGPT account, grouped by when
+         they were last used (#327) - Pinned, Today, Yesterday… The headings
+         are rows of their own; see the code-behind. -->
+    <UserControl.Styles>
+        <Style Selector="ListBox#Chats ListBoxItem">
+            <Setter Property="Padding" Value="9" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="ListBox#Chats ListBoxItem.heading">
+            <Setter Property="Padding" Value="9,12,0,7" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+        <Style Selector="ListBox#Chats ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+        </Style>
+        <Style Selector="ListBox#Chats ListBoxItem.heading /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+    </UserControl.Styles>
+
+    <ListBox Name="Chats" Margin="12,8,12,0" Background="Transparent" BorderThickness="0"
+             ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved chats">
+        <ListBox.DataTemplates>
+            <DataTemplate DataType="intel:ChatGroupHeading">
+                <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+            </DataTemplate>
+            <DataTemplate DataType="vm:IntelligenceChatItemViewModel">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel IsVisible="{Binding !IsRenaming}">
+                        <DockPanel>
+                            <fi:SymbolIcon DockPanel.Dock="Left" Symbol="Pin" FontSize="11" Foreground="{DynamicResource AccentBrush}" Margin="0,0,5,0"
+                                           VerticalAlignment="Center" IsVisible="{Binding IsPinned}" />
+                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
+                        </DockPanel>
+                        <TextBlock Text="{Binding Preview}" Classes="subtle" FontSize="11" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" MaxLines="1" />
+                        <TextBlock Text="{Binding LastActivity}" Classes="subtle" FontSize="11" Margin="0,4,0,0" ToolTip.Tip="Latest message activity (local time)" />
+                    </StackPanel>
+                    <StackPanel IsVisible="{Binding IsRenaming}">
+                        <TextBox Classes="chatName" Text="{Binding #Chats.((vm:IntelligenceChatListViewModel)DataContext).ChatNameDraft}" MaxLength="80"
+                                 AutomationProperties.Name="Chat name" KeyDown="OnChatNameKeyDown" />
+                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,6,0,0">
+                            <Button Padding="8,4" Command="{Binding #Chats.((vm:IntelligenceChatListViewModel)DataContext).SaveChatNameCommand}"><TextBlock Text="Save" /></Button>
+                            <Button Padding="8,4" Command="{Binding #Chats.((vm:IntelligenceChatListViewModel)DataContext).CancelChatNameCommand}"><TextBlock Text="Cancel" /></Button>
+                        </StackPanel>
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="icon" Width="22" Height="22" Margin="4,0,0,0" VerticalAlignment="Center"
+                            ToolTip.Tip="Delete chat" AutomationProperties.Name="Delete chat"
+                            Command="{Binding #Chats.((vm:IntelligenceChatListViewModel)DataContext).DeleteChatCommand}" CommandParameter="{Binding}">
+                        <fi:SymbolIcon Symbol="Delete" FontSize="12" />
+                    </Button>
+                </Grid>
+            </DataTemplate>
+        </ListBox.DataTemplates>
+    </ListBox>
+</UserControl>

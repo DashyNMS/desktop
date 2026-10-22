@@ -1,0 +1,194 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:intel="using:DesktopNMS.Views.Intelligence"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.Intelligence.IntelligenceTranscript"
+             x:DataType="vm:IntelligenceViewModel">
+
+    <!-- The conversation (#327): each question and answer, following the
+         latest as it streams, and suggestions before the first. Answers sit
+         on a navy card with its own palette, the same in both themes. -->
+    <UserControl.Styles>
+        <Style Selector="Border.answer">
+            <Setter Property="Background" Value="#0A1526" />
+            <Setter Property="BorderBrush" Value="#20334B" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="16,14" />
+        </Style>
+        <Style Selector="Border.answer.conversational">
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+        <Style Selector="Border.answer TextBlock.cardSubtle">
+            <Setter Property="Foreground" Value="#AEC5DF" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <!-- The working dot beats while the agent looks things up. -->
+        <Style Selector="Ellipse.working">
+            <Style.Animations>
+                <Animation Duration="0:0:1.1" IterationCount="Infinite">
+                    <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+                    <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.3" /></KeyFrame>
+                    <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <!-- The lookups pill opens and closes on click; the pill is its own look, with no toggle fill behind it. -->
+        <Style Selector="ToggleButton.activity /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ToggleButton.activity:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.activity:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.activity:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.activity:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ToggleButton.activity:pointerover Border.pill">
+            <Setter Property="BorderBrush" Value="#3E5A7A" />
+        </Style>
+        <Style Selector="Button.cardAction">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="#AEC5DF" />
+            <Setter Property="Padding" Value="6,4" />
+        </Style>
+        <Style Selector="Button.cardAction:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#13243A" />
+            <Setter Property="Foreground" Value="#EEF5FF" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <!-- Behind the whole conversation, including while typing and streaming. -->
+        <intel:AmbientGlow />
+
+        <ScrollViewer Name="Transcript" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <!-- One readable column, as chat apps do. -->
+            <ItemsControl ItemsSource="{Binding Messages}" MaxWidth="860" Margin="24,20,24,8">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:IntelligenceMessageViewModel">
+                        <Panel Margin="0,0,0,18">
+                            <!-- You: a compact bubble on the right. -->
+                            <Border HorizontalAlignment="Right" MaxWidth="560" Padding="12,8" CornerRadius="12"
+                                    Background="{DynamicResource SurfaceAltBrush}" IsVisible="{Binding IsUser}">
+                                <SelectableTextBlock Text="{Binding Text}" FontSize="14" TextWrapping="Wrap" />
+                            </Border>
+
+                            <!-- Intelligence: what it looked up, then the answer as formatted text. -->
+                            <Border Classes="answer" Classes.conversational="{Binding IsConversational}" IsVisible="{Binding IsAssistant}">
+                                <StackPanel>
+                                    <!-- The lookups, folded away under a summary pill. -->
+                                    <StackPanel IsVisible="{Binding HasActivity}">
+                                        <ToggleButton Classes="activity" IsChecked="{Binding IsActivityExpanded}" Padding="0"
+                                                      HorizontalAlignment="Left" Margin="0,0,0,14" Cursor="Hand"
+                                                      AutomationProperties.Name="Show or hide executed lookups">
+                                            <Border Classes="pill" Background="#13243A" BorderBrush="#2B405B" BorderThickness="1" CornerRadius="14" Padding="9,5" MaxWidth="700">
+                                                <DockPanel>
+                                                    <Panel DockPanel.Dock="Right" Margin="9,0,0,0" VerticalAlignment="Center">
+                                                        <fi:SymbolIcon Symbol="ChevronDown" FontSize="11" Foreground="#AEC5DF" IsVisible="{Binding !IsActivityExpanded}" />
+                                                        <fi:SymbolIcon Symbol="ChevronUp" FontSize="11" Foreground="#AEC5DF" IsVisible="{Binding IsActivityExpanded}" />
+                                                    </Panel>
+                                                    <Ellipse DockPanel.Dock="Left" Classes="working" Width="9" Height="9" Fill="#8CCBFF" VerticalAlignment="Center" Margin="2,0,8,0"
+                                                             IsVisible="{Binding IsWorking}" />
+                                                    <Border DockPanel.Dock="Left" Width="14" Height="14" CornerRadius="7" BorderThickness="1" BorderBrush="#8CCBFF"
+                                                            VerticalAlignment="Center" Margin="0,0,7,0" ToolTip.Tip="{Binding OutcomeLabel}" IsVisible="{Binding !IsWorking}">
+                                                        <TextBlock Text="{Binding CompletionGlyph}" FontSize="9" Foreground="#8CCBFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Border>
+                                                    <TextBlock Text="{Binding ActivityText}" Classes="cardSubtle" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                </DockPanel>
+                                            </Border>
+                                        </ToggleButton>
+                                        <StackPanel Margin="12,0,0,14" IsVisible="{Binding IsActivityExpanded}">
+                                            <ItemsControl ItemsSource="{Binding ToolObservations}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:IntelligenceToolObservationViewModel">
+                                                        <Border BorderBrush="#34516E" BorderThickness="1,0,0,0" Padding="10,4" Margin="0,0,0,6">
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" Foreground="#EEF5FF" TextWrapping="Wrap" />
+                                                                <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="#AEC5DF" Margin="0,3,0,0" TextWrapping="Wrap" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBlock Text="Detailed execution records aren't available for this reply." Classes="cardSubtle" TextWrapping="Wrap"
+                                                       IsVisible="{Binding !HasToolObservations}" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <!-- Graphs the answer drew on - LibreNMS's own images; click for full size. -->
+                                    <ItemsControl ItemsSource="{Binding Images}" Margin="0,0,0,10" IsVisible="{Binding HasImages}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="x:Object">
+                                                <Button Classes="graph" BorderBrush="#34516E" BorderThickness="1" Background="White" Padding="6" Margin="0,0,0,8"
+                                                        HorizontalAlignment="Left" Cursor="Hand" ToolTip.Tip="Open full size" AutomationProperties.Name="Open graph full size"
+                                                        Click="OnGraphClick">
+                                                    <Image Source="{Binding Converter={x:Static intel:IntelligenceTranscript.BytesToBitmap}}" MaxHeight="300" Stretch="Uniform" />
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <intel:MarkdownView Markdown="{Binding Text}" ReplyStyle="{Binding ReplyStyle}" InlineReferences="{Binding InlineReferences}"
+                                                        ColourStatusIndicators="{Binding #Transcript.((vm:IntelligenceViewModel)DataContext).ColourStatusIndicators}"
+                                                        LinkActivated="OnSourceLinkActivated" />
+
+                                    <TextBlock Text="{Binding FailureText}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="#AEC5DF"
+                                               AutomationProperties.LiveSetting="Polite" IsVisible="{Binding HasFailureText}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0" IsVisible="{Binding CanRecoverQuestion}">
+                                        <Button Padding="12,5" ToolTip.Tip="Ask this question again using the current chat settings"
+                                                Command="{Binding #Transcript.((vm:IntelligenceViewModel)DataContext).RetryQuestionCommand}" CommandParameter="{Binding}">
+                                            <TextBlock Text="Retry" />
+                                        </Button>
+                                        <Button Padding="12,5" Command="{Binding #Transcript.((vm:IntelligenceViewModel)DataContext).EditQuestionCommand}" CommandParameter="{Binding}">
+                                            <TextBlock Text="Edit question" />
+                                        </Button>
+                                    </StackPanel>
+
+                                    <DockPanel Margin="0,14,0,0">
+                                        <Button DockPanel.Dock="Right" Classes="cardAction" IsEnabled="{Binding CanCopyAnswer}" Click="OnCopyAnswerClick"
+                                                ToolTip.Tip="Copy answer as Markdown, including resolved object names and statuses"
+                                                AutomationProperties.Name="Copy answer as Markdown">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <fi:SymbolIcon Symbol="Copy" FontSize="13" />
+                                                <TextBlock Text="{Binding CopyAnswerLabel}" FontSize="12" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding TimeLabel}" ToolTip.Tip="{Binding TimeTooltip}" Classes="cardSubtle" />
+                                            <TextBlock Text="{Binding OutcomeLabel}" Classes="cardSubtle" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+                        </Panel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <Button Name="JumpToLatestButton" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,12" Padding="14,7"
+                IsVisible="False" Click="OnJumpToLatestClick">
+            <TextBlock Text="Jump to latest" />
+        </Button>
+
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" IsVisible="{Binding ShowSuggestions}">
+            <TextBlock Text="Ask about your network" Classes="heading" HorizontalAlignment="Center" Margin="0,0,0,14" />
+            <ItemsControl ItemsSource="{Binding Suggestions}" MaxWidth="640">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel HorizontalAlignment="Center" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <Button Classes="chip" Margin="4" Command="{Binding #Transcript.((vm:IntelligenceViewModel)DataContext).AskSuggestionCommand}" CommandParameter="{Binding}">
+                            <TextBlock Text="{Binding}" />
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Panel>
+</UserControl>

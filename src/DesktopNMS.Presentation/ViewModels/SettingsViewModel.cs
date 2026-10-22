@@ -181,6 +181,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         CheckForUpdatesCommand = new AsyncRelayCommand(() => CheckForUpdatesAsync(notifyIfNewer: false));
         InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => IsUpdateReady && !_isInstallingUpdate);
         _updates.ReadyUpdateChanged += OnReadyUpdateChanged;
+        Intelligence.Models.CollectionChanged += OnIntelligenceModelsChanged;
         ViewLatestReleaseCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri(_latestRelease!.HtmlUrl!)),
             () => _latestRelease?.HtmlUrl is not null);
@@ -1455,8 +1456,20 @@ public sealed partial class SettingsViewModel : ObservableObject
         InstallUpdateCommand.RaiseCanExecuteChanged();
     }
 
-    /// <summary>The dialog has closed - stop listening for the update download.</summary>
-    public void Detach() => _updates.ReadyUpdateChanged -= OnReadyUpdateChanged;
+    /// <summary>The dialog has closed - stop listening for the update download and the model list.</summary>
+    public void Detach()
+    {
+        _updates.ReadyUpdateChanged -= OnReadyUpdateChanged;
+        Intelligence.Models.CollectionChanged -= OnIntelligenceModelsChanged;
+    }
+
+    /// <summary>
+    /// The account's models arrive (or are refreshed) after Settings opens:
+    /// the default model is offered again, so the dropdown shows the saved
+    /// model - or the first - rather than staying blank.
+    /// </summary>
+    private void OnIntelligenceModelsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) =>
+        OnPropertyChanged(nameof(IntelligenceModel));
 
     /// <summary>0-23, for the quiet-hours pickers.</summary>
     public IReadOnlyList<int> Hours { get; } = Enumerable.Range(0, 24).ToArray();
