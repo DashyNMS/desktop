@@ -484,10 +484,14 @@
                     <Panel IsVisible="{Binding IsWirelessSelected}"><dd:WirelessView DataContext="{Binding Wireless}" Margin="24" /></Panel>
                     <Panel IsVisible="{Binding IsInventorySelected}"><dd:InventoryView DataContext="{Binding Inventory}" Margin="24" /></Panel>
                     <Panel IsVisible="{Binding IsGraylogSelected}"><views:GraylogMessagesView DataContext="{Binding Graylog}" Margin="24" /></Panel>
-                    <views:EmptyState Name="NotYetSection" Icon="Wrench" Title="Not here yet" Hint="This section is still being ported to the new app." />
-
+                    <dd:EditSection IsVisible="{Binding IsEditSelected}" />
                 </Panel>
             </Grid>
         </Grid>
+
+        <!-- ======================== Status bar ======================== -->
+        <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,8" MinHeight="34">
+            <TextBlock Text="Refreshing…" Classes="subtle" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
+        </Border>
     </Grid>
 </Window>

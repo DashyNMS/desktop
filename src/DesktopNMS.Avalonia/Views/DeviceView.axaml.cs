@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -15,27 +14,6 @@ namespace DesktopNMS.Views;
 /// </summary>
 public partial class DeviceView : Window
 {
-    /// <summary>The sections ported so far; any other shows "Not here yet".</summary>
-    private static readonly HashSet<DeviceDetailSection> PortedSections =
-    [
-        DeviceDetailSection.Overview,
-        DeviceDetailSection.Neighbours,
-        DeviceDetailSection.Sensors,
-        DeviceDetailSection.Ports,
-        DeviceDetailSection.Vlans,
-        DeviceDetailSection.Fdb,
-        DeviceDetailSection.Arp,
-        DeviceDetailSection.Graphs,
-        DeviceDetailSection.Resources,
-        DeviceDetailSection.Alerts,
-        DeviceDetailSection.EventLog,
-        DeviceDetailSection.Config,
-        DeviceDetailSection.Routing,
-        DeviceDetailSection.Wireless,
-        DeviceDetailSection.Inventory,
-        DeviceDetailSection.Graylog,
-    ];
-
     private DeviceDetailViewModel? _viewModel;
 
     /// <summary>For the designer.</summary>
@@ -64,27 +42,9 @@ public partial class DeviceView : Window
     /// </summary>
     public void ShowViewModel(DeviceDetailViewModel viewModel)
     {
-        if (_viewModel is not null)
-        {
-            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
-        }
-
         _viewModel = viewModel;
         DataContext = viewModel;
-        viewModel.PropertyChanged += OnViewModelPropertyChanged;
-        UpdateNotYetSection();
     }
-
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(DeviceDetailViewModel.SelectedSection))
-        {
-            UpdateNotYetSection();
-        }
-    }
-
-    private void UpdateNotYetSection() =>
-        NotYetSection.IsVisible = _viewModel is { } viewModel && !PortedSections.Contains(viewModel.SelectedSection);
 
     private void OnNavigationKeyDown(object? sender, KeyEventArgs e)
     {
