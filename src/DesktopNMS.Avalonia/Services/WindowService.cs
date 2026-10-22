@@ -280,6 +280,9 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
 
     public void ShowDeviceDetail(int deviceId)
     {
+        // The main window supplies the taskbar entry, including when a device
+        // is opened from the tray while the main window is hidden.
+        ShowMain();
         if (_openDeviceWindows.TryGetValue(deviceId, out var existing))
         {
             existing.Activate();
@@ -289,7 +292,6 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         var settings = services.GetRequiredService<ISettingsStore>();
         var history = new DeviceBrowseHistory(deviceId);
         var window = new DeviceView(CreateDeviceDetailViewModel(deviceId, history), settings);
-        DeviceWindowTaskbar.Attach(window, _mainWindow);
 
         // Back, forward and the breadcrumbs (#58) move this same window.
         history.NavigateRequested += (_, index) => NavigateDeviceWindow(window, history, history.Entries[index].DeviceId, index);
