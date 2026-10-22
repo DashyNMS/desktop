@@ -10,18 +10,16 @@
     <Grid Margin="18" RowDefinitions="Auto,*,Auto">
         <TextBox Grid.Row="0" Classes="search" PlaceholderText="Search" Text="{Binding SearchText}" Margin="0,0,0,10" />
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding OptionsView}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:FilterOptionViewModel">
-                        <!-- The name as plain text: a string caption would hide its first "_" as a shortcut marker. -->
-                        <CheckBox IsChecked="{Binding IsChecked}" Margin="0,2">
-                            <TextBlock Text="{Binding LabelText}" />
-                        </CheckBox>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+        <ListBox Grid.Row="1" Classes="checkList" ItemsSource="{Binding OptionsView}">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:FilterOptionViewModel">
+                    <!-- The name as plain text: a string caption would hide its first "_" as a shortcut marker. -->
+                    <CheckBox IsChecked="{Binding IsChecked}" Margin="0,2">
+                        <TextBlock Text="{Binding LabelText}" />
+                    </CheckBox>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
 
         <Grid Grid.Row="2" Margin="0,10,0,0" ColumnDefinitions="*,*">
             <Button Content="Select all" Command="{Binding CheckAllCommand}" HorizontalAlignment="Left" Padding="8,4" />
