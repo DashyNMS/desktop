@@ -1,4 +1,4 @@
-﻿<Window xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:DesktopNMS.ViewModels"
         xmlns:models="using:DesktopNMS.Core.Configuration"
@@ -343,7 +343,7 @@
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,40" Spacing="16">
                 <Image Source="/Assets/app.ico" Width="72" Height="72" />
                 <ProgressBar IsIndeterminate="True" Width="160" />
-                <TextBlock Text="Signing inâ€¦" Classes="subtle" HorizontalAlignment="Center"
+                <TextBlock Text="Signing in…" Classes="subtle" HorizontalAlignment="Center"
                            AutomationProperties.LiveSetting="Polite" />
             </StackPanel>
         </Panel>
