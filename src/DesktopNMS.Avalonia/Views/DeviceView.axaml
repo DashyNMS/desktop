@@ -478,6 +478,7 @@
                     <dd:GraphsSection IsVisible="{Binding IsGraphsSelected}" />
                     <dd:ResourcesSection IsVisible="{Binding IsResourcesSelected}" />
                     <dd:AlertsLogSections />
+                    <dd:UnimusSection IsVisible="{Binding IsConfigSelected}" />
                     <views:EmptyState Name="NotYetSection" Icon="Wrench" Title="Not here yet" Hint="This section is still being ported to the new app." />
 
                 </Panel>
