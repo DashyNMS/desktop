@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Publishes DashyNMS/mcp's server as one self-contained Windows exe
-    (no .NET install needed) into artifacts\mcp, where DesktopNMS.csproj
+    (no .NET install needed) into artifacts\mcp, where DesktopNMS.Avalonia.csproj
     picks it up and copies it beside the app as mcp\dashynms-mcp.exe.
     Needs the .NET 10 SDK.
 

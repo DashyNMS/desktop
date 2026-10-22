@@ -92,7 +92,7 @@ jobs:
         # preview build reports the same bare Directory.Build.props version
         # regardless of which preview it is, and the in-app update check can
         # never tell them apart (issue #107).
-        run: dotnet publish src/DesktopNMS/DesktopNMS.csproj -c Release -o publish -p:Version=${{ steps.version.outputs.preview_version }}
+        run: dotnet publish src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish -p:Version=${{ steps.version.outputs.preview_version }}
 
       - name: Verify the bundled network tools
         shell: pwsh

@@ -1,6 +1,6 @@
 # DashyNMS
 
-WPF/.NET 9 desktop client for LibreNMS. `src/DesktopNMS` is the WPF app; `src/DesktopNMS.Presentation` holds the view models and services with no UI framework in them (plain net9.0, shared with the coming Avalonia app, #249). New view-model code goes there unless it needs a WPF type; WPF-only APIs stay in the app behind interfaces. Namespaces are the same in both, so XAML refers to Presentation types with `;assembly=DesktopNMS.Presentation`. The shared code (`DesktopNMS.Core`) lives in
+Avalonia/.NET 9 desktop client for LibreNMS on Windows, macOS and Linux. `src/DesktopNMS.Avalonia` is the app; `src/DesktopNMS.Presentation` holds the view models and services with no UI framework in them (plain net9.0). UI and platform-specific adapters stay in the Avalonia project behind interfaces. The WPF project has been retired. Namespaces remain `DesktopNMS`, and XAML refers to Presentation types with `;assembly=DesktopNMS.Presentation`. The shared code (`DesktopNMS.Core`) lives in
 [DashyNMS/core](https://github.com/DashyNMS/core) and comes in as the `DashyNMS.Core`
 package, pinned to a development build between releases. Make Core changes
 there, and set `DASHYNMS_LOCAL_CORE` to build against a local checkout.

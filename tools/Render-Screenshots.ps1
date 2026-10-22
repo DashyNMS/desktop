@@ -21,24 +21,31 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
-$project = Join-Path $root 'src\DesktopNMS\DesktopNMS.csproj'
+$project = Join-Path $root 'src\DesktopNMS.Avalonia\DesktopNMS.Avalonia.csproj'
+$buildOutput = Join-Path $root 'artifacts/screenshots-app'
 
-dotnet build $project -c $Configuration --nologo -v quiet
+dotnet build $project -c $Configuration -o $buildOutput --nologo -v quiet
 if ($LASTEXITCODE -ne 0) { throw "Build failed." }
 
-$exe = Get-ChildItem (Join-Path $root "src\DesktopNMS\bin\$Configuration") -Recurse -Filter 'DashyNMS.exe' |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1
-if (-not $exe) { throw "DashyNMS.exe not found after the build." }
+$executable = Join-Path $buildOutput $(if ($IsWindows) { 'DashyNMS.exe' } else { 'DashyNMS' })
+if (-not (Test-Path $executable -PathType Leaf)) { throw "DashyNMS executable not found after the build." }
 
 New-Item -ItemType Directory -Force $OutputPath | Out-Null
 $output = (Resolve-Path $OutputPath).Path
 
 Write-Host "Rendering screenshots into $output ..."
-$process = Start-Process $exe.FullName -ArgumentList '--demo', '--screenshots', "`"$output`"" -PassThru
+$start = @{ FilePath = $executable; ArgumentList = @('--demo', '--screenshots', "`"$output`""); PassThru = $true }
+if ($IsWindows) { $start.WindowStyle = 'Hidden' }
+$process = Start-Process @start
 if (-not $process.WaitForExit(300000)) {
     $process.Kill()
     throw "Timed out after 5 minutes."
+}
+if ($process.ExitCode -ne 0) { throw "The screenshot tour failed with exit code $($process.ExitCode)." }
+
+foreach ($name in @('dashboard', 'devices', 'alerts', 'alert-rules', 'health', 'neighbours', 'logs', 'network-map',
+    'device-overview', 'device-ports', 'device-graphs', 'device-graphs-temperature', 'device-graphs-legend', 'device-neighbours')) {
+    if (-not (Test-Path (Join-Path $output "$name.png") -PathType Leaf)) { throw "Screenshot missing: $name.png" }
 }
 
 Get-ChildItem $output -Filter '*.png' | Sort-Object Name | ForEach-Object { Write-Host ("  {0}  {1:N0} KB" -f $_.Name, ($_.Length / 1KB)) }

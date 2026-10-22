@@ -57,7 +57,7 @@ jobs:
         run: ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-source
 
       - name: Publish
-        run: dotnet publish src/DesktopNMS/DesktopNMS.csproj -c Release -o publish
+        run: dotnet publish src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish
 
       - name: Verify the bundled network tools
         shell: pwsh

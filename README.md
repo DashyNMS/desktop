@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Your LibreNMS network, right on your desktop.</strong><br>
-  For Windows 10 and 11.
+  Version 2.0 development targets Windows, macOS and Linux.
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@ No server to hand? Choose **Try the demo** on the sign-in window to look around 
 ## What you can do
 
 **Know when something's wrong**
-A Windows notification when an alert fires or clears, with Acknowledge right on it. Choose which alerts notify you: leave out the noisy rules, or only hear about the ones that matter, on every device or just one. Choose how insistent each severity is, and set quiet hours. The tray icon turns amber or red with the number of open alerts, and a click on it shows the worst of them without opening the app.
+A desktop notification when an alert fires or clears, with Acknowledge right on it. Choose which alerts notify you: leave out the noisy rules, or only hear about the ones that matter, on every device or just one. Choose how insistent each severity is, and set quiet hours. The tray icon turns amber or red with the number of open alerts, and a click on it shows the worst of them without opening the app.
 
 **See what matters first**
 Build your own dashboard from widgets: open alerts, device status, sensor readings, graphs, the event log, Graylog messages, pinned and recently viewed devices. Drag and resize them however you like, or start from a ready-made one.
@@ -54,8 +54,8 @@ Network and geographical maps, maps of your own, and a view of each device's nei
 **More when you need it**
 Connect Graylog to search its messages under Logs and alongside each device, and Unimus to see each device's configuration backups. If your server has a backup address, DashyNMS switches to it when the main one stops answering.
 
-**Made for Windows**
-Dark or light, with your choice of accent colour. It updates itself when a new version is ready.
+**At home on your desktop**
+Dark or light, with your choice of accent colour. It checks for new versions and offers the update available for your platform.
 
 <table>
   <tr>
@@ -81,6 +81,8 @@ Dark or light, with your choice of accent colour. It updates itself when a new v
 DashyNMS talks to your own LibreNMS server, and to Graylog and Unimus only if you set them up. There's no account to create, no analytics and no tracking. Your API token is encrypted for your Windows account and never leaves your computer except to go to your server. Signing out removes everything DashyNMS has saved. Read the full [privacy notes](PRIVACY.md).
 
 ## Get the app
+
+The current published release is for Windows. Version 2.0 uses Avalonia on Windows, macOS and Linux; cross-platform packages are in development.
 
 Download the installer from the [latest release](https://github.com/DashyNMS/desktop/releases/latest) and run it. It installs just for your Windows account, so you don't need admin rights.
 

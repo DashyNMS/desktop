@@ -17,8 +17,7 @@
 
     <!-- The main window (#250, from the WPF app's MainWindow): the app draws its
          own title bar, the OS keeps its window buttons (and macOS its traffic
-         lights), and the sidebar picks the page. Pages are ported one by one;
-         until then each shows a placeholder. -->
+         lights), and the sidebar picks the page. -->
 
     <Window.KeyBindings>
         <KeyBinding Gesture="F5" Command="{Binding RefreshCurrentTabCommand}" />
@@ -369,7 +368,6 @@
             <maps:NetworkMapView Name="NetworkMapViewControl" DataContext="{Binding NetworkMap}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsNetworkMapTabSelected}" />
             <maps:GeoMapView Name="GeoMapViewControl" DataContext="{Binding GeoMap}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsGeoMapTabSelected}" />
             <maps:CustomMapsView DataContext="{Binding CustomMaps}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsCustomMapsTabSelected}" />
-            <views:NotPortedView Page="{Binding SelectedTab}" IsVisible="{Binding SelectedTab, Converter={x:Static views:Converters.IsNotPorted}}" />
         </Panel>
         </Grid>
 

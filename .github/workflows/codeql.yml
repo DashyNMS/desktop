@@ -20,8 +20,7 @@ env:
 
 jobs:
   analyze:
-    # WPF/net9.0-windows only builds on Windows, and CodeQL needs a real
-    # build to analyse rather than just checking out the source.
+    # Include the Windows notification adapter in the real build CodeQL analyses.
     runs-on: windows-latest
     steps:
       - name: Checkout
