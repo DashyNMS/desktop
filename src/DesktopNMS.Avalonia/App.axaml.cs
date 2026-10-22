@@ -688,7 +688,7 @@ public partial class App : Application
             : new LinuxNotificationBackend(sp.GetRequiredService<ILogger<LinuxNotificationBackend>>()));
         services.AddSingleton<IAlertNotificationService, NativeAlertNotifications>();
 #endif
-        services.AddSingleton<IStartupRegistration, NoStartupRegistration>();
+        services.AddSingleton<IStartupRegistration, PlatformStartupRegistration>();
         services.AddSingleton<IUpdateCheckService, NoUpdates>();
         services.AddSingleton<WindowService>();
         services.AddSingleton<IWindowService>(sp => sp.GetRequiredService<WindowService>());

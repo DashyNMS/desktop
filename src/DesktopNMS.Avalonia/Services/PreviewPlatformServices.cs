@@ -11,16 +11,6 @@ namespace DesktopNMS.Services;
 // shared view models run unchanged: each does nothing, or says it isn't
 // available, until its own issue lands.
 
-/// <summary>Start at login - #253.</summary>
-public sealed class NoStartupRegistration : IStartupRegistration
-{
-    public bool IsEnabled => false;
-
-    public void SetEnabled(bool enabled)
-    {
-    }
-}
-
 /// <summary>Update checks and installs for each OS - #256.</summary>
 public sealed class NoUpdates : IUpdateCheckService
 {

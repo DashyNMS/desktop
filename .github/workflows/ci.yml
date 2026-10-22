@@ -64,3 +64,6 @@ jobs:
       - name: Compile the macOS notification bridge
         if: runner.os == 'macOS'
         run: swiftc -swift-version 5 -target "$(uname -m)-apple-macos13" -emit-library tools/macos/Notifications.swift -o "$RUNNER_TEMP/libdashynms-notifications.dylib"
+      - name: Compile the macOS login-item helper
+        if: runner.os == 'macOS'
+        run: swiftc tools/macos/LoginItem.swift -o "$RUNNER_TEMP/dashynms-login"
