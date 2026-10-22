@@ -689,7 +689,7 @@
                     <!-- ==================== About ==================== -->
                     <StackPanel IsVisible="{Binding IsAboutSectionSelected}">
                         <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,14">
-                            <views:DashyMark Width="44" Height="44" Margin="0,0,14,0" VerticalAlignment="Center" />
+                            <views:DashyMark Name="AboutLogo" Width="44" Height="44" Margin="0,0,14,0" VerticalAlignment="Center" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="About" Classes="heading" Margin="0,0,0,4" />
                                 <TextBlock Text="{Binding CurrentVersionText}" Classes="subtle" />
@@ -747,5 +747,7 @@
                 <Button Content="Save" Command="{Binding SaveCommand}" Classes="primary" IsDefault="True" />
             </StackPanel>
         </Border>
+
+        <views:SmileAndWaveOverlay Name="SmileAndWave" Grid.Row="0" />
     </Grid>
 </Window>
