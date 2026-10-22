@@ -89,6 +89,9 @@ public partial class App : Application
         settings.Changed += (_, current) => Dispatcher.UIThread.Post(() => ThemeSetup.Apply(this, current));
         WindowTheming.Register(this);
 
+        // Buttons for writes the token has been refused turn off (#51).
+        PermissionGate.Source = _services.GetRequiredService<ILibreNmsClient>().Permissions;
+
         // Graylog and Unimus don't depend on the LibreNMS session.
         ConfigureGraylogIfEnabled();
         _services.GetRequiredService<AvaloniaAppActivity>().Start();

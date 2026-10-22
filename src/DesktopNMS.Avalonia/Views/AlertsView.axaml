@@ -1,0 +1,452 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:models="using:DesktopNMS.Core.Models"
+             xmlns:alerting="using:DesktopNMS.Core.Alerting"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.AlertsView"
+             x:DataType="vm:MainViewModel">
+
+    <!-- The Alerts tab (#250, from the WPF app's AlertsView): severity counts
+         that filter, the alerts in a table - a rule firing on several parts of
+         one device is one row that opens to its faults (#353) - and the selected
+         alert's detail, with acknowledge and return to active, beside it. -->
+    <UserControl.Styles>
+        <!-- An expanded group shows its faults under the row; a row fades while
+             its acknowledge or return to active is on its way. -->
+        <Style Selector="DataGrid#AlertGrid DataGridRow" x:DataType="vm:AlertItemViewModel">
+            <Setter Property="AreDetailsVisible" Value="{Binding IsExpanded}" />
+            <Setter Property="Opacity" Value="{Binding IsUpdating, Converter={x:Static views:Converters.FadeWhenBusy}}" />
+        </Style>
+
+        <!-- A fault's value: the columns the rule tests in the accent. -->
+        <Style Selector="TextBlock.faultValue.trigger">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+    </UserControl.Styles>
+
+    <UserControl.Resources>
+        <!-- One name/value line of a fault. -->
+        <DataTemplate x:Key="FaultField" x:DataType="alerting:AlertFaultField">
+            <Grid Margin="0,2" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding Name}" Classes="subtle" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" />
+                <TextBlock Grid.Column="1" Text="{Binding Value}" FontFamily="{DynamicResource MonoFont}" TextAlignment="Right" VerticalAlignment="Center"
+                           Margin="12,0,0,0" Classes="faultValue" Classes.trigger="{Binding IsTrigger}" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+        <!-- ======================== Counts, filters and search ======================== -->
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,12">
+            <Grid ColumnDefinitions="*,Auto">
+                <WrapPanel VerticalAlignment="Center">
+                    <TextBlock Text="Severity" Classes="subtle" VerticalAlignment="Center" Margin="0,0,10,0" />
+
+                    <!-- Shift-click shows only that severity (see the code-behind). -->
+                    <ToggleButton Classes="countBadge severity" Tag="{x:Static models:AlertSeverity.Critical}" IsChecked="{Binding ShowCritical}"
+                                  ToolTip.Tip="Show/hide critical (shift-click to show only critical)" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource CriticalBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding CriticalCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="critical" Classes="subtle" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="countBadge severity" Tag="{x:Static models:AlertSeverity.Warning}" IsChecked="{Binding ShowWarning}"
+                                  ToolTip.Tip="Show/hide warning (shift-click to show only warning)" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource WarningBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding WarningCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="warning" Classes="subtle" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+
+                    <Rectangle Classes="toolbarSeparator" Height="20" />
+
+                    <!-- Active alerts always show; this adds acknowledged ones. Recovered ones aren't shown here. -->
+                    <ToggleButton Classes="countBadge" IsChecked="{Binding ShowAcknowledged}" ToolTip.Tip="Also show acknowledged (active always shows)">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding AcknowledgedCount}" FontWeight="SemiBold" Margin="8,0,5,0" />
+                            <TextBlock Text="acknowledged" Classes="subtle" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+
+                    <!-- Set by the Rules tab's "alerts raised" badge. -->
+                    <Border Classes="filterChip" Margin="14,0,0,0" IsVisible="{Binding HasRuleFilter}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Rule:" Classes="subtle" VerticalAlignment="Center" Margin="0,0,5,0" />
+                            <TextBlock Text="{Binding FilterRuleName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <Button Classes="icon" Width="22" Height="22" Margin="6,0,0,0" Command="{Binding ClearRuleFilterCommand}" ToolTip.Tip="Show all rules again">
+                                <fi:SymbolIcon Symbol="Dismiss" FontSize="11" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Set by "Filter by this device" or a device's "Show alerts". -->
+                    <Border Classes="filterChip" Margin="8,0,0,0" IsVisible="{Binding HasDeviceFilter}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Device:" Classes="subtle" VerticalAlignment="Center" Margin="0,0,5,0" />
+                            <TextBlock Text="{Binding FilterDeviceName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <Button Classes="icon" Width="22" Height="22" Margin="6,0,0,0" Command="{Binding ClearDeviceFilterCommand}" ToolTip.Tip="Show all devices again">
+                                <fi:SymbolIcon Symbol="Dismiss" FontSize="11" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </WrapPanel>
+
+                <!-- Search, the group filter, a ✕ once something filters, then export. -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox Name="SearchBox" Width="240" Classes="search" PlaceholderText="Search alerts"
+                             Text="{Binding SearchText, Delay=200}" ToolTip.Tip="Filter by host, rule, note or alert id" Margin="0,0,8,0" />
+
+                    <!-- Device group filter (#162); the dot is the only sign a group is hidden. -->
+                    <Panel Margin="0,0,4,0">
+                        <Button Classes="icon" Command="{Binding ShowAlertFiltersCommand}" ToolTip.Tip="Filter by device group">
+                            <fi:SymbolIcon Symbol="Filter" />
+                        </Button>
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                 Margin="0,4,4,0" IsHitTestVisible="False" IsVisible="{Binding IsGroupFilterActive}" />
+                    </Panel>
+
+                    <Button Classes="icon" Command="{Binding ClearFiltersCommand}" ToolTip.Tip="Clear search and filters" IsVisible="{Binding HasActiveFilters}">
+                        <fi:SymbolIcon Symbol="Dismiss" />
+                    </Button>
+
+                    <Rectangle Classes="toolbarSeparator" Margin="14,4" />
+
+                    <Button Classes="icon" ToolTip.Tip="Export the alerts shown">
+                        <fi:SymbolIcon Symbol="Share" />
+                        <Button.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                <MenuItem Header="Copy as CSV" Command="{Binding CopyAlertsCsvCommand}" />
+                                <MenuItem Header="Save as CSV…" Command="{Binding ExportAlertsCsvCommand}" />
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1" Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="0,0,0,1" Padding="18,10" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Content ======================== -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="420" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="360" MinWidth="280" />
+            </Grid.ColumnDefinitions>
+
+            <DataGrid Name="AlertGrid" Grid.Column="0"
+                      ItemsSource="{Binding AlertsView}"
+                      SelectedItem="{Binding SelectedAlert}"
+                      SelectionMode="Extended"
+                      RowDetailsVisibilityMode="Collapsed"
+                      IsVisible="{Binding LoadState.HasVisibleItems}">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Severity" Width="120" SortMemberPath="Severity">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:AlertItemViewModel">
+                                <StackPanel Orientation="Horizontal" Margin="10,0" Opacity="{Binding State, Converter={x:Static views:Converters.AlertStateToOpacity}}">
+                                    <Border Width="4" Height="18" CornerRadius="2" Margin="0,0,9,0" Background="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                    <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Device" Width="220" SortMemberPath="DeviceName">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:AlertItemViewModel">
+                                <StackPanel Margin="10,0" VerticalAlignment="Center" Opacity="{Binding State, Converter={x:Static views:Converters.AlertStateToOpacity}}"
+                                            ToolTip.Tip="{Binding AlternateDeviceName}">
+                                    <TextBlock Text="{Binding DeviceName}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding AlternateDeviceName}" Classes="subtle" FontSize="11" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasAlternateDeviceName}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Alert" Width="*" SortMemberPath="RuleName">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:AlertItemViewModel">
+                                <Grid Margin="10,0" ColumnDefinitions="Auto,*,Auto">
+                                    <!-- A rule firing on several parts of one device is one row (#353); this opens its faults. -->
+                                    <Button Classes="icon" Width="22" Height="22" Margin="0,0,6,0" Command="{Binding ToggleExpandedCommand}"
+                                            ToolTip.Tip="Show each fault" IsVisible="{Binding IsGroup}">
+                                        <Panel>
+                                            <fi:SymbolIcon Symbol="ChevronRight" FontSize="12" IsVisible="{Binding !IsExpanded}" />
+                                            <fi:SymbolIcon Symbol="ChevronDown" FontSize="12" IsVisible="{Binding IsExpanded}" />
+                                        </Panel>
+                                    </Button>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Opacity="{Binding State, Converter={x:Static views:Converters.AlertStateToOpacity}}">
+                                        <TextBlock Text="{Binding RuleName}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding RuleName}" />
+                                        <!-- "8 faults · 3 acknowledged" for a group, "CPU 0" for one fault. -->
+                                        <TextBlock Text="{Binding GroupSummary}" Classes="subtle" FontSize="11" IsVisible="{Binding IsGroup}" />
+                                        <TextBlock Text="{Binding EntityName}" Classes="subtle" FontSize="11" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasEntityName}" />
+                                    </StackPanel>
+                                    <!-- Runbook link (#141), as LibreNMS shows for a rule with a procedure URL. -->
+                                    <Button Grid.Column="2" Classes="icon" Width="24" Height="24" Margin="6,0,0,0"
+                                            Command="{Binding $parent[DataGrid].((vm:MainViewModel)DataContext).OpenProcedureCommand}"
+                                            CommandParameter="{Binding}" ToolTip.Tip="{Binding ProcedureUrl}" IsVisible="{Binding HasProcedure}">
+                                        <fi:SymbolIcon Symbol="BookOpen" FontSize="13" />
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="State" Width="130" SortMemberPath="State">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:AlertItemViewModel">
+                                <TextBlock Text="{Binding StateText}" Margin="10,0" Classes="subtle" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Age" Width="90" SortMemberPath="LocalTimestamp">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:AlertItemViewModel">
+                                <TextBlock Text="{Binding AgeText}" Margin="10,0" Classes="subtle" ToolTip.Tip="{Binding TimestampText}" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+
+                <!-- An expanded group's faults (#353): each one's state, and acting on it
+                     alone - which LibreNMS allows only when the rule notifies per entity,
+                     so Core checks before sending. -->
+                <DataGrid.RowDetailsTemplate>
+                    <DataTemplate x:DataType="vm:AlertItemViewModel">
+                        <ItemsControl ItemsSource="{Binding Children}" Margin="44,0,12,8">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:AlertFaultRowViewModel">
+                                    <Grid Margin="0,2" ColumnDefinitions="Auto,*,110,120,Auto">
+                                        <Border Width="3" Height="14" CornerRadius="1.5" Margin="0,0,9,0" Background="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding DisplayName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="2" Text="{Binding StateText}" Classes="subtle" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="3" Text="{Binding TimestampText}" Classes="subtle" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="4" Orientation="Horizontal">
+                                            <Button Classes="icon" Width="24" Height="24"
+                                                    Command="{Binding $parent[DataGrid].((vm:MainViewModel)DataContext).AcknowledgeFaultCommand}" CommandParameter="{Binding}"
+                                                    ToolTip.Tip="Acknowledge only this fault - if LibreNMS would act on the whole group, nothing is sent and you're told why"
+                                                    IsVisible="{Binding !IsAcknowledged}" views:PermissionGate.Requires="AcknowledgeAlerts">
+                                                <fi:SymbolIcon Symbol="Checkmark" FontSize="13" />
+                                            </Button>
+                                            <Button Classes="icon" Width="24" Height="24"
+                                                    Command="{Binding $parent[DataGrid].((vm:MainViewModel)DataContext).UnacknowledgeFaultCommand}" CommandParameter="{Binding}"
+                                                    ToolTip.Tip="Return only this fault to active"
+                                                    IsVisible="{Binding IsAcknowledged}" views:PermissionGate.Requires="AcknowledgeAlerts">
+                                                <fi:SymbolIcon Symbol="ArrowUndo" FontSize="13" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </DataTemplate>
+                </DataGrid.RowDetailsTemplate>
+
+                <DataGrid.ContextMenu>
+                    <!-- The notifications choice depends on the alert, so it's built as the menu opens (#268). -->
+                    <ContextMenu Opening="OnAlertMenuOpening">
+                        <MenuItem Header="Acknowledge" Command="{Binding AcknowledgeCommand}" views:PermissionGate.Requires="AcknowledgeAlerts" />
+                        <MenuItem Header="Return to active" Command="{Binding UnacknowledgeCommand}" views:PermissionGate.Requires="AcknowledgeAlerts" />
+                        <Separator />
+                        <MenuItem Header="Filter by this rule" Command="{Binding FilterBySelectedRuleCommand}" />
+                        <MenuItem Header="Filter by this device" Command="{Binding FilterBySelectedDeviceCommand}" />
+                        <Separator IsVisible="{Binding NotificationChoice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        <MenuItem Header="{Binding NotificationChoice.Header}" Command="{Binding NotificationChoice.Command}"
+                                  IsVisible="{Binding NotificationChoice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        <Separator />
+                        <MenuItem Header="Open device" Command="{Binding OpenDeviceCommand}" FontWeight="SemiBold" />
+                        <MenuItem Header="Open procedure" Command="{Binding OpenProcedureCommand}" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+            </DataGrid>
+
+            <!-- How an acknowledge or return to active went, with Undo after an acknowledgement. -->
+            <Border Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Padding="12,6,8,6" MaxWidth="560"
+                    CornerRadius="10" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                    BoxShadow="0 4 18 0 #73000000" IsVisible="{Binding IsActionToastVisible}">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                    <Panel Margin="0,0,10,0" VerticalAlignment="Center">
+                        <fi:SymbolIcon Symbol="Checkmark" FontSize="15" Foreground="{DynamicResource OkBrush}" IsVisible="{Binding !ActionToastIsError}" />
+                        <fi:SymbolIcon Symbol="ErrorCircle" FontSize="15" Foreground="{DynamicResource CriticalBrush}" IsVisible="{Binding ActionToastIsError}" />
+                    </Panel>
+                    <TextBlock Grid.Column="1" Text="{Binding ActionToastText}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,14,0" />
+                    <Button Grid.Column="2" Content="Undo" Command="{Binding UndoAcknowledgeCommand}" Classes="primary" Padding="12,4" Margin="0,0,4,0" IsVisible="{Binding ActionToastCanUndo}" />
+                    <Button Grid.Column="3" Classes="icon" Width="28" Height="28" ToolTip.Tip="Dismiss" Command="{Binding DismissActionToastCommand}">
+                        <fi:SymbolIcon Symbol="Dismiss" FontSize="12" />
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Loading, empty and no matches (#16). -->
+            <TextBlock Grid.Column="0" Text="Loading alerts…" Classes="widgetState" IsVisible="{Binding LoadState.IsLoading}" />
+            <views:EmptyState Grid.Column="0" Icon="Checkmark" Title="No alerts" Hint="None are visible to this account." IsVisible="{Binding LoadState.IsEmpty}" />
+            <views:EmptyState Grid.Column="0" Icon="Filter" Title="Nothing matches the filters" Hint="Clear the search or filters to see more." IsVisible="{Binding LoadState.IsNoMatches}" />
+
+            <GridSplitter Grid.Column="1" Width="4" ResizeDirection="Columns" Background="{DynamicResource BorderBrush}" />
+
+            <!-- ==================== Detail pane ==================== -->
+            <Border Grid.Column="2" Background="{DynamicResource SurfaceBrush}">
+                <Grid RowDefinitions="*,Auto">
+                    <TextBlock Grid.RowSpan="2" Text="Select an alert to see its detail." Classes="subtle" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               TextWrapping="Wrap" Margin="24" IsVisible="{Binding !HasSelection}" />
+
+                    <!-- Several selected: a summary instead of one alert's detail. -->
+                    <StackPanel Grid.Row="0" Margin="18" IsVisible="{Binding HasMultipleSelection}">
+                        <TextBlock Text="{Binding SelectedCount, StringFormat='{}{0} alerts selected'}" Classes="heading" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding SelectionSummary}" Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0" />
+                        <TextBlock Text="Acknowledge or return them to active together below. Per-alert detail needs a single selection."
+                                   Classes="subtle" TextWrapping="Wrap" Margin="0,14,0,0" />
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" IsVisible="{Binding IsSingleSelection}">
+                        <StackPanel Margin="18" DataContext="{Binding SelectedAlert}" x:DataType="vm:AlertItemViewModel">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <Border Width="4" Height="18" CornerRadius="2" Margin="0,0,9,0" Background="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                <TextBlock Text="{Binding SeverityText}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock Text=" · " Classes="subtle" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding StateText}" Classes="subtle" VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding DeviceName}" Classes="heading" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding AlternateDeviceName}" Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding HasAlternateDeviceName}" />
+                            <TextBlock Text="{Binding RuleName}" TextWrapping="Wrap" Margin="0,6,0,0" />
+
+                            <TextBlock Text="RAISED" Classes="section" />
+                            <TextBlock Text="{Binding TimestampText}" />
+                            <TextBlock Text="{Binding AgeText}" Classes="subtle" />
+
+                            <!-- #270: a one-off or flapping? From the device's alert log, loaded after the detail. -->
+                            <TextBlock Text="BEFORE" Classes="section" />
+                            <TextBlock Text="Checking earlier alerts…" Classes="subtle" IsVisible="{Binding IsLoadingHistory}" />
+                            <StackPanel IsVisible="{Binding !IsLoadingHistory}">
+                                <TextBlock Text="{Binding HistoryText}" TextWrapping="Wrap" />
+                                <Button Classes="link" HorizontalAlignment="Left" Margin="0,2,0,0"
+                                        Command="{Binding $parent[views:AlertsView].((vm:MainViewModel)DataContext).OpenDeviceAlertHistoryCommand}">
+                                    <TextBlock Text="Device alert history" />
+                                </Button>
+                            </StackPanel>
+
+                            <!-- ============ What tripped the rule ============ -->
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="TRIGGERED BY" Classes="section" />
+                                <ToggleButton Grid.Column="1" Classes="chip" Content="All values" VerticalAlignment="Bottom" Margin="0,0,0,4"
+                                              ToolTip.Tip="Show every column of the matched row, not just the ones the rule tests"
+                                              IsChecked="{Binding $parent[views:AlertsView].((vm:MainViewModel)DataContext).ShowAllFaultFields}"
+                                              IsVisible="{Binding HasFaults}" />
+                            </Grid>
+
+                            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,6" IsVisible="{Binding ShowUnknownConditionNote}"
+                                       Text="The rule definition could not be read, so every measured value is shown." />
+                            <TextBlock Text="Loading detail…" Classes="subtle" IsVisible="{Binding IsLoadingDetail}" />
+                            <TextBlock Text="LibreNMS has no fault detail recorded for this alert." Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding ShowNoFaultsMessage}" />
+
+                            <StackPanel IsVisible="{Binding HasDetailError}">
+                                <TextBlock Text="{Binding DetailError}" Classes="subtle" TextWrapping="Wrap" />
+                                <Button Content="Try again" HorizontalAlignment="Left" Padding="10,4" Margin="0,8,0,0"
+                                        Command="{Binding $parent[views:AlertsView].((vm:MainViewModel)DataContext).ReloadDetailCommand}" />
+                            </StackPanel>
+
+                            <ItemsControl ItemsSource="{Binding Faults}" Margin="0,2,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="alerting:AlertFault">
+                                        <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                                CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                <!-- The columns the rule tests. -->
+                                                <ItemsControl ItemsSource="{Binding PrimaryFields}" ItemTemplate="{StaticResource FaultField}" Margin="0,6,0,0" />
+                                                <!-- The rest of the matched row, behind All values. -->
+                                                <ItemsControl ItemsSource="{Binding SecondaryFields}" ItemTemplate="{StaticResource FaultField}" Margin="0,6,0,0">
+                                                    <ItemsControl.IsVisible>
+                                                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                            <Binding Path="HasSecondaryFields" />
+                                                            <Binding Path="$parent[views:AlertsView].((vm:MainViewModel)DataContext).ShowAllFaultFields" />
+                                                        </MultiBinding>
+                                                    </ItemsControl.IsVisible>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="NEW SINCE THE LAST CHECK" Classes="section" IsVisible="{Binding HasAddedFaults}" />
+                            <ItemsControl ItemsSource="{Binding AddedFaults}" IsVisible="{Binding HasAddedFaults}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="alerting:AlertFault">
+                                        <TextBlock Text="{Binding Title}" Classes="subtle" TextWrapping="Wrap" Margin="0,2" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="CLEARED SINCE THE LAST CHECK" Classes="section" IsVisible="{Binding HasResolvedFaults}" />
+                            <ItemsControl ItemsSource="{Binding ResolvedFaults}" IsVisible="{Binding HasResolvedFaults}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="alerting:AlertFault">
+                                        <TextBlock Text="{Binding Title}" Classes="subtle" TextWrapping="Wrap" Margin="0,2" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="NOTE" Classes="section" IsVisible="{Binding HasNote}" />
+                            <TextBlock Text="{Binding Note}" TextWrapping="Wrap" Classes="subtle" IsVisible="{Binding HasNote}" />
+
+                            <TextBlock Text="RULE NOTES" Classes="section" IsVisible="{Binding HasRuleNotes}" />
+                            <TextBlock Text="{Binding RuleNotes}" TextWrapping="Wrap" Classes="subtle" IsVisible="{Binding HasRuleNotes}" />
+
+                            <TextBlock Text="ALERT ID" Classes="section" />
+                            <TextBlock Text="{Binding Id}" Classes="subtle" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Actions, pinned to the foot of the pane. -->
+                    <Border Grid.Row="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,14" IsVisible="{Binding HasSelection}">
+                        <StackPanel>
+                            <TextBox Text="{Binding AcknowledgeNote}" PlaceholderText="Note (optional)" ToolTip.Tip="Optional note recorded against the acknowledgement" Margin="0,0,0,8" />
+                            <UniformGrid Columns="2" Margin="0,0,0,8">
+                                <Button Content="{Binding AcknowledgeButtonLabel}" Command="{Binding AcknowledgeCommand}" Classes="primary" Margin="0,0,4,0"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" views:PermissionGate.Requires="AcknowledgeAlerts" />
+                                <Button Content="{Binding UnacknowledgeButtonLabel}" Command="{Binding UnacknowledgeCommand}" Margin="4,0,0,0"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" views:PermissionGate.Requires="AcknowledgeAlerts" />
+                            </UniformGrid>
+                            <StackPanel IsVisible="{Binding IsSingleSelection}">
+                                <!-- Open device stays in the app (#158). -->
+                                <Button Content="Open device" Command="{Binding OpenDeviceCommand}" ToolTip.Tip="Open this device's details in DashyNMS"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                                <Button Content="Open procedure" Command="{Binding OpenProcedureCommand}" Margin="0,8,0,0"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsVisible="{Binding SelectedAlert.HasProcedure, FallbackValue=False}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ======================== Status bar ======================== -->
+        <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,8">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Refreshing…" Classes="subtle" IsVisible="{Binding IsBusy}" />
+                    <TextBlock Text="{Binding StatusMessage}" Classes="subtle" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14">
+                    <TextBlock Text="{Binding VisibleCount, StringFormat='{}{0} shown'}" Classes="subtle" />
+                    <TextBlock Text="{Binding LastUpdatedText, StringFormat='updated {0}'}" Classes="subtle" />
+                    <TextBlock Text="{Binding NextRefreshText, StringFormat='next in {0}'}" Classes="subtle" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

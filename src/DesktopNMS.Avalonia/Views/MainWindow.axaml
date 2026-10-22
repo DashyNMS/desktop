@@ -334,7 +334,15 @@
             <!-- ======================== Content ======================== -->
             <Panel Grid.Column="1">
             <views:DashboardView DataContext="{Binding Dashboard}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsDashboardTabSelected}" />
-            <views:NotPortedView Page="{Binding SelectedTab}" IsVisible="{Binding !IsDashboardTabSelected}" />
+            <views:AlertsView IsVisible="{Binding IsAlertsTabSelected}" />
+            <views:NotPortedView Page="{Binding SelectedTab}">
+                <views:NotPortedView.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="!IsDashboardTabSelected" />
+                        <Binding Path="!IsAlertsTabSelected" />
+                    </MultiBinding>
+                </views:NotPortedView.IsVisible>
+            </views:NotPortedView>
         </Panel>
         </Grid>
 

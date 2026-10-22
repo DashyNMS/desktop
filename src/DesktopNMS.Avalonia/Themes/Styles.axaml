@@ -368,6 +368,35 @@
         <Setter Property="FontSize" Value="12" />
     </Style>
 
+    <!-- ============================= Tables ============================== -->
+
+    <!-- The WPF app's DataGrid: read-only, full rows, horizontal lines only. -->
+    <Style Selector="DataGrid">
+        <Setter Property="Background" Value="{DynamicResource BackgroundBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="GridLinesVisibility" Value="Horizontal" />
+        <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="HeadersVisibility" Value="Column" />
+        <Setter Property="IsReadOnly" Value="True" />
+        <Setter Property="AutoGenerateColumns" Value="False" />
+        <Setter Property="CanUserResizeColumns" Value="True" />
+        <Setter Property="CanUserReorderColumns" Value="True" />
+        <Setter Property="CanUserSortColumns" Value="True" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="DataGridRow">
+        <Setter Property="MinHeight" Value="34" />
+    </Style>
+    <Style Selector="DataGridColumnHeader">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="MinHeight" Value="32" />
+    </Style>
+    <Style Selector="DataGridCell">
+        <Setter Property="FocusAdorner" Value="{x:Null}" />
+    </Style>
+
     <!-- ========================= Chips and search ======================== -->
 
     <!-- A pill: the time ranges, a widget's severity toggles. Checked or
@@ -405,6 +434,47 @@
         <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+    </Style>
+
+    <!-- A tab's count toggle (Alerts' "18 critical"): a soft tile, faded while off. -->
+    <Style Selector="ToggleButton.countBadge">
+        <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="14,7" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.countBadge:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.countBadge:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.countBadge:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.countBadge:unchecked">
+        <Setter Property="Opacity" Value="0.4" />
+    </Style>
+
+    <!-- A filter in force, shown as a chip with its own ✕: "Rule: Device down". -->
+    <Style Selector="Border.filterChip">
+        <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="10,2,2,2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- The upright line between groups on a toolbar. -->
+    <Style Selector="Rectangle.toolbarSeparator">
+        <Setter Property="Width" Value="1" />
+        <Setter Property="Fill" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="Margin" Value="8,4" />
     </Style>
 
     <!-- A small glyph toggle in a title bar: a widget's search, its "hide quiet ports". -->

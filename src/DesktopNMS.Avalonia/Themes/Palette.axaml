@@ -1,4 +1,4 @@
-﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
@@ -85,6 +85,20 @@
 
             <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="#FF171B23" />
             <SolidColorBrush x:Key="FlyoutBorderThemeBrush" Color="#FF2C3442" />
+
+            <!-- Tables (DataGrid) as in the WPF app: small grey headers, a tint on
+                 hover, a neutral grey for the selected row, lines between rows. -->
+            <SolidColorBrush x:Key="DataGridColumnHeaderBackgroundBrush" Color="#FF171B23" />
+            <SolidColorBrush x:Key="DataGridColumnHeaderForegroundBrush" Color="#FF98A2B3" />
+            <SolidColorBrush x:Key="DataGridColumnHeaderHoveredBackgroundBrush" Color="#FF1E2430" />
+            <SolidColorBrush x:Key="DataGridColumnHeaderPressedBackgroundBrush" Color="#FF262E3C" />
+            <SolidColorBrush x:Key="DataGridRowHoveredBackgroundColor" Color="#FF1E2430" />
+            <SolidColorBrush x:Key="DataGridRowSelectedBackgroundBrush" Color="#FF262E3C" />
+            <SolidColorBrush x:Key="DataGridRowSelectedHoveredBackgroundBrush" Color="#FF262E3C" />
+            <SolidColorBrush x:Key="DataGridRowSelectedUnfocusedBackgroundBrush" Color="#FF262E3C" />
+            <SolidColorBrush x:Key="DataGridRowSelectedHoveredUnfocusedBackgroundBrush" Color="#FF262E3C" />
+            <SolidColorBrush x:Key="DataGridGridLinesBrush" Color="#FF2C3442" />
+            <SolidColorBrush x:Key="DataGridDetailsPresenterBackgroundBrush" Color="#00000000" />
 
             <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUnchecked" Color="#FF98A2B3" />
             <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPointerOver" Color="#FFE6EAF0" />
@@ -173,6 +187,20 @@
             <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FlyoutBorderThemeBrush" Color="#FFD8DDE5" />
 
+            <!-- Tables (DataGrid) as in the WPF app: small grey headers, a tint on
+                 hover, a neutral grey for the selected row, lines between rows. -->
+            <SolidColorBrush x:Key="DataGridColumnHeaderBackgroundBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="DataGridColumnHeaderForegroundBrush" Color="#FF6B7280" />
+            <SolidColorBrush x:Key="DataGridColumnHeaderHoveredBackgroundBrush" Color="#FFEEF1F5" />
+            <SolidColorBrush x:Key="DataGridColumnHeaderPressedBackgroundBrush" Color="#FFE3E7ED" />
+            <SolidColorBrush x:Key="DataGridRowHoveredBackgroundColor" Color="#FFEEF1F5" />
+            <SolidColorBrush x:Key="DataGridRowSelectedBackgroundBrush" Color="#FFE3E7ED" />
+            <SolidColorBrush x:Key="DataGridRowSelectedHoveredBackgroundBrush" Color="#FFE3E7ED" />
+            <SolidColorBrush x:Key="DataGridRowSelectedUnfocusedBackgroundBrush" Color="#FFE3E7ED" />
+            <SolidColorBrush x:Key="DataGridRowSelectedHoveredUnfocusedBackgroundBrush" Color="#FFE3E7ED" />
+            <SolidColorBrush x:Key="DataGridGridLinesBrush" Color="#FFD8DDE5" />
+            <SolidColorBrush x:Key="DataGridDetailsPresenterBackgroundBrush" Color="#00000000" />
+
             <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUnchecked" Color="#FF6B7280" />
             <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPointerOver" Color="#FF1A1F29" />
             <SolidColorBrush x:Key="CheckBoxForegroundUnchecked" Color="#FF1A1F29" />
@@ -211,6 +239,12 @@
     <Color x:Key="SystemAccentColorDark1">#FF326ED1</Color>
     <Color x:Key="SystemAccentColorDark2">#FF295BAC</Color>
     <Color x:Key="SystemAccentColorDark3">#FF214787</Color>
+
+    <!-- A selected row is the solid grey above, not a faint accent. -->
+    <x:Double x:Key="DataGridRowSelectedBackgroundOpacity">1</x:Double>
+    <x:Double x:Key="DataGridRowSelectedHoveredBackgroundOpacity">1</x:Double>
+    <x:Double x:Key="DataGridRowSelectedUnfocusedBackgroundOpacity">1</x:Double>
+    <x:Double x:Key="DataGridRowSelectedHoveredUnfocusedBackgroundOpacity">1</x:Double>
 
     <!-- The brand fonts (#216), from the WPF app's Assets/Fonts. -->
     <FontFamily x:Key="BodyFont">avares://DashyNMS.Avalonia/Assets/Fonts#IBM Plex Sans</FontFamily>
