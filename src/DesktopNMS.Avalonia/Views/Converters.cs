@@ -40,6 +40,9 @@ public static class Converters
     /// <summary>Dims what's true - an acknowledged alert - as on the Alerts tab.</summary>
     public static readonly IValueConverter DimWhen = new FuncValueConverter<bool, double>(dim => dim ? 0.6 : 1.0);
 
+    /// <summary>A sentence as a heading: "No interface errors." as "No interface errors".</summary>
+    public static readonly IValueConverter WithoutFullStop = new FuncValueConverter<string?, string?>(text => text?.TrimEnd().TrimEnd('.'));
+
     /// <summary>True for a count of nothing: an empty list's message.</summary>
     public static readonly IValueConverter IsZero = new FuncValueConverter<int, bool>(count => count == 0);
 

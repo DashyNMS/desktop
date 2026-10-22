@@ -295,8 +295,8 @@
                 </ScrollViewer>
 
                 <TextBlock Text="Loading…" Classes="widgetState" IsVisible="{Binding LoadState.IsLoading}" />
-                <TextBlock Text="No sensors yet. Choose some from ⋯, Set up…" Classes="widgetState" IsVisible="{Binding LoadState.IsEmpty}" />
-                <TextBlock Text="The sensors on this widget weren't found. They may have been removed." Classes="widgetState" IsVisible="{Binding LoadState.IsNoMatches}" />
+                <views:EmptyState Icon="TopSpeed" Title="No sensors yet" Hint="Choose some from ⋯ › Set up…" IsVisible="{Binding LoadState.IsEmpty}" />
+                <views:EmptyState Icon="Warning" Title="Sensors not found" Hint="They may have been removed from LibreNMS." IsVisible="{Binding LoadState.IsNoMatches}" />
             </Panel>
         </DataTemplate>
 
@@ -345,8 +345,8 @@
                 </ScrollViewer>
 
                 <TextBlock Text="Loading…" Classes="widgetState" IsVisible="{Binding LoadState.IsLoading}" />
-                <TextBlock Text="No active alerts." Classes="widgetState" IsVisible="{Binding LoadState.IsEmpty}" />
-                <TextBlock Text="No alerts match the toggles above." Classes="widgetState" IsVisible="{Binding LoadState.IsNoMatches}" />
+                <views:EmptyState Icon="Checkmark" Title="No active alerts" Hint="All clear." IsVisible="{Binding LoadState.IsEmpty}" />
+                <views:EmptyState Icon="Filter" Title="No alerts match" Hint="Turn on a severity above to see them." IsVisible="{Binding LoadState.IsNoMatches}" />
             </Panel>
         </DataTemplate>
 
@@ -482,7 +482,7 @@
                 </UniformGrid>
 
                 <TextBlock Grid.Row="1" Text="Loading…" HorizontalAlignment="Center" Margin="0,12,0,0" Classes="subtle" IsVisible="{Binding LoadState.IsLoading}" />
-                <TextBlock Grid.Row="1" Text="No devices." HorizontalAlignment="Center" Margin="0,12,0,0" Classes="subtle" IsVisible="{Binding LoadState.IsEmpty}" />
+                <views:EmptyState Grid.RowSpan="2" Icon="Server" Title="No devices" IsVisible="{Binding LoadState.IsEmpty}" />
                 <TextBlock Grid.Row="1" Text="{Binding TotalText}" HorizontalAlignment="Center" Margin="0,12,0,0" Classes="subtle" IsVisible="{Binding LoadState.HasVisibleItems}" />
             </Grid>
         </DataTemplate>
@@ -527,7 +527,7 @@
                 </ScrollViewer>
 
                 <TextBlock Grid.Row="1" Text="Loading…" Classes="widgetState" IsVisible="{Binding ShowLoading}" />
-                <TextBlock Grid.Row="1" Text="No devices report wireless data." Classes="widgetState" IsVisible="{Binding ShowEmptyMessage}" />
+                <views:EmptyState Grid.Row="1" Icon="WiFi1" Title="No wireless data" Hint="No device reports wireless controllers." IsVisible="{Binding ShowEmptyMessage}" />
 
                 <!-- Errors at the foot, as on every widget - the last data stays visible. -->
                 <TextBlock Grid.Row="2" Text="{Binding ErrorMessage}" Margin="12,0,12,6" FontSize="11" TextWrapping="Wrap"
@@ -557,7 +557,7 @@
                     </ItemsControl>
                 </ScrollViewer>
 
-                <TextBlock Text="No devices viewed yet. Devices you open appear here." Classes="widgetState" IsVisible="{Binding !HasDevices}" />
+                <views:EmptyState Icon="Clock" Title="Nothing viewed yet" Hint="Devices you open appear here." IsVisible="{Binding !HasDevices}" />
             </Panel>
         </DataTemplate>
 
@@ -615,7 +615,23 @@
                     </ScrollViewer>
 
                     <TextBlock Text="Loading…" Classes="widgetState" IsVisible="{Binding ShowLoading}" />
-                    <TextBlock Text="{Binding EmptyText}" Classes="widgetState" IsVisible="{Binding ShowEmptyMessage}" />
+                    <!-- Errors' empty state has a hint; traffic's doesn't. -->
+                    <views:EmptyState Icon="DataLine" Title="{Binding EmptyText}">
+                        <views:EmptyState.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="ShowEmptyMessage" />
+                                <Binding Path="!OffersHideQuiet" />
+                            </MultiBinding>
+                        </views:EmptyState.IsVisible>
+                    </views:EmptyState>
+                    <views:EmptyState Icon="Checkmark" Title="{Binding EmptyText}" Hint="Every port is clean.">
+                        <views:EmptyState.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="ShowEmptyMessage" />
+                                <Binding Path="OffersHideQuiet" />
+                            </MultiBinding>
+                        </views:EmptyState.IsVisible>
+                    </views:EmptyState>
                 </Panel>
 
                 <StackPanel Grid.Row="1" Margin="12,0,12,6">
@@ -687,7 +703,7 @@
                     </ScrollViewer>
 
                     <TextBlock Text="Loading…" Classes="widgetState" IsVisible="{Binding ShowLoading}" />
-                    <TextBlock Text="{Binding EmptyText}" Classes="widgetState" IsVisible="{Binding ShowEmptyMessage}" />
+                    <views:EmptyState Icon="TextBulletList" Title="{Binding EmptyText}" IsVisible="{Binding ShowEmptyMessage}" />
                 </Panel>
 
                 <TextBlock Grid.Row="2" Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="11" Margin="12,0,12,6"
@@ -751,7 +767,7 @@
                     </ItemsControl>
                 </ScrollViewer>
 
-                <TextBlock Text="No pinned devices yet. Star a device on the Devices tab to pin it." Classes="widgetState" IsVisible="{Binding !HasDevices}" />
+                <views:EmptyState Icon="Star" Title="No pinned devices" Hint="Star a device on the Devices tab to pin it here." IsVisible="{Binding !HasDevices}" />
             </Panel>
         </DataTemplate>
 
@@ -766,7 +782,7 @@
 
                 <TextBlock Text="Loading…" Classes="widgetState" IsVisible="{Binding IsLoading}" />
                 <TextBlock Text="{Binding ErrorMessage}" Classes="widgetState" MaxWidth="240" IsVisible="{Binding HasError}" />
-                <TextBlock Text="No graph yet. Choose a device and graph from ⋯, Set up…" Classes="widgetState" MaxWidth="240" IsVisible="{Binding !IsConfigured}" />
+                <views:EmptyState Icon="DataLine" Title="No graph yet" Hint="Choose a device and graph from ⋯ › Set up…" IsVisible="{Binding !IsConfigured}" />
             </Panel>
         </DataTemplate>
     </UserControl.DataTemplates>
