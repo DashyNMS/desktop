@@ -250,7 +250,7 @@
     <SolidColorBrush x:Key="DataGridCellFocusVisualSecondaryBrush" Color="Transparent" />
 
     <!-- The brand fonts (#216), from the WPF app's Assets/Fonts. -->
-    <FontFamily x:Key="BodyFont">avares://DashyNMS.Avalonia/Assets/Fonts#IBM Plex Sans</FontFamily>
-    <FontFamily x:Key="DisplayFont">avares://DashyNMS.Avalonia/Assets/Fonts#Sora</FontFamily>
-    <FontFamily x:Key="MonoFont">avares://DashyNMS.Avalonia/Assets/Fonts#IBM Plex Mono</FontFamily>
+    <FontFamily x:Key="BodyFont">avares://DashyNMS/Assets/Fonts#IBM Plex Sans</FontFamily>
+    <FontFamily x:Key="DisplayFont">avares://DashyNMS/Assets/Fonts#Sora</FontFamily>
+    <FontFamily x:Key="MonoFont">avares://DashyNMS/Assets/Fonts#IBM Plex Mono</FontFamily>
 </ResourceDictionary>
