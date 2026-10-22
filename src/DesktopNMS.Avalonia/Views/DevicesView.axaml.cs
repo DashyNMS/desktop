@@ -18,6 +18,7 @@ public partial class DevicesView : UserControl
     private DeviceListViewModel? _viewModel;
     private DataGridColumn? _sortColumn;
     private ListSortDirection _sortDirection;
+    private DataGridColumnHeader? _rightClickedHeader;
 
     public DevicesView()
     {
@@ -27,7 +28,15 @@ public partial class DevicesView : UserControl
             _viewModel?.UpdateSelectedDevices(DeviceGrid.SelectedItems.OfType<DeviceItemViewModel>());
         DeviceGrid.DoubleTapped += OnGridDoubleTapped;
         DeviceGrid.Sorting += OnGridSorting;
-        DeviceGrid.ContextRequested += OnGridContextRequested;
+
+        // The rows' menu belongs to the whole grid and takes every right-click,
+        // so a right-press on a header is noted here, and its opening is turned
+        // into the column picker instead.
+        DeviceGrid.AddHandler(PointerPressedEvent, OnGridPointerPressed, RoutingStrategies.Tunnel);
+        if (DeviceGrid.ContextMenu is { } rowMenu)
+        {
+            rowMenu.Opening += OnRowMenuOpening;
+        }
 
         // Tunnelling, so a shift-click on a state count is seen before it toggles.
         AddHandler(PointerPressedEvent, OnPreviewPointerPressed, RoutingStrategies.Tunnel);
@@ -105,18 +114,31 @@ public partial class DevicesView : UserControl
         }
     }
 
+    private void OnGridPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _rightClickedHeader = e.GetCurrentPoint(DeviceGrid).Properties.IsRightButtonPressed
+            ? (e.Source as Visual)?.FindAncestorOfType<DataGridColumnHeader>(includeSelf: true)
+            : null;
+    }
+
     /// <summary>
     /// Right-clicking a column header picks the columns shown (#40); anywhere
     /// else in the grid gets the rows' own menu as usual.
     /// </summary>
-    private void OnGridContextRequested(object? sender, ContextRequestedEventArgs e)
+    private void OnRowMenuOpening(object? sender, CancelEventArgs e)
     {
-        if ((e.Source as Visual)?.FindAncestorOfType<DataGridColumnHeader>(includeSelf: true) is not { } header)
+        if (_rightClickedHeader is not { } header)
         {
             return;
         }
 
-        e.Handled = true;
+        _rightClickedHeader = null;
+        e.Cancel = true;
+        ShowColumnsMenu(header);
+    }
+
+    private void ShowColumnsMenu(Control header)
+    {
         var menu = new ContextMenu();
         var items = new List<MenuItem>();
 
