@@ -348,6 +348,7 @@
             <views:TemplatesView DataContext="{Binding Templates}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsTemplatesTabSelected}" />
             <views:GroupsView DataContext="{Binding Groups}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsGroupsTabSelected}" />
             <views:LocationsView DataContext="{Binding Locations}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsLocationsTabSelected}" />
+            <views:LogsView DataContext="{Binding Logs}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsLogsFamilyTabSelected}" />
             <views:NotPortedView Page="{Binding SelectedTab}" IsVisible="{Binding SelectedTab, Converter={x:Static views:Converters.IsNotPorted}}" />
         </Panel>
         </Grid>
