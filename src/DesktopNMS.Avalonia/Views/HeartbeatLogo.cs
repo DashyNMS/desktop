@@ -102,10 +102,12 @@ public sealed class HeartbeatLogo : Control
             return;
         }
 
-        // A parent can hide the logo without its own visibility changing - stop then too.
+        // A parent can hide the logo without its own visibility changing - stop
+        // then too, once this frame's drawn: not during it, which can't ask
+        // for another.
         if (_timer.IsEnabled && !IsEffectivelyVisible)
         {
-            UpdateAnimation();
+            Dispatcher.UIThread.Post(UpdateAnimation);
         }
 
         using var fit = context.PushTransform(Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation((Bounds.Width / 2) - (50 * scale), (Bounds.Height / 2) - (50 * scale)));
