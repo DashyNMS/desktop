@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             x:Class="DesktopNMS.Views.FilterFacetSection"
+             x:DataType="vm:FilterFacet">
+
+    <!-- One filter facet - device group, say - as a searchable list of ticks
+         with their counts (the WPF app's FilterFacetSectionTemplate). Shared by
+         the Alerts and Devices filter dialogs. -->
+    <Grid Margin="18" RowDefinitions="Auto,*,Auto">
+        <TextBox Grid.Row="0" Classes="search" PlaceholderText="Search" Text="{Binding SearchText}" Margin="0,0,0,10" />
+
+        <ListBox Grid.Row="1" Classes="checkList" ItemsSource="{Binding OptionsView}">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:FilterOptionViewModel">
+                    <!-- The name as plain text: a string caption would hide its first "_" as a shortcut marker. -->
+                    <CheckBox IsChecked="{Binding IsChecked}" Margin="0,2">
+                        <TextBlock Text="{Binding LabelText}" />
+                    </CheckBox>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <Grid Grid.Row="2" Margin="0,10,0,0" ColumnDefinitions="*,*">
+            <Button Content="Select all" Command="{Binding CheckAllCommand}" HorizontalAlignment="Left" Padding="8,4" />
+            <Button Grid.Column="1" Content="Select none" Command="{Binding UncheckAllCommand}" HorizontalAlignment="Right" Padding="8,4" />
+        </Grid>
+    </Grid>
+</UserControl>

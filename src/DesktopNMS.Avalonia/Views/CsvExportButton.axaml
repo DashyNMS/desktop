@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.CsvExportButton"
+             x:Name="Root">
+
+    <!-- The share icon on a table's toolbar: Copy as CSV or Save as CSV… for
+         whatever Export the table's view model provides - the Alerts tab's menu. -->
+    <Button Classes="icon" ToolTip.Tip="Export the rows shown" IsEnabled="{Binding #Root.Export, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <fi:SymbolIcon Symbol="Share" />
+        <Button.Flyout>
+            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                <MenuItem Header="Copy as CSV" Command="{Binding #Root.Export.CopyCommand}" />
+                <MenuItem Header="Save as CSV…" Command="{Binding #Root.Export.SaveCommand}" />
+            </MenuFlyout>
+        </Button.Flyout>
+    </Button>
+</UserControl>

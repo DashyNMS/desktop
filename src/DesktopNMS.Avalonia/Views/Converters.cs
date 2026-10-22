@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
@@ -6,6 +6,7 @@ using Avalonia.Media.Immutable;
 using Avalonia.Svg.Skia;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
+using DesktopNMS.ViewModels;
 using FluentIcons.Common;
 
 namespace DesktopNMS.Views;
@@ -36,6 +37,21 @@ public static class Converters
         DeviceState.Maintenance => MaintenanceBrush,
         _ => UnknownBrush,
     });
+
+    /// <summary>True for a page not yet ported to this app (#250), which shows the "Not here yet" placeholder.</summary>
+    public static readonly IValueConverter IsNotPorted = new FuncValueConverter<MainTab, bool>(tab => tab is not
+        (MainTab.Dashboard or MainTab.Alerts or MainTab.Rules or MainTab.Templates));
+
+    /// <summary>An alert faded by its state: recovered most, acknowledged a little, active not at all.</summary>
+    public static readonly IValueConverter AlertStateToOpacity = new FuncValueConverter<AlertState, double>(state => state switch
+    {
+        AlertState.Recovered => 0.45,
+        AlertState.Acknowledged => 0.72,
+        _ => 1.0,
+    });
+
+    /// <summary>Fades a row while a change to it is on its way.</summary>
+    public static readonly IValueConverter FadeWhenBusy = new FuncValueConverter<bool, double>(busy => busy ? 0.45 : 1.0);
 
     /// <summary>Dims what's true - an acknowledged alert - as on the Alerts tab.</summary>
     public static readonly IValueConverter DimWhen = new FuncValueConverter<bool, double>(dim => dim ? 0.6 : 1.0);

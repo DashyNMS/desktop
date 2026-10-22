@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.TemplatesView"
+             x:DataType="vm:TemplatesViewModel">
+
+    <!-- The Templates tab (#250, from the WPF app's TemplatesView): the alert
+         templates and the rules each drives. -->
+    <Grid RowDefinitions="Auto,Auto,*">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,12">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox Name="SearchBox" Width="240" Classes="search" PlaceholderText="Search templates"
+                             Text="{Binding Filtered.SearchText, Delay=200}" ToolTip.Tip="Filter by name or title" Margin="0,0,8,0" />
+                    <Button Classes="icon" Command="{Binding ClearFiltersCommand}" ToolTip.Tip="Clear search"
+                            IsVisible="{Binding Filtered.SearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <fi:SymbolIcon Symbol="Dismiss" />
+                    </Button>
+                </StackPanel>
+
+                <Rectangle Grid.Column="2" Classes="toolbarSeparator" Margin="14,4" />
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <views:CsvExportButton Export="{Binding Csv}" Margin="0,0,8,0" />
+                    <Button Classes="icon" Command="{Binding AddTemplateCommand}" ToolTip.Tip="Add alert template" views:PermissionGate.Requires="ChangeTemplates">
+                        <fi:SymbolIcon Symbol="Add" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="0,0,0,1" Padding="18,10" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <Panel Grid.Row="2">
+            <DataGrid Name="TemplatesGrid" ItemsSource="{Binding Filtered.View}" IsVisible="{Binding LoadState.HasVisibleItems}">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Name" Width="*" SortMemberPath="Name">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:AlertTemplateItemViewModel">
+                                <TextBlock Text="{Binding Name}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Title" Width="*" SortMemberPath="Title">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:AlertTemplateItemViewModel">
+                                <TextBlock Text="{Binding Title}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- The rules this template drives, by name; sorting uses the count. -->
+                    <DataGridTemplateColumn Header="Attached rules" Width="2*" SortMemberPath="RuleCount">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:AlertTemplateItemViewModel">
+                                <TextBlock Text="{Binding AttachedRuleNames}" Margin="10,6" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="" Width="56" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:AlertTemplateItemViewModel">
+                                <Button Classes="icon" Width="28" Height="28" Margin="6,0" Command="{Binding EditCommand}" ToolTip.Tip="Edit this template">
+                                    <fi:SymbolIcon Symbol="Edit" FontSize="14" />
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <views:LoadingOverlay Text="Loading templates…" IsVisible="{Binding LoadState.IsLoading}" />
+            <views:EmptyState Icon="TextBulletList" Title="No alert templates yet" Hint="Use + to create one." IsVisible="{Binding LoadState.IsEmpty}" />
+            <views:EmptyState Icon="Filter" Title="No templates match" Hint="Clear the search to see them all." IsVisible="{Binding LoadState.IsNoMatches}" />
+        </Panel>
+    </Grid>
+</UserControl>
