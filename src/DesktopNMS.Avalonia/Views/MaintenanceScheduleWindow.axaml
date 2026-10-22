@@ -1,0 +1,59 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        x:Class="DesktopNMS.Views.MaintenanceScheduleWindow"
+        x:DataType="vm:MaintenanceScheduleViewModel"
+        Title="{Binding Title}"
+        Width="460" SizeToContent="Height" MinWidth="420"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Put one or more devices into maintenance (#271): when, for how long,
+         and how their alerts behave meanwhile. -->
+    <Grid Margin="24" RowDefinitions="Auto,Auto,Auto">
+        <TextBlock Grid.Row="0" Text="{Binding Title}" Classes="heading" Margin="0,0,0,14" />
+
+        <StackPanel Grid.Row="1">
+            <TextBlock Text="TITLE (OPTIONAL)" Classes="section" Margin="0,0,0,6" />
+            <TextBox Name="TitleBox" Text="{Binding MaintenanceTitle}" PlaceholderText="{Binding TitlePlaceholder}" Margin="0,0,0,14" />
+
+            <TextBlock Text="NOTES (OPTIONAL)" Classes="section" Margin="0,0,0,6" />
+            <TextBox Text="{Binding Notes}" Margin="0,0,0,14" />
+
+            <TextBlock Text="START" Classes="section" Margin="0,0,0,6" />
+            <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,8">
+                <RadioButton Content="Now" GroupName="Start" IsChecked="{Binding StartNow}" VerticalAlignment="Center" />
+                <RadioButton Content="At a scheduled time" GroupName="Start" IsChecked="{Binding IsScheduledForLater}" VerticalAlignment="Center" />
+            </StackPanel>
+            <Grid Margin="0,0,0,14" ColumnDefinitions="*,12,110" IsVisible="{Binding IsScheduledForLater}">
+                <CalendarDatePicker SelectedDate="{Binding ScheduledDate}" HorizontalAlignment="Stretch" />
+                <TextBox Grid.Column="2" Text="{Binding ScheduledTime}" ToolTip.Tip="24-hour, e.g. 09:00 or 17:30" />
+            </Grid>
+
+            <TextBlock Text="DURATION" Classes="section" Margin="0,0,0,6" />
+            <Grid Margin="0,0,0,14" ColumnDefinitions="*,Auto,16,*,Auto">
+                <TextBox Text="{Binding DurationHoursText}" />
+                <TextBlock Grid.Column="1" Text="hours" Classes="subtle" VerticalAlignment="Center" Margin="6,0,0,0" />
+                <TextBox Grid.Column="3" Text="{Binding DurationMinutesText}" />
+                <TextBlock Grid.Column="4" Text="minutes" Classes="subtle" VerticalAlignment="Center" Margin="6,0,0,0" />
+            </Grid>
+
+            <TextBlock Text="ALERT BEHAVIOUR" Classes="section" Margin="0,0,0,6" />
+            <ComboBox ItemsSource="{Binding Behaviors}" SelectedItem="{Binding SelectedBehavior}" HorizontalAlignment="Stretch" Margin="0,0,0,4" />
+            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,10,0,0"
+                       Text="LibreNMS has no route to cancel a maintenance window once scheduled - it can only be ended early from its own web UI." />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2">
+            <Border Classes="errorNotice" Margin="0,14,0,0" IsVisible="{Binding HasError}">
+                <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+            </Border>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
+                <TextBlock Text="Scheduling…" Classes="subtle" VerticalAlignment="Center" Margin="0,0,4,0" IsVisible="{Binding IsBusy}" />
+                <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
+                <Button Content="Schedule" Command="{Binding SaveCommand}" Classes="primary" IsDefault="True" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>

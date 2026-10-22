@@ -1,0 +1,125 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             x:Class="DesktopNMS.Views.DeviceAddOptionsView"
+             x:DataType="vm:DeviceAddOptionsViewModel">
+
+    <!-- How a device is added, apart from its hostname - shared by Add device
+         and Bulk add devices (DeviceAddOptionsViewModel). -->
+    <StackPanel>
+        <TextBlock Text="SNMP" Classes="section" Margin="0,0,0,6" />
+        <Border Classes="navTabTrack" HorizontalAlignment="Left">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton Classes="navTab" GroupName="SnmpOn" Content="Yes" IsChecked="{Binding IsSnmpEnabled}" />
+                <RadioButton Classes="navTab" GroupName="SnmpOn" Content="No (ping only)" IsChecked="{Binding IsPingOnly}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ==================== SNMP ==================== -->
+        <StackPanel IsVisible="{Binding ShowSnmpFields}">
+            <TextBlock Text="VERSION" Classes="section" Margin="0,14,0,6" />
+            <Border Classes="navTabTrack" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton Classes="navTab" GroupName="SnmpVersion" Content="v2c" IsChecked="{Binding IsSnmpV2c}" />
+                    <RadioButton Classes="navTab" GroupName="SnmpVersion" Content="v1" IsChecked="{Binding IsSnmpV1}" />
+                    <RadioButton Classes="navTab" GroupName="SnmpVersion" Content="v3" IsChecked="{Binding IsSnmpV3}" />
+                </StackPanel>
+            </Border>
+
+            <!-- v1 / v2c -->
+            <StackPanel IsVisible="{Binding ShowCommunity}">
+                <TextBlock Text="COMMUNITY" Classes="section" Margin="0,14,0,6" />
+                <TextBox Text="{Binding Community}" />
+            </StackPanel>
+
+            <!-- v3 -->
+            <StackPanel IsVisible="{Binding ShowV3Fields}">
+                <Grid Margin="0,14,0,0" ColumnDefinitions="*,12,*">
+                    <StackPanel>
+                        <TextBlock Text="AUTH LEVEL" Classes="section" Margin="0,0,0,6" />
+                        <ComboBox HorizontalAlignment="Stretch" SelectedValueBinding="{ReflectionBinding Content}" SelectedValue="{Binding AuthLevel}">
+                            <ComboBoxItem Content="noAuthNoPriv" />
+                            <ComboBoxItem Content="authNoPriv" />
+                            <ComboBoxItem Content="authPriv" />
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="AUTH ALGORITHM" Classes="section" Margin="0,0,0,6" />
+                        <ComboBox HorizontalAlignment="Stretch" SelectedValueBinding="{ReflectionBinding Content}" SelectedValue="{Binding AuthAlgo}">
+                            <ComboBoxItem Content="MD5" />
+                            <ComboBoxItem Content="SHA" />
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="AUTH USERNAME" Classes="section" Margin="0,10,0,6" />
+                <TextBox Text="{Binding AuthName}" />
+
+                <TextBlock Text="AUTH PASSWORD" Classes="section" Margin="0,10,0,6" />
+                <TextBox Text="{Binding AuthPass}" PasswordChar="•" />
+
+                <Grid Margin="0,10,0,0" ColumnDefinitions="*,12,*">
+                    <StackPanel>
+                        <TextBlock Text="PRIVACY ALGORITHM" Classes="section" Margin="0,0,0,6" />
+                        <ComboBox HorizontalAlignment="Stretch" SelectedValueBinding="{ReflectionBinding Content}" SelectedValue="{Binding CryptoAlgo}">
+                            <ComboBoxItem Content="AES" />
+                            <ComboBoxItem Content="DES" />
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="PRIVACY PASSWORD" Classes="section" Margin="0,0,0,6" />
+                        <TextBox Text="{Binding CryptoPass}" PasswordChar="•" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+
+            <Grid Margin="0,14,0,0" ColumnDefinitions="*,12,*">
+                <StackPanel>
+                    <TextBlock Text="PORT (OPTIONAL)" Classes="section" Margin="0,0,0,6" />
+                    <TextBox Text="{Binding Port}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="TRANSPORT (OPTIONAL)" Classes="section" Margin="0,0,0,6" />
+                    <ComboBox HorizontalAlignment="Stretch" SelectedValueBinding="{ReflectionBinding Content}" SelectedValue="{Binding Transport}">
+                        <ComboBoxItem Content="" />
+                        <ComboBoxItem Content="udp" />
+                        <ComboBoxItem Content="tcp" />
+                        <ComboBoxItem Content="udp6" />
+                        <ComboBoxItem Content="tcp6" />
+                    </ComboBox>
+                </StackPanel>
+            </Grid>
+
+            <CheckBox Content="Add as ICMP-only if SNMP checks fail" IsChecked="{Binding PingFallback}" Margin="0,14,0,0" />
+        </StackPanel>
+
+        <!-- ==================== Ping only ==================== -->
+        <StackPanel IsVisible="{Binding ShowPingOnlyFields}">
+            <StackPanel IsVisible="{Binding ShowPerDevicePingOnlyFields}">
+                <TextBlock Text="SYSNAME" Classes="section" Margin="0,14,0,6" />
+                <TextBox Text="{Binding SysName}" />
+                <TextBlock Text="HARDWARE" Classes="section" Margin="0,10,0,6" />
+                <TextBox Text="{Binding Hardware}" />
+            </StackPanel>
+
+            <TextBlock Text="OS" Classes="section" Margin="0,14,0,6" />
+            <AutoCompleteBox Text="{Binding Os}" ItemsSource="{Binding KnownOperatingSystems}" FilterMode="Contains" MinimumPrefixLength="0" />
+            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                       Text="Short name, e.g. &quot;ping&quot; (the default) - suggestions are drawn from the OSes already in your fleet, but any short name LibreNMS understands works here." />
+            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0" IsVisible="{Binding IsBulk}"
+                       Text="sysName and hardware describe a single device - set them per device with sysName and hardware columns in a CSV." />
+        </StackPanel>
+
+        <TextBlock Text="LOCATION (OPTIONAL)" Classes="section" Margin="0,14,0,6" />
+        <AutoCompleteBox Text="{Binding Location}" ItemsSource="{Binding KnownLocations}" FilterMode="Contains" MinimumPrefixLength="0" />
+        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                   Text="An existing location, or a new name to create one. Blank uses whatever the device reports." />
+
+        <TextBlock Text="POLLER GROUP" Classes="section" Margin="0,14,0,6" />
+        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding PollerGroups}" SelectedItem="{Binding SelectedPollerGroup}" DisplayMemberBinding="{ReflectionBinding GroupName}" />
+        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                   Text="For a distributed-poller setup. A device left on the wrong poller group never gets polled by whichever poller is actually watching for it." />
+
+        <CheckBox Content="Skip duplicate/reachability checks (force add)" IsChecked="{Binding ForceAdd}" Margin="0,16,0,0" />
+    </StackPanel>
+</UserControl>

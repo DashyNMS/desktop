@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:models="using:DesktopNMS.Core.Models"
+        xmlns:views="using:DesktopNMS.Views"
+        x:Class="DesktopNMS.Views.AddDevicesToGroupWindow"
+        x:DataType="vm:AddDevicesToGroupViewModel"
+        Title="Add to group"
+        Width="400" Height="480"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Add the selected devices to a static device group. -->
+    <Grid Margin="24" RowDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Add to group" Classes="heading" />
+            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,14" Text="{Binding IntroText}" />
+        </StackPanel>
+
+        <Border Grid.Row="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5">
+            <Panel>
+                <ListBox ItemsSource="{Binding StaticGroups}" SelectedItem="{Binding SelectedGroup}" Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:DeviceGroup">
+                            <StackPanel Margin="0,2">
+                                <TextBlock Text="{Binding Name}" />
+                                <TextBlock Text="{Binding Description}" Classes="subtle" FontSize="11" TextWrapping="Wrap"
+                                           IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBlock Text="Loading groups…" Classes="widgetState" IsVisible="{Binding IsLoading}" />
+                <views:EmptyState Icon="Grid" Title="No static device groups yet" Hint="Create one from the Groups tab first." IsVisible="{Binding ShowNoStaticGroupsMessage}" />
+            </Panel>
+        </Border>
+
+        <StackPanel Grid.Row="2">
+            <Border Classes="errorNotice" Margin="0,14,0,0" IsVisible="{Binding HasError}">
+                <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+            </Border>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
+                <TextBlock Text="Adding…" Classes="subtle" VerticalAlignment="Center" Margin="0,0,4,0" IsVisible="{Binding IsBusy}" />
+                <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
+                <Button Content="Add" Command="{Binding SaveCommand}" Classes="primary" IsDefault="True" views:PermissionGate.Requires="EditGroups" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>

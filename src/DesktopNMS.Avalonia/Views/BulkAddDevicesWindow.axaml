@@ -1,0 +1,150 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:views="using:DesktopNMS.Views"
+        x:Class="DesktopNMS.Views.BulkAddDevicesWindow"
+        x:DataType="vm:BulkAddDevicesViewModel"
+        Title="Bulk add devices"
+        Width="1040" Height="760" MinWidth="820" MinHeight="560"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Add many devices at once: settings they share on the left, the devices -
+         pasted or from a CSV - on the right, each with how its add went. -->
+    <Window.Styles>
+        <Style Selector="TextBlock.status.added">
+            <Setter Property="Foreground" Value="{DynamicResource OkBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.status.failed">
+            <Setter Property="Foreground" Value="{DynamicResource CriticalBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.status.invalid">
+            <Setter Property="Foreground" Value="{DynamicResource CriticalBrush}" />
+        </Style>
+        <Style Selector="TextBlock.status.exists">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <Style Selector="TextBlock.status.adding">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="24" RowDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="Bulk add devices" Classes="heading" />
+            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                       Text="List the devices on the right and choose the settings they share on the left. A CSV can also set anything per device - its values win over the shared ones." />
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnDefinitions="340,24,*">
+            <!-- ==================== Shared settings ==================== -->
+            <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="6" Padding="16,14,6,14" IsEnabled="{Binding IsNotRunning}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="SETTINGS FOR EVERY DEVICE" Classes="section" Margin="0,0,0,10" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,10,0">
+                        <views:DeviceAddOptionsView DataContext="{Binding Options}" />
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- ==================== Devices ==================== -->
+            <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*,Auto">
+                <Border Grid.Row="0" Classes="navTabTrack" HorizontalAlignment="Left" Margin="0,0,0,10" IsEnabled="{Binding IsNotRunning}">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton Classes="navTab" GroupName="BulkSource" Content="Paste a list" IsChecked="{Binding IsPasteMode}" />
+                        <RadioButton Classes="navTab" GroupName="BulkSource" Content="Import a CSV" IsChecked="{Binding IsCsvMode}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Paste -->
+                <StackPanel Grid.Row="1" Margin="0,0,0,12" IsVisible="{Binding IsPasteMode}">
+                    <TextBox Name="PasteBox" Text="{Binding PasteText, Delay=300}" IsEnabled="{Binding IsNotRunning}" AcceptsReturn="True"
+                             TextWrapping="NoWrap" FontFamily="{DynamicResource MonoFont}" Height="140" VerticalContentAlignment="Top" />
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="One hostname or IP per line - commas and spaces work too, so a pasted column or list is fine. Lines starting with # are ignored." />
+                </StackPanel>
+
+                <!-- CSV -->
+                <StackPanel Grid.Row="1" Margin="0,0,0,12" IsVisible="{Binding IsCsvMode}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Choose file…" Command="{Binding ImportCsvCommand}" Padding="12,6" />
+                        <Button Content="Save template…" Command="{Binding SaveTemplateCommand}" Padding="12,6" />
+                        <TextBlock Text="{Binding CsvFileName}" VerticalAlignment="Center" FontWeight="SemiBold" Margin="6,0,0,0" IsVisible="{Binding HasCsv}" />
+                        <Button Content="Clear" Command="{Binding ClearCsvCommand}" Padding="10,4" IsVisible="{Binding HasCsv}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding CsvMessage}" TextWrapping="Wrap" Classes="warning" Margin="0,8,0,0" IsVisible="{Binding HasCsvMessage}" />
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,0"
+                               Text="The first row names the columns - LibreNMS's own add device fields: hostname (the only one needed), snmpver, community, authlevel, authname, authpass, authalgo, cryptopass, cryptoalgo, port, transport, poller_group, location, display_template, overwrite_ip, force_add, ping_fallback, snmp_disable, os, sysName, hardware. A blank cell uses the shared setting. The template has an example of each kind of device." />
+                </StackPanel>
+
+                <!-- The list -->
+                <Panel Grid.Row="2">
+                    <DataGrid ItemsSource="{Binding Items}" SelectionMode="Extended" IsVisible="{Binding HasItems}">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="Line" Width="56" SortMemberPath="Line">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:BulkDeviceItemViewModel">
+                                        <TextBlock Text="{Binding Line}" Margin="8,0" VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Hostname or IP" Width="190" SortMemberPath="Hostname">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:BulkDeviceItemViewModel">
+                                        <TextBlock Text="{Binding Hostname}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Settings" Width="160" SortMemberPath="SettingsText">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:BulkDeviceItemViewModel">
+                                        <TextBlock Text="{Binding SettingsText}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Status" Width="110" SortMemberPath="StatusText">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:BulkDeviceItemViewModel">
+                                        <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Margin="8,0" Classes="status"
+                                                   Classes.added="{Binding Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:BulkDeviceStatus.Added}}"
+                                                   Classes.failed="{Binding Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:BulkDeviceStatus.Failed}}"
+                                                   Classes.invalid="{Binding Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:BulkDeviceStatus.Invalid}}"
+                                                   Classes.exists="{Binding Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:BulkDeviceStatus.Exists}}"
+                                                   Classes.adding="{Binding Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:BulkDeviceStatus.Adding}}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Details" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:BulkDeviceItemViewModel">
+                                        <TextBlock Text="{Binding Message}" ToolTip.Tip="{Binding Message}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="8,0" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding !HasItems}">
+                        <TextBlock Text="{Binding SummaryText}" Classes="subtle" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                </Panel>
+
+                <TextBlock Grid.Row="3" Text="{Binding SummaryText}" Classes="subtle" Margin="0,8,0,0" IsVisible="{Binding HasItems}" />
+            </Grid>
+        </Grid>
+
+        <!-- ==================== Actions ==================== -->
+        <Grid Grid.Row="2" Margin="0,18,0,0" ColumnDefinitions="Auto,*,Auto">
+            <Button Content="Copy results" Command="{Binding CopyResultsCommand}" ToolTip.Tip="Copy every device with its status and message, as CSV" Padding="12,6" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <Button Content="Stop" Command="{Binding StopCommand}" ToolTip.Tip="Finish the devices being added now and don't start any more" Padding="12,6" IsVisible="{Binding IsRunning}" />
+                <Button Content="Retry failed" Command="{Binding RetryFailedCommand}" Padding="12,6" />
+                <Button Content="Close" Click="OnClose" IsCancel="True" Padding="12,6" />
+                <Button Content="{Binding AddButtonText}" Command="{Binding AddCommand}" Classes="primary" Padding="14,6" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,0 +1,33 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:views="using:DesktopNMS.Views"
+        x:Class="DesktopNMS.Views.DeviceFiltersWindow"
+        x:DataType="vm:DeviceListViewModel"
+        Title="Filter devices"
+        Width="380" Height="520"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- The Devices tab's filters: a tab per facet. Every tick filters the list
+         as it's clicked, so there's no Apply step. -->
+    <Grid RowDefinitions="*,Auto">
+        <TabControl Grid.Row="0" Margin="10,6,10,0">
+            <TabItem Header="Type">
+                <views:FilterFacetSection DataContext="{Binding TypeFilter}" />
+            </TabItem>
+            <TabItem Header="Location">
+                <views:FilterFacetSection DataContext="{Binding LocationFilter}" />
+            </TabItem>
+            <TabItem Header="Group">
+                <views:FilterFacetSection DataContext="{Binding GroupFilter}" />
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="24,14">
+            <Button Content="Close" IsCancel="True" IsDefault="True" Classes="primary" Padding="20,7" HorizontalAlignment="Right" Click="OnClose" />
+        </Border>
+    </Grid>
+</Window>
