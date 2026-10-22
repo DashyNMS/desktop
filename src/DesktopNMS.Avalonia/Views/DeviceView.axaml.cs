@@ -27,6 +27,8 @@ public partial class DeviceView : Window
         DeviceDetailSection.Arp,
         DeviceDetailSection.Graphs,
         DeviceDetailSection.Resources,
+        DeviceDetailSection.Alerts,
+        DeviceDetailSection.EventLog,
     ];
 
     private DeviceDetailViewModel? _viewModel;

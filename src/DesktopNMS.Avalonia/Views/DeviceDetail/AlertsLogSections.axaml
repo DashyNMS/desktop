@@ -1,0 +1,149 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             x:Class="DesktopNMS.Views.DeviceDetail.AlertsLogSections"
+             x:DataType="vm:DeviceDetailViewModel">
+
+    <!-- Device Details' Alerts and Event log, one showing at a time. -->
+    <Panel>
+        <!-- ==================== Alerts ==================== -->
+        <!-- Active and historical together: what's on fire now, and everything that ever fired. -->
+        <Grid Margin="24" RowDefinitions="Auto,Auto,*" IsVisible="{Binding IsAlertsSelected}">
+            <Border Grid.Row="0" Classes="card" Padding="20" Margin="0,0,0,16">
+                <StackPanel>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding ActiveAlerts.Count, StringFormat='Active ({0})'}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="Show alerts for this device" Command="{Binding ShowAlertsCommand}" Padding="10,5" IsVisible="{Binding HasActiveAlerts}" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding ActiveAlerts}" Margin="0,12,0,0" IsVisible="{Binding HasActiveAlerts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ActiveAlertItemViewModel">
+                                <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,8">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <Ellipse Width="9" Height="9" Margin="0,0,10,0" VerticalAlignment="Center" Fill="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding RuleName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="2" Text="{Binding AgeText}" Classes="subtle" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="Loading active alerts…" Classes="subtle" Margin="0,12,0,0" IsVisible="{Binding IsLoadingActiveAlerts}" />
+                    <TextBlock Text="No active alerts." Classes="subtle" Margin="0,12,0,0" IsVisible="{Binding ShowNoActiveAlertsMessage}" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Grid.Row="1" Text="{Binding AlertHistory.Count, StringFormat='HISTORY ({0})'}" Classes="section" Margin="0,0,0,6" />
+
+            <Panel Grid.Row="2">
+                <DataGrid Name="AlertHistoryGrid" ItemsSource="{Binding AlertHistory}" SelectedItem="{Binding SelectedAlertLogEntry}" IsVisible="{Binding HasAlertHistory}">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="Severity" Width="100" SortMemberPath="Severity">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:AlertLogItemViewModel">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="8,0">
+                                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                        <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Rule" Width="*" SortMemberPath="RuleName">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:AlertLogItemViewModel">
+                                    <StackPanel Margin="8,4" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding RuleName}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding DetailText}" Classes="subtle" FontSize="11" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasDetail}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="State" Width="110" SortMemberPath="StateText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:AlertLogItemViewModel">
+                                    <TextBlock Text="{Binding StateText}" Margin="8,0" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Time" Width="150" SortMemberPath="TimeText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:AlertLogItemViewModel">
+                                    <TextBlock Text="{Binding TimeText}" Margin="8,0" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <views:LoadingOverlay Text="Loading alert history…" IsVisible="{Binding IsLoadingAlertHistory}" />
+                <views:EmptyState Icon="Alert" Title="No alert history" Hint="Nothing has fired on this device." IsVisible="{Binding ShowNoAlertHistoryMessage}" />
+            </Panel>
+        </Grid>
+
+        <!-- ==================== Event log ==================== -->
+        <!-- Scrolling near the end loads the next page; Load more is there for anyone who doesn't. -->
+        <Grid Margin="24" RowDefinitions="Auto,*,Auto" IsVisible="{Binding IsEventLogSelected}">
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+                <TextBox Classes="search" PlaceholderText="Search the event log" Text="{Binding EventLogSearchText, Delay=200}" ToolTip.Tip="Search by message, type or user" Width="320" />
+                <Button Content="Export" Padding="10,7">
+                    <Button.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                            <MenuItem Header="Copy as CSV" Command="{Binding CopyEventLogCsvCommand}" />
+                            <MenuItem Header="Save as CSV…" Command="{Binding ExportEventLogCsvCommand}" />
+                        </MenuFlyout>
+                    </Button.Flyout>
+                </Button>
+            </StackPanel>
+
+            <Panel Grid.Row="1">
+                <DataGrid Name="EventLogGrid" ItemsSource="{Binding EventLogView}" SelectedItem="{Binding SelectedEventLogEntry}" IsVisible="{Binding HasVisibleEventLog}">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="Type" Width="110" SortMemberPath="TypeText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:EventLogItemViewModel">
+                                    <TextBlock Text="{Binding TypeText}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Message" Width="*" SortMemberPath="Message">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:EventLogItemViewModel">
+                                    <TextBlock Text="{Binding Message}" ToolTip.Tip="{Binding Message}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="User" Width="110" SortMemberPath="Username">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:EventLogItemViewModel">
+                                    <TextBlock Text="{Binding Username}" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Time" Width="150" SortMemberPath="TimeText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:EventLogItemViewModel">
+                                    <TextBlock Text="{Binding TimeText}" Margin="8,0" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <views:LoadingOverlay Text="Loading the event log…" IsVisible="{Binding IsLoadingEventLog}" />
+                <views:EmptyState Icon="TextBulletList" Title="No events" Hint="The event log has nothing for this device." IsVisible="{Binding ShowEventLogEmptyMessage}" />
+                <views:EmptyState Icon="Filter" Title="No events match" Hint="Clear the search to see them all." IsVisible="{Binding ShowEventLogNoMatchesMessage}" />
+            </Panel>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+                <TextBlock Text="Loading more…" Classes="subtle" IsVisible="{Binding IsLoadingMoreEventLog}" />
+                <Button Content="Load more" Command="{Binding LoadMoreEventLogCommand}" Padding="12,6">
+                    <Button.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="HasMoreEventLog" />
+                            <Binding Path="!IsLoadingMoreEventLog" />
+                        </MultiBinding>
+                    </Button.IsVisible>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Panel>
+</UserControl>
