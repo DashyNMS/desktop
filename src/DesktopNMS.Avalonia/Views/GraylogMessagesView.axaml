@@ -1,0 +1,136 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             x:Class="DesktopNMS.Views.GraylogMessagesView"
+             x:DataType="vm:GraylogMessagesViewModel">
+
+    <!-- Graylog messages (#114), shared by Device Details' Graylog section
+         and the Logs tab (see GraylogMessagesViewModel): LibreNMS's filters
+         over a paged table with its columns, newest first, plus a details
+         pane with every field of the selected message. The Logs tab also
+         gets a device filter, auto-update and row actions (IsFleet). -->
+    <UserControl.Styles>
+        <Style Selector="TextBlock.updated.failed">
+            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+        <!-- ==================== Header ==================== -->
+        <Grid Margin="0,0,0,10" ColumnDefinitions="Auto,*,Auto,Auto">
+            <TextBlock Text="Graylog" Classes="heading" VerticalAlignment="Center" />
+
+            <TextBlock Grid.Column="1" Text="{Binding LastUpdatedText}" Classes="subtle updated" Classes.failed="{Binding HasUpdateError}"
+                       VerticalAlignment="Center" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" Margin="16,0,12,0" />
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" Margin="0,0,12,0" IsVisible="{Binding IsFleet}">
+                <CheckBox IsChecked="{Binding AutoUpdate}" VerticalAlignment="Center"
+                          ToolTip.Tip="Fetch the newest messages on a timer while this tab is showing. Only the first page updates, so an older page you're reading never shifts.">
+                    <TextBlock Text="Auto-update" />
+                </CheckBox>
+                <ComboBox ItemsSource="{Binding AutoUpdateIntervalOptions}" SelectedItem="{Binding SelectedAutoUpdateInterval}"
+                          DisplayMemberBinding="{ReflectionBinding Label}" IsEnabled="{Binding AutoUpdate}" Width="150" />
+            </StackPanel>
+
+            <Button Grid.Column="3" Command="{Binding RefreshCommand}" Padding="10,7"><TextBlock Text="Refresh" /></Button>
+        </Grid>
+
+        <!-- ==================== Filters ==================== -->
+        <WrapPanel Grid.Row="1" Margin="0,0,0,10">
+            <TextBox Name="SearchBox" Classes="search" PlaceholderText="Search messages" Text="{Binding SearchText, Delay=500}"
+                     ToolTip.Tip="Searches the message text" Width="240" Margin="0,0,8,6" />
+            <ComboBox ItemsSource="{Binding DeviceOptions}" SelectedItem="{Binding SelectedDevice}" DisplayMemberBinding="{ReflectionBinding Label}"
+                      IsTextSearchEnabled="True" ToolTip.Tip="Device - type to find one" Width="200" Margin="0,0,8,6" IsVisible="{Binding IsFleet}" />
+            <ComboBox ItemsSource="{Binding Streams}" SelectedItem="{Binding SelectedStream}" DisplayMemberBinding="{ReflectionBinding Label}"
+                      ToolTip.Tip="Stream" Width="190" Margin="0,0,8,6" />
+            <ComboBox ItemsSource="{Binding LevelOptions}" SelectedItem="{Binding SelectedLevel}" DisplayMemberBinding="{ReflectionBinding Label}"
+                      ToolTip.Tip="Show this level and everything more severe" Width="150" Margin="0,0,8,6" />
+            <ComboBox ItemsSource="{Binding RangeOptions}" SelectedItem="{Binding SelectedRange}" DisplayMemberBinding="{ReflectionBinding Label}"
+                      ToolTip.Tip="How far back to search" Width="140" Margin="0,0,8,6" />
+            <Button Command="{Binding ClearFiltersCommand}" ToolTip.Tip="Clear filters (Ctrl+L)" Padding="10,5" Margin="0,0,0,6">
+                <TextBlock Text="Clear filters" />
+            </Button>
+        </WrapPanel>
+
+        <!-- ==================== Messages ==================== -->
+        <Panel Grid.Row="2" MinHeight="120">
+            <DataGrid Name="MessagesGrid" ItemsSource="{Binding Messages}" SelectedItem="{Binding SelectedMessage}"
+                      CanUserSortColumns="False" SelectionMode="Single">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Width="26">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:GraylogMessageItemViewModel">
+                                <Ellipse Width="9" Height="9" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip.Tip="{Binding LevelText}"
+                                         Fill="{Binding Severity, Converter={x:Static views:Converters.GraylogSeverityToBrush}}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Origin" Width="120" Binding="{Binding OriginText}" x:DataType="vm:GraylogMessageItemViewModel" />
+                    <DataGridTextColumn Header="Timestamp" Width="145" Binding="{Binding TimestampText}" x:DataType="vm:GraylogMessageItemViewModel" />
+                    <DataGridTextColumn Header="Level" Width="120" Binding="{Binding LevelText}" x:DataType="vm:GraylogMessageItemViewModel" />
+                    <DataGridTextColumn Header="Source" Width="130" Binding="{Binding SourceText}" x:DataType="vm:GraylogMessageItemViewModel" />
+                    <DataGridTextColumn Header="Message" Width="*" MinWidth="200" Binding="{Binding MessageText}" x:DataType="vm:GraylogMessageItemViewModel" />
+                    <DataGridTextColumn Header="Facility" Width="150" Binding="{Binding FacilityText}" x:DataType="vm:GraylogMessageItemViewModel" />
+                </DataGrid.Columns>
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Filter by this device" Command="{Binding FilterToDeviceCommand}" CommandParameter="{Binding SelectedMessage}" IsVisible="{Binding IsFleet}" />
+                        <MenuItem Header="Open device" Command="{Binding OpenDeviceCommand}" CommandParameter="{Binding SelectedMessage}" FontWeight="SemiBold" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+            </DataGrid>
+
+            <views:LoadingOverlay Text="Searching Graylog…" IsVisible="{Binding IsLoading}" />
+
+            <TextBlock Text="{Binding EmptyMessageText}" Classes="subtle" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextWrapping="Wrap" IsHitTestVisible="False" IsVisible="{Binding ShowEmptyMessage}" />
+
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520" Padding="16,12" CornerRadius="6"
+                    Background="{DynamicResource SurfaceAltBrush}" IsVisible="{Binding HasError}">
+                <StackPanel>
+                    <TextBlock Text="Couldn't search Graylog" FontWeight="SemiBold" Foreground="{DynamicResource CriticalBrush}" />
+                    <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                </StackPanel>
+            </Border>
+        </Panel>
+
+        <!-- ==================== Paging ==================== -->
+        <Grid Grid.Row="3" Margin="0,10,0,0" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
+            <TextBlock Text="{Binding PageSummaryText}" Classes="subtle" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding PageSizeOptions}" SelectedItem="{Binding SelectedPageSize}" Width="76" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Text="per page" Classes="subtle" VerticalAlignment="Center" Margin="6,0,16,0" />
+            <Button Grid.Column="3" Command="{Binding PreviousPageCommand}" Padding="10,5"><TextBlock Text="Previous" /></Button>
+            <TextBlock Grid.Column="4" Classes="subtle" VerticalAlignment="Center" Margin="10,0">
+                <Run Text="Page" />
+                <Run Text="{Binding Page, Mode=OneWay}" />
+                <Run Text="of" />
+                <Run Text="{Binding PageCount, Mode=OneWay}" />
+            </TextBlock>
+            <Button Grid.Column="5" Command="{Binding NextPageCommand}" Padding="10,5"><TextBlock Text="Next" /></Button>
+        </Grid>
+
+        <!-- ==================== Selected message ==================== -->
+        <Border Grid.Row="4" Margin="0,12,0,0" Padding="14,12" CornerRadius="6"
+                Background="{DynamicResource SurfaceAltBrush}" IsVisible="{Binding HasSelectedMessage}">
+            <Grid ColumnDefinitions="*,16,*">
+                <StackPanel>
+                    <TextBlock Text="Message" Classes="section" Margin="0,0,0,6" />
+                    <TextBox Text="{Binding SelectedMessage.FullText, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                             FontFamily="{DynamicResource MonoFont}" ScrollViewer.VerticalScrollBarVisibility="Auto" Height="170" VerticalContentAlignment="Top" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="All fields" Classes="section" Margin="0,0,0,6" />
+                    <DataGrid ItemsSource="{Binding SelectedMessageFields}" HeadersVisibility="None" Height="170"
+                              SelectionMode="Extended" ToolTip.Tip="Select rows and press Ctrl+C to copy">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Width="160" Binding="{Binding Name}" x:DataType="vm:GraylogFieldViewModel" />
+                            <DataGridTextColumn Width="*" Binding="{Binding Value}" x:DataType="vm:GraylogFieldViewModel" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -38,6 +38,15 @@ public static class Converters
         _ => OkBrush,
     });
 
+    /// <summary>A Graylog message's colour band (GraylogMessageItemViewModel.Severity) as its dot: info is blue, as in LibreNMS.</summary>
+    public static readonly IValueConverter GraylogSeverityToBrush = new FuncValueConverter<string?, IBrush>(severity => severity switch
+    {
+        "Critical" => CriticalBrush,
+        "Warning" => WarningBrush,
+        "Debug" => UnknownBrush,
+        _ => MaintenanceBrush,
+    });
+
     /// <summary>A device's state as a status dot's colour.</summary>
     public static readonly IValueConverter DeviceStateToBrush = new FuncValueConverter<DeviceState?, IBrush>(state => state switch
     {

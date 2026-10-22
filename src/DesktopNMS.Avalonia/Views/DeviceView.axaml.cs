@@ -33,6 +33,7 @@ public partial class DeviceView : Window
         DeviceDetailSection.Routing,
         DeviceDetailSection.Wireless,
         DeviceDetailSection.Inventory,
+        DeviceDetailSection.Graylog,
     ];
 
     private DeviceDetailViewModel? _viewModel;
