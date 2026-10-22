@@ -60,3 +60,7 @@ jobs:
 
       - name: Test
         run: dotnet test tests/DesktopNMS.Presentation.Tests -c Debug
+
+      - name: Compile the macOS login-item helper
+        if: runner.os == 'macOS'
+        run: swiftc tools/macos/LoginItem.swift -o "$RUNNER_TEMP/dashynms-login"

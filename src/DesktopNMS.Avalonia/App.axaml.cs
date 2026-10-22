@@ -621,7 +621,7 @@ public partial class App : Application
         services.AddSingleton<SensorMonitor>();
         services.AddSingleton<DeviceMonitor>();
         services.AddSingleton<IAlertNotificationService, NoAlertNotifications>();
-        services.AddSingleton<IStartupRegistration, NoStartupRegistration>();
+        services.AddSingleton<IStartupRegistration, PlatformStartupRegistration>();
         services.AddSingleton<IUpdateCheckService, NoUpdates>();
         services.AddSingleton<WindowService>();
         services.AddSingleton<IWindowService>(sp => sp.GetRequiredService<WindowService>());
