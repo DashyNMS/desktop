@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:infra="using:DesktopNMS.Infrastructure"
              xmlns:vm="using:DesktopNMS.ViewModels"
              xmlns:models="using:DesktopNMS.Core.Models"
              xmlns:alerting="using:DesktopNMS.Core.Alerting"
@@ -144,7 +145,7 @@
                 <ColumnDefinition Width="360" MinWidth="280" />
             </Grid.ColumnDefinitions>
 
-            <DataGrid Name="AlertGrid" Grid.Column="0"
+            <DataGrid infra:GridLayoutMemory.Key="Alerts" Name="AlertGrid" Grid.Column="0"
                       ItemsSource="{Binding AlertsView}"
                       SelectedItem="{Binding SelectedAlert}"
                       SelectionMode="Extended"

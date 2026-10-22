@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:infra="using:DesktopNMS.Infrastructure"
              xmlns:vm="using:DesktopNMS.ViewModels"
              xmlns:views="using:DesktopNMS.Views"
              xmlns:dd="using:DesktopNMS.Views.DeviceDetail"
@@ -93,7 +94,7 @@
         <!-- ======================== Neighbours ======================== -->
         <!-- Right-click a column header to show or hide columns - the extra port details start hidden. -->
         <Panel Grid.Row="2">
-            <DataGrid Name="NeighboursGrid" ItemsSource="{Binding ItemsView}" SelectedItem="{Binding SelectedItem}" SelectionMode="Single"
+            <DataGrid infra:GridLayoutMemory.Key="Neighbours.View" Name="NeighboursGrid" ItemsSource="{Binding ItemsView}" SelectedItem="{Binding SelectedItem}" SelectionMode="Single"
                       IsVisible="{Binding LoadState.HasVisibleItems}">
                 <DataGrid.Columns>
                     <DataGridTemplateColumn Header="State" Width="120" SortMemberPath="State">

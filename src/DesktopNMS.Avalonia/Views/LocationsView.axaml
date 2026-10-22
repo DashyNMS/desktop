@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:infra="using:DesktopNMS.Infrastructure"
              xmlns:vm="using:DesktopNMS.ViewModels"
              xmlns:views="using:DesktopNMS.Views"
              xmlns:fi="using:FluentIcons.Avalonia"
@@ -37,7 +38,7 @@
 
         <!-- ======================== Locations ======================== -->
         <Panel Grid.Row="2">
-            <DataGrid ItemsSource="{Binding LocationsView}" IsVisible="{Binding LoadState.HasVisibleItems}">
+            <DataGrid infra:GridLayoutMemory.Key="Locations" ItemsSource="{Binding LocationsView}" IsVisible="{Binding LoadState.HasVisibleItems}">
                 <DataGrid.Columns>
                     <DataGridTemplateColumn Header="Name" Width="*" SortMemberPath="Name">
                         <DataGridTemplateColumn.CellTemplate>

@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:infra="using:DesktopNMS.Infrastructure"
              xmlns:vm="using:DesktopNMS.ViewModels"
              xmlns:models="using:DesktopNMS.Core.Models"
              xmlns:views="using:DesktopNMS.Views"
@@ -119,7 +120,7 @@
                 <ColumnDefinition Width="320" MinWidth="260" />
             </Grid.ColumnDefinitions>
 
-            <DataGrid Name="DeviceGrid" Grid.Column="0" ItemsSource="{Binding DevicesView}" SelectedItem="{Binding SelectedDevice}"
+            <DataGrid infra:GridLayoutMemory.Key="Devices" infra:GridLayoutMemory.SkipSort="True" Name="DeviceGrid" Grid.Column="0" ItemsSource="{Binding DevicesView}" SelectedItem="{Binding SelectedDevice}"
                       SelectionMode="Extended" IsVisible="{Binding LoadState.HasVisibleItems}">
                 <DataGrid.Columns>
                     <!-- Pinned devices always sort to the top - see the code-behind's Sorting handler. -->
