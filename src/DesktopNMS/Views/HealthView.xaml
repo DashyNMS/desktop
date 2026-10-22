@@ -93,7 +93,7 @@
                     <!-- The logo's heartbeat while it refreshes (#228). -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,10,0" VerticalAlignment="Center" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
                         <views:HeartbeatLogo Width="14" Height="14" IsBeating="{Binding IsBusy}" Margin="0,0,6,0" VerticalAlignment="Center" />
-                        <TextBlock Text="Refreshing" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding RefreshText}" Style="{StaticResource SubtleTextStyle}" VerticalAlignment="Center" />
                     </StackPanel>
                     <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource SubtleTextStyle}" />
                 </StackPanel>
