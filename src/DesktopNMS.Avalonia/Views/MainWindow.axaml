@@ -342,6 +342,7 @@
             <!-- ======================== Content ======================== -->
             <Panel Grid.Column="1">
             <views:DashboardView DataContext="{Binding Dashboard}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsDashboardTabSelected}" />
+            <views:DevicesView DataContext="{Binding DeviceList}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsDevicesTabSelected}" />
             <views:AlertsView IsVisible="{Binding IsAlertsTabSelected}" />
             <views:RulesView DataContext="{Binding Rules}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsRulesTabSelected}" />
             <views:TemplatesView DataContext="{Binding Templates}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsTemplatesTabSelected}" />
