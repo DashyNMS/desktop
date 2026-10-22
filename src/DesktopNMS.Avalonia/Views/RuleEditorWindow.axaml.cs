@@ -93,7 +93,14 @@ public partial class RuleEditorWindow : Window
 
     private void OnWindowPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (_dragged is { } dragged && _dragging && DropTargetAt(e.GetPosition(this)) is { DataContext: { } target } element
+        // Only a release that ends a grip's press: every other button in the
+        // window needs to keep the pointer until it's up, or its click is lost.
+        if (_dragged is not { } dragged)
+        {
+            return;
+        }
+
+        if (_dragging && DropTargetAt(e.GetPosition(this)) is { DataContext: { } target } element
             && !ReferenceEquals(target, dragged))
         {
             var position = e.GetPosition(element);

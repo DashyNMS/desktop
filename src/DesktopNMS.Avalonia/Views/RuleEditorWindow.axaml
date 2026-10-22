@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:DesktopNMS.ViewModels"
         xmlns:views="using:DesktopNMS.Views"
+        xmlns:alerting="using:DesktopNMS.Core.Alerting"
         xmlns:fi="using:FluentIcons.Avalonia"
         x:Class="DesktopNMS.Views.RuleEditorWindow"
         x:DataType="vm:RuleEditorViewModel"
@@ -66,10 +67,22 @@
                 <fi:SymbolIcon Grid.Column="0" Classes="grip" Symbol="ReOrderDotsVertical" ToolTip.Tip="Drag to reorder" Margin="0,0,8,0"
                                PointerPressed="OnGripPressed" />
 
-                <!-- Typeable, so the ~1,400 fields are found rather than scrolled through. The view model does the filtering. -->
+                <!-- Typeable, so the ~1,400 fields are found rather than scrolled through. The view model does the
+                     filtering. A picked field reads as its path (ValueMemberBinding), the same text the view model
+                     sets: as its label the two would rewrite each other's text without end. -->
                 <AutoCompleteBox Grid.Column="1" ItemsSource="{Binding Fields}" SelectedItem="{Binding SelectedField}"
-                                 Text="{Binding FieldSearchText, Delay=200}" FilterMode="None" MinimumPrefixLength="0" MaxDropDownHeight="320"
-                                 ToolTip.Tip="Type to filter, e.g. devices.uptime" Margin="0,0,4,0" />
+                                 Text="{Binding FieldSearchText, Delay=200}" ValueMemberBinding="{ReflectionBinding Field}"
+                                 FilterMode="None" MinimumPrefixLength="0" MaxDropDownHeight="320"
+                                 ToolTip.Tip="Type to filter, e.g. devices.uptime" Margin="0,0,4,0">
+                    <AutoCompleteBox.ItemTemplate>
+                        <DataTemplate x:DataType="alerting:AlertConditionField">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Field}" />
+                                <TextBlock Text="{Binding Label}" Classes="subtle" FontSize="11" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </AutoCompleteBox.ItemTemplate>
+                </AutoCompleteBox>
 
                 <ComboBox Grid.Column="2" ItemsSource="{Binding Operators}" SelectedItem="{Binding SelectedOperator}" HorizontalAlignment="Stretch" Margin="0,0,4,0" />
 
