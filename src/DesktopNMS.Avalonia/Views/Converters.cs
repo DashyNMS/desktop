@@ -14,6 +14,14 @@ namespace DesktopNMS.Views;
 /// <summary>Small converters the views share (#250).</summary>
 public static class Converters
 {
+    /// <summary>Drawn shapes avoid font bearings moving the outcome off-centre.</summary>
+    public static readonly IValueConverter CompletionIcon = new FuncValueConverter<string?, Symbol>(glyph => glyph switch
+    {
+        "■" => Symbol.Stop,
+        "!" => Symbol.Important,
+        _ => Symbol.Checkmark,
+    });
+
     private static readonly IBrush CriticalBrush = new ImmutableSolidColorBrush(Color.Parse("#DA3633"));
     private static readonly IBrush WarningBrush = new ImmutableSolidColorBrush(Color.Parse("#DB9A04"));
     private static readonly IBrush OkBrush = new ImmutableSolidColorBrush(Color.Parse("#2EA043"));
