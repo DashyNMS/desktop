@@ -1,0 +1,29 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:views="using:DesktopNMS.Views"
+        x:Class="DesktopNMS.Views.AlertFiltersWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Filter alerts"
+        Width="380" Height="500"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- The Alerts tab's filters (#162): one facet so far, device group. Live,
+         like the Devices filters - no Apply step. -->
+    <Grid RowDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Row="0" Margin="18,18,18,0">
+            <TextBlock Text="Device group" Classes="heading" />
+            <TextBlock Text="Show alerts on devices in the checked groups. Counts are alerts, not devices."
+                       Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0" />
+        </StackPanel>
+
+        <views:FilterFacetSection Grid.Row="1" DataContext="{Binding GroupFilter}" />
+
+        <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="24,14">
+            <Button Content="Close" IsCancel="True" IsDefault="True" Classes="primary" Padding="20,7" HorizontalAlignment="Right" Click="OnClose" />
+        </Border>
+    </Grid>
+</Window>

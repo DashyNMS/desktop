@@ -21,6 +21,8 @@ public partial class AlertsView : UserControl
 
         AlertGrid.SelectionChanged += OnGridSelectionChanged;
         AlertGrid.DoubleTapped += OnGridDoubleTapped;
+        AlertGrid.LoadingRow += OnLoadingRow;
+        AlertGrid.UnloadingRow += OnUnloadingRow;
 
         // Tunnelling, so a shift-click on a severity count is seen before it toggles.
         AddHandler(PointerPressedEvent, OnPreviewPointerPressed, RoutingStrategies.Tunnel);
@@ -55,6 +57,39 @@ public partial class AlertsView : UserControl
         if (e.PropertyName == nameof(MainViewModel.SelectedAlert) && _viewModel?.SelectedAlert is { } selected)
         {
             AlertGrid.ScrollIntoView(selected, null);
+        }
+    }
+
+    // A grouped alert's faults show under its row while it's expanded (#353).
+    // The grid sets each row's AreDetailsVisible itself as it creates or
+    // recycles the row, which outranks a style binding, so the row follows the
+    // alert from here instead: setting it on the row also makes the grid keep
+    // that choice for the row while it scrolls.
+
+    private void OnLoadingRow(object? sender, DataGridRowEventArgs e)
+    {
+        if (e.Row.DataContext is AlertItemViewModel alert)
+        {
+            e.Row.AreDetailsVisible = alert.IsExpanded;
+            alert.PropertyChanged += OnAlertPropertyChanged;
+        }
+    }
+
+    private void OnUnloadingRow(object? sender, DataGridRowEventArgs e)
+    {
+        if (e.Row.DataContext is AlertItemViewModel alert)
+        {
+            alert.PropertyChanged -= OnAlertPropertyChanged;
+        }
+    }
+
+    private void OnAlertPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AlertItemViewModel.IsExpanded)
+            && sender is AlertItemViewModel alert
+            && AlertGrid.GetVisualDescendants().OfType<DataGridRow>().FirstOrDefault(r => ReferenceEquals(r.DataContext, alert)) is { } row)
+        {
+            row.AreDetailsVisible = alert.IsExpanded;
         }
     }
 

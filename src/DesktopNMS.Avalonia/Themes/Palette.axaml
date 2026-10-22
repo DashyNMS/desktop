@@ -245,6 +245,9 @@
     <x:Double x:Key="DataGridRowSelectedHoveredBackgroundOpacity">1</x:Double>
     <x:Double x:Key="DataGridRowSelectedUnfocusedBackgroundOpacity">1</x:Double>
     <x:Double x:Key="DataGridRowSelectedHoveredUnfocusedBackgroundOpacity">1</x:Double>
+    <!-- No outline round the clicked cell or header: the WPF tables have none. -->
+    <SolidColorBrush x:Key="DataGridCellFocusVisualPrimaryBrush" Color="Transparent" />
+    <SolidColorBrush x:Key="DataGridCellFocusVisualSecondaryBrush" Color="Transparent" />
 
     <!-- The brand fonts (#216), from the WPF app's Assets/Fonts. -->
     <FontFamily x:Key="BodyFont">avares://DashyNMS.Avalonia/Assets/Fonts#IBM Plex Sans</FontFamily>

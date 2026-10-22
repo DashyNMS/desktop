@@ -312,7 +312,13 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
 
     public void ShowDeviceFiltersDialog() => NotYet("Device filters");
 
-    public void ShowAlertFiltersDialog() => NotYet("Alert filters");
+    /// <summary>Live: MainViewModel is a singleton, so its GroupFilter is the one filtering the grid.</summary>
+    public void ShowAlertFiltersDialog()
+    {
+        var window = new AlertFiltersWindow { DataContext = services.GetRequiredService<MainViewModel>() };
+        WindowPlacementMemory.Attach(window, services.GetRequiredService<ISettingsStore>());
+        Modal.Show(window, Owner());
+    }
 
     public bool ShowAddDeviceDialog() => NotNow("Adding a device");
 

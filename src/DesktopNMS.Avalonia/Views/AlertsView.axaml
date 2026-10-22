@@ -13,10 +13,10 @@
          one device is one row that opens to its faults (#353) - and the selected
          alert's detail, with acknowledge and return to active, beside it. -->
     <UserControl.Styles>
-        <!-- An expanded group shows its faults under the row; a row fades while
-             its acknowledge or return to active is on its way. -->
+        <!-- A row fades while its acknowledge or return to active is on its way.
+             (Whether a group's faults show is set in the code-behind: the grid
+             sets each row's AreDetailsVisible itself, outranking a style.) -->
         <Style Selector="DataGrid#AlertGrid DataGridRow" x:DataType="vm:AlertItemViewModel">
-            <Setter Property="AreDetailsVisible" Value="{Binding IsExpanded}" />
             <Setter Property="Opacity" Value="{Binding IsUpdating, Converter={x:Static views:Converters.FadeWhenBusy}}" />
         </Style>
 
