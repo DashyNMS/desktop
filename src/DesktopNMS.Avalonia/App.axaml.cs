@@ -50,6 +50,7 @@ public partial class App : Application
     private DemoFleet? _demoFleet;
     private bool _startDemoOnExit;
     private bool _leaveDemoOnExit;
+    private bool _whatsNewScheduled;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -143,6 +144,7 @@ public partial class App : Application
 
         _mainViewModel = _services.GetRequiredService<MainViewModel>();
         _mainWindow = new MainWindow(_mainViewModel, settings);
+        _mainWindow.Activated += (_, _) => ScheduleWhatsNew();
         var windows = _services.GetRequiredService<WindowService>();
         windows.AttachMainWindow(_mainWindow);
         windows.ExitRequested += (_, _) => desktop.Shutdown();
@@ -278,6 +280,7 @@ public partial class App : Application
 
         _services.GetRequiredService<AlertMonitor>().Start();
         _mainViewModel.OnConnected();
+        ScheduleWhatsNew();
         UpdateTrayStatus();
 
         // Rendering the README screenshots: the tour, then close.
@@ -412,8 +415,27 @@ public partial class App : Application
         windows.ShowMain();
         _services.GetRequiredService<AlertMonitor>().Start();
         _mainViewModel.OnConnected();
+        ScheduleWhatsNew();
         ConfigureUnimusIfEnabled();
         UpdateTrayStatus();
+    }
+
+    /// <summary>After an upgrade, wait for a connected, visible window before showing the notes.</summary>
+    private void ScheduleWhatsNew()
+    {
+        if (_whatsNewScheduled || _demo.IsActive || _services is null || _signInOpen
+            || _mainViewModel is not { IsConnected: true, IsSigningIn: false }
+            || _mainWindow is not { IsVisible: true } || _mainWindow.WindowState == WindowState.Minimized)
+        {
+            return;
+        }
+
+        var settings = _services.GetRequiredService<ISettingsStore>();
+        var version = _services.GetRequiredService<IUpdateCheckService>().CurrentVersion;
+        if (!DesktopNMS.Core.Updates.WhatsNewNotes.IsDue(BundledWhatsNew.Current, version, settings.Current.WhatsNewShownVersion)) return;
+
+        _whatsNewScheduled = true;
+        Dispatcher.UIThread.Post(() => _services.GetRequiredService<IWindowService>().ShowWhatsNew(), DispatcherPriority.Background);
     }
 
     private void UpdateTrayStatus()

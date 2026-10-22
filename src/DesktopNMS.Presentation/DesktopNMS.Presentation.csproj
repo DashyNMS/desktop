@@ -55,4 +55,9 @@
     <Using Include="DesktopNMS.Infrastructure" />
   </ItemGroup>
 
+  <!-- BundledWhatsNew reads from this assembly in either front end (#391). -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\DesktopNMS\WhatsNew.md" LogicalName="DesktopNMS.WhatsNew.md" />
+  </ItemGroup>
+
 </Project>
