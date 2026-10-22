@@ -1,0 +1,194 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:models="using:DesktopNMS.Core.Models"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.RulesView"
+             x:DataType="vm:RulesViewModel">
+
+    <!-- The Rules tab (#250, from the WPF app's RulesView): the alert rules,
+         filtered by severity and search, with how many alerts each has raised
+         and its enable, edit, duplicate and delete actions. -->
+    <Grid RowDefinitions="Auto,Auto,*">
+
+        <!-- ======================== Severity, search and add ======================== -->
+        <!-- Refresh isn't repeated here: the title bar's covers every tab. -->
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,12">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <!-- The Alerts tab's pills and shift-click, without counts: a rule's severity is a setting. -->
+                <WrapPanel VerticalAlignment="Center">
+                    <TextBlock Text="Severity" Classes="subtle" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <ToggleButton Classes="countBadge severity" Tag="{x:Static models:AlertSeverity.Critical}" IsChecked="{Binding ShowCritical}"
+                                  ToolTip.Tip="Show/hide critical rules (shift-click to show only critical)" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource CriticalBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Critical" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="countBadge severity" Tag="{x:Static models:AlertSeverity.Warning}" IsChecked="{Binding ShowWarning}"
+                                  ToolTip.Tip="Show/hide warning rules (shift-click to show only warning)" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource WarningBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Warning" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="countBadge severity" Tag="{x:Static models:AlertSeverity.Ok}" IsChecked="{Binding ShowOk}"
+                                  ToolTip.Tip="Show/hide ok rules (shift-click to show only ok)">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource OkBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Ok" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </ToggleButton>
+                </WrapPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox Name="SearchBox" Width="240" Classes="search" PlaceholderText="Search rules"
+                             Text="{Binding Filtered.SearchText, Delay=200}" ToolTip.Tip="Filter by name, severity, notes or target" Margin="0,0,8,0" />
+                    <Button Classes="icon" Command="{Binding ClearFiltersCommand}" ToolTip.Tip="Clear search and severity filters"
+                            IsVisible="{Binding Filtered.SearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <fi:SymbolIcon Symbol="Dismiss" />
+                    </Button>
+                </StackPanel>
+
+                <Rectangle Grid.Column="2" Classes="toolbarSeparator" Margin="14,4" />
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Several rows selected (#144): enable or disable them together. -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" IsVisible="{Binding HasMultipleSelection}">
+                        <TextBlock Text="{Binding SelectionText}" Classes="subtle" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <Button Classes="chip" Content="Enable" Command="{Binding EnableSelectedCommand}" Margin="0,0,6,0"
+                                ToolTip.Tip="Enable every selected rule" views:PermissionGate.Requires="EditRules" />
+                        <Button Classes="chip" Content="Disable" Command="{Binding DisableSelectedCommand}"
+                                ToolTip.Tip="Disable every selected rule" views:PermissionGate.Requires="EditRules" />
+                        <Rectangle Classes="toolbarSeparator" Margin="14,4" />
+                    </StackPanel>
+
+                    <views:CsvExportButton Export="{Binding Csv}" Margin="0,0,8,0" />
+
+                    <Button Classes="icon" Command="{Binding AddRuleCommand}" ToolTip.Tip="Add rule" views:PermissionGate.Requires="CreateRules">
+                        <fi:SymbolIcon Symbol="Add" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ======================== Error banner ======================== -->
+        <Border Grid.Row="1" Background="#33DA3633" BorderBrush="{DynamicResource CriticalBrush}" BorderThickness="0,0,0,1" Padding="18,10" IsVisible="{Binding HasError}">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ======================== Rules ======================== -->
+        <Panel Grid.Row="2">
+            <DataGrid Name="RulesGrid" ItemsSource="{Binding Filtered.View}" SelectionMode="Extended" IsVisible="{Binding LoadState.HasVisibleItems}">
+                <DataGrid.ContextMenu>
+                    <!-- Notifications for this rule on every device (#268): one plain choice, built as the menu opens. -->
+                    <ContextMenu Opening="OnRulesMenuOpening">
+                        <MenuItem Header="{Binding NotificationChoice.Header}" Command="{Binding NotificationChoice.Command}"
+                                  IsVisible="{Binding NotificationChoice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Severity" Width="100" SortMemberPath="SeverityRank">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:RuleItemViewModel">
+                                <StackPanel Orientation="Horizontal" Margin="10,0">
+                                    <Ellipse Width="9" Height="9" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                    <TextBlock Text="{Binding SeverityText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Alerts this rule has raised, in its colour; opens the Alerts tab filtered to it. -->
+                    <DataGridTemplateColumn Header="Alerts" Width="80" SortMemberPath="ActiveAlertCount">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:RuleItemViewModel">
+                                <Button Classes="bare" Command="{Binding ShowAlertsCommand}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        ToolTip.Tip="{Binding ActiveAlertsToolTip}" IsVisible="{Binding HasActiveAlerts}">
+                                    <Border Background="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" CornerRadius="10" Padding="9,2" MinWidth="30">
+                                        <TextBlock Text="{Binding ActiveAlertCount}" FontWeight="SemiBold" FontSize="12" Foreground="White" HorizontalAlignment="Center" />
+                                    </Border>
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Name" Width="*" SortMemberPath="Name">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:RuleItemViewModel">
+                                <DockPanel VerticalAlignment="Center" Margin="10,0">
+                                    <!-- A rule testing a column LibreNMS 26.10 removed (#350). -->
+                                    <Border DockPanel.Dock="Right" Background="#33D29922" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" CornerRadius="4"
+                                            Padding="6,1" Margin="6,0,0,0" ToolTip.Tip="{Binding ReviewToolTip}" IsVisible="{Binding NeedsReview}">
+                                        <TextBlock Text="Review" FontSize="11" />
+                                    </Border>
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- The condition as LibreNMS's own rule list shows it, wrapped to read in full. -->
+                    <DataGridTemplateColumn Header="Condition" Width="2*" SortMemberPath="ConditionText">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:RuleItemViewModel">
+                                <TextBlock Text="{Binding ConditionText}" FontFamily="{DynamicResource MonoFont}" FontSize="12" TextWrapping="Wrap"
+                                           Margin="10,6" VerticalAlignment="Center" ToolTip.Tip="{Binding ConditionToolTip}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Target" Width="150" SortMemberPath="TargetSummary">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:RuleItemViewModel">
+                                <TextBlock Text="{Binding TargetSummary}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- The template each rule uses (#140). -->
+                    <DataGridTemplateColumn Header="Template" Width="170" SortMemberPath="TemplateName">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:RuleItemViewModel">
+                                <TextBlock Text="{Binding TemplateName}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Enabled (green tick) or disabled (red cross), one click to flip; then edit, duplicate, delete. -->
+                    <DataGridTemplateColumn Header="" Width="150" SortMemberPath="IsDisabled">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:RuleItemViewModel">
+                                <StackPanel Orientation="Horizontal" Margin="6,0" VerticalAlignment="Center">
+                                    <Button Classes="icon" Width="28" Height="28" Command="{Binding ToggleDisabledCommand}" ToolTip.Tip="{Binding StatusToolTip}"
+                                            views:PermissionGate.Requires="EditRules">
+                                        <Panel>
+                                            <fi:SymbolIcon Symbol="Checkmark" FontSize="14" Foreground="{DynamicResource OkBrush}" IsVisible="{Binding !IsDisabled}" />
+                                            <fi:SymbolIcon Symbol="Dismiss" FontSize="14" Foreground="{DynamicResource CriticalBrush}" IsVisible="{Binding IsDisabled}" />
+                                        </Panel>
+                                    </Button>
+                                    <Button Classes="icon" Width="28" Height="28" Command="{Binding EditCommand}" ToolTip.Tip="Edit this rule">
+                                        <fi:SymbolIcon Symbol="Edit" FontSize="14" />
+                                    </Button>
+                                    <Button Classes="icon" Width="28" Height="28" Command="{Binding DuplicateCommand}" ToolTip.Tip="Duplicate this rule"
+                                            views:PermissionGate.Requires="CreateRules">
+                                        <fi:SymbolIcon Symbol="Copy" FontSize="14" />
+                                    </Button>
+                                    <Button Classes="icon" Width="28" Height="28" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete this rule"
+                                            Foreground="{DynamicResource CriticalBrush}" views:PermissionGate.Requires="DeleteRules">
+                                        <fi:SymbolIcon Symbol="Delete" FontSize="14" />
+                                    </Button>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <views:LoadingOverlay Text="Loading rules…" IsVisible="{Binding LoadState.IsLoading}" />
+            <views:EmptyState Icon="Alert" Title="No alert rules yet" Hint="Use + to create one." IsVisible="{Binding LoadState.IsEmpty}" />
+            <views:EmptyState Icon="Filter" Title="No rules match" Hint="Clear the search or severity filters to see more." IsVisible="{Binding LoadState.IsNoMatches}" />
+        </Panel>
+    </Grid>
+</UserControl>

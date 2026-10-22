@@ -335,14 +335,9 @@
             <Panel Grid.Column="1">
             <views:DashboardView DataContext="{Binding Dashboard}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsDashboardTabSelected}" />
             <views:AlertsView IsVisible="{Binding IsAlertsTabSelected}" />
-            <views:NotPortedView Page="{Binding SelectedTab}">
-                <views:NotPortedView.IsVisible>
-                    <MultiBinding Converter="{x:Static BoolConverters.And}">
-                        <Binding Path="!IsDashboardTabSelected" />
-                        <Binding Path="!IsAlertsTabSelected" />
-                    </MultiBinding>
-                </views:NotPortedView.IsVisible>
-            </views:NotPortedView>
+            <views:RulesView DataContext="{Binding Rules}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsRulesTabSelected}" />
+            <views:TemplatesView DataContext="{Binding Templates}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsTemplatesTabSelected}" />
+            <views:NotPortedView Page="{Binding SelectedTab}" IsVisible="{Binding SelectedTab, Converter={x:Static views:Converters.IsNotPorted}}" />
         </Panel>
         </Grid>
 
