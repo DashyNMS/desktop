@@ -1,0 +1,149 @@
+name: Native packages
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Package version (blank uses an isolated CI preview version)'
+        type: string
+        required: false
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/package-build.yml
+      - .github/workflows/preview-build.yml
+      - .github/workflows/release-build.yml
+      - tools/Publish-Package.ps1
+      - tools/Test-Package.ps1
+      - tools/Test-WindowsUpgrade.ps1
+      - tests/DesktopNMS.Presentation.Tests/WindowsInstallerUpgradeTests.cs
+      - installer/**
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/package-build.yml
+      - tools/Publish-Package.ps1
+      - tools/Test-Package.ps1
+      - installer/**
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: version
+        shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          $version=$env:REQUESTED_VERSION
+          if (-not $version) {
+            [xml]$props=Get-Content Directory.Build.props
+            $version="$($props.Project.PropertyGroup.Version)-preview.ci.${{ github.run_number }}.${{ github.run_attempt }}"
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw 'Invalid package version.' }
+          "value=$version" >> $env:GITHUB_OUTPUT
+  package:
+    needs: version
+    name: Package (${{ matrix.runtime }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            runtime: win-x64
+          - os: macos-15-intel
+            runtime: osx-x64
+          - os: macos-latest
+            runtime: osx-arm64
+          - os: ubuntu-24.04
+            runtime: linux-x64
+          - os: ubuntu-24.04-arm
+            runtime: linux-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/checkout@v7
+        with:
+          repository: DashyNMS/mcp
+          ref: 92394e2ef33e4429fbc7a514883c73e43df768d3
+          path: artifacts/mcp-source
+          submodules: recursive
+          persist-credentials: false
+      - name: Install Linux package dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y squashfs-tools desktop-file-utils libsecret-tools libnotify-bin
+      - name: Install pinned Inno Setup compiler
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer=Join-Path $env:RUNNER_TEMP 'innosetup-6.7.3.exe'
+          Invoke-WebRequest https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe -OutFile $installer
+          if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne '9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732') { throw 'Inno Setup checksum mismatch.' }
+          $compiler=Join-Path $env:RUNNER_TEMP 'innosetup'
+          $process=Start-Process $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CURRENTUSER','/NOICONS',"/DIR=`"$compiler`"" -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Installing the package compiler failed.' }
+          "INNO_COMPILER=$compiler/ISCC.exe" >> $env:GITHUB_ENV
+      - name: Test shared behavior
+        run: dotnet test tests/DesktopNMS.Presentation.Tests -c Release
+      - name: Build the native network tools
+        shell: pwsh
+        run: ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-source -Runtime '${{ matrix.runtime }}'
+      - name: Build the package
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ needs.version.outputs.value }}
+        run: ./tools/Publish-Package.ps1 -Runtime '${{ matrix.runtime }}' -Version $env:PACKAGE_VERSION -InnoCompiler $env:INNO_COMPILER
+      - name: Verify the finished package
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ needs.version.outputs.value }}
+        run: ./tools/Test-Package.ps1 -Runtime '${{ matrix.runtime }}' -Version $env:PACKAGE_VERSION
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.runtime }}
+          path: artifacts/packages/${{ needs.version.outputs.value }}/${{ matrix.runtime }}/*
+          if-no-files-found: error
+          retention-days: 30
+  upgrade:
+    name: Windows upgrade (${{ matrix.from }})
+    needs: [version, package]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        from: ['1.0.0', '1.1.0']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '9.0.x'
+      - uses: actions/download-artifact@v8
+        with:
+          name: package-win-x64
+          path: artifacts/upgrade-candidate
+      - name: Upgrade the shipped app on a fresh CI account
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_VERSION: ${{ needs.version.outputs.value }}
+        run: ./tools/Test-WindowsUpgrade.ps1 -FromVersion '${{ matrix.from }}' -Version $env:PACKAGE_VERSION -PackageDirectory artifacts/upgrade-candidate
