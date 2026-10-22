@@ -42,7 +42,19 @@
             <Setter Property="ToolTip.ShowOnDisabled" Value="True" />
             <Setter Property="Background" Value="Transparent" />
         </Style>
+        <!-- Every state, not just the plain one: Fluent's selected and hover
+             backgrounds outrank a plain style and showed as square corners
+             behind the rounded card. -->
         <Style Selector="ListBox#WidgetList ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox#WidgetList ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox#WidgetList ListBoxItem:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox#WidgetList ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
         </Style>
         <Style Selector="ListBox#WidgetList ListBoxItem:disabled">

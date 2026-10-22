@@ -87,6 +87,7 @@ public partial class App : Application
         settings.Load();
         ThemeSetup.Apply(this, settings.Current);
         settings.Changed += (_, current) => Dispatcher.UIThread.Post(() => ThemeSetup.Apply(this, current));
+        WindowTheming.Register(this);
 
         // Graylog and Unimus don't depend on the LibreNMS session.
         ConfigureGraylogIfEnabled();
