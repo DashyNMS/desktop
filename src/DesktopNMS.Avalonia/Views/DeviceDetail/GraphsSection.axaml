@@ -1,0 +1,105 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             x:Class="DesktopNMS.Views.DeviceDetail.GraphsSection"
+             x:DataType="vm:DeviceDetailViewModel">
+
+    <!-- A device's graphs, or one of its ports' - the range, what to show and
+         which graph - with our own legend beside it (LibreNMS's is cut off the
+         graph): click a series to hide or show it, shift-click for only that one. -->
+    <UserControl.Styles>
+        <Style Selector="Button.legendItem">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.legendItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <!-- A hidden series: faded, its swatch hollow, its name struck through. -->
+        <Style Selector="Button.legendItem.hidden">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Opacity" Value="0.5" />
+        </Style>
+        <Style Selector="Button.legendItem.hidden Border.swatch">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.legendItem.hidden TextBlock.seriesName">
+            <Setter Property="TextDecorations" Value="Strikethrough" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid Margin="24" RowDefinitions="Auto,*">
+        <!-- What the graph shows: range, then the device or a port, then the graph. -->
+        <Border Grid.Row="0" Classes="card" Padding="16,12" Margin="0,0,0,14">
+            <WrapPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,14,6">
+                    <TextBlock Text="RANGE" Classes="cardTitle" Margin="0,0,14,0" VerticalAlignment="Center" />
+                    <views:GraphTimeRangePicker DataContext="{Binding Graphs.TimeRange}" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,14,6">
+                    <TextBlock Text="SHOW" Classes="cardTitle" Margin="0,0,14,0" VerticalAlignment="Center" />
+                    <ComboBox ItemsSource="{Binding Graphs.Sources}" SelectedItem="{Binding Graphs.SelectedSource}" DisplayMemberBinding="{ReflectionBinding Name}"
+                              IsTextSearchEnabled="True" MaxDropDownHeight="420" Width="240" ToolTip.Tip="The device's own graphs, or one of its ports - type a port's name to jump to it" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                    <TextBlock Text="GRAPH" Classes="cardTitle" Margin="0,0,14,0" VerticalAlignment="Center" />
+                    <ComboBox ItemsSource="{Binding Graphs.AvailableGraphs}" SelectedItem="{Binding Graphs.SelectedGraph}" DisplayMemberBinding="{ReflectionBinding Description}" Width="280" />
+                </StackPanel>
+            </WrapPanel>
+        </Border>
+
+        <!-- The graph takes the width the legend leaves - all of it when LibreNMS's own legend is in the graph. -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+            <Border Classes="card">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding Graphs.GraphTitle}" Classes="cardTitle" />
+                    <Panel>
+                        <Image Source="{Binding Graphs.CurrentSvg, Converter={x:Static views:Converters.SvgToImage}}" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                        <views:LoadingOverlay Text="Loading graph…" IsVisible="{Binding Graphs.IsLoading}" />
+                        <TextBlock Text="{Binding Graphs.ErrorMessage}" Classes="widgetState" MaxWidth="480" IsVisible="{Binding Graphs.HasError}" />
+                    </Panel>
+                </DockPanel>
+            </Border>
+
+            <Border Grid.Column="1" Classes="card" Width="300" Margin="14,0,0,0" Padding="12,14" IsVisible="{Binding Graphs.HasLegend}">
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="4,0">
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Graphs.ShownText}" Classes="cardNote" VerticalAlignment="Top" />
+                        <TextBlock Text="{Binding Graphs.LegendTitle}" Classes="cardTitle" />
+                    </DockPanel>
+                    <Button DockPanel.Dock="Bottom" Content="Show all" Command="{Binding Graphs.ShowAllCommand}" Margin="0,10,0,0" Padding="10,5" IsVisible="{Binding Graphs.HasHiddenSeries}" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Graphs.Legend}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:GraphLegendItemViewModel">
+                                    <Button Classes="legendItem" Classes.hidden="{Binding !IsShown}" Command="{Binding ToggleCommand}"
+                                            ToolTip.Tip="Show/hide (shift-click to show only this one)" AutomationProperties.Name="{Binding Name}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <Border Classes="swatch" Width="12" Height="12" CornerRadius="3" BorderThickness="2" VerticalAlignment="Center"
+                                                    BorderBrush="{Binding Colour, Converter={x:Static views:Converters.HexToBrush}}"
+                                                    Background="{Binding Colour, Converter={x:Static views:Converters.HexToBrush}}" />
+                                            <StackPanel Grid.Column="1" Margin="10,0,8,0" VerticalAlignment="Center">
+                                                <TextBlock Classes="seriesName" Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Detail}" FontSize="11.5" TextTrimming="CharacterEllipsis" Classes="subtle"
+                                                           IsVisible="{Binding Detail, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding Value}" FontFamily="{DynamicResource MonoFont}" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

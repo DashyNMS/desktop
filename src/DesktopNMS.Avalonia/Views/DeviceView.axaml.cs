@@ -25,6 +25,8 @@ public partial class DeviceView : Window
         DeviceDetailSection.Vlans,
         DeviceDetailSection.Fdb,
         DeviceDetailSection.Arp,
+        DeviceDetailSection.Graphs,
+        DeviceDetailSection.Resources,
     ];
 
     private DeviceDetailViewModel? _viewModel;
