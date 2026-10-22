@@ -16,8 +16,7 @@ namespace DesktopNMS.Services;
 
 /// <summary>
 /// The Avalonia app's <see cref="IWindowService"/> (#250): the main window,
-/// sign-in and the themed dialogs. Windows not ported yet say so rather than
-/// failing - each page's own PR replaces its line here.
+/// sign-in and the themed dialogs.
 /// </summary>
 public sealed class WindowService(IServiceProvider services, ILogger<WindowService> logger) : IWindowService
 {
@@ -263,14 +262,6 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
                 ShowError(failureTitle, ex.Message);
             }
         }
-    }
-
-    // ------------------------------------------------- not in this preview yet
-
-    private void NotYet(string what)
-    {
-        logger.LogInformation("Not ported to the cross-platform app yet: {What}", what);
-        ShowInformation("Not here yet", $"{what} isn't in the cross-platform preview yet. It's being ported (#250); the Windows app has it.");
     }
 
     // ------------------------------------------------------------ device windows
@@ -608,9 +599,4 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         return window.Saved;
     }
 
-    private bool NotNow(string what)
-    {
-        NotYet(what);
-        return false;
-    }
 }

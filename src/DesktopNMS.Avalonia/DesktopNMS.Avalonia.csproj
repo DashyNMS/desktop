@@ -2,10 +2,8 @@
 
   <!--
     The cross-platform DashyNMS app (#153): Avalonia on Windows, macOS and
-    Linux, on the same view models and services as the WPF app
-    (DesktopNMS.Presentation, and Core through it). The shell - main window,
-    sidebar, theme, sign-in and dialogs - with the pages ported one by one
-    in #250. It replaces the WPF app once they're at parity.
+    Linux. View models and services live in DesktopNMS.Presentation,
+    with the API and monitoring supplied by the Core package.
   -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -18,7 +16,7 @@
     <AssemblyTitle>DashyNMS</AssemblyTitle>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>..\DesktopNMS\Assets\app.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(WindowsBuild)' == 'true'">
@@ -41,10 +39,10 @@
     <PackageReference Include="Svg.Controls.Skia.Avalonia" Version="12.0.0.17" />
   </ItemGroup>
 
-  <!-- The WPF app's brand fonts and icon, shared rather than copied (#216). -->
+  <!-- Brand fonts and icon (#216), retained from the Windows app. -->
   <ItemGroup>
-    <AvaloniaResource Include="..\DesktopNMS\Assets\Fonts\*.ttf" Link="Assets\Fonts\%(Filename)%(Extension)" />
-    <AvaloniaResource Include="..\DesktopNMS\Assets\app.ico" Link="Assets\app.ico" />
+    <AvaloniaResource Include="Assets\Fonts\*.ttf" />
+    <AvaloniaResource Include="Assets\app.ico" />
   </ItemGroup>
 
   <ItemGroup>
@@ -52,7 +50,7 @@
   </ItemGroup>
 
   <!--
-    The DashyNMS MCP server, bundled for Intelligence as the WPF app does:
+    The DashyNMS MCP server, bundled for Intelligence:
     published by tools/Publish-Mcp.ps1 into artifacts/mcp and copied beside
     the app as mcp/dashynms-mcp.exe. Without it the build still works, and
     the Intelligence tab says the network tools aren't installed. Windows

@@ -10,10 +10,10 @@ for reporting a security problem. Bugs and ideas are welcome as
 
 ## Requirements
 
-- Windows 10 1809 (build 17763) or later — earlier builds have no toast support.
+- Windows 10 1809 (build 17763) or later, macOS 13 or later, or Linux with a desktop session.
 - [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) to build.
   `winget install Microsoft.DotNet.SDK.9`, or install Visual Studio with the
-  **.NET desktop development** workload.
+  **.NET desktop development** workload on Windows. Install the .NET SDK directly on macOS or Linux.
 - A LibreNMS instance with the API enabled, and a token from
   **Settings, API, API Access**.
 - A GitHub token with `read:packages`, for the `DashyNMS.Core` package (see
@@ -29,23 +29,15 @@ window title, tray icon, installed exe, Start Menu entry — is DashyNMS.
 dotnet build DesktopNMS.sln
 ```
 
-```bash
-dotnet run --project src/DesktopNMS/DesktopNMS.csproj
-```
 
-The cross-platform Avalonia app (#153) builds and runs on Windows, macOS and
-Linux. So far (#250) it has the shell - the main window and sidebar, the theme and
-accent, sign-in and the themed dialogs - and Settings, What's New and the
-licences. Pages are ported one by one, and
-each shows a placeholder until it is. It remembers the token encrypted, as the
-WPF app does (#154), and keeps its own data folder (see "Where things are
-stored").
+The Avalonia app is the desktop UI on Windows, macOS and Linux. The former
+WPF project has been retired; its history remains in Git.
 
 ```bash
 dotnet run --project src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj
 ```
 
-### Development builds during the port
+### Development builds
 
 Every merge to `master` produces a self-contained Windows Avalonia development
 build in the **Development build** Actions run. Download its artifact and extract
@@ -113,10 +105,10 @@ the MCP server (requires the .NET 10 SDK alongside .NET 9):
 Then publish the desktop app:
 
 ```bash
-dotnet publish src/DesktopNMS/DesktopNMS.csproj -c Release -o publish
+dotnet publish src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish
 ```
 
-Release builds are configured for `win-x64`, self-contained and single-file, so
+This publishes a self-contained, single-file Windows x64 app, so
 `publish/DashyNMS.exe` runs on a machine with no .NET installed.
 The accompanying `publish/mcp` folder contains the self-contained network
 tools, their licence and the source commit in `BUILD.txt`. Keep it beside the
@@ -164,48 +156,28 @@ too, defaulting to keep. A silent uninstall (`/VERYSILENT`) always keeps them.
 
 ## Layout
 
-```
+```text
 src/
-  DesktopNMS.Presentation/  View models and services with no UI framework in
-                             them (plain net9.0), shared by the WPF app and,
-                             next, the Avalonia one (#249). Brings in Core,
-                             the DashyNMS.Core package (see "Core" above)
+  DesktopNMS.Presentation/  View models and services without a UI dependency;
+                             references the DashyNMS.Core package
     ViewModels/             Every view model
-    Services/               Services, and the interfaces of those with a
-                             platform-specific side (updates, toasts, start
-                             at sign-in, map tiles)
-    Infrastructure/         Commands, observable base, FilteredView, CSV,
-                             UiThread and UiPlatform (the UI thread, timers,
-                             clipboard, file dialogs, theme, keyboard)
-    Demo/                   Demo mode's example network
-    Security/               Secret storage on every OS (#154): the token,
-                             Unimus, Graylog, ChatGPT and chat stores, over
-                             DPAPI on Windows or a Keychain / Secret Service
-                             key on macOS and Linux
-  DesktopNMS.Avalonia/      Avalonia application for Windows, macOS and Linux
-                             (#153), replacing the WPF app once the views are
-                             ported (#250)
-    Views/                  Avalonia views; pages not ported yet show
-                             NotPortedView
-    Themes/                 Palette (dark and light) and Styles, ported
-                             from the WPF theme as classes
-    Infrastructure/         AvaloniaUiThread and AvaloniaUiPlatform, the
-                             theme, Modal (synchronous dialogs) and window
-                             placement
-    Services/               WindowService, and stand-ins for platform
-                             services not ported yet
-  DesktopNMS/               WPF application (product name DashyNMS)
-    Views/                  WPF views and code-behind; lists' grouping and
-                             header sorting are applied here
-    Services/               WPF implementations: windows, toasts, tray icon,
-                             updates, map tiles, start at sign-in
-    Infrastructure/         WpfUiThread and WpfUiPlatform, theming, window
-                             placement, WPF helpers
-    Themes/                 Dark/light theme resource dictionaries
+    Services/               Monitoring, updates and platform service interfaces
+    Infrastructure/         Commands, filtering, CSV, UI dispatch interfaces
+    Demo/                   Example network used by demo mode and screenshots
+    Security/               Encrypted credentials and chat storage on each OS
+    WhatsNew.md             Bundled release notes
+  DesktopNMS.Avalonia/      Desktop app for Windows, macOS and Linux
+    Assets/                 App icon, brand fonts and their licences
+    Views/                  Views, dialogs and device detail sections
+    Themes/                 Dark/light palette and styles
+    Infrastructure/         UI dispatch, dialogs, theme and window placement
+    Services/               Windows, tray, notifications and startup adapters
 tools/
-  New-AppIcon.ps1           Regenerates Assets/app.ico
+  Publish-Dev.ps1           Versioned Windows development builds
+  Publish-Mcp.ps1           Bundled Intelligence network tools
+  Render-Screenshots.ps1   Demo screenshot tour
 installer/
-  DashyNMS.iss              Inno Setup script; see "Building the installer" above
+  DashyNMS.iss              Windows installer
 ```
 
 ### Why the API layer looks like this
@@ -248,10 +220,10 @@ Everything lives under `%APPDATA%\DashyNMS`:
 Delete `token.dat` to force a fresh sign-in. Delete the folder to reset
 completely.
 
-The Avalonia app keeps its own data in `avalonia\` inside that folder
+Development builds keep their own data in `avalonia\` inside that folder
 (`~/.config/DashyNMS/avalonia` on Linux, `~/Library/Application
-Support/DashyNMS/avalonia` on macOS), so while it's a preview it never touches
-the WPF app's settings or token.
+Support/DashyNMS/avalonia` on macOS). Windows release and preview builds reuse
+the existing 1.x profile; macOS and Linux retain their Avalonia profile.
 
 Secrets (the `.dat` files and `chats\`) are encrypted for the current user on
 every OS (#154):

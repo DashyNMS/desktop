@@ -15,7 +15,7 @@
 #ifndef AppSourceDir
   #define AppSourceDir "..\publish"
 #endif
-#define AppIcon "..\src\DesktopNMS\Assets\app.ico"
+#define AppIcon "..\src\DesktopNMS.Avalonia\Assets\app.ico"
 
 ; Falls back to 0.2.0.0 if not supplied via /DAppVersion=x.y.z on the ISCC command line.
 #ifndef AppVersion

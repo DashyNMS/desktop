@@ -2,8 +2,7 @@
 
   <!--
     The desktop app's view models and services with no UI framework in them
-    (#249): plain net9.0, so the WPF app today and the Avalonia app next can
-    share them, and porting is a views-only job. Namespaces are unchanged
+    (#249): plain net9.0, independent of the Avalonia UI. Namespaces are unchanged
     (DesktopNMS.ViewModels, DesktopNMS.Services, DesktopNMS.Infrastructure);
     only the assembly differs, so XAML refers to these types with
     ";assembly=DesktopNMS.Presentation". Nothing here may reference WPF,
@@ -42,10 +41,9 @@
     <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
   </ItemGroup>
 
-  <!-- Some moved types are internal and used by the app; Avalonia's head will be added here too. -->
+  <!-- Internal types used by the app and its tests. -->
   <ItemGroup>
     <InternalsVisibleTo Include="DashyNMS" />
-    <InternalsVisibleTo Include="DashyNMS.Avalonia" />
     <InternalsVisibleTo Include="DesktopNMS.Presentation.Tests" />
   </ItemGroup>
 
@@ -55,9 +53,9 @@
     <Using Include="DesktopNMS.Infrastructure" />
   </ItemGroup>
 
-  <!-- BundledWhatsNew reads from this assembly in either front end (#391). -->
+  <!-- BundledWhatsNew reads from this assembly (#391). -->
   <ItemGroup>
-    <EmbeddedResource Include="..\DesktopNMS\WhatsNew.md" LogicalName="DesktopNMS.WhatsNew.md" />
+    <EmbeddedResource Include="WhatsNew.md" LogicalName="DesktopNMS.WhatsNew.md" />
   </ItemGroup>
 
 </Project>
