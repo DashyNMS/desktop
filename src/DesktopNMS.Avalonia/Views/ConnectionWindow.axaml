@@ -13,8 +13,8 @@
         WindowStartupLocation="CenterScreen">
 
     <!-- Signing in to LibreNMS with an API token (#250, from the WPF app's
-         ConnectionWindow). "Sign in with LibreNMS" needs a web view, and the
-         demo needs its own restart, so both wait for later. -->
+         ConnectionWindow). "Sign in with LibreNMS" needs a web view, so it waits
+         for later. -->
     <StackPanel Margin="24">
         <TextBlock Text="Connect to LibreNMS" Classes="heading" />
         <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0">
@@ -62,10 +62,17 @@
             <TextBlock Text="{Binding SuccessMessage}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
         </Border>
 
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,20,0,0">
-            <TextBlock Text="Checking…" Classes="subtle" VerticalAlignment="Center" Margin="0,0,4,0" IsVisible="{Binding IsBusy}" />
-            <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
-            <Button Content="Connect" Command="{Binding ConnectCommand}" Classes="primary" IsDefault="True" />
-        </StackPanel>
+        <DockPanel Margin="0,20,0,0" LastChildFill="False">
+            <!-- No server to hand: the whole app on an example network (DemoMode). -->
+            <Button DockPanel.Dock="Left" Classes="link" VerticalAlignment="Center" Command="{Binding TryDemoCommand}" IsVisible="{Binding CanTryDemo}"
+                    ToolTip.Tip="DashyNMS restarts on an example network, so you can look around without a LibreNMS server. Nothing you have saved here is changed.">
+                <TextBlock Text="Try the demo" />
+            </Button>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Checking…" Classes="subtle" VerticalAlignment="Center" Margin="0,0,4,0" IsVisible="{Binding IsBusy}" />
+                <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
+                <Button Content="Connect" Command="{Binding ConnectCommand}" Classes="primary" IsDefault="True" />
+            </StackPanel>
+        </DockPanel>
     </StackPanel>
 </Window>
