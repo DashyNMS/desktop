@@ -2,43 +2,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
-using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Services;
 
 namespace DesktopNMS.Services;
-
-// The platform services the Avalonia app doesn't have yet (#250), so the
-// shared view models run unchanged: each does nothing, or says it isn't
-// available, until its own issue lands.
-
-/// <summary>Update checks and installs for each OS - #256.</summary>
-public sealed class NoUpdates : IUpdateCheckService
-{
-    public string CurrentVersion { get; } = typeof(NoUpdates).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
-
-    public ReadyUpdate? ReadyUpdate => null;
-
-    public event EventHandler? ReadyUpdateChanged
-    {
-        add { }
-        remove { }
-    }
-
-    public event EventHandler? InstallStarted
-    {
-        add { }
-        remove { }
-    }
-
-    public Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, bool? includePreviewBuildsOverride = null, CancellationToken cancellationToken = default)
-        => Task.FromResult(new UpdateCheckResult(false, null, false));
-
-    public Task<bool> InstallAsync() => Task.FromResult(false);
-
-    public void OnStartup()
-    {
-    }
-}
 
 /// <summary>
 /// "In the background" when no DashyNMS window is on screen - minimised or

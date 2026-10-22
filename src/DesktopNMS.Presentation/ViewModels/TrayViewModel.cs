@@ -21,7 +21,8 @@ public sealed record TraySnapshot(
     string? NextCheck,
     IReadOnlyList<AlertItemViewModel> Alerts,
     string? UpdateReadyText,
-    AlertSeverity CountFrom = AlertSeverity.Ok);
+    AlertSeverity CountFrom = AlertSeverity.Ok,
+    string UpdateActionText = "Restart to update");
 
 /// <summary>One of the quick look's latest alerts.</summary>
 public sealed class TrayAlertViewModel
@@ -195,6 +196,7 @@ public sealed class TrayViewModel : ObservableObject
     public bool IsUpdateReady => !string.IsNullOrEmpty(_snapshot.UpdateReadyText);
 
     public string UpdateReadyText => _snapshot.UpdateReadyText ?? string.Empty;
+    public string UpdateActionText => _snapshot.UpdateActionText;
 
     public void Update(TraySnapshot snapshot)
     {
