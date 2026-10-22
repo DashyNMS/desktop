@@ -42,6 +42,11 @@
 
         <!-- ==================== Filters ==================== -->
         <WrapPanel Grid.Row="1" Margin="0,0,0,10">
+            <CheckBox Content="Auto-update" IsChecked="{Binding AutoUpdate}" VerticalAlignment="Center" Margin="0,0,8,6"
+                      AutomationProperties.Name="Auto-update the event and alert logs" />
+            <ComboBox ItemsSource="{Binding AutoUpdateIntervalOptions}" SelectedItem="{Binding SelectedAutoUpdateInterval}"
+                      DisplayMemberPath="Label" IsEnabled="{Binding AutoUpdate}" Width="165" Margin="0,0,12,6"
+                      AutomationProperties.Name="Log auto-update interval" />
             <TextBox Style="{StaticResource SearchTextBoxStyle}"
                      Tag="Search"
                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=300}"
@@ -157,6 +162,8 @@
                     Command="{Binding LoadMoreCommand}"
                     Padding="12,6"
                     Visibility="{Binding CanLoadMore, Converter={StaticResource BoolToVisibility}}" />
+            <TextBlock DockPanel.Dock="Right" Text="{Binding LastUpdatedText}" Style="{StaticResource SubtleTextStyle}"
+                       Margin="12,0" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="480" />
             <TextBlock Text="{Binding CountText}"
                        Style="{StaticResource SubtleTextStyle}"
                        VerticalAlignment="Center"
