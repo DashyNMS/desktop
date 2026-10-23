@@ -242,11 +242,11 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
     }
 
     /// <summary>Opens a new chat - or the blank one already in the list, rather than adding another.</summary>
-    public void NewChat()
+    public void NewChat(bool force = false)
     {
         if (_host.IsBusy || _scope is null) return;
         SaveActive();
-        var draft = Chats.FirstOrDefault(chat => chat.Data.Messages.Count == 0
+        var draft = force ? null : Chats.FirstOrDefault(chat => chat.Data.Messages.Count == 0
             && string.IsNullOrWhiteSpace(chat.Data.Draft) && !chat.Data.IsRenamed);
         if (draft is not null)
         {

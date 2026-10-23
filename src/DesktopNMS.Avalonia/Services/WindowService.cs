@@ -27,7 +27,19 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
     /// <summary>Raised by Exit - the app decides how to close.</summary>
     public event EventHandler? ExitRequested;
 
-    public void AttachMainWindow(MainWindow window) => _mainWindow = window;
+    public void AttachMainWindow(MainWindow window)
+    {
+        _mainWindow = window;
+        AttachIntelligenceMenu(window, snapshotServer: false);
+    }
+
+    private void AttachIntelligenceMenu(Window window, bool snapshotServer)
+    {
+        var intelligence = services.GetRequiredService<IntelligenceViewModel>();
+        var server = intelligence.ObjectServer;
+        DesktopNMS.Views.Intelligence.IntelligenceObjectMenu.Attach(window, intelligence,
+            () => snapshotServer ? server : intelligence.ObjectServer, () => ShowMainTab(MainTab.Intelligence));
+    }
 
     private MainViewModel Main => services.GetRequiredService<MainViewModel>();
 
@@ -287,6 +299,7 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         var settings = services.GetRequiredService<ISettingsStore>();
         var history = new DeviceBrowseHistory(deviceId);
         var window = new DeviceView(CreateDeviceDetailViewModel(deviceId, history), settings);
+        AttachIntelligenceMenu(window, snapshotServer: true);
 
         // Back, forward and the breadcrumbs (#58) move this same window.
         history.NavigateRequested += (_, index) => NavigateDeviceWindow(window, history, history.Entries[index].DeviceId, index);

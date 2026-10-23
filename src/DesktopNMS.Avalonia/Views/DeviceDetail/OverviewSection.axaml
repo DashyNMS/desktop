@@ -94,7 +94,7 @@
                         </DockPanel>
                         <DockPanel Classes="keyRow">
                             <TextBlock Text="Location" Classes="key" />
-                            <Button Classes="link" HorizontalAlignment="Left" Command="{Binding ShowDevicesForLocationCommand}" ToolTip.Tip="Show every device at this location">
+                            <Button Classes="link" HorizontalAlignment="Left" Command="{Binding ShowDevicesForLocationCommand}" Tag="{Binding IntelligenceLocation}" ToolTip.Tip="Show every device at this location">
                                 <TextBlock Text="{Binding Location}" TextWrapping="Wrap" />
                             </Button>
                         </DockPanel>

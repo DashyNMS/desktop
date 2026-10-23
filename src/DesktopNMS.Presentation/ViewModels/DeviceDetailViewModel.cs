@@ -1958,6 +1958,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public int DeviceId => _deviceId;
 
+    public SpotlightOption? IntelligenceLocation => _device?.LocationId is int id && id > 0
+        ? IntelligenceObjectTargets.Create(new("location", id), Location) : null;
+
     public string Name => _device is null
         ? $"Device {_deviceId}"
         : _settings.Current.DeviceNameStyle.Resolve(_device, _device.Hostname);
@@ -5305,6 +5308,7 @@ public sealed class DeviceGroupItemViewModel
 {
     public DeviceGroupItemViewModel(DeviceGroup group, Action<string> onSelect)
     {
+        Id = group.Id;
         Name = group.Name;
         Description = string.IsNullOrWhiteSpace(group.Description) ? null : group.Description;
         ShowDevicesForGroupCommand = new RelayCommand(() => onSelect(Name));
@@ -5316,6 +5320,7 @@ public sealed class DeviceGroupItemViewModel
     public string? Description { get; }
 
     /// <summary>Closes this window and jumps to the Devices tab isolated down to this one group - see DeviceDetailViewModel.ShowDevicesForGroup.</summary>
+    public int Id { get; }
     public RelayCommand ShowDevicesForGroupCommand { get; }
 }
 
