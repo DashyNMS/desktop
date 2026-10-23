@@ -1,13 +1,8 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:DesktopNMS.ViewModels"
-             xmlns:views="using:DesktopNMS.Views"
-             x:Class="DesktopNMS.Views.DeviceDetail.OverviewSection"
-             x:DataType="vm:DeviceDetailViewModel">
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:DesktopNMS.ViewModels" xmlns:views="using:DesktopNMS.Views" x:Class="DesktopNMS.Views.DeviceDetail.OverviewSection" x:DataType="vm:DeviceDetailViewModel" xmlns:dd="using:DesktopNMS.Views.DeviceDetail">
 
-    <!-- Overview: stat tiles, then cards - the device's details down the left;
-         ping and availability, alerts, resources, sensors and neighbours beside
-         them; its busiest ports underneath. A card that opens a section does so
+    <!-- Overview: stat tiles, then cards fitted into the available columns.
+         Busiest ports spans two columns; hidden cards leave no reserved space.
+         A card that opens a section does so
          when clicked. -->
     <UserControl.Styles>
         <!-- A stat tile: a number and its label, with a bar down the left edge in
@@ -19,8 +14,7 @@
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border Background="{TemplateBinding BorderBrush}" CornerRadius="12" Padding="3,0,0,0">
-                        <Border Name="Root" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,1,1"
-                                CornerRadius="9,12,12,9" Padding="14,12">
+                        <Border Name="Root" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,1,1" CornerRadius="9,12,12,9" Padding="14,12">
                             <ContentPresenter Content="{TemplateBinding Content}" />
                         </Border>
                     </Border>
@@ -46,8 +40,7 @@
             <!-- ==================== Stat tiles ==================== -->
             <!-- UniformGrid lays out its visible children only, so a hidden Ports tile leaves no gap. -->
             <UniformGrid Rows="1">
-                <Button Classes="statTile" BorderBrush="{Binding AvailabilityTileSeverity, Converter={x:Static views:Converters.SeverityToBrush}}"
-                        Command="{Binding ShowPingGraphCommand}" ToolTip.Tip="Availability over the last 30 days" Margin="0,0,7,0">
+                <Button Classes="statTile" BorderBrush="{Binding AvailabilityTileSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" Command="{Binding ShowPingGraphCommand}" ToolTip.Tip="Availability over the last 30 days" Margin="0,0,7,0">
                     <StackPanel>
                         <TextBlock Classes="statValue" Text="{Binding Availability30DayText}" Foreground="{Binding AvailabilityTileSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
                         <TextBlock Classes="statLabel" Text="Availability · 30 days" />
@@ -59,15 +52,13 @@
                         <TextBlock Classes="statLabel" Text="Uptime" />
                     </StackPanel>
                 </Button>
-                <Button Classes="statTile" BorderBrush="{Binding PortsTileSeverity, Converter={x:Static views:Converters.SeverityToBrush}}"
-                        Command="{Binding SelectPortsCommand}" Margin="7,0" IsVisible="{Binding ShowPortsNav}">
+                <Button Classes="statTile" BorderBrush="{Binding PortsTileSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" Command="{Binding SelectPortsCommand}" Margin="7,0" IsVisible="{Binding ShowPortsNav}">
                     <StackPanel>
                         <TextBlock Classes="statValue" Text="{Binding PortsUpText}" Foreground="{Binding PortsTileSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
                         <TextBlock Classes="statLabel" Text="Ports up" />
                     </StackPanel>
                 </Button>
-                <Button Classes="statTile" BorderBrush="{Binding AlertsTileSeverity, Converter={x:Static views:Converters.SeverityToBrush}}"
-                        Command="{Binding SelectAlertsCommand}" Margin="7,0,0,0">
+                <Button Classes="statTile" BorderBrush="{Binding AlertsTileSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" Command="{Binding SelectAlertsCommand}" Margin="7,0,0,0">
                     <StackPanel>
                         <TextBlock Classes="statValue" Text="{Binding ActiveAlerts.Count}" Foreground="{Binding AlertsTileSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
                         <TextBlock Classes="statLabel" Text="Active alerts" />
@@ -75,14 +66,8 @@
                 </Button>
             </UniformGrid>
 
-            <Grid Margin="0,14,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="4*" MinWidth="260" />
-                    <ColumnDefinition Width="8*" />
-                </Grid.ColumnDefinitions>
-
-                <!-- ==================== Device ==================== -->
-                <Border Grid.Column="0" Classes="card" Margin="0,0,7,0" VerticalAlignment="Top">
+            <dd:OverviewPanel Margin="0,14,0,0">
+                <Border Classes="card" Margin="0" VerticalAlignment="Top">
                     <StackPanel>
                         <TextBlock Text="DEVICE" Classes="cardTitle" />
 
@@ -163,29 +148,44 @@
                         </DockPanel>
                     </StackPanel>
                 </Border>
-
-                <StackPanel Grid.Column="1" Margin="7,0,0,0">
-                    <!-- ==================== Ping + availability ==================== -->
-                    <Grid ColumnDefinitions="5*,3*">
-                        <!-- LibreNMS's own 24h ping graph; a click opens it on Graphs. Gone for a device with no ping data. -->
-                        <Button Grid.Column="0" Classes="cardButton" Command="{Binding ShowPingGraphCommand}" Margin="0,0,7,0"
-                                IsVisible="{Binding OverviewGraph.Svg, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Button Classes="cardButton" Command="{Binding SelectPortsCommand}" Margin="0" IsVisible="{Binding HasOverviewPorts}" dd:OverviewPanel.ColumnSpan="2">
+                <StackPanel>
+                    <Panel>
+                        <TextBlock Text="BUSIEST PORTS" Classes="cardTitle" />
+                        <TextBlock Text="in / out" Classes="cardNote" />
+                    </Panel>
+                    <ItemsControl ItemsSource="{Binding OverviewPorts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PortItemViewModel">
+                                <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,7">
+                                    <Grid ColumnDefinitions="18,150,*,100,100">
+                                        <Ellipse Width="8" Height="8" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{Binding StatusSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="2" Text="{Binding SecondaryName}" Classes="subtle" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="3" Text="{Binding InRateText}" HorizontalAlignment="Right" Classes="subtle" />
+                                        <TextBlock Grid.Column="4" Text="{Binding OutRateText}" HorizontalAlignment="Right" Classes="subtle" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Button>
+                <Button Classes="cardButton" Command="{Binding ShowPingGraphCommand}" Margin="0" IsVisible="{Binding OverviewGraph.Svg, Converter={x:Static ObjectConverters.IsNotNull}}">
                             <Grid RowDefinitions="Auto,*">
                                 <TextBlock Text="PING RESPONSE" Classes="cardTitle" />
                                 <TextBlock Text="24h" Classes="cardNote" />
                                 <Image Grid.Row="1" Source="{Binding OverviewGraph.Svg, Converter={x:Static views:Converters.SvgToImage}}" Stretch="Uniform" MaxHeight="170" IsHitTestVisible="False" />
                             </Grid>
                         </Button>
-
-                        <Border Grid.Column="1" Classes="card" Margin="7,0,0,0" IsVisible="{Binding HasAvailability}">
+                <Border Classes="card" Margin="0" IsVisible="{Binding HasAvailability}">
                             <StackPanel>
                                 <TextBlock Text="AVAILABILITY" Classes="cardTitle" />
                                 <StackPanel Orientation="Horizontal">
                                     <Viewbox Width="84" Height="84">
                                         <Panel Width="100" Height="100">
                                             <Ellipse Width="80" Height="80" Stroke="{DynamicResource SurfaceHoverBrush}" StrokeThickness="11" />
-                                            <Path Data="{Binding Availability30DayFraction, Converter={x:Static views:Converters.GaugeArc}}"
-                                                  Stroke="{Binding AvailabilityTileSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" StrokeThickness="11" StrokeLineCap="Round" />
+                                            <Path Data="{Binding Availability30DayFraction, Converter={x:Static views:Converters.GaugeArc}}" Stroke="{Binding AvailabilityTileSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" StrokeThickness="11" StrokeLineCap="Round" />
                                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                                 <TextBlock Text="{Binding Availability30DayText}" FontSize="15" FontWeight="Bold" HorizontalAlignment="Center" />
                                                 <TextBlock Text="30 days" FontSize="10" Classes="subtle" HorizontalAlignment="Center" />
@@ -232,11 +232,7 @@
                                 </ItemsControl>
                             </StackPanel>
                         </Border>
-                    </Grid>
-
-                    <!-- ==================== Alerts + resources ==================== -->
-                    <UniformGrid Rows="1" Margin="0,14,0,0">
-                        <Button Classes="cardButton" Command="{Binding SelectAlertsCommand}" Margin="0,0,7,0">
+                <Button Classes="cardButton" Command="{Binding SelectAlertsCommand}" Margin="0">
                             <StackPanel>
                                 <Panel>
                                     <TextBlock Text="ACTIVE ALERTS" Classes="cardTitle" />
@@ -256,8 +252,7 @@
                                 </ItemsControl>
                             </StackPanel>
                         </Button>
-
-                        <Button Classes="cardButton" Command="{Binding SelectResourcesCommand}" Margin="7,0,0,0" IsVisible="{Binding HasOverviewResources}">
+                <Button Classes="cardButton" Command="{Binding SelectResourcesCommand}" Margin="0" IsVisible="{Binding HasOverviewResources}">
                             <StackPanel>
                                 <TextBlock Text="RESOURCES" Classes="cardTitle" />
                                 <ItemsControl ItemsSource="{Binding OverviewResources}">
@@ -275,11 +270,7 @@
                                 </ItemsControl>
                             </StackPanel>
                         </Button>
-                    </UniformGrid>
-
-                    <!-- ==================== Sensors + neighbours ==================== -->
-                    <UniformGrid Rows="1" Margin="0,14,0,0">
-                        <Button Classes="cardButton" Command="{Binding SelectSensorsCommand}" Margin="0,0,7,0" IsVisible="{Binding HasSensors}">
+                <Button Classes="cardButton" Command="{Binding SelectSensorsCommand}" Margin="0" IsVisible="{Binding HasSensors}">
                             <StackPanel>
                                 <Panel>
                                     <TextBlock Text="SENSORS" Classes="cardTitle" />
@@ -300,10 +291,7 @@
                                 </ItemsControl>
                             </StackPanel>
                         </Button>
-
-                        <!-- Connected to: what this device is plugged into and what's plugged into it, from either side's
-                             LLDP/CDP. A device opens in this window (#58); the link opens Neighbours. -->
-                        <Border Classes="card" Margin="7,0,0,0" IsVisible="{Binding HasNeighbours}">
+                <Border Classes="card" Margin="0" IsVisible="{Binding HasNeighbours}">
                             <StackPanel>
                                 <Panel>
                                     <TextBlock Text="CONNECTED TO" Classes="cardTitle" />
@@ -332,34 +320,10 @@
                                 </Button>
                             </StackPanel>
                         </Border>
-                    </UniformGrid>
-                </StackPanel>
-            </Grid>
+            </dd:OverviewPanel>
 
             <!-- ==================== Busiest ports ==================== -->
-            <Button Classes="cardButton" Command="{Binding SelectPortsCommand}" Margin="0,14,0,0" IsVisible="{Binding HasOverviewPorts}">
-                <StackPanel>
-                    <Panel>
-                        <TextBlock Text="BUSIEST PORTS" Classes="cardTitle" />
-                        <TextBlock Text="in / out" Classes="cardNote" />
-                    </Panel>
-                    <ItemsControl ItemsSource="{Binding OverviewPorts}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:PortItemViewModel">
-                                <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,7">
-                                    <Grid ColumnDefinitions="18,150,*,100,100">
-                                        <Ellipse Width="8" Height="8" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{Binding StatusSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
-                                        <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="2" Text="{Binding SecondaryName}" Classes="subtle" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="3" Text="{Binding InRateText}" HorizontalAlignment="Right" Classes="subtle" />
-                                        <TextBlock Grid.Column="4" Text="{Binding OutRateText}" HorizontalAlignment="Right" Classes="subtle" />
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Button>
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>
