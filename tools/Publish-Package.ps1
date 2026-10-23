@@ -26,6 +26,10 @@ Push-Location $root
 try {
     [string[]]$bundleOptions = if ($IsWindows) {
         @('-p:PublishSingleFile=true','-p:IncludeNativeLibrariesForSelfExtract=true','-p:EnableCompressionInSingleFile=true')
+    } elseif ($IsMacOS) {
+        # Keep managed assemblies inside the app host, with native libraries
+        # beside it so each Mach-O file can be signed before sealing the app.
+        @('-p:PublishSingleFile=true','-p:IncludeNativeLibrariesForSelfExtract=false','-p:EnableCompressionInSingleFile=true')
     } else { @('-p:PublishSingleFile=false') }
     dotnet publish src/DesktopNMS.Avalonia -c Release -r $Runtime --self-contained true -m:1 `
         "-p:Version=$Version" @bundleOptions -p:DebugType=none -o $publish --nologo
@@ -91,7 +95,7 @@ try {
 "@ | Set-Content "$contents/Info.plist" -Encoding utf8NoBOM
         chmod +x "$mac/DashyNMS" "$mac/dashynms-login" "$mac/mcp/$mcpName"; Check-Native 'Mark bundle executables'
         # Development artifacts use ad-hoc signatures. Distribution signing/notarisation is #255.
-        foreach ($file in Get-ChildItem $mac -Recurse -File | Where-Object { $_.Extension -eq '.dylib' -or $_.Name -in @('DashyNMS','dashynms-login',$mcpName) }) {
+        foreach ($file in Get-ChildItem $mac -Recurse -File | Where-Object { $_.Extension -eq '.dylib' -or $_.Name -in @('dashynms-login',$mcpName) }) {
             codesign --force --sign - $file.FullName; Check-Native 'Sign native code'
         }
         codesign --force --sign - $app; Check-Native 'Sign app bundle'
