@@ -31,6 +31,12 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
 
     public static IntelligenceMessageViewModel Assistant(string? replyStyle = null, string? question = null) => new(isUser: false) { ReplyStyle = replyStyle, SubmittedQuestion = question };
 
+    public SpotlightOption? SpotlightTarget(IntelligenceInlineReference reference)
+    {
+        var known = InlineReferences.FirstOrDefault(item => item.Key == reference.Key && item.Object == reference.Object);
+        return known?.Object is { IsValid: true } target ? IntelligenceObjectTargets.Create(target, known.Name) : null;
+    }
+
     /// <summary>The presentation chosen for this reply, kept stable when settings change later.</summary>
     public string? ReplyStyle { get; private init; }
 

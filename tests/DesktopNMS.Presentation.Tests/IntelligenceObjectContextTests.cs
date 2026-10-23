@@ -14,6 +14,42 @@ namespace DesktopNMS.Presentation.Tests;
 
 public sealed class IntelligenceObjectContextTests
 {
+    [Theory]
+    [InlineData("sensor", 73, 12)]
+    [InlineData("group", 3, null)]
+    [InlineData("location", 4, null)]
+    [InlineData("fault", 91, 12)]
+    public void Reply_actions_require_verified_identity_and_survive_saved_and_later_replies(string kind, int id, int? device)
+    {
+        var identity = new IntelligenceObjectReference(kind, id, device, kind == "fault" ? 8 : null);
+        var message = IntelligenceMessageViewModel.Assistant();
+        message.AddStatusCard(new("Lookup", "Network", DateTimeOffset.UtcNow, new[] {
+            new IntelligenceStatusRow("Verified name", "Observed", "Unknown", "unknown", DeviceId: kind == "fault" ? device : null,
+                AlertId: kind == "fault" ? id : null, AlertRule: kind == "fault" ? "Rule" : null) { Object = identity }
+        }));
+        var reference = message.InlineReferences.Single(item => item.Object == identity);
+        message.Text = "Check [[" + reference.Key + "]]";
+        Assert.Equal(identity, message.SpotlightTarget(reference)!.Identity);
+        Assert.Equal(reference.Name, message.SpotlightTarget(reference with { Name = "Invented" })!.Name);
+        Assert.Null(message.SpotlightTarget(reference with { Object = identity with { Id = 999 } }));
+        var restored = IntelligenceMessageViewModel.Restore(message.Save());
+        Assert.Equal(identity, restored.SpotlightTarget(reference)!.Identity);
+        var later = IntelligenceMessageViewModel.Assistant();
+        later.SeedInlineReferences(restored.InlineReferences);
+        later.Text = message.Text;
+        Assert.Equal(identity, IntelligenceMessageViewModel.Restore(later.Save()).SpotlightTarget(reference)!.Identity);
+    }
+
+    [Fact]
+    public void Arbitrary_reply_text_and_status_badges_cannot_create_spotlight_objects()
+    {
+        var message = IntelligenceMessageViewModel.Assistant();
+        message.Text = "[[sensor:999]] [Switch](https://example.net/device/12)";
+        Assert.Null(message.SpotlightTarget(new("sensor:999", "Invented", "Up", "up", default, "") { Object = new("sensor", 999, 12) }));
+        message.SeedInlineReferences(new[] { new IntelligenceInlineReference("status:up", "Up", "", "up", default, "") });
+        Assert.Null(message.SpotlightTarget(Assert.Single(message.InlineReferences)));
+    }
+
     [Fact]
     public void Targets_keep_specific_sensor_and_fault_identity_and_reject_unknown_objects()
     {

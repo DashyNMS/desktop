@@ -75,6 +75,12 @@ public partial class IntelligenceTranscript : UserControl
 
     private void OnSourceLinkActivated(object? sender, Uri uri) => _model?.OpenSource(uri);
 
+    private async void OnObjectActionRequested(object? sender, IntelligenceReferenceAction action)
+    {
+        if (sender is Control { DataContext: IntelligenceMessageViewModel message } && _model is not null)
+            await _model.SpotlightReferenceAsync(message, action.Reference, action.Replace);
+    }
+
     /// <summary>A graph at full size, in a window of its own.</summary>
     private void OnGraphClick(object? sender, RoutedEventArgs e)
     {
