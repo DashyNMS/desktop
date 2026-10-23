@@ -58,7 +58,7 @@
             <Grid RowDefinitions="Auto,*">
                 <Border Classes="paneHeader">
                     <DockPanel>
-                        <Button DockPanel.Dock="Right" Classes="icon" ToolTip.Tip="New conversation" Command="{Binding ClearCommand}">
+                        <Button DockPanel.Dock="Right" Classes="icon" ToolTip.Tip="New conversation (Ctrl+N)" AutomationProperties.Name="New conversation" Command="{Binding ClearCommand}">
                             <fi:SymbolIcon Symbol="Add" />
                         </Button>
                         <TextBlock Text="Chats" Classes="paneTitle" />

@@ -506,6 +506,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         ErrorText = null;
         OnPropertyChanged(nameof(ShowSuggestions));
         RaiseCommands();
+        QuestionFocusRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void RaiseAccount()
