@@ -100,7 +100,12 @@ public partial class IntelligenceView : UserControl
     /// <summary>Escape closes the drawer; F6 and Shift+F6 move between the chats, the conversation and the context.</summary>
     private void OnRootKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && _drawerOpen)
+        if (e.Key == Key.N && e.KeyModifiers == KeyModifiers.Control && _model?.ClearCommand.CanExecute(null) == true)
+        {
+            _model.ClearCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && _drawerOpen)
         {
             CloseContext();
             e.Handled = true;
@@ -141,7 +146,8 @@ public partial class IntelligenceView : UserControl
             .FirstOrDefault(element => element.Focusable && element.IsEffectivelyVisible && element.IsEffectivelyEnabled)
             ?.Focus(NavigationMethod.Tab);
 
-    private void OnQuestionFocusRequested(object? sender, EventArgs e) => Dispatcher.UIThread.Post(ComposerBox.FocusQuestion);
+    private void OnQuestionFocusRequested(object? sender, EventArgs e) =>
+        Dispatcher.UIThread.Post(ComposerBox.FocusQuestion, DispatcherPriority.Loaded);
 
     /// <summary>
     /// The sidebar shows when there's a conversation, it hasn't been
