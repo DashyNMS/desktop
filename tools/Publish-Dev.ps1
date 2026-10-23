@@ -30,6 +30,8 @@ try {
 
     dotnet test tests/DesktopNMS.Presentation.Tests -c Release -m:1 --nologo -p:Version=$Version
     if ($LASTEXITCODE -ne 0) { throw 'Presentation tests failed.' }
+    dotnet test tests/DesktopNMS.Avalonia.Tests -c Release -m:1 --nologo -p:Version=$Version
+    if ($LASTEXITCODE -ne 0) { throw 'UI input routing tests failed.' }
     dotnet publish src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj -c Release -r win-x64 --self-contained true `
         -m:1 -p:Version=$Version -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:EnableCompressionInSingleFile=true -p:DebugType=none -o $output --nologo
@@ -43,7 +45,7 @@ try {
         "Desktop commit: $commit"
         "Tracked working-tree changes: $dirty"
         "Built UTC: $([DateTime]::UtcNow.ToString('O'))"
-        'Validation: Presentation Release tests passed.'
+        'Validation: Presentation and UI input routing Release tests passed.'
         (Get-Content artifacts/mcp/win-x64/BUILD.txt -Raw).Trim()
     ) | Set-Content (Join-Path $output 'BUILD.txt') -Encoding utf8
     Copy-Item LICENSE (Join-Path $output 'LICENSE')
