@@ -22,6 +22,9 @@ public sealed partial class IntelligenceContextViewModel
             case "sensor":
                 return IntelligenceObjectTargets.From((await _client.Sensors.ListAsync(cancellationToken))
                     .SingleOrDefault(s => s.SensorId == target.Id && s.DeviceId == target.DeviceId));
+            case "port":
+                return IntelligenceObjectTargets.From((await _client.Ports.ListForDeviceAsync(target.DeviceId!.Value, cancellationToken))
+                    .SingleOrDefault(p => p.PortId == target.Id && p.DeviceId == target.DeviceId));
             case "alert":
             case "fault":
                 var alert = await _client.Alerts.GetAsync(target.Id, cancellationToken);

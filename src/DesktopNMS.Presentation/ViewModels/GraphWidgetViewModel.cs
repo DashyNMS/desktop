@@ -198,6 +198,10 @@ public sealed class GraphWidgetViewModel : DashboardWidgetViewModel, IDisposable
 
     public bool HasSelectedDevice => _selectedDeviceId is not null;
 
+    public SpotlightOption? IntelligenceTarget => SelectedSource?.Port is { } port
+        ? IntelligenceObjectTargets.From(port)
+        : _selectedDeviceId is { } device ? IntelligenceObjectTargets.Create(new("device", device), SelectedDeviceName) : null;
+
     public GraphType? SelectedGraph
     {
         get => _selectedGraph;
