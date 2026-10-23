@@ -1,7 +1,9 @@
 # 2.0.0
-Preview 5, 22 October 2026
+Preview 6, 23 October 2026
 
 ## New
+- **Ask Intelligence.** Right-click a network object, including objects on dashboard widgets, to start a chat with it in Spotlight. Add objects mentioned in replies to Spotlight for follow-up questions. {search}
+- **Apply Settings.** Save changes with Apply and keep Settings open. {settings}
 - **Windows, macOS and Linux.** The Avalonia app now brings the same views and Intelligence to all three platforms, with native downloads, notifications and sign-in startup. {device}
 - **Logs that keep up.** Event log and Alert log now have auto-refresh intervals, keeping your filters and selection. {logs}
 - **Intelligence.** Ask about your network in plain words - what's alerting, how a switch is doing, what changed overnight - and get an answer from your own ChatGPT plan, with the evidence it used. It only reads; it can't change anything. {search}
@@ -13,6 +15,7 @@ Preview 5, 22 October 2026
 - **Grouped alerts for LibreNMS 26.10.** A rule firing on several cores, ports or sensors of one device is one alert. Open it with the arrow to see each fault, and acknowledge them together or, where LibreNMS allows, one at a time. {bell}
 
 ## Improved
+- **Device overview.** Cards fit the available space, with clearer graph, resource and sensor icons. Health uses the same sensor icon as Device Details. {device}
 - **Windows upgrades.** Keep your existing 1.x settings and saved sign-in when installing this preview. Updates choose and verify the download for your operating system and processor. {settings}
 - **Sensor refresh.** Slow requests have longer to finish, and a failed refresh keeps the last good readings. Missing readings show as unavailable. {chart}
 - **Rules for LibreNMS 26.10.** Set Notify per entity and Max entities in the rule editor. Rules that use device columns 26.10 removed are marked for review. {wrench}
@@ -22,6 +25,9 @@ Preview 5, 22 October 2026
 - **Defaults in one place.** Default map now sits with the other start-up choices in Settings, Window and start-up. {settings}
 
 ## Fixed
+- **Intelligence menus and chats.** Object menus open on the first right-click. New chats receive focus and support Ctrl+N, and model and detail choices stay readable while busy. {search}
+- **Neighbours and macOS naming.** Unmonitored neighbours remain readable, and the macOS application menu shows DashyNMS. {device}
+- **Notification guidance.** Removed the outdated notifications preview warning in Settings. {bell}
 - **Windows and the tray.** Close keeps the app running when close-to-tray is enabled. Only the main window appears in the taskbar, and Device Details caption buttons reach the right edge. {device}
 - **Branding and alerts.** Windows notifications carry the DashyNMS name and logo, the sidebar uses the worst counted severity, and demo mode shows its alerts. {bell}
 - **Intelligence activity.** Outcome icons are centred in their circles. {search}
