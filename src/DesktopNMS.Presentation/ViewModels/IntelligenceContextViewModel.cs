@@ -200,16 +200,7 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
                 return null;
             }
 
-            var devices = Spotlight.Where(s => s.Kind == SpotlightKind.Device).Select(s => s.Name).ToList();
-            var parts = new List<string>();
-            if (devices.Count > 0)
-            {
-                parts.Add((devices.Count == 1 ? "the device " : "the devices ") + string.Join(", ", devices));
-            }
-
-            parts.AddRange(Spotlight.Where(s => s.Kind == SpotlightKind.Group).Select(s => "the device group \"" + s.Name + "\""));
-            parts.AddRange(Spotlight.Where(s => s.Kind == SpotlightKind.Location).Select(s => "the location \"" + s.Name + "\""));
-            return string.Join(" and ", parts);
+            return string.Join("; ", Spotlight.Select(s => s.AgentDescription));
         }
     }
 
@@ -313,7 +304,7 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
         foreach (var item in spotlight)
         {
             if (Enum.IsDefined(typeof(SpotlightKind), item.Kind))
-                Spotlight.Add(new SpotlightOption((SpotlightKind)item.Kind, item.Id, item.Name));
+                Spotlight.Add(new SpotlightOption((SpotlightKind)item.Kind, item.Id, item.Name) { Object = item.Object });
         }
         RaiseSpotlight();
         foreach (var item in lookedAt) OnLookedAt(item);
@@ -414,21 +405,17 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
         return index;
     }
 
-    private void AddSpotlight(SpotlightOption option)
+    public bool AddSpotlight(SpotlightOption option, bool replace = false)
     {
-        if (!CanEditSpotlight) return;
-        // A group or location replaces anything else; devices add up.
-        if (option.Kind != SpotlightKind.Device || Spotlight.Any(s => s.Kind != SpotlightKind.Device))
+        if (!CanEditSpotlight || option.Id <= 0 || (option.Object is { IsValid: false })) return false;
+        if (replace) Spotlight.Clear();
+        if (!Spotlight.Any(s => s.Kind == option.Kind && s.Id == option.Id))
         {
-            Spotlight.Clear();
-        }
-
-        if (!Spotlight.Contains(option))
-        {
+            if (Spotlight.Count >= 32) return false;
             Spotlight.Add(option);
         }
-
         RaiseSpotlight();
+        return true;
     }
 
     private async Task OpenPickerAsync()
@@ -506,15 +493,26 @@ public enum SpotlightKind
     Device,
     Group,
     Location,
+    Sensor,
+    Alert,
+    Fault,
 }
 
 /// <summary>One thing the conversation is narrowed to.</summary>
 public sealed record SpotlightOption(SpotlightKind Kind, int Id, string Name)
 {
+    public IntelligenceObjectReference? Object { get; init; }
+    public IntelligenceObjectReference Identity => Object ?? new(Kind.ToString().ToLowerInvariant(), Id);
+    public string AgentDescription => $"{KindText} \"{Name}\" ({Identity.Kind}_id={Id}"
+        + (Identity.DeviceId is { } device ? $", device_id={device}" : "")
+        + (Identity.RuleId is { } rule ? $", rule_id={rule}" : "") + ")";
     public string KindText => Kind switch
     {
         SpotlightKind.Group => "Group",
         SpotlightKind.Location => "Location",
+        SpotlightKind.Sensor => "Sensor",
+        SpotlightKind.Alert => "Alert",
+        SpotlightKind.Fault => "Fault",
         _ => "Device",
     };
 

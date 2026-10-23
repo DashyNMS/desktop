@@ -28,7 +28,7 @@ public sealed partial class IntelligenceViewModel : IIntelligenceChatHost
         chat.Outfit = CompanionOutfit;
         chat.History = _conversation.ExportHistory();
         chat.Messages = Messages.Select(message => message.Save()).ToList();
-        chat.Spotlight = Context.Spotlight.Select(option => new SavedChatSpotlight((int)option.Kind, option.Id, option.Name)).ToList();
+        chat.Spotlight = Context.Spotlight.Select(option => new SavedChatSpotlight((int)option.Kind, option.Id, option.Name) { Object = option.Object }).ToList();
         chat.LookedAt = Context.LookedAt.ToList();
     }
 
