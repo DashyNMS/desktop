@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using DesktopNMS.Core.Intelligence;
+using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views.Intelligence;
 
@@ -45,6 +46,10 @@ public sealed partial class MarkdownView : Decorator
 
     /// <summary>A source link was clicked - the host decides whether and how to open it.</summary>
     public event EventHandler<Uri>? LinkActivated;
+    public event EventHandler<IntelligenceReferenceAction>? ObjectActionRequested;
+    public static readonly StyledProperty<bool> ObjectActionsEnabledProperty =
+        AvaloniaProperty.Register<MarkdownView, bool>(nameof(ObjectActionsEnabled), true);
+    public bool ObjectActionsEnabled { get => GetValue(ObjectActionsEnabledProperty); set => SetValue(ObjectActionsEnabledProperty, value); }
 
     public string? Markdown { get => GetValue(MarkdownProperty); set => SetValue(MarkdownProperty, value); }
 
@@ -570,7 +575,22 @@ public sealed partial class MarkdownView : Decorator
         }
 
         ToolTip.SetTip(badge, reference.Detail + (reference.ObservedAt == default ? string.Empty : " · observed " + reference.ObservedAt.ToLocalTime().ToString("g")));
-        inlines.Add(new InlineUIContainer(badge) { BaselineAlignment = BaselineAlignment.TextBottom });
+        Control content = badge;
+        if (reference.Object is { IsValid: true })
+        {
+            var add = new MenuItem { Header = "Add to Spotlight" };
+            var only = new MenuItem { Header = "Spotlight only this object" };
+            var menu = new ContextMenu { ItemsSource = new[] { add, only } };
+            menu.Opening += (_, _) => { add.IsEnabled = only.IsEnabled = ObjectActionsEnabled; };
+            add.Click += (_, _) => { if (ObjectActionsEnabled) ObjectActionRequested?.Invoke(this, new(reference, false)); };
+            only.Click += (_, _) => { if (ObjectActionsEnabled) ObjectActionRequested?.Invoke(this, new(reference, true)); };
+            var button = new Button { Content = badge, Classes = { "link" }, Padding = default, MinHeight = 0, ContextMenu = menu };
+            button.Click += (_, _) => menu.Open(button);
+            Avalonia.Automation.AutomationProperties.SetName(button, reference.Name + ", Spotlight actions");
+            ToolTip.SetTip(button, reference.Detail + " · Choose Spotlight actions; available after the answer finishes.");
+            content = button;
+        }
+        inlines.Add(new InlineUIContainer(content) { BaselineAlignment = BaselineAlignment.TextBottom });
     }
 
     private IBrush ToneBrush(string tone) => !ColourStatusIndicators ? TextPrimary : tone switch
@@ -596,7 +616,7 @@ public sealed partial class MarkdownView : Decorator
 
     // Bold before italic; single underscores only at word edges, so
     // hostnames like core_sw_01 stay as they are.
-    [GeneratedRegex(@"\[\[(?:device|alert|status|severity|bullet):(?:[a-z]+|[1-9][0-9]{0,9})\]\]|\[\[(?:recommendation|update)\]\]|\*\*(?=\S).+?(?<=\S)\*\*|__(?=\S).+?(?<=\S)__|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|(?<![\w*])\*(?=\S)[^*]+?(?<=\S)\*(?![\w*])|(?<!\w)_(?=\S)[^_]+?(?<=\S)_(?!\w)")]
+    [GeneratedRegex(@"\[\[(?:device|alert|sensor|group|location|status|severity|bullet):(?:[a-z]+|[1-9][0-9]{0,9})\]\]|\[\[(?:recommendation|update)\]\]|\*\*(?=\S).+?(?<=\S)\*\*|__(?=\S).+?(?<=\S)__|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|(?<![\w*])\*(?=\S)[^*]+?(?<=\S)\*(?![\w*])|(?<!\w)_(?=\S)[^_]+?(?<=\S)_(?!\w)")]
     private static partial Regex InlineToken();
 
     [GeneratedRegex(@"^\[([^\]]+)\]\(([^)\s]+)\)$")]

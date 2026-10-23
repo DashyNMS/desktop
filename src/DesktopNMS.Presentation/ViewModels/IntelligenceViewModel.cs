@@ -269,6 +269,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
             {
                 Context.IsScopeLocked = value;
                 Composer.IsBusy = value;
+                OnPropertyChanged(nameof(CanStartObjectChat));
                 RaiseCommands();
             }
         }

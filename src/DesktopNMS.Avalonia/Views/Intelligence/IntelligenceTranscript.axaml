@@ -134,6 +134,8 @@
 
                                     <intel:MarkdownView Markdown="{Binding Text}" ReplyStyle="{Binding ReplyStyle}" InlineReferences="{Binding InlineReferences}"
                                                         ColourStatusIndicators="{Binding #Transcript.((vm:IntelligenceViewModel)DataContext).ColourStatusIndicators}"
+                                                        ObjectActionsEnabled="{Binding #Transcript.((vm:IntelligenceViewModel)DataContext).CanStartObjectChat}"
+                                                        ObjectActionRequested="OnObjectActionRequested"
                                                         LinkActivated="OnSourceLinkActivated" />
 
                                     <TextBlock Text="{Binding FailureText}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="#AEC5DF"
