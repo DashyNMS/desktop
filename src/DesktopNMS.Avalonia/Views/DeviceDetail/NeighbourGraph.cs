@@ -148,7 +148,7 @@ public sealed class NeighbourGraph : Control
             var stateBrush = SeverityBrush(item.StateSeverity);
             var ring = new Pen(item.IsHighlighted ? accent : stateBrush, item.IsHighlighted ? 3 : 2, item.IsKnownDevice ? null : DashStyle.Dot);
 
-            using (context.PushOpacity(item.IsStale ? 0.55 : 1))
+            using (context.PushOpacity(item.IsStale && item.IsKnownDevice ? 0.55 : 1))
             {
                 context.DrawEllipse(surface, ring, at, NodeRadius, NodeRadius);
                 context.DrawEllipse(stateBrush, null, at, 4.5, 4.5);

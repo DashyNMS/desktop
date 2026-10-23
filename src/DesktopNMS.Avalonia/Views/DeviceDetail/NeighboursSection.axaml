@@ -24,6 +24,17 @@
         <Style Selector="Button.neighbourCard:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         </Style>
+        <!-- A neighbour without a device record is readable information,
+             even though its navigation command is unavailable. -->
+        <Style Selector="Button.neighbourCard:disabled">
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+        <Style Selector="Button.neighbourCard:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        </Style>
         <Style Selector="Button.neighbourCard.highlighted /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
@@ -63,8 +74,7 @@
                         <DataTemplate x:DataType="vm:DeviceNeighbourItemViewModel">
                             <Button Classes="neighbourCard" Classes.highlighted="{Binding IsHighlighted}" Command="{Binding OpenCommand}" Margin="0,0,4,10"
                                     PointerEntered="OnCardPointerEntered" PointerExited="OnCardPointerExited">
-                                <!-- No longer seen, though LibreNMS still has the record: faded. -->
-                                <Grid ColumnDefinitions="Auto,*" Opacity="{Binding IsStale, Converter={x:Static views:Converters.FadeWhenBusy}}">
+                                <Grid ColumnDefinitions="Auto,*">
                                     <!-- The neighbour's state, on a tile tinted to match. -->
                                     <Panel Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Top">
                                         <Border CornerRadius="9" Opacity="0.16" Background="{Binding StateSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
@@ -81,6 +91,7 @@
                                         <WrapPanel Margin="0,6,0,0">
                                             <Border Classes="pill"><TextBlock Text="{Binding MatchText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
                                             <Border Classes="pill"><TextBlock Text="{Binding StateText}" FontSize="11" Foreground="{Binding StateSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" /></Border>
+                                            <Border Classes="pill" IsVisible="{Binding IsStale}"><TextBlock Text="No longer seen" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
                                         </WrapPanel>
                                         <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,4,0,0">
                                             <fi:SymbolIcon Symbol="PlugConnected" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
