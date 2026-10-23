@@ -28,8 +28,11 @@ try {
         $app=Join-Path $mount 'DashyNMS.app'
         codesign --verify --deep --strict $app
         if ($LASTEXITCODE -ne 0) { throw 'The packaged app signature is invalid.' }
-        foreach ($file in @('DashyNMS','dashynms-login','libdashynms-notifications.dylib','mcp/LICENSE','mcp/BUILD.txt')) {
+        foreach ($file in @('DashyNMS','dashynms-login','libdashynms-notifications.dylib')) {
             if (-not (Test-Path "$app/Contents/MacOS/$file" -PathType Leaf)) { throw "Missing packaged file: $file" }
+        }
+        foreach ($file in @('LICENSE','BUILD.txt','mcp/LICENSE','mcp/BUILD.txt')) {
+            if (-not (Test-Path "$app/Contents/Resources/$file" -PathType Leaf)) { throw "Missing packaged resource: $file" }
         }
         $executable=Join-Path $app 'Contents/MacOS/mcp/dashynms-mcp'
     }

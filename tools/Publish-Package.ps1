@@ -63,7 +63,14 @@ try {
         $image=Join-Path $stage 'disk-image'; $app=Join-Path $image 'DashyNMS.app'; $contents=Join-Path $app 'Contents'
         $mac=Join-Path $contents 'MacOS'; $resources=Join-Path $contents 'Resources'
         New-Item $mac,$resources -ItemType Directory -Force | Out-Null
-        Copy-Item "$publish/*" $mac -Recurse
+        # MacOS is a code directory: keep notices in Resources so codesign
+        # does not treat the MCP licence and revision files as unsigned code.
+        Get-ChildItem $publish | Where-Object Name -NotIn @('mcp','LICENSE','BUILD.txt') |
+            ForEach-Object { Copy-Item $_.FullName $mac -Recurse }
+        New-Item "$mac/mcp","$resources/mcp" -ItemType Directory -Force | Out-Null
+        Copy-Item "$publish/mcp/$mcpName" "$mac/mcp/$mcpName"
+        Copy-Item "$publish/mcp/LICENSE","$publish/mcp/BUILD.txt" "$resources/mcp"
+        Copy-Item "$publish/LICENSE","$publish/BUILD.txt" $resources
         $architecture=if ($Runtime -eq 'osx-arm64') { 'arm64' } else { 'x86_64' }
         swiftc -swift-version 5 -target "$architecture-apple-macos13" -emit-library tools/macos/Notifications.swift -o "$mac/libdashynms-notifications.dylib"
         Check-Native 'Compile notifications'
