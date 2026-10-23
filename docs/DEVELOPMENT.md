@@ -51,7 +51,7 @@ For a local build, publish the pinned MCP source first (requires .NET 10), then:
 ./tools/Publish-Dev.ps1
 ```
 
-This runs the Presentation tests and publishes to a new versioned folder beneath
+This runs the Presentation and headless Avalonia UI input tests and publishes to a new versioned folder beneath
 `artifacts/dev`. Previous builds remain available. For cross-platform installers,
 see [Native packages](#native-packages).
 
