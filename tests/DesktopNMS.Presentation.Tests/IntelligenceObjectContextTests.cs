@@ -15,6 +15,39 @@ namespace DesktopNMS.Presentation.Tests;
 public sealed class IntelligenceObjectContextTests
 {
     [Theory]
+    [InlineData(42)]
+    [InlineData(null)]
+    public void Top_widget_rows_keep_the_specific_interface_or_device(int? port)
+    {
+        var row = new TopRowViewModel(12, port, "Switch", "Ethernet1", "1 Mbps", "2 Mbps", .2, DeviceState.Up);
+        var target = IntelligenceObjectTargets.From(row)!;
+        Assert.Equal(port is { } id ? new("port", id, 12) : new IntelligenceObjectReference("device", 12), target.Identity);
+        if (port is not null) Assert.Contains("port_id=42, device_id=12", target.AgentDescription);
+    }
+
+    [Fact]
+    public async Task Interface_scope_rechecks_the_exact_port_and_parent_device()
+    {
+        var ports = Proxy<IPortsApi>((_, _) => Task.FromResult<IReadOnlyList<Port>>(new[] { new Port { PortId = 42, DeviceId = 12, IfName = "Ethernet1" } }));
+        var context = Context(Proxy<ILibreNmsClient>((_, _) => ports));
+        Assert.NotNull(await context.ResolveObjectAsync(IntelligenceObjectTargets.Create(new("port", 42, 12), "Interface")!, default));
+        Assert.Null(await context.ResolveObjectAsync(IntelligenceObjectTargets.Create(new("port", 42, 99), "Wrong parent")!, default));
+        Assert.Null(await context.ResolveObjectAsync(IntelligenceObjectTargets.Create(new("port", 43, 12), "Deleted")!, default));
+    }
+
+    [Fact]
+    public void Other_dashboard_rows_offer_device_scope_without_guessing_log_sources()
+    {
+        var pinned = new PinnedDeviceItemViewModel(new PinnedDevice { DeviceId = 12, DisplayName = "Switch" }, _ => { }, _ => { });
+        var recent = new RecentlyViewedDeviceItemViewModel(new RecentlyViewedDevice { DeviceId = 12, DisplayName = "Switch" }, _ => { });
+        var log = new LogFeedRowViewModel("entry", "now", "now", "Switch", null, "Event", 12, null);
+        foreach (var row in new object[] { pinned, recent, log, new DevicePickerItem(12, "Switch") })
+            Assert.Equal(new IntelligenceObjectReference("device", 12), IntelligenceObjectTargets.From(row)!.Identity);
+        Assert.Null(IntelligenceObjectTargets.From(new LogFeedRowViewModel("entry", "now", "now", "Unmatched", null, "Event", null, null)));
+        Assert.Equal(new IntelligenceObjectReference("port", 42, 12), IntelligenceObjectTargets.From(new GraphSource("Ethernet1", new Port { PortId = 42, DeviceId = 12 }))!.Identity);
+    }
+
+    [Theory]
     [InlineData("sensor", 73, 12)]
     [InlineData("group", 3, null)]
     [InlineData("location", 4, null)]

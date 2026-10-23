@@ -4,6 +4,8 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.ViewModels;
+using FluentIcons.Avalonia;
+using FluentIcons.Common;
 
 namespace DesktopNMS.Views.Intelligence;
 
@@ -32,8 +34,8 @@ internal static class IntelligenceObjectMenu
             var item = menu.Items.OfType<MenuItem>().FirstOrDefault(i => Equals(i.Tag, ItemTag));
             if (item is null)
             {
-                item = new MenuItem { Header = "Ask Intelligence", Tag = ItemTag };
-                menu.Items.Add(item);
+                item = new MenuItem { Header = "Ask Intelligence", Tag = ItemTag, Icon = new SymbolIcon { Symbol = Symbol.Sparkle } };
+                menu.Items.Insert(0, item);
             }
             item.IsVisible = true;
             item.Command = new AsyncRelayCommand(async () => { show(); await intelligence.StartObjectChatAsync(target); }, () => intelligence.CanStartObjectChat);

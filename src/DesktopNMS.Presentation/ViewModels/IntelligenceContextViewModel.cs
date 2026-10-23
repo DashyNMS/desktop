@@ -496,6 +496,7 @@ public enum SpotlightKind
     Sensor,
     Alert,
     Fault,
+    Port,
 }
 
 /// <summary>One thing the conversation is narrowed to.</summary>
@@ -513,6 +514,7 @@ public sealed record SpotlightOption(SpotlightKind Kind, int Id, string Name)
         SpotlightKind.Sensor => "Sensor",
         SpotlightKind.Alert => "Alert",
         SpotlightKind.Fault => "Fault",
+        SpotlightKind.Port => "Interface",
         _ => "Device",
     };
 
