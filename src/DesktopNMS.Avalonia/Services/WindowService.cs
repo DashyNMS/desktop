@@ -148,10 +148,14 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         }
 
         var window = new SettingsWindow(viewModel);
+        viewModel.Applied += OnSettingsApplied;
+        window.Closed += (_, _) => viewModel.Applied -= OnSettingsApplied;
         WindowPlacementMemory.Attach(window, services.GetRequiredService<ISettingsStore>());
         Modal.Show(window, Owner());
         return window.Saved;
     }
+
+    private void OnSettingsApplied(object? sender, EventArgs e) => Main.RefreshAfterSettingsChange();
 
     public bool ShowWhatsNew()
     {

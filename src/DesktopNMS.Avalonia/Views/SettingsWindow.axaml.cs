@@ -25,7 +25,13 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         DataContext = viewModel;
         viewModel.RequestClose += OnRequestClose;
-        Closed += (_, _) => viewModel.Detach();
+        viewModel.Applied += OnApplied;
+        Closed += (_, _) =>
+        {
+            viewModel.RequestClose -= OnRequestClose;
+            viewModel.Applied -= OnApplied;
+            viewModel.Detach();
+        };
 
         AboutLogo.PointerPressed += OnAboutLogoPressed;
 
@@ -58,8 +64,10 @@ public partial class SettingsWindow : Window
         };
     }
 
-    /// <summary>True once saved; closing any other way discards the changes.</summary>
+    /// <summary>True once any changes have been saved, including through Apply.</summary>
     public bool Saved { get; private set; }
+
+    private void OnApplied(object? sender, EventArgs e) => Saved = true;
 
     private void OnCancel(object? sender, RoutedEventArgs e) => Close();
 
@@ -86,7 +94,7 @@ public partial class SettingsWindow : Window
     private void OnRequestClose(object? sender, bool saved)
     {
         _viewModel!.RequestClose -= OnRequestClose;
-        Saved = saved;
+        Saved |= saved;
         Close();
     }
 }

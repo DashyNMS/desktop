@@ -156,7 +156,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         // The registry is the source of truth for auto-start, not the settings file.
         _draft.StartWithWindows = startup.IsEnabled;
 
-        SaveCommand = new AsyncRelayCommand(SaveAsync, () => !IsTestingConnection);
+        SaveCommand = new AsyncRelayCommand(p => SaveAsync(close: p as string != "apply"), _ => !IsTestingConnection);
         CancelCommand = new RelayCommand(() => RequestClose?.Invoke(this, false));
         PreviewCriticalCommand = new RelayCommand(() => _notifications.ShowPreview(AlertSeverity.Critical));
         PreviewWarningCommand = new RelayCommand(() => _notifications.ShowPreview(AlertSeverity.Warning));
@@ -206,6 +206,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     public event EventHandler<bool>? RequestClose;
+
+    /// <summary>Settings saved while the dialog remains open.</summary>
+    public event EventHandler? Applied;
 
     public AsyncRelayCommand SaveCommand { get; }
 
@@ -2431,7 +2434,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         return PersistenceOptions[0];
     }
 
-    private async Task SaveAsync()
+    private async Task SaveAsync(bool close)
     {
         // The error shows by the field; nothing's saved until it's fixed.
         if (HasBackupServerAddressError)
@@ -2475,8 +2478,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         ApplyUnimusConfiguration();
         ApplyGraylogConfiguration();
 
-        _store.Replace(_draft);
-        RequestClose?.Invoke(this, true);
+        // The dialog stays editable after Apply. Never let later, unsaved
+        // edits mutate the running app's settings through shared references.
+        _store.Replace(_draft.Clone());
+        ServerTokenInput = string.Empty;
+        if (close) RequestClose?.Invoke(this, true);
+        else Applied?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
