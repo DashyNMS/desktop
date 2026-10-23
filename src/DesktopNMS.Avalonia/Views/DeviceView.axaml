@@ -303,10 +303,10 @@
                             </Button>
                             <StackPanel IsVisible="{Binding HealthGroup.IsExpanded}">
                                 <Button Classes="navItem" Classes.selected="{Binding IsSensorsSelected}" Command="{Binding SelectSensorsCommand}" ToolTip.Tip="Sensors">
-                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="TopSpeed" /><TextBlock Classes="navLabel" Text="Sensors" VerticalAlignment="Center" /></StackPanel>
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="Pulse" /><TextBlock Classes="navLabel" Text="Sensors" VerticalAlignment="Center" /></StackPanel>
                                 </Button>
                                 <Button Classes="navItem" Classes.selected="{Binding IsGraphsSelected}" Command="{Binding SelectGraphsCommand}" ToolTip.Tip="Graphs">
-                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="DataLine" /><TextBlock Classes="navLabel" Text="Graphs" VerticalAlignment="Center" /></StackPanel>
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="DataArea" /><TextBlock Classes="navLabel" Text="Graphs" VerticalAlignment="Center" /></StackPanel>
                                 </Button>
                             </StackPanel>
 
@@ -322,7 +322,7 @@
                             </StackPanel>
                             <StackPanel IsVisible="{Binding HardwareGroup.IsExpanded}">
                                 <Button Classes="navItem" Classes.selected="{Binding IsResourcesSelected}" Command="{Binding SelectResourcesCommand}" ToolTip.Tip="Resources" IsVisible="{Binding ShowResourcesNav}">
-                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="Board" /><TextBlock Classes="navLabel" Text="Resources" VerticalAlignment="Center" /></StackPanel>
+                                    <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="TopSpeed" /><TextBlock Classes="navLabel" Text="Resources" VerticalAlignment="Center" /></StackPanel>
                                 </Button>
                                 <Button Classes="navItem" Classes.selected="{Binding IsInventorySelected}" Command="{Binding SelectInventoryCommand}" ToolTip.Tip="Inventory" IsVisible="{Binding Inventory.ShowNav}">
                                     <StackPanel Orientation="Horizontal"><fi:SymbolIcon Symbol="Box" /><TextBlock Classes="navLabel" Text="Inventory" VerticalAlignment="Center" /></StackPanel>
