@@ -6,6 +6,18 @@
 
     <!-- The question box with the model, detail and Ask/Stop beneath it, as chat apps have it (#327). -->
     <UserControl.Styles>
+        <!-- Keep the current choices readable while an answer runs. -->
+        <Style Selector="ComboBox.chatOption:disabled /template/ Border#Background">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        </Style>
+        <Style Selector="ComboBox.chatOption:disabled /template/ ContentControl#ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <Style Selector="ComboBox.chatOption:disabled /template/ PathIcon#DropDownGlyph">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Opacity" Value="0.6" />
+        </Style>
         <!-- The box is the card; the TextBox inside has no frame of its own. -->
         <Style Selector="TextBox#QuestionBox, TextBox#QuestionBox:pointerover, TextBox#QuestionBox:focus">
             <Setter Property="Background" Value="Transparent" />
@@ -31,12 +43,12 @@
                 <WrapPanel HorizontalAlignment="Left">
                     <StackPanel Margin="0,0,8,0">
                         <TextBlock Text="Model" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4" />
-                        <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" DisplayMemberBinding="{ReflectionBinding DisplayName}"
+                        <ComboBox Classes="chatOption" ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" DisplayMemberBinding="{ReflectionBinding DisplayName}"
                                   MinWidth="150" IsEnabled="{Binding CanChangeChat}" AutomationProperties.Name="Model for this chat" ToolTip.Tip="Which ChatGPT model answers" />
                     </StackPanel>
                     <StackPanel>
                         <TextBlock Text="Detail" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4" />
-                        <ComboBox ItemsSource="{Binding DetailOptions}" SelectedValue="{Binding SelectedDetail}" SelectedValueBinding="{ReflectionBinding Key}"
+                        <ComboBox Classes="chatOption" ItemsSource="{Binding DetailOptions}" SelectedValue="{Binding SelectedDetail}" SelectedValueBinding="{ReflectionBinding Key}"
                                   DisplayMemberBinding="{ReflectionBinding Value}" Width="150" IsEnabled="{Binding CanChangeChat}"
                                   ToolTip.Tip="How much answers in this chat say. Asking for more or less in a question overrides it."
                                   AutomationProperties.Name="Detail for this chat" />
