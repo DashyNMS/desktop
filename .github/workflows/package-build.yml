@@ -21,6 +21,9 @@ on:
       - tools/Publish-Package.ps1
       - tools/Test-Package.ps1
       - tools/Test-WindowsUpgrade.ps1
+      - tools/Prepare-Preview.ps1
+      - tools/Test-PreviewArtifacts.ps1
+      - tools/Test-PreviewWorkflow.ps1
       - tests/DesktopNMS.Presentation.Tests/WindowsInstallerUpgradeTests.cs
       - installer/**
   push:
@@ -45,6 +48,9 @@ jobs:
       value: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v7
+      - name: Test preview release gates
+        shell: pwsh
+        run: ./tools/Test-PreviewWorkflow.ps1
       - id: version
         shell: pwsh
         env:

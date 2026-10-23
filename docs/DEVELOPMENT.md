@@ -52,8 +52,8 @@ For a local build, publish the pinned MCP source first (requires .NET 10), then:
 ```
 
 This runs the Presentation tests and publishes to a new versioned folder beneath
-`artifacts/dev`. Previous builds remain available. Cross-platform installers and
-release packaging are tracked separately in #157.
+`artifacts/dev`. Previous builds remain available. For cross-platform installers,
+see [Native packages](#native-packages).
 
 Windows release and preview builds use the existing `%APPDATA%/DashyNMS`
 profile from 1.x, including its DPAPI-encrypted secrets. Debug and `-dev.*`
@@ -168,7 +168,18 @@ Intel/Apple Silicon `.dmg`, and Linux x64/ARM64 AppImage artifacts. Run it
 manually with a version, or leave the version blank for a CI preview. Changes
 to the package builder also run it on pull requests. It uploads artifacts for
 30 days, with SHA-256 files and source revisions, without creating a release
-or tag. Existing public release workflows remain Windows-only.
+or tag. The manual **Preview build** workflow calls this same package workflow,
+including the Windows upgrade checks, then publishes all five native packages
+as a GitHub prerelease. The stable release workflow remains Windows-only.
+
+Before running **Preview build** on `master`, write and review
+`docs/releases/<version>.md` for the next numbered preview (for example
+`2.0.0-preview.5.md`). The workflow derives that number from existing preview
+tags and fails if the notes are missing or empty. It publishes those exact notes
+and creates the tag only after all package and upgrade checks pass. It also
+checks all five packages' checksums, versions and source revisions before
+publishing. Merging a PR does not publish a preview; dispatch the workflow
+manually when the notes and build are ready.
 
 On the matching native host, with that runtime's MCP bundle built first:
 
