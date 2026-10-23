@@ -88,4 +88,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.event.release.tag_name }}
-          files: dist/DashyNMS-Setup-*.exe
+          fail_on_unmatched_files: true
+          # Attach only the app download, never build records or checksum sidecars.
+          files: dist/DashyNMS-Setup-${{ steps.version.outputs.version }}.exe
