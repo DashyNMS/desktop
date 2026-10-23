@@ -2332,7 +2332,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        RefreshAfterSettingsChange();
+    }
 
+    /// <summary>Refreshes display choices after Settings saves, including Apply.</summary>
+    public void RefreshAfterSettingsChange()
+    {
         // The device name style may have changed, and the device list is what
         // backs it, so pull both through before refreshing.
         _devices.Invalidate();

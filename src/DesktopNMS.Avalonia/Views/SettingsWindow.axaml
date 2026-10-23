@@ -768,7 +768,8 @@
         <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="24,14">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
                 <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
-                <Button Content="Save" Command="{Binding SaveCommand}" Classes="primary" IsDefault="True" />
+                <Button Content="Apply" Command="{Binding SaveCommand}" CommandParameter="apply" />
+                <Button Content="Apply &amp; Save" Command="{Binding SaveCommand}" Classes="primary" IsDefault="True" />
             </StackPanel>
         </Border>
 
