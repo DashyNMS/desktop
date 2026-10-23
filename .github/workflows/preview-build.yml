@@ -88,4 +88,10 @@ jobs:
           prerelease: true
           make_latest: 'false'
           fail_on_unmatched_files: true
-          files: dist/*
+          # Build records and checksum sidecars stay in Actions artifacts.
+          files: |
+            dist/DashyNMS-Setup-${{ needs.prepare.outputs.version }}.exe
+            dist/DashyNMS-${{ needs.prepare.outputs.version }}-osx-x64.dmg
+            dist/DashyNMS-${{ needs.prepare.outputs.version }}-osx-arm64.dmg
+            dist/DashyNMS-${{ needs.prepare.outputs.version }}-linux-x64.AppImage
+            dist/DashyNMS-${{ needs.prepare.outputs.version }}-linux-arm64.AppImage

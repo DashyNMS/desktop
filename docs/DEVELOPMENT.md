@@ -178,7 +178,8 @@ Before running **Preview build** on `master`, write and review
 tags and fails if the notes are missing or empty. It publishes those exact notes
 and creates the tag only after all package and upgrade checks pass. It also
 checks all five packages' checksums, versions and source revisions before
-publishing. Merging a PR does not publish a preview; dispatch the workflow
+publishing. GitHub releases attach only the app downloads; checksum sidecars
+and build records remain in the Actions artifacts for verification. Merging a PR does not publish a preview; dispatch the workflow
 manually when the notes and build are ready.
 
 On the matching native host, with that runtime's MCP bundle built first:
