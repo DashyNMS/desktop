@@ -10,10 +10,7 @@
         Icon="/Assets/app.ico"
         WindowStartupLocation="CenterOwner">
 
-    <!-- Settings (#250, from the WPF app's SettingsWindow): a page per section,
-         saved together. What the cross-platform app can't do yet - the tray,
-         start at login, notifications - is left out or says so, rather than
-         offering settings that do nothing. -->
+    <!-- Settings: a page per section, applied together to the running app. -->
     <Grid RowDefinitions="*,Auto">
         <Grid Grid.Row="0" ColumnDefinitions="190,*">
 
@@ -224,11 +221,6 @@
                     <!-- ==================== Notifications ==================== -->
                     <StackPanel IsVisible="{Binding IsNotificationsSectionSelected}">
                         <TextBlock Text="Notifications" Classes="heading" Margin="0,0,0,10" />
-                        <!-- Notifications on each OS are #251; until then these are kept for when they arrive. -->
-                        <Border Background="{DynamicResource AccentSubtleBrush}" CornerRadius="4" Padding="10,6" Margin="0,0,0,14">
-                            <TextBlock TextWrapping="Wrap"
-                                       Text="Notifications aren't in the cross-platform preview yet. What you choose here is saved for when they are." />
-                        </Border>
                         <CheckBox Content="Show notifications" IsChecked="{Binding NotificationsEnabled}" Margin="0,0,0,16" />
 
                         <Border Classes="card" Margin="0,0,0,16" IsEnabled="{Binding NotificationsEnabled}">
