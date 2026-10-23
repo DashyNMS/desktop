@@ -82,6 +82,8 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 Source: "{#AppSourceDir}\mcp\dashynms-mcp.exe"; DestDir: "{app}\mcp"; Flags: ignoreversion
 Source: "{#AppSourceDir}\mcp\*"; DestDir: "{app}\mcp"; Excludes: "dashynms-mcp.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#AppSourceDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppSourceDir}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#AppSourceDir}\BUILD.txt"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 ; A single loose Start Menu shortcut at the same path DashyNMS.exe would

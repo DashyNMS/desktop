@@ -161,6 +161,35 @@ runs `DashyNMS.exe --uninstall` to remove the notification registration. It
 then asks whether to remove `%APPDATA%\DashyNMS` and `%LOCALAPPDATA%\DashyNMS`
 too, defaulting to keep. A silent uninstall (`/VERYSILENT`) always keeps them.
 
+### Native packages
+
+The **Native packages** Actions workflow builds Windows x64 Setup, macOS
+Intel/Apple Silicon `.dmg`, and Linux x64/ARM64 AppImage artifacts. Run it
+manually with a version, or leave the version blank for a CI preview. Changes
+to the package builder also run it on pull requests. It uploads artifacts for
+30 days, with SHA-256 files and source revisions, without creating a release
+or tag. Existing public release workflows remain Windows-only.
+
+On the matching native host, with that runtime's MCP bundle built first:
+
+```powershell
+./tools/Publish-Package.ps1 -Runtime osx-arm64 -Version 2.0.0-preview.1
+```
+
+Windows also needs `-InnoCompiler <path-to-ISCC.exe>`. Output goes under
+`artifacts/packages/<version>/<runtime>`, with fresh staging directories for
+each version. The macOS bundle includes the notification bridge, login helper,
+icon and native network tools. Development Mac packages use ad-hoc signatures;
+distribution signing/notarisation is tracked in #255 and Windows signing in
+#109. Linux packages use checksum-pinned AppImage build tools and runtime.
+
+CI verifies the finished installer, mounted DMG or extracted AppImage, then
+runs the real packaged MCP server against the example network. Separate fresh
+Windows runners install the shipped 1.0 and 1.1 apps and upgrade them without a
+new install path, checking settings, layouts, window placement, encrypted
+secrets, startup registration and the existing shortcut. Installer tests are
+restricted to disposable GitHub Actions accounts.
+
 ## Layout
 
 ```text
