@@ -293,7 +293,7 @@
                                     Command="{Binding SelectHealthTabCommand}"
                                     ToolTip.Tip="Health" AutomationProperties.Name="Health">
                                 <StackPanel Orientation="Horizontal">
-                                    <fi:SymbolIcon Symbol="Heart" />
+                                    <fi:SymbolIcon Symbol="Pulse" />
                                     <TextBlock Text="Health" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
                                 </StackPanel>
                             </Button>
