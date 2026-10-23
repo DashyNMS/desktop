@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DesktopNMS.Presentation\DesktopNMS.Presentation.csproj" />
+    <Compile Include="..\..\src\DesktopNMS.Avalonia\Views\DeviceDetail\OverviewLayoutPlan.cs" Link="OverviewLayoutPlan.cs" />
   </ItemGroup>
 
 </Project>
