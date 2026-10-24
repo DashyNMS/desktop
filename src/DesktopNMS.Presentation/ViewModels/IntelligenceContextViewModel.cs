@@ -163,6 +163,8 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
 
     public bool HasAlerts => Alerts.Count > 0;
 
+    public bool HasOpenNetworkAlerts => _alerts.Any(alert => alert.State != AlertState.Recovered);
+
     public bool HasLookedAt => LookedAt.Count > 0;
 
     public bool HasSpotlight => Spotlight.Count > 0;
