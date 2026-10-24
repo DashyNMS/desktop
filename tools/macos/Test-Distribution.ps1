@@ -23,15 +23,21 @@ try {
     $testModule = New-Module -ArgumentList $scriptDirectory -ScriptBlock {
         param($Directory)
         $script:IsMacOS = $true
-        $global:DashySigningTestState = @{ Calls = [Collections.Generic.List[object]]::new(); Failure = '' }
+        $global:DashySigningTestState = @{ Calls = [Collections.Generic.List[object]]::new(); Failure = @(); Output = '' }
 
         . "$Directory/Distribution-Common.ps1"
         function Record([string]$Tool, [object[]]$Arguments) {
             $global:DashySigningTestState.Calls.Add([pscustomobject]@{ Tool=$Tool; Arguments=$Arguments })
             $selectors = @($Tool,"$Tool $($Arguments[0])","$Tool $($Arguments[0]) $($Arguments[1])")
-            $global:LASTEXITCODE = if ($global:DashySigningTestState.Failure -in $selectors) { 1 } else { 0 }
+            $global:LASTEXITCODE = if (@($selectors | Where-Object { $_ -in $global:DashySigningTestState.Failure }).Count) { 1 } else { 0 }
         }
-        function security { Record security $args }
+        function security {
+            Record security $args
+            if ($global:DashySigningTestState.Output) {
+                Write-Output $global:DashySigningTestState.Output
+                Write-Error $global:DashySigningTestState.Output -ErrorAction Continue
+            }
+        }
         function chmod { Record chmod $args }
         function codesign { Record codesign $args }
         function spctl { Record spctl $args }
@@ -48,8 +54,12 @@ try {
             & "$Directory/Publish-Distribution.ps1" -App $App -ImageDirectory $Image -DiskImage $DiskImage
         }
         function Get-Calls { $global:DashySigningTestState.Calls.ToArray() }
-        function Reset-Calls([string]$Failure = '') { $global:DashySigningTestState.Calls.Clear(); $global:DashySigningTestState.Failure = $Failure }
-        Export-ModuleMember -Function Assert-MacOSDistribution,Test-MachO,Run-Packager,Get-Calls,Reset-Calls
+        function Reset-Calls([string[]]$Failure = @(), [string]$Output = '') {
+            $global:DashySigningTestState.Calls.Clear()
+            $global:DashySigningTestState.Failure = $Failure
+            $global:DashySigningTestState.Output = $Output
+        }
+        Export-ModuleMember -Function Assert-MacOSDistribution,Test-MachO,Invoke-MacTool,Run-Packager,Get-Calls,Reset-Calls
     }
     Import-Module $testModule -Force -DisableNameChecking
     foreach ($invalidRef in @('refs/heads/feature/test','refs/tags/v2.0.0','refs/pull/1/merge')) {
@@ -109,7 +119,50 @@ try {
         Require $rejected "A failing $failure was ignored."
         Require (@(Get-ChildItem $scratch -Directory -Filter 'dashynms-signing-*').Count -eq 0) "Failed $failure left credential files."
     }
-    Write-Host 'Distribution guards, Mach-O signing, entitlement scope, notarisation and failure cleanup passed with mocked macOS tools.'
+    foreach ($stage in @(
+        @{ Command = 'create-keychain'; Operation = 'CreateKeychain' },
+        @{ Command = 'set-keychain-settings'; Operation = 'ConfigureKeychain' },
+        @{ Command = 'unlock-keychain'; Operation = 'UnlockKeychain' },
+        @{ Command = 'import'; Operation = 'ImportCertificate' },
+        @{ Command = 'set-key-partition-list'; Operation = 'ConfigureKeyAccess' },
+        @{ Command = 'delete-keychain'; Operation = 'DeleteKeychain' }
+    )) {
+        Reset-Calls "security $($stage.Command)"
+        $failureMessage = ''
+        try { Run-Packager $app $image $diskImage } catch { $failureMessage = $_.Exception.Message }
+        Require ($failureMessage.StartsWith("$($stage.Operation) failed with exit code 1.")) 'A keychain failure lost its operation.'
+    }
+    foreach ($case in @(
+        @{ Native = 'MAC verification failed during PKCS12 import'; Expected = 'PKCS#12 verification failed.' },
+        @{ Native = 'Unknown format in import'; Expected = 'The certificate import format was rejected.' },
+        @{ Native = 'The user name or passphrase you entered is not correct.'; Expected = 'The keychain rejected its password.' },
+        @{ Native = 'The specified item could not be found in the keychain.'; Expected = 'A required keychain item was not found.' },
+        @{ Native = 'User interaction is not allowed.'; Expected = 'The keychain requires interaction unavailable on the build runner.' },
+        @{ Native = 'unrecognised native error'; Expected = 'Native details withheld' }
+    )) {
+        Reset-Calls 'security import' ($case.Native + ' synthetic-secret-output')
+        $visible = (& {
+            try {
+                Invoke-MacTool security @('import','synthetic-secret-argument') -Operation ImportCertificate
+                throw 'Failed native import was accepted.'
+            } catch { $_.Exception.Message }
+        } *>&1) -join "`n"
+        Require ($visible.Contains('ImportCertificate failed with exit code 1.')) 'Import failure lost its operation.'
+        Require ($visible.Contains($case.Expected)) 'Native failure did not receive its fixed diagnostic.'
+        Require ($visible -notmatch 'synthetic-secret|unrecognised native error') 'A native diagnostic exposed secret output or arguments.'
+    }
+    Reset-Calls @('security import','security delete-keychain') 'MAC verification failed during PKCS12 import synthetic-secret-output'
+    $visible = (& {
+        try { Run-Packager $app $image $diskImage } catch { $_.Exception.Message }
+    } *>&1) -join "`n"
+    Require ($visible.Contains('ImportCertificate failed with exit code 1.')) 'Cleanup masked the original import failure.'
+    Require ($visible.Contains('keychain deletion also failed')) 'The secondary keychain cleanup failure was hidden.'
+    Require ($visible -notmatch 'synthetic-secret') 'Failure cleanup exposed native secret output.'
+    Require (@(Get-ChildItem $scratch -Directory -Filter 'dashynms-signing-*').Count -eq 0) 'Combined import and keychain cleanup failures left credential files.'
+    Reset-Calls -Output 'synthetic-secret-success-output'
+    $visible = (Run-Packager $app $image $diskImage *>&1) -join "`n"
+    Require ($visible -notmatch 'synthetic-secret') 'A successful keychain operation exposed native output.'
+    Write-Host 'Distribution guards, signing, safe diagnostics, notarisation and failure cleanup passed with mocked macOS tools.'
 } finally {
     if ($testModule) { Remove-Module $testModule -ErrorAction SilentlyContinue }
     Remove-Variable DashySigningTestState -Scope Global -ErrorAction SilentlyContinue

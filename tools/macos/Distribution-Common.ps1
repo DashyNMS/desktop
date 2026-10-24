@@ -25,8 +25,36 @@ function Test-MachO([string]$Path) {
     } finally { $stream.Dispose() }
 }
 
-function Invoke-MacTool([string]$Command, [string[]]$Arguments) {
+function Invoke-MacTool(
+    [string]$Command,
+    [string[]]$Arguments,
+    [Parameter(Mandatory)]
+    [ValidateSet('SetPermissions','CreateKeychain','ConfigureKeychain','UnlockKeychain','ImportCertificate',
+        'ConfigureKeyAccess','StoreNotaryCredentials','SignCode','VerifySignature','ArchiveApp','StapleTicket',
+        'ValidateTicket','AssessTrust','CreateDiskImage','DeleteKeychain')]
+    [string]$Operation
+) {
+    Write-Host "macOS distribution: $Operation."
     $result = & $Command @Arguments 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "$Command failed with exit code $LASTEXITCODE." }
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        $reason = 'Native details withheld because this operation handles signing credentials.'
+        if ($Command -eq 'security') {
+            $diagnostics = @(
+                @{ Pattern = 'MAC verification failed'; Message = 'PKCS#12 verification failed. Check the certificate password and export compatibility.' },
+                @{ Pattern = 'Unknown format in import|unknown format|unable to decode'; Message = 'The certificate import format was rejected. Check the PKCS#12 export.' },
+                @{ Pattern = 'user name or passphrase.*not correct|password.*not correct'; Message = 'The keychain rejected its password.' },
+                @{ Pattern = 'specified item could not be found|no keys found'; Message = 'A required keychain item was not found. Check that the certificate export includes its private key.' },
+                @{ Pattern = 'interaction is not allowed'; Message = 'The keychain requires interaction unavailable on the build runner.' }
+            )
+            foreach ($diagnostic in $diagnostics) {
+                if (($result -join "`n") -match $diagnostic.Pattern) {
+                    $reason = $diagnostic.Message
+                    break
+                }
+            }
+        }
+        throw "$Operation failed with exit code $exitCode. $reason"
+    }
     return $result
 }
