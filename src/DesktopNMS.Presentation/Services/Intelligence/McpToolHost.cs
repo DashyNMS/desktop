@@ -43,6 +43,7 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
     private readonly IGraylogPasswordProtector _graylogPassword;
     private readonly ILogger<McpToolHost> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly DesktopNMS.Core.Sensors.SensorDefinitionStore? _sensorDefinitions;
 
     private McpClient? _client;
     private IReadOnlyList<IntelligenceTool>? _tools;
@@ -54,9 +55,11 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
         ISettingsStore settings,
         IUnimusTokenProtector unimusToken,
         IGraylogPasswordProtector graylogPassword,
-        ILoggerFactory loggerFactory)
+        ILoggerFactory loggerFactory,
+        DesktopNMS.Core.Sensors.SensorDefinitionStore? sensorDefinitions = null)
     {
         _session = session;
+        _sensorDefinitions = sensorDefinitions;
         _settings = settings;
         _unimusToken = unimusToken;
         _graylogPassword = graylogPassword;
@@ -171,6 +174,11 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
         }
 
         var environment = StdioClientTransportOptions.GetDefaultEnvironmentVariables();
+        if (_sensorDefinitions is not null)
+        {
+            environment["DASHYNMS_SENSOR_DEFINITIONS_DIRECTORY"] = _sensorDefinitions.Paths.DefinitionsDirectory;
+            environment["DASHYNMS_SENSOR_DEFINITIONS_SETTINGS"] = _sensorDefinitions.Paths.SettingsFile;
+        }
         foreach (var (key, value) in Configuration(connection))
         {
             environment[key] = value;

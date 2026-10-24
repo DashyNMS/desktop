@@ -16,4 +16,5 @@ public enum SettingsSection
     Graylog,
     Intelligence,
     About,
+    SensorDefinitions,
 }

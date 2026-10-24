@@ -3,6 +3,7 @@ using System.Globalization;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Core.Sensors;
 using DesktopNMS.Infrastructure;
 
 namespace DesktopNMS.ViewModels;
@@ -23,7 +24,7 @@ public sealed class SensorItemViewModel : ObservableObject
         _deviceName = deviceName;
         _connection = connection;
         _unitSuffix = unitSuffix;
-        _severity = thresholds.Evaluate(sensor.Current);
+        _severity = sensor.StateDefinition?.Severity ?? thresholds.Evaluate(sensor.Current);
     }
 
     /// <summary>The underlying reading, for code (e.g. pinning) that needs the raw sensor fields.</summary>
@@ -64,7 +65,9 @@ public sealed class SensorItemViewModel : ObservableObject
 
     public double? Value => _sensor.HasReading ? _sensor.Current : null;
 
-    public string ValueText => Value is { } value
+    public string ValueText => _sensor.StateDefinition?.Label ?? RawValueText;
+
+    public string RawValueText => Value is { } value
         ? value.ToString("0.###", CultureInfo.InvariantCulture)
             + (string.IsNullOrWhiteSpace(_unitSuffix) && !string.IsNullOrWhiteSpace(_sensor.Unit) ? " " + _sensor.Unit.Trim() : _unitSuffix)
         : "–";
@@ -92,12 +95,35 @@ public sealed class SensorItemViewModel : ObservableObject
         }
     }
 
-    public bool HasLimitFraction => LimitFraction is not null;
+    public bool HasLimitFraction => !_sensor.HasClass("state") && LimitFraction is not null;
+
+    public string ValueTooltip => _sensor.StateDefinition is { } state
+        ? $"Raw value: {RawValueText}" + (state.DefinitionId is null ? " · " + ResolutionExplanation(state.Outcome) : $" · {state.DefinitionId} · catalogue {state.CatalogueVersion}")
+        : "Raw value: " + RawValueText;
+
+    private static string ResolutionExplanation(SensorDefinitionOutcome outcome) => outcome switch
+    {
+        SensorDefinitionOutcome.NoReading => "No sensor reading is available",
+        SensorDefinitionOutcome.InvalidReading => "The sensor reading is invalid",
+        SensorDefinitionOutcome.MissingOperatingSystem => "The device operating system is not available",
+        SensorDefinitionOutcome.MissingIdentity => "The sensor type or OID is missing or invalid",
+        SensorDefinitionOutcome.CatalogueUnavailable => "Sensor definitions are unavailable",
+        SensorDefinitionOutcome.UnsupportedOperatingSystem => "No definitions are available for this operating system",
+        SensorDefinitionOutcome.ShardUnavailable => "Definitions for this operating system are not cached",
+        SensorDefinitionOutcome.OidMismatch => "The sensor OID does not match the available definitions",
+        SensorDefinitionOutcome.ContextUnavailable => "Device metadata needed to match this sensor is unavailable",
+        SensorDefinitionOutcome.ContextMismatch => "Device metadata does not match the available definitions",
+        SensorDefinitionOutcome.UnknownValue => "This value is not listed in the state definition",
+        SensorDefinitionOutcome.Ambiguous => "Conflicting definitions; no state has been selected",
+        _ => "No matching state definition",
+    };
 
     /// <summary><see cref="LimitFraction"/> as a percentage, for PercentToStarWidth bars.</summary>
     public double LimitPercent => (LimitFraction ?? 0) * 100;
 
-    public string SeverityText => Severity == AlertSeverity.Unknown ? "No data" : Severity.ToDisplayString();
+    public string SeverityText => Severity == AlertSeverity.Unknown
+        ? _sensor.HasClass("state") && _sensor.HasReading ? "Unknown state" : "No data"
+        : Severity.ToDisplayString();
 
     public DateTime? LastUpdate => _sensor.LastUpdate;
 
@@ -128,6 +154,9 @@ public sealed class SensorItemViewModel : ObservableObject
         OnPropertyChanged(nameof(Description));
         OnPropertyChanged(nameof(Value));
         OnPropertyChanged(nameof(ValueText));
+        OnPropertyChanged(nameof(RawValueText));
+        OnPropertyChanged(nameof(ValueTooltip));
+        OnPropertyChanged(nameof(SeverityText));
         OnPropertyChanged(nameof(LimitFraction));
         OnPropertyChanged(nameof(HasLimitFraction));
         OnPropertyChanged(nameof(LimitPercent));
@@ -139,7 +168,7 @@ public sealed class SensorItemViewModel : ObservableObject
     /// <summary>Re-evaluates severity only, e.g. after the thresholds changed in Settings.</summary>
     public void ApplyThresholds(IThresholdEvaluator thresholds)
     {
-        var severity = thresholds.Evaluate(_sensor.Current);
+        var severity = _sensor.StateDefinition?.Severity ?? thresholds.Evaluate(_sensor.Current);
         if (severity == _severity)
         {
             return;

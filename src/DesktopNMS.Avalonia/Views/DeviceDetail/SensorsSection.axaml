@@ -54,7 +54,7 @@
                                                         <TextBlock Text="{Binding SeverityText}" Classes="subtle" VerticalAlignment="Center" />
                                                     </StackPanel>
                                                     <TextBlock Grid.Column="1" Text="{Binding RowLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Grid.Column="2" Text="{Binding ValueText}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding ValueText}" ToolTip.Tip="{Binding ValueTooltip}" FontWeight="SemiBold" VerticalAlignment="Center" />
                                                     <TextBlock Grid.Column="3" Text="{Binding LastUpdateText}" Classes="subtle" VerticalAlignment="Center" />
                                                 </Grid>
                                             </DataTemplate>

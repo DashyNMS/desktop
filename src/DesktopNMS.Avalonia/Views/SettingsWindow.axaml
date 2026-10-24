@@ -25,6 +25,7 @@
                         <TextBlock Text="ALERTS &amp; HEALTH" Classes="section" Margin="14,16,0,6" />
                         <Button Content="Alert display" Classes="settingsNav" Classes.selected="{Binding IsAlertDisplaySectionSelected}" Command="{Binding SelectAlertDisplaySectionCommand}" />
                         <Button Content="Health thresholds" Classes="settingsNav" Classes.selected="{Binding IsHealthThresholdsSectionSelected}" Command="{Binding SelectHealthThresholdsSectionCommand}" />
+                        <Button Content="Sensor definitions" Classes="settingsNav" Classes.selected="{Binding IsSensorDefinitionsSectionSelected}" Command="{Binding SelectSensorDefinitionsSectionCommand}" IsVisible="{Binding HasSensorDefinitions}" />
                         <Button Content="Notifications" Classes="settingsNav" Classes.selected="{Binding IsNotificationsSectionSelected}" Command="{Binding SelectNotificationsSectionCommand}" />
 
                         <TextBlock Text="DEVICES" Classes="section" Margin="14,16,0,6" />
@@ -50,6 +51,32 @@
             <!-- ======================== Content ======================== -->
             <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="28,24">
                 <Panel>
+                    <StackPanel IsVisible="{Binding IsSensorDefinitionsSectionSelected}">
+                        <TextBlock Text="Sensor definitions" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,16" />
+                        <TextBlock Text="Give state readings names and colours using independently updated definitions." Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,16" />
+                        <CheckBox Content="Use sensor definitions" IsChecked="{Binding SensorDefinitionsEnabled}" />
+                        <TextBlock Text="Definitions stay with this installation after sign-out. Turning this off and applying removes all downloaded definitions." Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,16" />
+                        <Border Classes="card" Margin="0,0,0,16">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Repository" Classes="section" />
+                                <TextBlock Text="Use DashyNMS's official repository, or choose a compatible public GitHub repository you trust." TextWrapping="Wrap" Classes="subtle" />
+                                <CheckBox Content="Use a custom repository" IsChecked="{Binding SensorDefinitionsCustomRepository}" />
+                                <TextBox Text="{Binding SensorDefinitionsRepository}" IsVisible="{Binding SensorDefinitionsCustomRepository}"
+                                         PlaceholderText="https://github.com/owner/sensor-definitions" AutomationProperties.Name="Sensor definitions repository" />
+                                <TextBlock Text="{Binding SensorDefinitionsSource}" TextWrapping="Wrap" Classes="subtle" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{Binding SensorDefinitionsStatus}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding SensorDefinitionsVersion, StringFormat='Catalogue: {0}'}" />
+                                <TextBlock Text="{Binding SensorDefinitionsLastSync, StringFormat='Last checked: {0}'}" Classes="subtle" />
+                                <TextBlock Text="{Binding SensorDefinitionsPath}" TextWrapping="Wrap" Classes="subtle" />
+                                <Button Content="Update definitions" Command="{Binding UpdateSensorDefinitionsCommand}" HorizontalAlignment="Left" />
+                                <TextBlock Text="Apply source or enable changes before updating. Only definitions for systems in use are loaded into memory." Classes="subtle" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
 
                     <!-- ==================== Polling ==================== -->
                     <StackPanel IsVisible="{Binding IsPollingSectionSelected}">

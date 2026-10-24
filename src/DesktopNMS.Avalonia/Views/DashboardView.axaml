@@ -283,7 +283,7 @@
                                                 <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
                                             <TextBlock Grid.Row="1" Text="{Binding Description}" Classes="widgetSubtitle" />
-                                            <TextBlock Grid.Column="1" Grid.RowSpan="2" Text="{Binding ValueText}" TextAlignment="Right" VerticalAlignment="Center"
+                                            <TextBlock Grid.Column="1" Grid.RowSpan="2" Text="{Binding ValueText}" ToolTip.Tip="{Binding ValueTooltip}" TextAlignment="Right" VerticalAlignment="Center"
                                                        Classes.warning="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:AlertSeverity.Warning}}"
                                                        Classes.critical="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:AlertSeverity.Critical}}" />
                                         </Grid>

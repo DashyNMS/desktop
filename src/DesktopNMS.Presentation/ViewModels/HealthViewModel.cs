@@ -17,6 +17,7 @@ public enum HealthCategory
     Signal,
     Temperature,
     FanSpeed,
+    State,
 }
 
 /// <summary>
@@ -63,6 +64,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         Signal = new SensorCategoryViewModel(windows, SensorCategoryRegistry.Resolve("signal")!.Thresholds, string.Empty, "No signal sensors found.");
         Temperature = new SensorCategoryViewModel(windows, SensorCategoryRegistry.Resolve("temperature")!.Thresholds, " °C", "No temperature sensors found.");
         FanSpeed = new SensorCategoryViewModel(windows, SensorCategoryRegistry.Resolve("fanspeed")!.Thresholds, " RPM", "No fan speed sensors found.");
+        States = new SensorCategoryViewModel(windows, (_, _) => new StateThresholds(), string.Empty, "No state sensors found.");
 
         RefreshCommand = new AsyncRelayCommand(() =>
         {
@@ -76,6 +78,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         SelectSignalCategoryCommand = new RelayCommand(() => SelectedCategory = HealthCategory.Signal);
         SelectTemperatureCategoryCommand = new RelayCommand(() => SelectedCategory = HealthCategory.Temperature);
         SelectFanSpeedCategoryCommand = new RelayCommand(() => SelectedCategory = HealthCategory.FanSpeed);
+        SelectStateCategoryCommand = new RelayCommand(() => SelectedCategory = HealthCategory.State);
 
         _autoRefresh = new AutoRefreshTimer(() => OnPropertyChanged(nameof(NextRefreshText)));
 
@@ -83,6 +86,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         Signal.PropertyChanged += OnCategoryPropertyChanged;
         Temperature.PropertyChanged += OnCategoryPropertyChanged;
         FanSpeed.PropertyChanged += OnCategoryPropertyChanged;
+        States.PropertyChanged += OnCategoryPropertyChanged;
 
         _settings.Changed += OnSettingsChanged;
         _sensorMonitor.PollStarted += OnPollStarted;
@@ -96,6 +100,9 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
     public SensorCategoryViewModel Temperature { get; }
 
     public SensorCategoryViewModel FanSpeed { get; }
+    public SensorCategoryViewModel States { get; }
+    public RelayCommand SelectStateCategoryCommand { get; }
+    public bool IsStateCategorySelected => SelectedCategory == HealthCategory.State;
 
     public AsyncRelayCommand RefreshCommand { get; }
 
@@ -124,6 +131,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsSignalCategorySelected));
                 OnPropertyChanged(nameof(IsTemperatureCategorySelected));
                 OnPropertyChanged(nameof(IsFanSpeedCategorySelected));
+                OnPropertyChanged(nameof(IsStateCategorySelected));
                 OnPropertyChanged(nameof(VisibleCount));
             }
         }
@@ -145,6 +153,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         HealthCategory.Signal => Signal,
         HealthCategory.Temperature => Temperature,
         HealthCategory.FanSpeed => FanSpeed,
+        HealthCategory.State => States,
         _ => Dbm,
     };
 
@@ -229,7 +238,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
             // wants a role (#294), so say which.
             ErrorMessage = result.IsPermissionDenied ? ApiPermissions.SensorsNeedUserRole : SensorRefreshStatus.Failure(result, _lastUpdated);
             StatusMessage = "Last refresh failed.";
-            foreach (var category in new[] { Dbm, Signal, Temperature, FanSpeed })
+            foreach (var category in new[] { Dbm, Signal, Temperature, FanSpeed, States })
                 category.LoadState.CompleteLoad(category.TotalCount, category.VisibleCount);
             return;
         }
@@ -249,12 +258,13 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         Signal.Apply(signalSensors, DeviceNameFor, connection, settings);
         Temperature.Apply(temperatureSensors, DeviceNameFor, connection, settings);
         FanSpeed.Apply(fanSpeedSensors, DeviceNameFor, connection, settings);
+        States.Apply(result.Sensors.Where(sensor => sensor.HasClass("state")).ToList(), DeviceNameFor, connection, settings);
 
         _hasLoadedOnce = true;
         _lastUpdated = result.CompletedAt;
         OnPropertyChanged(nameof(RefreshText));
 
-        StatusMessage = $"{Dbm.TotalCount} dBm, {Signal.TotalCount} signal, {Temperature.TotalCount} temperature, {FanSpeed.TotalCount} fan speed.";
+        StatusMessage = $"{Dbm.TotalCount} dBm, {Signal.TotalCount} signal, {Temperature.TotalCount} temperature, {FanSpeed.TotalCount} fan speed, {States.TotalCount} state.";
         OnPropertyChanged(nameof(LastUpdatedText));
     }
 
@@ -264,6 +274,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         Signal.ApplyThresholds(settings);
         Temperature.ApplyThresholds(settings);
         FanSpeed.ApplyThresholds(settings);
+        States.ApplyThresholds(settings);
     }
 
     /// <summary>Forwards the currently-selected category's VisibleCount so the shared status bar can show it.</summary>
@@ -282,8 +293,14 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         Signal.PropertyChanged -= OnCategoryPropertyChanged;
         Temperature.PropertyChanged -= OnCategoryPropertyChanged;
         FanSpeed.PropertyChanged -= OnCategoryPropertyChanged;
+        States.PropertyChanged -= OnCategoryPropertyChanged;
         _settings.Changed -= OnSettingsChanged;
         _sensorMonitor.PollStarted -= OnPollStarted;
         _sensorMonitor.Polled -= OnPolled;
+    }
+
+    private sealed class StateThresholds : IThresholdEvaluator
+    {
+        public AlertSeverity Evaluate(double value) => AlertSeverity.Unknown;
     }
 }

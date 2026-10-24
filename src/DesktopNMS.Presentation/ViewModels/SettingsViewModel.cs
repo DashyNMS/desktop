@@ -132,9 +132,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         IGraylogApi graylog,
         IGraylogPasswordProtector graylogPasswords,
         ICustomMapStore customMaps,
-        IntelligenceViewModel intelligence)
+        IntelligenceViewModel intelligence,
+        DesktopNMS.Core.Sensors.SensorDefinitionStore? sensorDefinitions = null)
     {
         _store = store;
+        InitialiseSensorDefinitions(sensorDefinitions);
         Intelligence = intelligence;
         _customMaps = customMaps;
         _startup = startup;
@@ -156,7 +158,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         // The registry is the source of truth for auto-start, not the settings file.
         _draft.StartWithWindows = startup.IsEnabled;
 
-        SaveCommand = new AsyncRelayCommand(p => SaveAsync(close: p as string != "apply"), _ => !IsTestingConnection);
+        SaveCommand = new AsyncRelayCommand(p => SaveAsync(close: p as string != "apply"), _ => !IsTestingConnection && !IsSyncingDefinitions);
         CancelCommand = new RelayCommand(() => RequestClose?.Invoke(this, false));
         PreviewCriticalCommand = new RelayCommand(() => _notifications.ShowPreview(AlertSeverity.Critical));
         PreviewWarningCommand = new RelayCommand(() => _notifications.ShowPreview(AlertSeverity.Warning));
@@ -266,6 +268,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsIntelligenceSectionSelected));
                 OnPropertyChanged(nameof(IsMapsSectionSelected));
                 OnPropertyChanged(nameof(IsAboutSectionSelected));
+                OnPropertyChanged(nameof(IsSensorDefinitionsSectionSelected));
 
                 if (value == SettingsSection.Notifications)
                 {
@@ -1465,6 +1468,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The dialog has closed - stop listening for the update download and the model list.</summary>
     public void Detach()
     {
+        DetachSensorDefinitions();
         _updates.ReadyUpdateChanged -= OnReadyUpdateChanged;
         Intelligence.Models.CollectionChanged -= OnIntelligenceModelsChanged;
     }
@@ -2475,6 +2479,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _draft.PinnedDevices = _store.Current.PinnedDevices;
         _draft.CollapsedDeviceNavGroups = _store.Current.CollapsedDeviceNavGroups;
 
+        if (!await ApplySensorDefinitionsAsync()) return;
         ApplyUnimusConfiguration();
         ApplyGraylogConfiguration();
 
