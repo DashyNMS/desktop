@@ -2,6 +2,19 @@ name: Native packages
 
 on:
   workflow_call:
+    secrets:
+      MACOS_CERTIFICATE_BASE64:
+        required: false
+      MACOS_CERTIFICATE_PASSWORD:
+        required: false
+      MACOS_SIGNING_IDENTITY:
+        required: false
+      APPLE_API_KEY:
+        required: false
+      APPLE_API_KEY_ID:
+        required: false
+      APPLE_API_ISSUER_ID:
+        required: false
     inputs:
       distribution:
         type: boolean

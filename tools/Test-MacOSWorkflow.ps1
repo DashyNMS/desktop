@@ -34,6 +34,13 @@ if ($package -notmatch 'environment: DashyNMS_MacOS' -or $package -notmatch 'nee
 foreach ($workflow in @('preview-build.yml','release-build.yml')) {
     $text = Get-Content (Join-Path $PSScriptRoot "../.github/workflows/$workflow") -Raw
     if ($text -notmatch 'distribution: true' -or $text -notmatch 'source_commit:') { throw "$workflow does not pin distribution packages." }
+    $packageCaller = ($text -split '(?m)^  packages:\r?$')[1] -split '(?m)^  publish:\r?$' | Select-Object -First 1
+    if ($packageCaller -match 'secrets: inherit') { throw "$workflow must pass only the named distribution credentials." }
+    foreach ($secret in @('MACOS_CERTIFICATE_BASE64','MACOS_CERTIFICATE_PASSWORD','MACOS_SIGNING_IDENTITY',
+        'APPLE_API_KEY','APPLE_API_KEY_ID','APPLE_API_ISSUER_ID')) {
+        $mapping = '      ' + $secret + ': ${{ secrets.' + $secret + ' }}'
+        if (-not $packageCaller.Contains($mapping)) { throw "$workflow does not pass the protected environment secret $secret." }
+    }
     $assetLines = @($text -split '\r?\n' | Where-Object { $_ -match '^\s+dist/DashyNMS-' })
     if ($assetLines.Count -ne 5 -or $assetLines -match '\.sha256|BUILD') { throw "$workflow must publish only the five installers." }
 }
