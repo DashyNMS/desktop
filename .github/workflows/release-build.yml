@@ -47,7 +47,7 @@ jobs:
         with:
           repository: DashyNMS/mcp
           # Includes permission to bundle the server with DashyNMS.
-          ref: 0e8af47aff23f242c722e3962b28ccac148a9f61
+          ref: 61161c4ec4b8f63a6cb8cea104488339d5f1d497
           path: artifacts/mcp-source
           submodules: recursive
           persist-credentials: false
