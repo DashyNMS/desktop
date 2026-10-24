@@ -40,9 +40,12 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="4">
-                    <Button Classes="icon" Width="32" Height="30" WindowDecorationProperties.ElementRole="User"
+                    <Button Classes="primary" Height="30" Padding="10,0" WindowDecorationProperties.ElementRole="User"
                             IsVisible="{Binding IsUpdateReady}" ToolTip.Tip="{Binding UpdateReadyText}" AutomationProperties.Name="Update available">
-                        <fi:SymbolIcon Symbol="ArrowDownload" Foreground="{DynamicResource AccentBrush}" />
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <fi:SymbolIcon Symbol="ArrowDownload" FontSize="16" Foreground="{DynamicResource AccentForegroundBrush}" />
+                            <TextBlock Text="Update" VerticalAlignment="Center" />
+                        </StackPanel>
                         <Button.Flyout>
                             <MenuFlyout>
                                 <MenuItem Header="{Binding UpdateActionText}" Command="{Binding InstallUpdateCommand}" />
