@@ -734,8 +734,11 @@
 
                         <Border Classes="card">
                             <StackPanel Spacing="10">
-                                <CheckBox Content="Include preview builds" IsChecked="{Binding IncludePreviewBuilds}" />
-                                <Button Content="Check for updates" Command="{Binding CheckForUpdatesCommand}" IsEnabled="{Binding !IsCheckingForUpdates}" HorizontalAlignment="Left" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <CheckBox Content="Include preview builds" IsChecked="{Binding IncludePreviewBuilds}" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Content="Check for updates" Command="{Binding CheckForUpdatesCommand}"
+                                            IsEnabled="{Binding !IsCheckingForUpdates}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                </Grid>
                                 <TextBlock Text="Checking for updates…" Classes="subtle" IsVisible="{Binding IsCheckingForUpdates}" />
                                 <TextBlock Text="{Binding UpdateStatusText}" TextWrapping="Wrap" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
