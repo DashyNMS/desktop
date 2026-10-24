@@ -12,6 +12,22 @@ public sealed class CurrentAlertIncidentsTests
     };
 
     [Fact]
+    public void Recovered_siblings_and_migrated_rows_do_not_inflate_an_active_group()
+    {
+        var rows = new[] { Fault(1, ""), Fault(2, "old-key"), Fault(3, "current-key", 1),
+            Fault(4, "another-live-key", 2) };
+        Assert.Equal(new[] { 3, 4 }, CurrentAlertIncidents.Select(rows).Select(row => row.Id));
+        Assert.Equal(4, rows.Length);
+    }
+
+    [Fact]
+    public void Recovered_groups_omit_migrated_whole_device_rows_but_keep_distinct_entities()
+    {
+        var rows = new[] { Fault(1, ""), Fault(2, "port:1"), Fault(3, "port:1"), Fault(4, "port:2") };
+        Assert.Equal(new[] { 3, 4 }, CurrentAlertIncidents.Select(rows).Select(row => row.Id));
+    }
+
+    [Fact]
     public void Earlier_cycles_do_not_expand_the_current_fault_count()
     {
         var rows = new[] { Fault(1, "processor:1"), Fault(2, "processor:1"), Fault(3, "processor:1", 1),
