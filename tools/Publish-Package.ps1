@@ -2,9 +2,14 @@
 param(
     [Parameter(Mandatory)][ValidateSet('win-x64','osx-x64','osx-arm64','linux-x64','linux-arm64')][string]$Runtime,
     [Parameter(Mandatory)][ValidatePattern('^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$')][string]$Version,
-    [string]$InnoCompiler
+    [string]$InnoCompiler,
+    [switch]$MacOSDistribution
 )
 $ErrorActionPreference = 'Stop'
+if ($MacOSDistribution) {
+    . "$PSScriptRoot/macos/Distribution-Common.ps1"
+    Assert-MacOSDistribution
+}
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $hostRuntime = [System.Runtime.InteropServices.RuntimeInformation]::RuntimeIdentifier
 if ($hostRuntime -ne $Runtime) { throw "Build $Runtime on its native host; this host is $hostRuntime." }
@@ -68,7 +73,8 @@ try {
         Get-ChildItem $publish | Where-Object Name -NotIn @('mcp','LICENSE','BUILD.txt') |
             ForEach-Object { Copy-Item $_.FullName $mac -Recurse }
         New-Item "$mac/mcp","$resources/mcp" -ItemType Directory -Force | Out-Null
-        Copy-Item "$publish/mcp/$mcpName" "$mac/mcp/$mcpName"
+        Get-ChildItem "$publish/mcp" | Where-Object Name -NotIn @('LICENSE','BUILD.txt') |
+            ForEach-Object { Copy-Item $_.FullName "$mac/mcp" -Recurse }
         Copy-Item "$publish/mcp/LICENSE","$publish/mcp/BUILD.txt" "$resources/mcp"
         Copy-Item "$publish/LICENSE","$publish/BUILD.txt" $resources
         $architecture=if ($Runtime -eq 'osx-arm64') { 'arm64' } else { 'x86_64' }
@@ -101,14 +107,18 @@ try {
 </dict></plist>
 "@ | Set-Content "$contents/Info.plist" -Encoding utf8NoBOM
         chmod +x "$mac/DashyNMS" "$mac/dashynms-login" "$mac/mcp/$mcpName"; Check-Native 'Mark bundle executables'
-        # Development artifacts use ad-hoc signatures. Distribution signing/notarisation is #255.
-        foreach ($file in Get-ChildItem $mac -Recurse -File | Where-Object { $_.Extension -eq '.dylib' -or $_.Name -in @('dashynms-login',$mcpName) }) {
-            codesign --force --sign - $file.FullName; Check-Native 'Sign native code'
-        }
-        codesign --force --sign - $app; Check-Native 'Sign app bundle'
-        codesign --verify --deep --strict $app; Check-Native 'Verify app signature'
         New-Item (Join-Path $image 'Applications') -ItemType SymbolicLink -Target /Applications | Out-Null
-        hdiutil create -volname DashyNMS -srcfolder $image -format UDZO "$output/DashyNMS-$Version-$Runtime.dmg"; Check-Native 'Create disk image'
+        $diskImage = "$output/DashyNMS-$Version-$Runtime.dmg"
+        if ($MacOSDistribution) {
+            & "$PSScriptRoot/macos/Publish-Distribution.ps1" -App $app -ImageDirectory $image -DiskImage $diskImage
+        } else {
+            foreach ($file in Get-ChildItem $mac -Recurse -File | Where-Object { $_.Extension -eq '.dylib' -or $_.Name -in @('dashynms-login',$mcpName) }) {
+                codesign --force --sign - $file.FullName; Check-Native 'Sign native code'
+            }
+            codesign --force --sign - $app; Check-Native 'Sign app bundle'
+            codesign --verify --deep --strict $app; Check-Native 'Verify app signature'
+            hdiutil create -volname DashyNMS -srcfolder $image -format UDZO $diskImage; Check-Native 'Create disk image'
+        }
     }
     else {
         $app=Join-Path $stage 'DashyNMS.AppDir'; $bin=Join-Path $app 'usr/bin'

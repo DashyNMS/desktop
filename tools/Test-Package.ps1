@@ -1,8 +1,10 @@
 param(
     [Parameter(Mandatory)][string]$Runtime,
-    [Parameter(Mandatory)][string]$Version
+    [Parameter(Mandatory)][string]$Version,
+    [switch]$MacOSDistribution
 )
 $ErrorActionPreference='Stop'
+if ($MacOSDistribution -and -not $IsMacOS) { throw 'Developer ID verification requires macOS.' }
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $output=Join-Path $root "artifacts/packages/$Version/$Runtime"
 $verify=Join-Path $root "artifacts/package-verification/$Version/$Runtime"
@@ -28,7 +30,15 @@ try {
         $app=Join-Path $mount 'DashyNMS.app'
         codesign --verify --deep --strict $app
         if ($LASTEXITCODE -ne 0) { throw 'The packaged app signature is invalid.' }
-        foreach ($file in @('DashyNMS','dashynms-login','libdashynms-notifications.dylib')) {
+        if ($MacOSDistribution) {
+            . "$PSScriptRoot/macos/Distribution-Common.ps1"
+            $diskImage = "$output/DashyNMS-$Version-$Runtime.dmg"
+            Invoke-MacTool xcrun @('stapler','validate',$diskImage) | Out-Null
+            Invoke-MacTool xcrun @('stapler','validate',$app) | Out-Null
+            Invoke-MacTool spctl @('--assess','--type','execute','--verbose=2',$app) | Out-Null
+            Invoke-MacTool spctl @('--assess','--type','open','--context','context:primary-signature','--verbose=2',$diskImage) | Out-Null
+        }
+        foreach ($file in @('DashyNMS','dashynms-login','libdashynms-notifications.dylib','mcp/libcoreclr.dylib')) {
             if (-not (Test-Path "$app/Contents/MacOS/$file" -PathType Leaf)) { throw "Missing packaged file: $file" }
         }
         foreach ($file in @('LICENSE','BUILD.txt','mcp/LICENSE','mcp/BUILD.txt')) {

@@ -1,93 +1,99 @@
 name: Release build
 
-# Fires when a GitHub Release is published (draft it and write the notes in
-# the web UI as usual, tagged vX.Y.Z) and attaches the built installer to it.
-# Skips a release published with "Set as a pre-release" ticked - that's what
-# the preview-build workflow already produces and attaches its own installer
-# to, so there is nothing for this workflow to add.
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Published stable release tag at this master commit (vX.Y.Z)'
+        type: string
+        required: true
+
+concurrency:
+  group: release-build-${{ inputs.tag || github.event.release.tag_name }}
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
   packages: read
 
-# DashyNMS.Core comes from GitHub Packages (see nuget.config).
-env:
-  DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 jobs:
-  build:
-    if: github.event.release.prerelease == false
-    runs-on: windows-latest
+  dispatch:
+    if: github.event_name == 'release' && github.event.release.prerelease == false && github.repository == 'DashyNMS/desktop'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
     steps:
-      - name: Checkout the release tag
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.release.tag_name }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: |
-            9.0.x
-            10.0.x
-
-      - name: Work out the version from the release tag
-        id: version
-        shell: pwsh
-        run: |
-          $tag = "${{ github.event.release.tag_name }}"
-          $version = $tag -replace '^v', ''
-          "version=$version" >> $env:GITHUB_OUTPUT
-
-      - name: Checkout the pinned MCP server
-        uses: actions/checkout@v7
-        with:
-          repository: DashyNMS/mcp
-          # Includes permission to bundle the server with DashyNMS.
-          ref: 61161c4ec4b8f63a6cb8cea104488339d5f1d497
-          path: artifacts/mcp-source
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Publish the bundled network tools
-        shell: pwsh
-        run: ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-source -Runtime win-x64
-
-      - name: Publish
-        run: dotnet publish src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish
-
-      - name: Verify the bundled network tools
-        shell: pwsh
-        run: |
-          foreach ($file in @('dashynms-mcp.exe', 'LICENSE', 'BUILD.txt')) {
-            if (-not (Test-Path "publish/mcp/$file" -PathType Leaf)) {
-              throw "Published app is missing mcp/$file."
-            }
-          }
-
-      - name: Ensure Inno Setup is installed
-        shell: pwsh
-        run: |
-          if (-not (Get-Command ISCC.exe -ErrorAction SilentlyContinue)) {
-            choco install innosetup -y --no-progress
-          }
-
-      - name: Build the installer
-        shell: pwsh
-        run: |
-          $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
-          if (-not $iscc) { $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
-          & $iscc "/DAppVersion=${{ steps.version.outputs.version }}" installer\DashyNMS.iss
-
-      - name: Attach the installer to the release
-        uses: softprops/action-gh-release@v3
+      - name: Run signing from the protected master branch
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh workflow run release-build.yml --repo DashyNMS/desktop --ref master -f tag="$RELEASE_TAG"
+  prepare:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && github.repository == 'DashyNMS/desktop'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      commit: ${{ steps.release.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v7
         with:
-          tag_name: ${{ github.event.release.tag_name }}
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - name: Require a published stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: pwsh
+        run: |
+          $release = gh release view $env:RELEASE_TAG --repo DashyNMS/desktop --json isDraft,isPrerelease | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $release.isDraft -or $release.isPrerelease) { throw 'A published stable release is required.' }
+      - name: Validate stable version and source commit
+        id: release
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: ./tools/Prepare-ReleaseWorkflow.ps1 -Tag $env:RELEASE_TAG
+  packages:
+    needs: prepare
+    uses: ./.github/workflows/package-build.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      source_commit: ${{ needs.prepare.outputs.commit }}
+      distribution: true
+  publish:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && github.repository == 'DashyNMS/desktop'
+    needs: [prepare, packages]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: package-*
+          path: dist
+          merge-multiple: true
+      - name: Verify every release asset
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+        run: ./tools/Test-PreviewArtifacts.ps1 -Directory dist -Version $env:RELEASE_VERSION -Commit $env:RELEASE_COMMIT
+      - name: Attach verified installers to the published release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
           fail_on_unmatched_files: true
-          # Attach only the app download, never build records or checksum sidecars.
-          files: dist/DashyNMS-Setup-${{ steps.version.outputs.version }}.exe
+          files: |
+            dist/DashyNMS-Setup-${{ needs.prepare.outputs.version }}.exe
+            dist/DashyNMS-${{ needs.prepare.outputs.version }}-osx-x64.dmg
+            dist/DashyNMS-${{ needs.prepare.outputs.version }}-osx-arm64.dmg
+            dist/DashyNMS-${{ needs.prepare.outputs.version }}-linux-x64.AppImage
+            dist/DashyNMS-${{ needs.prepare.outputs.version }}-linux-arm64.AppImage
