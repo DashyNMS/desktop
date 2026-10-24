@@ -167,6 +167,7 @@ public sealed class IntelligenceObjectContextTests
     {
         public bool IsBusy { get; set; }
         public bool ShowConversation => true;
+        public bool SingleChatMode => false;
         public string ChatScope => "account\nhttps://nms.example.net";
         public string? ErrorText { get; set; }
         public string Draft = "";

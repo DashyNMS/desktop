@@ -83,6 +83,9 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         _defaultModel = settings.Current.IntelligenceModel;
         settings.Changed += (_, current) => _dispatcher.InvokeAsync(() =>
         {
+            Chats!.EnsureScope();
+            OnPropertyChanged(nameof(IsSingleChatMode));
+            OnPropertyChanged(nameof(ShowSavedChats));
             OnPropertyChanged(nameof(ShowMascot));
             OnPropertyChanged(nameof(ColourStatusIndicators));
             if (current.IntelligenceModel == _defaultModel)
@@ -161,6 +164,15 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
 
     /// <summary>The saved chats for this account and network.</summary>
     public IntelligenceChatListViewModel Chats { get; }
+
+    public bool IsSingleChatMode => _settings.Current.IntelligenceSingleChatMode;
+
+    public bool ShowSavedChats => ShowConversation && !IsSingleChatMode;
+
+    public void PrepareChatModeChange(bool singleChatMode)
+    {
+        if (singleChatMode && !IsSingleChatMode) Chats.SaveActive();
+    }
 
     /// <summary>The question box, model and detail level, and Ask and Stop.</summary>
     public IntelligenceComposerViewModel Composer { get; }
@@ -542,6 +554,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     private void RaiseCommands()
     {
         OnPropertyChanged(nameof(ShowConversation));
+        OnPropertyChanged(nameof(ShowSavedChats));
         OnPropertyChanged(nameof(ShowSuggestions));
         OnPropertyChanged(nameof(NetworkText));
         ConnectCommand.RaiseCanExecuteChanged();
@@ -556,7 +569,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         // The chat list is made after the commands, and raises its own once it exists.
         if (Chats is null) return;
         Chats.RaiseCommands();
-        Composer.CanChangeChat = Chats.CanManageChats;
+        Composer.CanChangeChat = Chats.CanEditConversation;
     }
 
     /// <summary>Streams the answer and tool activity into the panel, on the UI thread.</summary>

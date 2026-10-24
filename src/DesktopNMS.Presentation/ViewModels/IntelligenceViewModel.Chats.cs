@@ -7,6 +7,8 @@ namespace DesktopNMS.ViewModels;
 /// <summary>The conversation's side of the chat list (#327): what a saved chat holds, and showing one again.</summary>
 public sealed partial class IntelligenceViewModel : IIntelligenceChatHost
 {
+    bool IIntelligenceChatHost.SingleChatMode => _settings.Current.IntelligenceSingleChatMode;
+
     string? IIntelligenceChatHost.ChatScope => _credentials?.Subject is { Length: > 0 } account
         && _session.Connection is { } connection
         ? account + "\n" + connection.WebRoot.AbsoluteUri.TrimEnd('/')

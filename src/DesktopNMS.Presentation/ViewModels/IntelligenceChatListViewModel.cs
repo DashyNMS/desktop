@@ -21,6 +21,8 @@ internal interface IIntelligenceChatHost
 
     bool ShowConversation { get; }
 
+    bool SingleChatMode { get; }
+
     /// <summary>The ChatGPT account and LibreNMS server the chats belong to, or null when either is missing.</summary>
     string? ChatScope { get; }
 
@@ -56,20 +58,22 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
     private readonly IntelligenceChatWriter _writer;
     private readonly IWindowService _windows;
     private readonly ILogger _logger;
-    private readonly IUiTimer _saveTimer = UiThread.CreateTimer(ChatSaveDelay);
+    private readonly IUiTimer _saveTimer;
     private readonly IUiTimer _groupingTimer = UiThread.CreateTimer(TimeSpan.FromMinutes(1));
     private DateTimeOffset _lastSave = DateTimeOffset.MinValue;
     private string? _scope;
+    private bool _singleChatMode;
     private IntelligenceChatItemViewModel? _selectedChat;
     private bool _isRenamingChat;
     private string _chatNameDraft = string.Empty;
 
-    internal IntelligenceChatListViewModel(IIntelligenceChatHost host, IIntelligenceChatStore store, IWindowService windows, IUiDispatcher dispatcher, ILogger logger)
+    internal IntelligenceChatListViewModel(IIntelligenceChatHost host, IIntelligenceChatStore store, IWindowService windows, IUiDispatcher dispatcher, ILogger logger, IUiTimer? saveTimer = null)
     {
         _host = host;
         _store = store;
         _windows = windows;
         _logger = logger;
+        _saveTimer = saveTimer ?? UiThread.CreateTimer(ChatSaveDelay);
 
         // Grouped by ActivityGroup in the view (#249), live, as chats move between groups.
         GroupedChats = new FilteredView(Chats);
@@ -104,7 +108,7 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
         DeleteChatCommand = new RelayCommand(DeleteChat, _ => CanManageChats && SelectedChat is not null);
         PinChatCommand = new RelayCommand(parameter =>
         {
-            if (parameter is not IntelligenceChatItemViewModel chat || _scope is null || !Chats.Contains(chat)) return;
+            if (!CanManageChats || parameter is not IntelligenceChatItemViewModel chat || _scope is null || !Chats.Contains(chat)) return;
             chat.Data.IsPinned = !chat.Data.IsPinned;
             chat.Refresh();
             if (!IsReadOnly) _writer.Save(_scope, Snapshot(chat.Data), makeActive: false);
@@ -132,7 +136,12 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
 
     public bool IsBusy => _host.IsBusy;
 
-    public bool CanManageChats => !_host.IsBusy && _host.ShowConversation && _scope is not null;
+    public bool IsSingleChatMode => _host.SingleChatMode;
+
+    public bool CanEditConversation => !_host.IsBusy && _host.ShowConversation && _scope is not null
+        && _singleChatMode == _host.SingleChatMode;
+
+    public bool CanManageChats => CanEditConversation && !IsSingleChatMode;
 
     /// <summary>A chat is being shown or the list reloaded - changes made meanwhile aren't edits to save.</summary>
     public bool IsChangingChat { get; private set; }
@@ -183,7 +192,8 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
     public void EnsureScope()
     {
         var scope = _host.ChatScope;
-        if (scope == _scope && (scope is null || SelectedChat is not null)) return;
+        if (scope == _scope && _singleChatMode == _host.SingleChatMode && (scope is null || SelectedChat is not null)) return;
+        _saveTimer.Stop();
         if (_host.IsBusy) { _host.CancelAnswer(); return; }
         SaveActive();
 
@@ -193,12 +203,13 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
         _selectedChat = null;
         Chats.Clear();
         _scope = scope;
+        _singleChatMode = _host.SingleChatMode;
         IsReadOnly = false;
         Guid? activeId = null;
         var unreadable = 0;
         try
         {
-            if (scope is not null)
+            if (scope is not null && !_singleChatMode)
             {
                 var saved = _store.Load(scope);
                 activeId = saved.ActiveId;
@@ -246,6 +257,11 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
     {
         if (_host.IsBusy || _scope is null) return;
         SaveActive();
+        if (_singleChatMode)
+        {
+            _selectedChat = null;
+            Chats.Clear();
+        }
         var draft = force ? null : Chats.FirstOrDefault(chat => chat.Data.Messages.Count == 0
             && string.IsNullOrWhiteSpace(chat.Data.Draft) && !chat.Data.IsRenamed);
         if (draft is not null)
@@ -272,7 +288,7 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
     /// <summary>Saves the chat shortly, once changes settle - restarting the wait on each one (#321).</summary>
     public void QueueSave()
     {
-        if (IsChangingChat) return;
+        if (IsChangingChat || _singleChatMode || _host.SingleChatMode) return;
         _saveTimer.Stop();
         _saveTimer.Start();
     }
@@ -287,7 +303,7 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
     public void SaveActive(bool recordActivity = false)
     {
         _saveTimer.Stop();
-        if (IsChangingChat || _scope is null || SelectedChat is not { } item) return;
+        if (IsChangingChat || _singleChatMode || _host.SingleChatMode || _scope is null || SelectedChat is not { } item) return;
         var chat = item.Data;
         _host.Capture(chat);
 
@@ -304,6 +320,8 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
 
     public void RaiseCommands()
     {
+        OnPropertyChanged(nameof(IsSingleChatMode));
+        OnPropertyChanged(nameof(CanEditConversation));
         OnPropertyChanged(nameof(CanManageChats));
         OnPropertyChanged(nameof(IsBusy));
         RenameChatCommand.RaiseCanExecuteChanged();
@@ -317,6 +335,7 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
     public void Dispose()
     {
         SaveActive();
+        _groupingTimer.Stop();
         _writer.Dispose();
     }
 
@@ -355,6 +374,7 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
 
     private void DeleteChat(object? parameter)
     {
+        if (!CanManageChats) return;
         var chat = parameter as IntelligenceChatItemViewModel ?? SelectedChat;
         if (chat is null || _scope is null || !Chats.Contains(chat)) return;
         var scope = _scope;

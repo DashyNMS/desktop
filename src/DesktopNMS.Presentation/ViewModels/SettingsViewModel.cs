@@ -1942,6 +1942,17 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    public bool IntelligenceSingleChatMode
+    {
+        get => _draft.IntelligenceSingleChatMode;
+        set
+        {
+            if (_draft.IntelligenceSingleChatMode == value) return;
+            _draft.IntelligenceSingleChatMode = value;
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>See <see cref="AppSettings.IntelligenceEnabled"/>.</summary>
     public bool IntelligenceEnabled
     {
@@ -2483,6 +2494,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         ApplyUnimusConfiguration();
         ApplyGraylogConfiguration();
 
+        Intelligence.PrepareChatModeChange(_draft.IntelligenceSingleChatMode);
         // The dialog stays editable after Apply. Never let later, unsaved
         // edits mutate the running app's settings through shared references.
         _store.Replace(_draft.Clone());

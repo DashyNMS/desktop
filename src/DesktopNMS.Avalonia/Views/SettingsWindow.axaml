@@ -655,6 +655,9 @@
                                 <CheckBox Content="Show Intelligence" IsChecked="{Binding IntelligenceEnabled}" />
                                 <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,4,0,0"
                                            Text="Off hides the Intelligence tab and stops its network tools. Your agent sign-ins are kept." />
+                                <CheckBox Content="Single chat mode" IsChecked="{Binding IntelligenceSingleChatMode}" Margin="0,12,0,0" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,4,0,0"
+                                           Text="Keep one temporary conversation without saving its messages, draft, tool history or context on this device. Applying a mode change stops the current answer and starts a fresh chat. Existing saved chats are kept. Turning this off discards the temporary chat and restores your saved chats. Your sign-in is kept." />
                                 <CheckBox Content="Show Dashy Companion" IsChecked="{Binding IntelligenceMascotEnabled}" Margin="0,12,0,0" />
                                 <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,4,0,0"
                                            Text="A penguin companion beside your question box. Click Dashy for a smile and a wave, and watch it react as you chat. Off by default." />
