@@ -23,6 +23,7 @@ public interface IUpdateCheckService
 
     /// <summary>Package-manager installs only announce updates; they do not download installers.</summary>
     bool DownloadsAutomatically => true;
+    bool CanInstallUpdate => DownloadsAutomatically;
     bool IsDownloading => DownloadsAutomatically && ReadyUpdate is null;
 
     /// <summary>The action appropriate to the running package.</summary>

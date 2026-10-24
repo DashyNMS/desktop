@@ -737,6 +737,9 @@
 
                         <Border Classes="card">
                             <StackPanel Spacing="10">
+                                <CheckBox Content="Download updates automatically" IsChecked="{Binding DownloadUpdatesAutomatically}"
+                                          IsVisible="{Binding CanDownloadUpdates}" />
+                                <TextBlock Text="{Binding DownloadUpdatesDescription}" Classes="subtle" TextWrapping="Wrap" />
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <CheckBox Content="Include preview builds" IsChecked="{Binding IncludePreviewBuilds}" VerticalAlignment="Center" />
                                     <Button Grid.Column="1" Content="Check for updates" Command="{Binding CheckForUpdatesCommand}"
@@ -745,8 +748,8 @@
                                 <TextBlock Text="Checking for updates…" Classes="subtle" IsVisible="{Binding IsCheckingForUpdates}" />
                                 <TextBlock Text="{Binding UpdateStatusText}" TextWrapping="Wrap" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Classes="primary" Content="{Binding UpdateActionText}" Command="{Binding InstallUpdateCommand}" IsVisible="{Binding IsUpdateReady}" />
-                                    <Button Classes.primary="{Binding !IsUpdateReady}" Content="View release" Command="{Binding ViewLatestReleaseCommand}" IsVisible="{Binding IsNewerVersionAvailable}" />
+                                    <Button Classes="primary" Content="{Binding UpdateActionText}" Command="{Binding InstallUpdateCommand}" IsVisible="{Binding CanInstallUpdate}" />
+                                    <Button Classes.primary="{Binding !CanInstallUpdate}" Content="View release" Command="{Binding ViewLatestReleaseCommand}" IsVisible="{Binding IsNewerVersionAvailable}" />
                                 </StackPanel>
                             </StackPanel>
                         </Border>

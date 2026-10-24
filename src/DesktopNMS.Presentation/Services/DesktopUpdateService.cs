@@ -34,11 +34,13 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
     private readonly ILogger<DesktopUpdateService> _logger;
     private readonly object _gate = new();
     private readonly SemaphoreSlim _installGate = new(1, 1);
+    private readonly SemaphoreSlim _packageGate = new(1, 1);
+    private readonly CancellationTokenSource _lifetime = new();
     private Task _preparing = Task.CompletedTask;
     private string? _wantedVersion;
-    private string? _preparingVersion;
-    private bool _downloading;
-    private bool _preparingPreview;
+    private Preparation? _operation;
+    private GitHubRelease? _latestRelease;
+    private bool _automaticDownloads;
     private bool _readyPreview;
     private int _checkGeneration;
     private ReadyUpdate? _ready;
@@ -56,6 +58,8 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("DashyNMS/2");
         _directory = directory ?? AppPaths.UpdatesDirectory;
         CurrentVersion = currentVersion ?? RunningVersion();
+        _automaticDownloads = _settings.Current.DownloadUpdatesAutomatically;
+        _settings.Changed += OnSettingsChanged;
     }
 
     public static string RunningVersion()
@@ -71,8 +75,9 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
     }
 
     public string CurrentVersion { get; }
-    public bool DownloadsAutomatically => _installation.Runtime is not null;
-    public bool IsDownloading { get { lock (_gate) return _downloading; } }
+    public bool CanInstallUpdate => _installation.Runtime is not null;
+    public bool DownloadsAutomatically => CanInstallUpdate && _settings.Current.DownloadUpdatesAutomatically;
+    public bool IsDownloading { get { lock (_gate) return _operation?.Downloading == true; } }
     public string UpdateActionText => _installation.ActionText;
     public ReadyUpdate? ReadyUpdate { get { lock (_gate) return _ready; } }
     public event EventHandler? ReadyUpdateChanged;
@@ -82,16 +87,17 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
     public async Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, bool? includePreviewBuildsOverride = null,
         CancellationToken cancellationToken = default)
     {
-        if (_demo.IsActive) return new(true, null, false);
+        if (_demo.IsActive || _lifetime.IsCancellationRequested) return new(true, null, false);
         var generation = Interlocked.Increment(ref _checkGeneration);
         try
         {
             var previews = includePreviewBuildsOverride ?? _settings.Current.IncludePreviewBuilds;
             lock (_gate)
             {
-                if (!previews && (_readyPreview || _preparingPreview))
+                if (!previews && (_readyPreview || _latestRelease?.Prerelease == true || _operation?.Release.Prerelease == true))
                 {
-                    _wantedVersion = null; _ready = null; _readyAsset = null; _downloading = false;
+                    _operation?.Cancellation.Cancel();
+                    _wantedVersion = null; _latestRelease = null; _ready = null; _readyAsset = null;
                     ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
@@ -109,19 +115,16 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
             var newer = ReleaseVersion.IsNewer(release.TagName, CurrentVersion);
             lock (_gate)
             {
-                if (generation != Volatile.Read(ref _checkGeneration)) return new(true, release, newer);
+                if (_lifetime.IsCancellationRequested || generation != Volatile.Read(ref _checkGeneration)) return new(true, release, newer);
                 var version = newer ? release.TagName : null;
                 if (_wantedVersion != version)
                 {
+                    _operation?.Cancellation.Cancel();
                     _wantedVersion = version; _ready = null; _readyAsset = null;
                     ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
                 }
-                if (newer && (_preparing.IsCompleted || _preparingVersion != release.TagName))
-                {
-                    _preparingVersion = release.TagName;
-                    _preparingPreview = release.Prerelease;
-                    _preparing = PrepareAsync(release, notifyIfNewer);
-                }
+                _latestRelease = newer ? release : null;
+                if (newer) StartPreparation(release, notifyIfNewer, manual: false);
             }
             return new(true, release, newer);
         }
@@ -132,21 +135,55 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         }
     }
 
-    private async Task PrepareAsync(GitHubRelease release, bool notify)
+    private void StartPreparation(GitHubRelease release, bool notify, bool manual)
     {
-        // Yield before taking the lock: callers can always observe the pending task.
+        if (_lifetime.IsCancellationRequested || _operation is { } pending
+            && !pending.Cancellation.IsCancellationRequested && pending.Release.TagName == release.TagName
+            && (!manual || pending.Manual)) return;
+        _operation?.Cancellation.Cancel();
+        var operation = new Preparation(release, manual, CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token));
+        _operation = operation;
+        _preparing = PrepareAsync(operation, notify);
+    }
+
+    private async Task PrepareAsync(Preparation operation, bool notify)
+    {
         await Task.Yield();
-        var ready = false;
+        try { await PrepareAndAnnounceAsync(operation, notify).ConfigureAwait(false); }
+        finally
+        {
+            lock (_gate)
+            {
+                if (_operation == operation) _operation = null;
+                operation.Cancellation.Dispose();
+            }
+            ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private async Task PrepareAndAnnounceAsync(Preparation operation, bool notify)
+    {
+        var release = operation.Release;
+        var token = operation.Cancellation.Token;
+        bool ready;
+        lock (_gate) ready = _ready?.Version == release.TagName;
         try
         {
-            var asset = _installation.Runtime is { } runtime ? UpdatePackage.FindForRuntime(release, runtime) : null;
+            var asset = (operation.Manual || DownloadsAutomatically) && _installation.Runtime is { } runtime
+                ? UpdatePackage.FindForRuntime(release, runtime) : null;
             if (asset is not null)
             {
-                lock (_gate) { if (_wantedVersion != release.TagName) return; _downloading = true; }
-                ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
-                var path = await UpdatePackage.DownloadAsync(_http, asset, _directory).ConfigureAwait(false);
                 lock (_gate)
                 {
+                    token.ThrowIfCancellationRequested();
+                    if (_wantedVersion != release.TagName) return;
+                    operation.Downloading = true;
+                }
+                ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
+                var path = await DownloadAsync(asset, token).ConfigureAwait(false);
+                lock (_gate)
+                {
+                    token.ThrowIfCancellationRequested();
                     if (_wantedVersion != release.TagName) return;
                     _readyAsset = asset;
                     _readyPreview = release.Prerelease;
@@ -156,13 +193,17 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
                 ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
             }
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
         catch (Exception ex) { _logger.LogWarning(ex, "Could not prepare desktop update {Version}", release.TagName); }
         finally
         {
-            lock (_gate) { if (_wantedVersion == release.TagName) _downloading = false; }
+            lock (_gate)
+            {
+                operation.Downloading = false;
+            }
             ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
         }
-        lock (_gate) { if (_wantedVersion != release.TagName) return; }
+        lock (_gate) { if (token.IsCancellationRequested || _wantedVersion != release.TagName) return; }
         if (!notify || _settings.Current.LastNotifiedUpdateVersion == release.TagName) return;
         try
         {
@@ -176,16 +217,25 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
 
     public async Task<bool> InstallAsync()
     {
-        if (_demo.IsActive || !await _installGate.WaitAsync(0).ConfigureAwait(false)) return false;
+        if (_demo.IsActive || _lifetime.IsCancellationRequested || !CanInstallUpdate || !await _installGate.WaitAsync(0).ConfigureAwait(false)) return false;
         try
         {
-            if (ReadyUpdate is null) { await CheckAsync(false).ConfigureAwait(false); await WhenIdle.ConfigureAwait(false); }
+            bool needsCheck;
+            lock (_gate) needsCheck = _ready is null && _latestRelease is null;
+            if (needsCheck) await CheckAsync(false).ConfigureAwait(false);
+            Task preparing;
+            lock (_gate)
+            {
+                if (_ready is null && _latestRelease is { } latest) StartPreparation(latest, notify: false, manual: true);
+                preparing = _ready is null ? _preparing : Task.CompletedTask;
+            }
+            await preparing.ConfigureAwait(false);
             ReadyUpdate? ready; GitHubReleaseAsset? asset;
             lock (_gate) { ready = _ready; asset = _readyAsset; }
             if (ready is null || asset is null) return false;
             // Recheck a cached file immediately before handing it to the OS.
-            var path = await UpdatePackage.DownloadAsync(_http, asset, _directory).ConfigureAwait(false);
-            lock (_gate) { if (_wantedVersion != ready.Version || _ready != ready) return false; }
+            var path = await DownloadAsync(asset, _lifetime.Token).ConfigureAwait(false);
+            lock (_gate) { if (_lifetime.IsCancellationRequested || _wantedVersion != ready.Version || _ready != ready) return false; }
             if (!await _installation.InstallAsync(path).ConfigureAwait(false)) return false;
             if (_installation.RestartsApp) InstallStarted?.Invoke(this, EventArgs.Empty);
             return true;
@@ -203,5 +253,37 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         _settings.SaveQuietly();
     }
 
-    public void Dispose() => _http.Dispose();
+    private async Task<string> DownloadAsync(GitHubReleaseAsset asset, CancellationToken token)
+    {
+        await _packageGate.WaitAsync(token).ConfigureAwait(false);
+        try { return await UpdatePackage.DownloadAsync(_http, asset, _directory, token).ConfigureAwait(false); }
+        finally { _packageGate.Release(); }
+    }
+
+    private void OnSettingsChanged(object? sender, AppSettings settings)
+    {
+        lock (_gate)
+        {
+            if (_automaticDownloads == settings.DownloadUpdatesAutomatically || _lifetime.IsCancellationRequested) return;
+            _automaticDownloads = settings.DownloadUpdatesAutomatically;
+            if (!_automaticDownloads && _operation is { Manual: false } automatic) automatic.Cancellation.Cancel();
+            if (_automaticDownloads && _ready is null && _latestRelease is { } latest) StartPreparation(latest, notify: false, manual: false);
+        }
+        ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void Dispose()
+    {
+        _settings.Changed -= OnSettingsChanged;
+        lock (_gate) { if (_lifetime.IsCancellationRequested) return; _lifetime.Cancel(); }
+        _http.Dispose();
+    }
+
+    private sealed class Preparation(GitHubRelease release, bool manual, CancellationTokenSource cancellation)
+    {
+        public GitHubRelease Release { get; } = release;
+        public bool Manual { get; } = manual;
+        public CancellationTokenSource Cancellation { get; } = cancellation;
+        public bool Downloading { get; set; }
+    }
 }
