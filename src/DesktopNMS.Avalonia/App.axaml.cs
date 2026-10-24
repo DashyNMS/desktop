@@ -707,6 +707,7 @@ public partial class App : Application
         });
 
         services.AddDesktopNmsCore();
+        services.AddSingleton<DesktopNMS.Core.SignIn.IWebSignIn, AvaloniaWebSignIn>();
         services.AddSingleton(_ => new SensorDefinitionStore(SensorDefinitionPaths.ForInstallation(AppContext.BaseDirectory,
             OperatingSystem.IsMacOS(), OperatingSystem.IsLinux() ? Environment.GetEnvironmentVariable("APPIMAGE") : null)));
 
