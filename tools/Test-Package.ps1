@@ -44,6 +44,23 @@ try {
         foreach ($file in @('LICENSE','BUILD.txt','mcp/LICENSE','mcp/BUILD.txt')) {
             if (-not (Test-Path "$app/Contents/Resources/$file" -PathType Leaf)) { throw "Missing packaged resource: $file" }
         }
+        $screenshots = Join-Path $verify 'demo-screenshots'
+        $start = [Diagnostics.ProcessStartInfo]::new("$app/Contents/MacOS/DashyNMS")
+        $start.UseShellExecute = $false
+        foreach ($argument in @('--demo','--screenshots',$screenshots)) { $start.ArgumentList.Add($argument) }
+        $demo = [Diagnostics.Process]::Start($start)
+        try {
+            if (-not $demo.WaitForExit(180000)) { throw 'The packaged Mac app demo timed out.' }
+            if ($demo.ExitCode -ne 0) { throw "The packaged Mac app failed with exit code $($demo.ExitCode)." }
+            foreach ($screen in @('dashboard','devices','alerts','health','device-overview')) {
+                if (-not (Test-Path (Join-Path $screenshots "$screen.png") -PathType Leaf)) {
+                    throw "The packaged Mac app did not render $screen."
+                }
+            }
+        } finally {
+            if (-not $demo.HasExited) { $demo.Kill(); $demo.WaitForExit() }
+            $demo.Dispose()
+        }
         $executable=Join-Path $app 'Contents/MacOS/mcp/dashynms-mcp'
     }
     else {
