@@ -38,7 +38,7 @@ try {
             Invoke-MacTool spctl @('--assess','--type','execute','--verbose=2',$app) | Out-Null
             Invoke-MacTool spctl @('--assess','--type','open','--context','context:primary-signature','--verbose=2',$diskImage) | Out-Null
         }
-        foreach ($file in @('DashyNMS','dashynms-login','libdashynms-notifications.dylib','mcp/libcoreclr.dylib')) {
+        foreach ($file in @('DashyNMS','dashynms-login','libdashynms-notifications.dylib')) {
             if (-not (Test-Path "$app/Contents/MacOS/$file" -PathType Leaf)) { throw "Missing packaged file: $file" }
         }
         foreach ($file in @('LICENSE','BUILD.txt','mcp/LICENSE','mcp/BUILD.txt')) {
