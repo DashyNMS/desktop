@@ -43,6 +43,8 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     private readonly IntelligenceConversation _conversation;
     private readonly ISettingsStore _settings;
     private string? _defaultModel;
+    private readonly IDeviceCache _devices;
+    private readonly IntelligenceStarterQuestions _starterQuestions = new(Random.Shared.Next(12));
 
     private ChatGptCredentials? _credentials;
     private CancellationTokenSource? _running;
@@ -65,6 +67,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         ILogger<IntelligenceViewModel> logger)
     {
         _store = store;
+        _devices = devices;
         _tools = tools;
         Context = new IntelligenceContextViewModel(devices, client, settings, windows, alerts, logger);
         _settings = settings;
@@ -108,7 +111,16 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         Composer.Edited += (_, _) => Chats!.QueueSave();
         Composer.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(IntelligenceComposerViewModel.SelectedModel)) RetryQuestionCommand!.RaiseCanExecuteChanged();
+            if (e.PropertyName == nameof(IntelligenceComposerViewModel.SelectedModel))
+            {
+                RetryQuestionCommand!.RaiseCanExecuteChanged();
+                AskSuggestionCommand?.RaiseCanExecuteChanged();
+            }
+            if (e.PropertyName == nameof(IntelligenceComposerViewModel.Question))
+            {
+                OnPropertyChanged(nameof(ShowSuggestions));
+                AskSuggestionCommand?.RaiseCanExecuteChanged();
+            }
         };
         EditQuestionCommand = new RelayCommand(p => { if (p is IntelligenceMessageViewModel message) RestoreQuestion(message); }, CanRecoverQuestion);
         RetryQuestionCommand = new AsyncRelayCommand(async p =>
@@ -129,9 +141,10 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         OpenSettingsCommand = new RelayCommand(() => _windows.ShowSettingsSection(SettingsSection.Intelligence));
         AskSuggestionCommand = new AsyncRelayCommand(async p =>
         {
-            Composer.Question = p as string ?? string.Empty;
+            if (!ShowSuggestions || p is not string question || !Suggestions.Contains(question)) return;
+            Composer.Question = question;
             await SendAsync().ConfigureAwait(true);
-        }, _ => CanSend || (IsSignedIn && !_isBusy));
+        }, p => ShowSuggestions && !_isBusy && Composer.SelectedModel is not null && p is string question && Suggestions.Contains(question));
 
         _credentials = _store.Load();
         Chats = new IntelligenceChatListViewModel(this, chats, windows, _dispatcher, logger) { NewChatCommand = ClearCommand };
@@ -169,13 +182,14 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     /// <summary>The models the plan offers - the composer's picker and Settings' default.</summary>
     public ObservableCollection<ChatGptModel> Models { get; } = new();
 
-    public string[] Suggestions { get; } =
+    public IReadOnlyList<string> Suggestions { get; private set; } = Array.Empty<string>();
+
+    private void RotateSuggestions()
     {
-        "What's alerting right now?",
-        "How is the network doing?",
-        "Which ports are counting the most errors?",
-        "What changed in the last 24 hours?",
-    };
+        if (Messages.Count != 0 || !string.IsNullOrWhiteSpace(Composer.Question)) return;
+        Suggestions = _starterQuestions.Next(_devices.All.Count > 0, Context.HasOpenNetworkAlerts);
+        OnPropertyChanged(nameof(Suggestions));
+    }
 
     public AsyncRelayCommand ConnectCommand { get; }
 
@@ -243,7 +257,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
 
     public bool ShowConversation => IsSignedIn && _consentGiven;
 
-    public bool ShowSuggestions => ShowConversation && Messages.Count == 0;
+    public bool ShowSuggestions => ShowConversation && Messages.Count == 0 && string.IsNullOrWhiteSpace(Composer.Question);
 
     public bool ShowMascot => _settings.Current.IntelligenceMascotEnabled;
 
@@ -496,7 +510,9 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
 
     private void Clear()
     {
+        var previousChat = Chats.SelectedChat;
         Chats.NewChat();
+        if (Chats.SelectedChat == previousChat) RotateSuggestions();
 
         // A new conversation starts on the default model.
         if (Models.FirstOrDefault(m => m.Slug == _defaultModel) is { } preferred)

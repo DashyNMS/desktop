@@ -52,6 +52,7 @@ public sealed partial class IntelligenceViewModel : IIntelligenceChatHost
         Context.RestoreChatContext(chat?.Spotlight ?? new(), chat?.LookedAt ?? new(),
             Messages.Where(m => m.IsAssistant).Select(m => IntelligenceInlineMarkup.ToReadableText(m.Text, m.InlineReferences)));
         if (!Chats.IsReadOnly) ErrorText = null;
+        RotateSuggestions();
         OnPropertyChanged(nameof(ShowSuggestions));
         RaiseCommands();
     }
