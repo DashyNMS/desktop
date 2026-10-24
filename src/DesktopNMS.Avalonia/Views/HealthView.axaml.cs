@@ -19,6 +19,7 @@ public partial class HealthView : UserControl
             HealthCategory.Signal => SignalCategoryView,
             HealthCategory.Temperature => TemperatureCategoryView,
             HealthCategory.FanSpeed => FanSpeedCategoryView,
+            HealthCategory.State => StateCategoryView,
             _ => DbmCategoryView,
         };
         category.FocusSearch();

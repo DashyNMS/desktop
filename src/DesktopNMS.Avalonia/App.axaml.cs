@@ -11,6 +11,7 @@ using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.CustomMaps;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Core.Security;
+using DesktopNMS.Core.Sensors;
 using DesktopNMS.Core.Services;
 using DesktopNMS.Core.Topology;
 using DesktopNMS.Demo;
@@ -52,6 +53,7 @@ public partial class App : Application
     private bool _leaveDemoOnExit;
     private bool _whatsNewScheduled;
     private IUiTimer? _updateTimer;
+    private IUiTimer? _sensorDefinitionsTimer;
     private DesktopInstance? _instance;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
@@ -132,6 +134,13 @@ public partial class App : Application
 
         var settings = _services.GetRequiredService<ISettingsStore>();
         settings.Load();
+        // Installation definitions are independent of the account profile wiped at sign-out.
+        var sensorDefinitions = _services.GetRequiredService<SensorDefinitionStore>();
+        sensorDefinitions.InitialiseAsync().GetAwaiter().GetResult();
+        _ = sensorDefinitions.SynchroniseAsync(Array.Empty<string>());
+        _sensorDefinitionsTimer = UiThread.CreateTimer(TimeSpan.FromHours(1));
+        _sensorDefinitionsTimer.Tick += (_, _) => _ = sensorDefinitions.SynchroniseAsync();
+        _sensorDefinitionsTimer.Start();
         if (DesktopProfile.RestoreLegacyWindow(settings.Current)) settings.SaveQuietly();
 
         if (_demo.IsActive)
@@ -563,6 +572,7 @@ public partial class App : Application
     private void OnExit()
     {
         _updateTimer?.Stop();
+        _sensorDefinitionsTimer?.Stop();
         // Stop the sole asynchronous service first, so UI-owned tray resources
         // are then disposed synchronously on this thread by the container.
         _services?.GetService<McpToolHost>()?.StopAsync().GetAwaiter().GetResult();
@@ -697,6 +707,8 @@ public partial class App : Application
         });
 
         services.AddDesktopNmsCore();
+        services.AddSingleton(_ => new SensorDefinitionStore(SensorDefinitionPaths.ForInstallation(AppContext.BaseDirectory,
+            OperatingSystem.IsMacOS(), OperatingSystem.IsLinux() ? Environment.GetEnvironmentVariable("APPIMAGE") : null)));
 
         // Secrets are encrypted per OS (#154): DPAPI on Windows, a key in the
         // macOS Keychain or the Linux Secret Service elsewhere.

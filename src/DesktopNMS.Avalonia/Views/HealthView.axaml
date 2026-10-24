@@ -17,6 +17,7 @@
                     <RadioButton Classes="navTab" GroupName="HealthCategory" Content="Signal" IsChecked="{Binding IsSignalCategorySelected, Mode=OneWay}" Command="{Binding SelectSignalCategoryCommand}" />
                     <RadioButton Classes="navTab" GroupName="HealthCategory" Content="Temperature" IsChecked="{Binding IsTemperatureCategorySelected, Mode=OneWay}" Command="{Binding SelectTemperatureCategoryCommand}" />
                     <RadioButton Classes="navTab" GroupName="HealthCategory" Content="Fan speed" IsChecked="{Binding IsFanSpeedCategorySelected, Mode=OneWay}" Command="{Binding SelectFanSpeedCategoryCommand}" />
+                    <RadioButton Classes="navTab" GroupName="HealthCategory" Content="State" IsChecked="{Binding IsStateCategorySelected, Mode=OneWay}" Command="{Binding SelectStateCategoryCommand}" />
                 </StackPanel>
             </Border>
         </Border>
@@ -33,6 +34,7 @@
             <Panel IsVisible="{Binding IsSignalCategorySelected}"><views:SensorCategoryView Name="SignalCategoryView" DataContext="{Binding Signal}" /></Panel>
             <Panel IsVisible="{Binding IsTemperatureCategorySelected}"><views:SensorCategoryView Name="TemperatureCategoryView" DataContext="{Binding Temperature}" /></Panel>
             <Panel IsVisible="{Binding IsFanSpeedCategorySelected}"><views:SensorCategoryView Name="FanSpeedCategoryView" DataContext="{Binding FanSpeed}" /></Panel>
+            <Panel IsVisible="{Binding IsStateCategorySelected}"><views:SensorCategoryView Name="StateCategoryView" DataContext="{Binding States}" /></Panel>
         </Panel>
 
         <!-- ======================== Status bar ======================== -->
