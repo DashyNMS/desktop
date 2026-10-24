@@ -44,10 +44,13 @@ Write-Host "Building DashyNMS MCP at $commit for $Runtime ..."
 
 Push-Location $source
 try {
+    $nativeLibraries = if ($Runtime.StartsWith('osx-')) {
+        '-p:IncludeNativeLibrariesForSelfExtract=false'
+    } else { '-p:IncludeNativeLibrariesForSelfExtract=true' }
     # Resolve the MCP repo's .NET 10 global.json rather than the desktop SDK.
     dotnet publish (Join-Path $source 'src\DashyNMS.Mcp\DashyNMS.Mcp.csproj') `
         -c Release -r $Runtime --self-contained true `
-        -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true `
+        -p:PublishSingleFile=true $nativeLibraries -p:EnableCompressionInSingleFile=true `
         -p:DebugType=none `
         -o $output --nologo -v quiet
     if ($LASTEXITCODE -ne 0) { throw "Publishing the MCP server failed." }

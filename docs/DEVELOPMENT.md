@@ -202,7 +202,7 @@ to the package builder also run it on pull requests. It uploads artifacts for
 30 days, with SHA-256 files and source revisions, without creating a release
 or tag. The manual **Preview build** workflow calls this same package workflow,
 including the Windows upgrade checks, then publishes all five native packages
-as a GitHub prerelease. The stable release workflow remains Windows-only.
+as a GitHub prerelease. Stable releases use the same five-platform packaging flow.
 
 Before running **Preview build** on `master`, write and review
 `docs/releases/<version>.md` for the next numbered preview (for example
@@ -224,8 +224,46 @@ Windows also needs `-InnoCompiler <path-to-ISCC.exe>`. Output goes under
 `artifacts/packages/<version>/<runtime>`, with fresh staging directories for
 each version. The macOS bundle includes the notification bridge, login helper,
 icon and native network tools. Development Mac packages use ad-hoc signatures;
-distribution signing/notarisation is tracked in #255 and Windows signing in
-#109. Linux packages use checksum-pinned AppImage build tools and runtime.
+preview and stable distribution packages use Developer ID signing and Apple
+notarisation. Windows signing is tracked in #109. Linux packages use
+checksum-pinned AppImage build tools and runtime.
+
+### macOS distribution signing
+
+Only the **Preview build** and **Release build** workflows dispatched on
+`master` can request the `DashyNMS_MacOS` environment. Its required reviewer
+approves the Intel and Apple Silicon signing jobs. Ordinary pull-request, push
+and **Native packages** runs use ad-hoc signing without that environment.
+
+The environment holds six secrets: `MACOS_CERTIFICATE_BASE64`,
+`MACOS_CERTIFICATE_PASSWORD`, `MACOS_SIGNING_IDENTITY`, `APPLE_API_KEY`,
+`APPLE_API_KEY_ID` and `APPLE_API_ISSUER_ID`. The signing certificate must include
+its private key. The App Store Connect credentials use a team API key.
+
+The distribution packager signs nested native code before sealing the app,
+submits the app and disk image to Apple, staples the accepted tickets, and checks
+Gatekeeper acceptance before producing release checksums. The temporary signing
+keychain and credential files are removed on success or failure. A failed
+signing or notarisation step prevents publication.
+
+For a stable release, create its numeric version tag on the current `master`
+commit and publish the corresponding GitHub release. The release event dispatches
+the build on `master`; the tagged commit must match that run's source commit and
+the version in `Directory.Build.props`. To retry, dispatch **Release build** on
+`master` with the existing stable tag. It attaches the five verified installers
+to that release, without checksum sidecars or build manifests.
+
+To check an installed download on a Mac, run:
+
+```bash
+codesign --verify --deep --strict /Applications/DashyNMS.app
+spctl --assess --type execute --verbose=4 /Applications/DashyNMS.app
+```
+
+The signature check exits successfully without output. Gatekeeper should report
+`accepted` and `source=Notarized Developer ID`. To see the signing identity, run
+`codesign --display --verbose=4 /Applications/DashyNMS.app`.
+These checks use macOS tools and do not require an in-app verification page.
 
 CI verifies the finished installer, mounted DMG or extracted AppImage, then
 runs the real packaged MCP server against the example network. Separate fresh

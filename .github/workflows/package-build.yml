@@ -3,6 +3,12 @@ name: Native packages
 on:
   workflow_call:
     inputs:
+      distribution:
+        type: boolean
+        default: false
+      source_commit:
+        type: string
+        required: true
       version:
         type: string
         required: true
@@ -18,7 +24,11 @@ on:
       - .github/workflows/package-build.yml
       - .github/workflows/preview-build.yml
       - .github/workflows/release-build.yml
+      - tools/*MacOS*.ps1
+      - tools/*ReleaseWorkflow*.ps1
       - tools/Publish-Package.ps1
+      - tools/Publish-Mcp.ps1
+      - tools/macos/**
       - tools/Test-Package.ps1
       - tools/Test-WindowsUpgrade.ps1
       - tools/Prepare-Preview.ps1
@@ -30,7 +40,11 @@ on:
     branches: [master]
     paths:
       - .github/workflows/package-build.yml
+      - tools/*MacOS*.ps1
+      - tools/*ReleaseWorkflow*.ps1
       - tools/Publish-Package.ps1
+      - tools/Publish-Mcp.ps1
+      - tools/macos/**
       - tools/Test-Package.ps1
       - installer/**
 
@@ -46,11 +60,27 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       value: ${{ steps.version.outputs.value }}
+      commit: ${{ steps.source.outputs.commit }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_commit || github.sha }}
+      - name: Validate package source and distribution caller
+        id: source
+        shell: pwsh
+        env:
+          DISTRIBUTION: ${{ inputs.distribution || false }}
+          SOURCE_COMMIT: ${{ inputs.source_commit || github.sha }}
+        run: |
+          ./tools/Test-MacOSWorkflowPolicy.ps1 -Distribution:($env:DISTRIBUTION -eq 'true') -SourceCommit $env:SOURCE_COMMIT
+          "commit=$env:SOURCE_COMMIT" >> $env:GITHUB_OUTPUT
       - name: Test preview release gates
         shell: pwsh
-        run: ./tools/Test-PreviewWorkflow.ps1
+        run: |
+          ./tools/Test-PreviewWorkflow.ps1
+          ./tools/Test-MacOSWorkflow.ps1
+          ./tools/Test-ReleaseWorkflow.ps1
+          ./tools/macos/Test-Distribution.ps1
       - id: version
         shell: pwsh
         env:
@@ -68,21 +98,12 @@ jobs:
     name: Package (${{ matrix.runtime }})
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            runtime: win-x64
-          - os: macos-15-intel
-            runtime: osx-x64
-          - os: macos-latest
-            runtime: osx-arm64
-          - os: ubuntu-24.04
-            runtime: linux-x64
-          - os: ubuntu-24.04-arm
-            runtime: linux-arm64
+      matrix: ${{ fromJSON(inputs.distribution && '{"include":[{"os":"windows-latest","runtime":"win-x64"},{"os":"ubuntu-24.04","runtime":"linux-x64"},{"os":"ubuntu-24.04-arm","runtime":"linux-arm64"}]}' || '{"include":[{"os":"windows-latest","runtime":"win-x64"},{"os":"macos-15-intel","runtime":"osx-x64"},{"os":"macos-latest","runtime":"osx-arm64"},{"os":"ubuntu-24.04","runtime":"linux-x64"},{"os":"ubuntu-24.04-arm","runtime":"linux-arm64"}]}') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.commit }}
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
@@ -130,6 +151,68 @@ jobs:
           path: artifacts/packages/${{ needs.version.outputs.value }}/${{ matrix.runtime }}/*
           if-no-files-found: error
           retention-days: 30
+  macos-distribution:
+    if: inputs.distribution && needs.version.result == 'success' && github.repository == 'DashyNMS/desktop' && github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch' && (github.workflow_ref == 'DashyNMS/desktop/.github/workflows/preview-build.yml@refs/heads/master' || github.workflow_ref == 'DashyNMS/desktop/.github/workflows/release-build.yml@refs/heads/master')
+    environment: DashyNMS_MacOS
+    needs: version
+    name: Package (${{ matrix.runtime }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15-intel
+            runtime: osx-x64
+          - os: macos-latest
+            runtime: osx-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.commit }}
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/checkout@v7
+        with:
+          repository: DashyNMS/mcp
+          ref: 61161c4ec4b8f63a6cb8cea104488339d5f1d497
+          path: artifacts/mcp-source
+          submodules: recursive
+          persist-credentials: false
+      - name: Validate distribution source before using credentials
+        shell: pwsh
+        env:
+          SOURCE_COMMIT: ${{ needs.version.outputs.commit }}
+        run: ./tools/Test-MacOSWorkflowPolicy.ps1 -Distribution -SourceCommit $env:SOURCE_COMMIT
+      - name: Test shared behavior
+        run: dotnet test tests/DesktopNMS.Presentation.Tests -c Release
+      - name: Build the native network tools
+        shell: pwsh
+        run: ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-source -Runtime '${{ matrix.runtime }}'
+      - name: Build the package
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ needs.version.outputs.value }}
+          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: ./tools/Publish-Package.ps1 -Runtime '${{ matrix.runtime }}' -Version $env:PACKAGE_VERSION -MacOSDistribution
+      - name: Verify the finished package
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ needs.version.outputs.value }}
+        run: ./tools/Test-Package.ps1 -Runtime '${{ matrix.runtime }}' -Version $env:PACKAGE_VERSION -MacOSDistribution
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.runtime }}
+          path: artifacts/packages/${{ needs.version.outputs.value }}/${{ matrix.runtime }}/*
+          if-no-files-found: error
+          retention-days: 30
   upgrade:
     name: Windows upgrade (${{ matrix.from }})
     needs: [version, package]
@@ -140,6 +223,8 @@ jobs:
         from: ['1.0.0', '1.1.0']
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.commit }}
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '9.0.x'
