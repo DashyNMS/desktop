@@ -21,6 +21,25 @@ for reporting a security problem. Bugs and ideas are welcome as
 
 ## Building and running
 
+### LibreNMS web sign-in
+
+The Avalonia app uses `Avalonia.Controls.WebView` with Edge WebView2 on Windows,
+WKWebView on macOS and GTK/WebKitGTK on Linux. Windows 10 may need the WebView2
+Runtime installed. Linux web sign-in needs GTK 3, WebKitGTK 4.1 and libsoup 3
+(`libgtk-3-0 libwebkit2gtk-4.1-0 libsoup-3.0-0` on Debian/Ubuntu).
+Manual API-token entry remains available when a native browser cannot be used.
+
+Each attempt uses a private/non-persistent browser session. Scripts run only on
+the configured LibreNMS origin, and the existing Core flow handles token creation,
+page reloads and accounts without API access. The browser uses OS certificate
+trust: install a private CA in the OS trust store, or use manual token entry for
+a server whose certificate the browser cannot validate. API certificate exceptions
+never disable the browser's TLS checks. Passwords, cookies and tokens are not logged.
+
+`dotnet run --project tools/WebSignInSmoke` checks the real native browser with
+synthetic local HTML. CI runs it on all three operating systems (under Xvfb on
+Linux), independently of the headless UI and shared-flow unit tests.
+
 The solution and project files are still named `DesktopNMS.*` internally (an
 implementation detail with no user visibility); the product itself — the
 window title, tray icon, installed exe, Start Menu entry — is DashyNMS.

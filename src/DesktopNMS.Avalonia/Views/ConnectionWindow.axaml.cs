@@ -44,6 +44,8 @@ public partial class ConnectionWindow : Window
         // The clipboard is only read when the person acts - clicking into the
         // token box, or coming back to the window from LibreNMS - never in the
         // background (#261).
+        viewModel.TokenCreated += OnTokenCreated;
+        Closed += (_, _) => viewModel.TokenCreated -= OnTokenCreated;
         TokenBox.GotFocus += (_, _) => _ = OfferCopiedTokenAsync();
         Activated += (_, _) => _ = OfferCopiedTokenAsync();
 
@@ -56,7 +58,7 @@ public partial class ConnectionWindow : Window
 
     private async Task OfferCopiedTokenAsync()
     {
-        if (!string.IsNullOrEmpty(TokenBox.Text) || Clipboard is not { } clipboard)
+        if (_viewModel?.ShowsTokenEntry != true || !string.IsNullOrEmpty(TokenBox.Text) || Clipboard is not { } clipboard)
         {
             return;
         }
@@ -85,6 +87,8 @@ public partial class ConnectionWindow : Window
 
         CopiedTokenOffer.IsVisible = false;
     }
+
+    private void OnTokenCreated(object? sender, string token) => TokenBox.Text = token;
 
     private void OnCancel(object? sender, RoutedEventArgs e) => Close();
 

@@ -12,9 +12,6 @@
         Icon="/Assets/app.ico"
         WindowStartupLocation="CenterScreen">
 
-    <!-- Signing in to LibreNMS with an API token (#250, from the WPF app's
-         ConnectionWindow). "Sign in with LibreNMS" needs a web view, so it waits
-         for later. -->
     <StackPanel Margin="24">
         <TextBlock Text="Connect to LibreNMS" Classes="heading" />
         <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0">
@@ -31,26 +28,36 @@
         <TextBlock Text="Another address for the same server, e.g. https://192.0.2.20/. Used if the server address stops answering twice in a row, until you switch back."
                    Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0" />
 
-        <DockPanel LastChildFill="False" Margin="0,14,0,6">
-            <Label DockPanel.Dock="Left" Content="API _token" Target="TokenBox" Classes="section" Padding="0" Margin="0" />
-            <!-- Straight to where tokens are made, for the address above. -->
-            <Button DockPanel.Dock="Right" Classes="link" Command="{Binding OpenTokensPageCommand}">
-                <TextBlock Text="Open the API Tokens page" />
-            </Button>
-        </DockPanel>
-        <TextBox x:Name="TokenBox" PasswordChar="•" RevealPassword="False" Text="{Binding ApiToken}"
-                 AutomationProperties.Name="API token" />
-
-        <!-- A token copied from LibreNMS: offered, never filled in silently. -->
-        <Border x:Name="CopiedTokenOffer" IsVisible="False"
-                Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1" CornerRadius="5" Padding="10,6" Margin="0,6,0,0">
-            <DockPanel>
-                <Button DockPanel.Dock="Right" Content="Use it" Padding="10,2" Click="OnUseCopiedToken" />
-                <TextBlock Text="You've copied a LibreNMS API token. Use it?" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,10,0" />
+        <StackPanel IsVisible="{Binding ShowsTokenEntry}">
+            <DockPanel LastChildFill="False" Margin="0,14,0,6">
+                <Label DockPanel.Dock="Left" Content="API _token" Target="TokenBox" Classes="section" Padding="0" Margin="0" />
+                <!-- Straight to where tokens are made, for the address above. -->
+                <Button DockPanel.Dock="Right" Classes="link" Command="{Binding OpenTokensPageCommand}">
+                    <TextBlock Text="Open the API Tokens page" />
+                </Button>
             </DockPanel>
-        </Border>
-        <TextBlock Text="Leave blank to use the token already saved." Classes="subtle" Margin="0,4,0,0" />
+            <TextBox x:Name="TokenBox" PasswordChar="•" RevealPassword="False" Text="{Binding ApiToken}"
+                     AutomationProperties.Name="API token" />
+
+            <!-- A token copied from LibreNMS: offered, never filled in silently. -->
+            <Border x:Name="CopiedTokenOffer" IsVisible="False"
+                    Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="5" Padding="10,6" Margin="0,6,0,0">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Use it" Padding="10,2" Click="OnUseCopiedToken" />
+                    <TextBlock Text="You've copied a LibreNMS API token. Use it?" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,10,0" />
+                </DockPanel>
+            </Border>
+            <TextBlock Text="Leave blank to use the token already saved." Classes="subtle" Margin="0,4,0,0" />
+
+            <Button Content="Sign in with LibreNMS instead" Command="{Binding UseLibreNmsCommand}" IsVisible="{Binding ShowsLibreNmsLink}" Classes="link" Margin="0,8,0,0" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding ShowsWebSignIn}" Spacing="8" Margin="0,16,0,0">
+            <TextBlock Text="Sign in on your LibreNMS website. DashyNMS creates its API token for you; your password is not saved." TextWrapping="Wrap" />
+            <Button Content="Sign in with LibreNMS" Command="{Binding SignInWithLibreNmsCommand}" IsEnabled="{Binding !IsBusy}" Classes="primary" IsDefault="True" />
+            <TextBlock Classes="subtle" TextWrapping="Wrap" Text="The sign-in browser uses your operating system's certificate trust. For a private certificate it cannot validate, use an API token instead." />
+            <Button Content="Use an API token instead" Command="{Binding UseTokenCommand}" Classes="link" />
+        </StackPanel>
 
         <CheckBox Content="Remember this token" IsChecked="{Binding RememberToken}" Margin="0,14,0,0" />
         <CheckBox Content="Allow an untrusted or self-signed certificate" IsChecked="{Binding AllowUntrustedCertificate}" />
@@ -71,7 +78,7 @@
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="Checking…" Classes="subtle" VerticalAlignment="Center" Margin="0,0,4,0" IsVisible="{Binding IsBusy}" />
                 <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
-                <Button Content="Connect" Command="{Binding ConnectCommand}" Classes="primary" IsDefault="True" />
+                <Button Content="Connect" Command="{Binding ConnectCommand}" Classes="primary" IsDefault="True" IsVisible="{Binding ShowsTokenEntry}" />
             </StackPanel>
         </DockPanel>
     </StackPanel>

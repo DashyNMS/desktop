@@ -112,7 +112,7 @@ public sealed class ConnectionViewModel : ObservableObject
         }
     }
 
-    /// <summary>"Sign in with LibreNMS" is the way in, unless there's no WebView2 for it.</summary>
+    /// <summary>Use the native sign-in browser when this app provides one.</summary>
     public bool ShowsWebSignIn => _webSignIn is not null && !UsesToken;
 
     public bool ShowsTokenEntry => !ShowsWebSignIn;

@@ -19,6 +19,29 @@ env:
   DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
+  web-sign-in-browser:
+    name: Sign-in browser (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '9.0.x'
+      - name: Install Linux browser dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0 libwebkit2gtk-4.1-0 libsoup-3.0-0
+      - name: Exercise the native browser
+        if: runner.os != 'Linux'
+        run: dotnet run --project tools/WebSignInSmoke
+      - name: Exercise the Linux native browser
+        if: runner.os == 'Linux'
+        run: xvfb-run -a dotnet run --project tools/WebSignInSmoke
+
   build-and-test:
     name: Build and test
     runs-on: windows-latest
