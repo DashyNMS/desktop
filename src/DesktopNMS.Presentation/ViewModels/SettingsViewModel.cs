@@ -181,7 +181,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         RefreshServerInfoCommand = new AsyncRelayCommand(RefreshServerInfoAsync, () => !IsRefreshingServerInfo);
 
         CheckForUpdatesCommand = new AsyncRelayCommand(() => CheckForUpdatesAsync(notifyIfNewer: false));
-        InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => IsUpdateReady && !_isInstallingUpdate);
+        InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => CanInstallUpdate && !IsCheckingForUpdates && !_isInstallingUpdate);
         _updates.ReadyUpdateChanged += OnReadyUpdateChanged;
         Intelligence.Models.CollectionChanged += OnIntelligenceModelsChanged;
         ViewLatestReleaseCommand = new RelayCommand(
@@ -1345,6 +1345,23 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    public bool DownloadUpdatesAutomatically
+    {
+        get => _draft.DownloadUpdatesAutomatically;
+        set
+        {
+            if (_draft.DownloadUpdatesAutomatically == value) return;
+            _draft.DownloadUpdatesAutomatically = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool CanDownloadUpdates => _updates.CanInstallUpdate;
+
+    public string DownloadUpdatesDescription => CanDownloadUpdates
+        ? "Download updates in the background. You choose when to install. Turn off for notifications only. Apply to save this preference."
+        : "Updates for this installation are managed by your package manager. DashyNMS only checks for updates and notifies you.";
+
     public bool IsCheckingForUpdates
     {
         get => _isCheckingForUpdates;
@@ -1365,6 +1382,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             if (SetProperty(ref _isNewerVersionAvailable, value))
             {
                 ViewLatestReleaseCommand.RaiseCanExecuteChanged();
+                RaiseUpdateReadyChanged();
             }
         }
     }
@@ -1388,6 +1406,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private async Task CheckForUpdatesAsync(bool notifyIfNewer)
     {
         IsCheckingForUpdates = true;
+        InstallUpdateCommand.RaiseCanExecuteChanged();
         UpdateStatusText = "Checking for updates...";
 
         var result = await _updates.CheckAsync(notifyIfNewer, IncludePreviewBuilds).ConfigureAwait(true);
@@ -1403,6 +1422,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         RaiseUpdateReadyChanged();
 
         IsCheckingForUpdates = false;
+        InstallUpdateCommand.RaiseCanExecuteChanged();
     }
 
     /// <summary>"Version v1.2.0 is downloading..." / "... is ready to install." - null when there's no newer version.</summary>
@@ -1417,6 +1437,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         return IsUpdateReady
             ? $"{what} is downloaded and ready to install."
             : _updates.IsDownloading ? $"{what} is downloading in the background."
+            : CanDownloadUpdates ? $"{what} is available. Download it when you're ready to update."
             : $"{what} is available. View the release for installation options.";
     }
 
@@ -1425,7 +1446,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The newest version found is downloaded and verified - "Restart to update" shows.</summary>
     public bool IsUpdateReady => _updates.ReadyUpdate is { } ready
                                  && (_latestRelease is null || ready.Version == _latestRelease.TagName);
-    public string UpdateActionText => _updates.UpdateActionText;
+    public bool CanInstallUpdate => _updates.CanInstallUpdate && (IsNewerVersionAvailable || IsUpdateReady);
+    public string UpdateActionText => IsUpdateReady ? _updates.UpdateActionText
+        : "Download and " + _updates.UpdateActionText.ToLowerInvariant();
 
     /// <summary>DashyNMS closes, installs the update and reopens on it - unsaved changes here are discarded.</summary>
     public AsyncRelayCommand InstallUpdateCommand { get; }
@@ -1461,6 +1484,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void RaiseUpdateReadyChanged()
     {
         OnPropertyChanged(nameof(IsUpdateReady));
+        OnPropertyChanged(nameof(CanInstallUpdate));
         OnPropertyChanged(nameof(UpdateActionText));
         InstallUpdateCommand.RaiseCanExecuteChanged();
     }

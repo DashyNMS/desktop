@@ -80,6 +80,19 @@ builds retain the isolated `avalonia` subfolder. macOS and Linux keep their
 existing Avalonia profile path. Each profile has one background instance;
 launching it again brings the existing window forward.
 
+### Update download preference
+
+Settings, About has a **Download updates automatically** preference. It defaults
+to on. Applying an off value keeps release checks and notifications enabled but
+stops automatic package downloads, including a download already in progress.
+Verified packages already cached remain available for an explicit update.
+
+Windows, macOS and Linux AppImage installations offer an explicit download and
+update action even with automatic downloads off. Each package is checked against
+GitHub's size and SHA-256 before the platform installer receives it. Downloads
+never start an installation without the user's update action. Linux packages
+managed by a package manager keep their notification-only behaviour.
+
 ### Core
 
 The shared code (`DesktopNMS.Core`: the LibreNMS client, models, alerting, graph
