@@ -292,6 +292,14 @@ Development builds keep their own data in `avalonia\` inside that folder
 Support/DashyNMS/avalonia` on macOS). Windows release and preview builds reuse
 the existing 1.x profile; macOS and Linux retain their Avalonia profile.
 
+Single chat mode under **Settings > Intelligence** keeps one conversation in memory. Its messages,
+draft, tool history, Spotlight and companion state are never written to the chat archive.
+Restarting the app starts a fresh temporary chat, including after a crash. Applying a mode
+change stops any running answer before replacing the conversation. Turning the mode on
+keeps existing saved chats. Turning it off discards the temporary conversation and restores
+the saved chats for the current account and server. ChatGPT sign-in and other settings are kept.
+**Reset temporary conversation** or **Ctrl+N** discards the current temporary chat.
+
 Secrets (the `.dat` files and `chats\`) are encrypted for the current user on
 every OS (#154):
 

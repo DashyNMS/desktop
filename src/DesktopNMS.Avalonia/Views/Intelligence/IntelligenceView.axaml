@@ -73,6 +73,10 @@
             <Border Classes="paneHeader">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Classes="icon" ToolTip.Tip="Reset temporary conversation (Ctrl+N)" AutomationProperties.Name="Reset temporary conversation"
+                                IsVisible="{Binding IsSingleChatMode}" Command="{Binding ClearCommand}">
+                            <fi:SymbolIcon Symbol="Add" />
+                        </Button>
                         <Button Classes="icon" ToolTip.Tip="Intelligence settings" Command="{Binding OpenSettingsCommand}">
                             <fi:SymbolIcon Symbol="Settings" />
                         </Button>
@@ -89,7 +93,8 @@
                                 <TextBlock Text="Intelligence" Classes="paneTitle" />
                                 <TextBlock Text="{Binding Chats.SelectedChat.Title, FallbackValue=''}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
                                            MaxWidth="160" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Chats.SelectedChat.Title, FallbackValue=''}"
-                                           IsVisible="{Binding ShowConversation}" />
+                                           IsVisible="{Binding ShowSavedChats}" />
+                                <TextBlock Text="Temporary chat" Classes="subtle" IsVisible="{Binding IsSingleChatMode}" />
                             </StackPanel>
                         </StackPanel>
                         <!-- Spotlight: what the agent is kept to. -->

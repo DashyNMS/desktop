@@ -54,13 +54,13 @@ public partial class IntelligenceView : UserControl
 
     private void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(IntelligenceViewModel.IsSidebarOpen) or nameof(IntelligenceViewModel.ShowConversation))
+        if (e.PropertyName is nameof(IntelligenceViewModel.IsSidebarOpen) or nameof(IntelligenceViewModel.ShowConversation) or nameof(IntelligenceViewModel.IsSingleChatMode))
         {
             UpdateSidebar();
         }
     }
 
-    private bool HasRoomForContext => Root.Bounds.Width >= SidebarMinWidth + ChatSidebar.Width;
+    private bool HasRoomForContext => Root.Bounds.Width >= SidebarMinWidth + (_model?.ShowSavedChats == true ? ChatSidebar.Width : 0);
 
     private void OnShowContextClick(object? sender, RoutedEventArgs e)
     {
@@ -161,7 +161,7 @@ public partial class IntelligenceView : UserControl
             return;
         }
 
-        ChatSidebar.IsVisible = _model.ShowConversation;
+        ChatSidebar.IsVisible = _model.ShowSavedChats;
         var room = _model.ShowConversation && HasRoomForContext;
         var host = room ? DockedSidebarHost : ContextDrawer;
         if (Sidebar.Parent is Panel parent && parent != host)
