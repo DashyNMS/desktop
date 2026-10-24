@@ -5,6 +5,15 @@
          A card that opens a section does so
          when clicked. -->
     <UserControl.Styles>
+        <!-- Unknown neighbours are information, even when there is no device to open. -->
+        <Style Selector="Button.connectionRow:disabled">
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+        <Style Selector="Button.connectionRow:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
         <!-- A stat tile: a number and its label, with a bar down the left edge in
              its BorderBrush's colour. -->
         <Style Selector="Button.statTile">
@@ -300,7 +309,7 @@
                                 <ItemsControl ItemsSource="{Binding ConnectedTo}" Margin="-4,-6,-4,0">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:DeviceNeighbourItemViewModel">
-                                            <Button Classes="cardRow" Command="{Binding OpenCommand}" ToolTip.Tip="{Binding SourceText}">
+                                            <Button Classes="cardRow connectionRow" Command="{Binding OpenCommand}" ToolTip.Tip="{Binding SourceText}" ToolTip.ShowOnDisabled="True">
                                                 <DockPanel>
                                                     <Ellipse DockPanel.Dock="Left" Width="8" Height="8" Margin="0,5,10,0" VerticalAlignment="Top" Fill="{Binding StateSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
                                                     <StackPanel>
