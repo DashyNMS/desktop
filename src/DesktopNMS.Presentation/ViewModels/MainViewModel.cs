@@ -1561,7 +1561,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var context = CreateDisplayContext();
 
         // One row per device and rule (#353) - a rule firing on eight cores is one row of eight faults.
-        var groups = AlertGrouping.ByDeviceAndRule(alerts);
+        var groups = AlertGrouping.ByDeviceAndRule(CurrentAlertIncidents.Select(alerts));
         var incoming = groups.Select(g => g.Key).ToHashSet();
 
         var visibilityChanged = false;
