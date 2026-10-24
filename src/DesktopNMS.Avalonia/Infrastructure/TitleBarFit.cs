@@ -25,6 +25,14 @@ public static class TitleBarFit
 
         if (OperatingSystem.IsMacOS())
         {
+            void FitTrafficLights() => content.Margin = new Thickness(
+                window.WindowState == WindowState.FullScreen ? left : 80, 0, 12, 0);
+
+            FitTrafficLights();
+            window.PropertyChanged += (_, args) =>
+            {
+                if (args.Property == Window.WindowStateProperty) FitTrafficLights();
+            };
             return;
         }
 
