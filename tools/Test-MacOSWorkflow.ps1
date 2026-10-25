@@ -1,4 +1,16 @@
 $ErrorActionPreference = 'Stop'
+foreach ($script in Get-ChildItem $PSScriptRoot -Recurse -Filter '*.ps1' -File) {
+    $syntax = [Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$null, [ref]$null)
+    $calls = $syntax.FindAll({ param($node)
+        $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Invoke-MacTool'
+    }, $true)
+    foreach ($call in $calls) {
+        $operation = @($call.CommandElements | Where-Object {
+            $_ -is [Management.Automation.Language.CommandParameterAst] -and $_.ParameterName -eq 'Operation'
+        })
+        if ($operation.Count -eq 0) { throw "Missing macOS diagnostic operation in $($script.Name):$($call.Extent.StartLineNumber)." }
+    }
+}
 $policy = Join-Path $PSScriptRoot 'Test-MacOSWorkflowPolicy.ps1'
 $sha = 'a' * 40
 $valid = @{
