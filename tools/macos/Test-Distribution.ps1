@@ -23,7 +23,7 @@ try {
     $testModule = New-Module -ArgumentList $scriptDirectory -ScriptBlock {
         param($Directory)
         $script:IsMacOS = $true
-        $global:DashySigningTestState = @{ Calls = [Collections.Generic.List[object]]::new(); Failure = @(); Output = '' }
+        $global:DashySigningTestState = @{ Calls = [Collections.Generic.List[object]]::new(); Failure = @(); Output = ''; Identity = 'Valid' }
 
         . "$Directory/Distribution-Common.ps1"
         function Record([string]$Tool, [object[]]$Arguments) {
@@ -33,13 +33,28 @@ try {
         }
         function security {
             Record security $args
+            if ($args[0] -eq 'find-identity' -and $global:LASTEXITCODE -eq 0) {
+                $scenario = $global:DashySigningTestState.Identity
+                $validOnly = $args -contains '-v'
+                if ($scenario -ne 'Missing' -and -not ($scenario -eq 'Untrusted' -and $validOnly)) {
+                    $identityName = if ($scenario -eq 'Mismatch') { 'Developer ID Application: Other (ABCDEFGHIJ)' } else { $env:MACOS_SIGNING_IDENTITY }
+                    '  1) ' + ('A' * 40) + ' "' + $identityName + '"'
+                    if ($scenario -eq 'Ambiguous') { '  2) ' + ('B' * 40) + ' "' + $identityName + '"' }
+                }
+            }
             if ($global:DashySigningTestState.Output) {
                 Write-Output $global:DashySigningTestState.Output
                 Write-Error $global:DashySigningTestState.Output -ErrorAction Continue
             }
         }
         function chmod { Record chmod $args }
-        function codesign { Record codesign $args }
+        function codesign {
+            Record codesign $args
+            if ($global:LASTEXITCODE -ne 0 -and $global:DashySigningTestState.Output) {
+                Write-Output $global:DashySigningTestState.Output
+                Write-Error $global:DashySigningTestState.Output -ErrorAction Continue
+            }
+        }
         function spctl { Record spctl $args }
         function ditto { Record ditto $args; [IO.File]::WriteAllText($args[-1], 'archive') }
         function hdiutil { Record hdiutil $args; [IO.File]::WriteAllText($args[-1], 'disk image') }
@@ -54,12 +69,13 @@ try {
             & "$Directory/Publish-Distribution.ps1" -App $App -ImageDirectory $Image -DiskImage $DiskImage
         }
         function Get-Calls { $global:DashySigningTestState.Calls.ToArray() }
-        function Reset-Calls([string[]]$Failure = @(), [string]$Output = '') {
+        function Reset-Calls([string[]]$Failure = @(), [string]$Output = '', [string]$Identity = 'Valid') {
             $global:DashySigningTestState.Calls.Clear()
             $global:DashySigningTestState.Failure = $Failure
             $global:DashySigningTestState.Output = $Output
+            $global:DashySigningTestState.Identity = $Identity
         }
-        Export-ModuleMember -Function Assert-MacOSDistribution,Test-MachO,Invoke-MacTool,Run-Packager,Get-Calls,Reset-Calls
+        Export-ModuleMember -Function Assert-MacOSDistribution,Test-MachO,Invoke-MacTool,Resolve-MacSigningIdentity,Protect-MacCodeSigningDiagnostic,Run-Packager,Get-Calls,Reset-Calls
     }
     Import-Module $testModule -Force -DisableNameChecking
     foreach ($invalidRef in @('refs/heads/feature/test','refs/tags/v2.0.0','refs/pull/1/merge')) {
@@ -107,7 +123,11 @@ try {
         $needsJit = $sign.Arguments[-1] -in @($app,[IO.Path]::GetFullPath("$mac/DashyNMS"),[IO.Path]::GetFullPath("$mac/mcp/dashynms-mcp"))
         Require (($sign.Arguments -contains '--entitlements') -eq $needsJit) 'JIT entitlement leaked to non-JIT code.'
         Require ($sign.Arguments -contains '--timestamp') 'Distribution signature omitted a secure timestamp.'
+        Require ($sign.Arguments[$sign.Arguments.IndexOf('--sign') + 1] -eq ('A' * 40)) 'Signing did not use the validated certificate fingerprint.'
     }
+    $intermediateImports = @($calls | Where-Object { $_.Tool -eq 'security' -and $_.Arguments[0] -eq 'import' -and $_.Arguments[1] -like '*.cer' })
+    Require ($intermediateImports.Count -eq 2) 'Both Apple Developer ID intermediate issuers must be available in the temporary keychain.'
+    Require (-not ($calls | Where-Object { $_.Arguments -contains 'add-trusted-cert' })) 'Certificate preparation must not override trust.'
     $submissions = @($calls | Where-Object { $_.Tool -eq 'xcrun' -and $_.Arguments[1] -eq 'submit' })
     Require ($submissions.Count -eq 2) 'App and disk image must both be notarised.'
     Require (@(Get-ChildItem $scratch -Directory -Filter 'dashynms-signing-*').Count -eq 0) 'Successful signing left credential files.'
@@ -125,7 +145,8 @@ try {
         @{ Command = 'unlock-keychain'; Operation = 'UnlockKeychain' },
         @{ Command = 'import'; Operation = 'ImportCertificate' },
         @{ Command = 'set-key-partition-list'; Operation = 'ConfigureKeyAccess' },
-        @{ Command = 'delete-keychain'; Operation = 'DeleteKeychain' }
+        @{ Command = 'delete-keychain'; Operation = 'DeleteKeychain' },
+        @{ Command = 'find-identity'; Operation = 'ValidateSigningIdentity' }
     )) {
         Reset-Calls "security $($stage.Command)"
         $failureMessage = ''
@@ -162,6 +183,34 @@ try {
     Reset-Calls -Output 'synthetic-secret-success-output'
     $visible = (Run-Packager $app $image $diskImage *>&1) -join "`n"
     Require ($visible -notmatch 'synthetic-secret') 'A successful keychain operation exposed native output.'
+    foreach ($scenario in @(
+        @{ Identity = 'Missing'; Expected = 'No signing identity was imported.' },
+        @{ Identity = 'Mismatch'; Expected = 'does not exactly match' },
+        @{ Identity = 'Untrusted'; Expected = 'not valid for code signing' },
+        @{ Identity = 'Ambiguous'; Expected = 'Multiple valid certificates' }
+    )) {
+        Reset-Calls -Identity $scenario.Identity
+        $failureMessage = ''
+        try { Run-Packager $app $image $diskImage } catch { $failureMessage = $_.Exception.Message }
+        Require ($failureMessage.Contains($scenario.Expected)) 'Invalid signing identity did not receive its expected diagnostic.'
+        Require (@(Get-Calls | Where-Object { $_.Tool -eq 'codesign' }).Count -eq 0) 'An invalid identity reached code signing.'
+    }
+    Reset-Calls
+    Require ((Resolve-MacSigningIdentity -Keychain 'test.keychain') -eq ('A' * 40)) 'A valid configured identity did not resolve to its fingerprint.'
+    $env:APPLE_API_KEY_ID = 'secret-one'
+    $env:APPLE_API_ISSUER_ID = 'secret-two'
+    $nativeOutput = 'unable to build chain to self-signed root for signer ' + $env:MACOS_SIGNING_IDENTITY +
+        ' secret-one secret-two ' + $env:MACOS_CERTIFICATE_PASSWORD + ' target.dylib: errSecInternalComponent'
+    Reset-Calls codesign $nativeOutput
+    $visible = (& { try { Run-Packager $app $image $diskImage } catch { $_.Exception.Message } } *>&1) -join "`n"
+    Require ($visible.Contains('could not reach an Apple root')) 'Certificate-chain errors did not receive clear guidance.'
+    Require ($visible.Contains('target.dylib: errSecInternalComponent')) 'Code-signing diagnostics hid the native failure.'
+    Require ($visible -notmatch 'secret-one|secret-two|synthetic-password|Developer ID Application: Test') 'A code-signing diagnostic exposed a configured credential.'
+    $env:APPLE_API_KEY = "private-key-line-one`nprivate-key-line-two"
+    $protected = Protect-MacCodeSigningDiagnostic @("new native error`nprivate-key-line-one`nprivate-key-line-two", ('x' * 3000))
+    Require ($protected.Contains('new native error')) 'Unknown code-signing errors were hidden.'
+    Require ($protected -notmatch 'private-key-line|\r|\n') 'Diagnostic redaction exposed key lines or control characters.'
+    Require ($protected.Length -lt 2100 -and $protected.Contains('[truncated]')) 'Native diagnostics were not bounded.'
     Write-Host 'Distribution guards, signing, safe diagnostics, notarisation and failure cleanup passed with mocked macOS tools.'
 } finally {
     if ($testModule) { Remove-Module $testModule -ErrorAction SilentlyContinue }
