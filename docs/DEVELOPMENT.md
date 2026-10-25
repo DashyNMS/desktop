@@ -240,6 +240,16 @@ The environment holds six secrets: `MACOS_CERTIFICATE_BASE64`,
 `APPLE_API_KEY_ID` and `APPLE_API_ISSUER_ID`. The signing certificate must include
 its private key. The App Store Connect credentials use a team API key.
 
+The temporary keychain includes the public Apple Developer ID G1 and G2
+intermediates bundled under `tools/macos/certificates`. The packager requires
+exactly one valid identity matching `MACOS_SIGNING_IDENTITY`, then signs with
+that certificate's fingerprint. It reports missing or untrusted identities
+before signing. Code-signing failures include bounded native diagnostics with
+configured credential values redacted.
+The packager appends the temporary keychain to the existing user search list
+so that `codesign` can find its intermediate issuers. Cleanup restores the
+original search list before deleting the temporary keychain.
+
 The distribution packager signs nested native code before sealing the app,
 submits the app and disk image to Apple, staples the accepted tickets, and checks
 Gatekeeper acceptance before producing release checksums. The temporary signing

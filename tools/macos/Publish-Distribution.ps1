@@ -10,6 +10,8 @@ $temporaryRoot = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
 $temporary = Join-Path $temporaryRoot "dashynms-signing-$([Guid]::NewGuid().ToString('N'))"
 $keychain = Join-Path $temporary 'signing.keychain-db'
 $keychainCreated = $false
+$keychainSearchListChanged = $false
+$originalKeychains = @()
 $keychainPassword = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 $profile = 'dashynms-notarisation'
 $primaryFailure = $null
@@ -32,15 +34,30 @@ try {
     [IO.File]::WriteAllBytes($certificate,[Convert]::FromBase64String($env:MACOS_CERTIFICATE_BASE64))
     [IO.File]::WriteAllText($apiKey,$env:APPLE_API_KEY,[Text.UTF8Encoding]::new($false))
     Invoke-MacTool chmod @('600',$certificate,$apiKey) -Operation SetPermissions | Out-Null
+    $originalKeychains = @(Invoke-MacTool security @('list-keychains','-d','user') -Operation ReadKeychainSearchList |
+        ForEach-Object { ([string]$_).Trim().Trim('"') } | Where-Object { $_ })
     Invoke-MacTool security @('create-keychain','-p',$keychainPassword,$keychain) -Operation CreateKeychain | Out-Null
     $keychainCreated = $true
     Invoke-MacTool security @('set-keychain-settings','-lut','21600',$keychain) -Operation ConfigureKeychain | Out-Null
     Invoke-MacTool security @('unlock-keychain','-p',$keychainPassword,$keychain) -Operation UnlockKeychain | Out-Null
+    $keychainSearchListChanged = $true
+    Invoke-MacTool security (@('list-keychains','-d','user','-s') + $originalKeychains + @($keychain)) -Operation ConfigureKeychainSearchList | Out-Null
     # security requires these passwords as process arguments. Never echo its arguments or output.
     Invoke-MacTool security @('import',$certificate,'-k',$keychain,'-P',$env:MACOS_CERTIFICATE_PASSWORD,
         '-T','/usr/bin/codesign','-T','/usr/bin/security') -Operation ImportCertificate | Out-Null
     Invoke-MacTool security @('set-key-partition-list','-S','apple-tool:,apple:,codesign:',
         '-s','-k',$keychainPassword,$keychain) -Operation ConfigureKeyAccess | Out-Null
+    foreach ($intermediate in @(
+        @{ File = 'DeveloperIDCA.cer'; SHA256 = '7AFC9D01A62F03A2DE9637936D4AFE68090D2DE18D03F29C88CFB0B1BA63587F' },
+        @{ File = 'DeveloperIDG2CA.cer'; SHA256 = 'F16CD3C54C7F83CEA4BF1A3E6A0819C8AAA8E4A1528FD144715F350643D2DF3A' }
+    )) {
+        $intermediatePath = Join-Path "$PSScriptRoot/certificates" $intermediate.File
+        if ((Get-FileHash -LiteralPath $intermediatePath -Algorithm SHA256).Hash -ne $intermediate.SHA256) {
+            throw 'The bundled Apple Developer ID intermediate certificate does not match its pinned hash.'
+        }
+        Invoke-MacTool security @('import',$intermediatePath,'-k',$keychain) -Operation ImportIntermediateCertificate | Out-Null
+    }
+    $signingIdentity = Resolve-MacSigningIdentity -Keychain $keychain
     Invoke-MacTool xcrun @('notarytool','store-credentials',$profile,'--key',$apiKey,
         '--key-id',$env:APPLE_API_KEY_ID,'--issuer',$env:APPLE_API_ISSUER_ID,'--keychain',$keychain) -Operation StoreNotaryCredentials | Out-Null
     Remove-Item -LiteralPath $certificate,$apiKey
@@ -51,11 +68,11 @@ try {
         Sort-Object { ($_.FullName -split '[/\\]').Count } -Descending)
     if ($nativeFiles.Count -eq 0) { throw 'The app contains no Mach-O code.' }
     foreach ($file in $nativeFiles) {
-        $sign = @('--force','--sign',$env:MACOS_SIGNING_IDENTITY,'--keychain',$keychain,'--options','runtime','--timestamp')
+        $sign = @('--force','--sign',$signingIdentity,'--keychain',$keychain,'--options','runtime','--timestamp')
         if ($file.FullName -in @($appHost,$mcpHost)) { $sign += @('--entitlements',"$PSScriptRoot/App.entitlements.plist") }
         Invoke-MacTool codesign ($sign + $file.FullName) -Operation SignCode | Out-Null
     }
-    Invoke-MacTool codesign @('--force','--sign',$env:MACOS_SIGNING_IDENTITY,'--keychain',$keychain,
+    Invoke-MacTool codesign @('--force','--sign',$signingIdentity,'--keychain',$keychain,
         '--options','runtime','--timestamp','--entitlements',"$PSScriptRoot/App.entitlements.plist",$App) -Operation SignCode | Out-Null
     Invoke-MacTool codesign @('--verify','--deep','--strict',$App) -Operation VerifySignature | Out-Null
 
@@ -67,7 +84,7 @@ try {
     Invoke-MacTool spctl @('--assess','--type','execute','--verbose=2',$App) -Operation AssessTrust | Out-Null
 
     Invoke-MacTool hdiutil @('create','-volname','DashyNMS','-srcfolder',$ImageDirectory,'-format','UDZO',$DiskImage) -Operation CreateDiskImage | Out-Null
-    Invoke-MacTool codesign @('--force','--sign',$env:MACOS_SIGNING_IDENTITY,'--keychain',$keychain,'--timestamp',$DiskImage) -Operation SignCode | Out-Null
+    Invoke-MacTool codesign @('--force','--sign',$signingIdentity,'--keychain',$keychain,'--timestamp',$DiskImage) -Operation SignCode | Out-Null
     Submit-Notarisation $DiskImage
     Invoke-MacTool xcrun @('stapler','staple',$DiskImage) -Operation StapleTicket | Out-Null
     Invoke-MacTool xcrun @('stapler','validate',$DiskImage) -Operation ValidateTicket | Out-Null
@@ -77,11 +94,23 @@ try {
     $primaryFailure = $_
     throw
 } finally {
+    $cleanupFailure = $null
     try {
-        if ($keychainCreated) { Invoke-MacTool security @('delete-keychain',$keychain) -Operation DeleteKeychain | Out-Null }
-    } catch {
-        if ($null -eq $primaryFailure) { throw }
-        Write-Warning 'Temporary signing keychain deletion also failed; preserving the original signing failure.'
+        if ($keychainSearchListChanged) {
+            try {
+                Invoke-MacTool security (@('list-keychains','-d','user','-s') + $originalKeychains) -Operation RestoreKeychainSearchList | Out-Null
+            } catch {
+                $cleanupFailure = $_
+                Write-Warning 'Restoring the original keychain search list failed.'
+            }
+        }
+        if ($keychainCreated) {
+            try { Invoke-MacTool security @('delete-keychain',$keychain) -Operation DeleteKeychain | Out-Null } catch {
+                if ($null -eq $cleanupFailure) { $cleanupFailure = $_ }
+                Write-Warning 'Temporary signing keychain deletion also failed; preserving the first failure.'
+            }
+        }
+        if ($null -eq $primaryFailure -and $null -ne $cleanupFailure) { throw $cleanupFailure }
     } finally {
         $resolvedTemporary = [IO.Path]::GetFullPath($temporary)
         if (-not $resolvedTemporary.StartsWith($temporaryRoot.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar) -or
