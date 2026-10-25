@@ -33,10 +33,10 @@ try {
         if ($MacOSDistribution) {
             . "$PSScriptRoot/macos/Distribution-Common.ps1"
             $diskImage = "$output/DashyNMS-$Version-$Runtime.dmg"
-            Invoke-MacTool xcrun @('stapler','validate',$diskImage) | Out-Null
-            Invoke-MacTool xcrun @('stapler','validate',$app) | Out-Null
-            Invoke-MacTool spctl @('--assess','--type','execute','--verbose=2',$app) | Out-Null
-            Invoke-MacTool spctl @('--assess','--type','open','--context','context:primary-signature','--verbose=2',$diskImage) | Out-Null
+            Invoke-MacTool xcrun @('stapler','validate',$diskImage) -Operation ValidateTicket | Out-Null
+            Invoke-MacTool xcrun @('stapler','validate',$app) -Operation ValidateTicket | Out-Null
+            Invoke-MacTool spctl @('--assess','--type','execute','--verbose=2',$app) -Operation AssessTrust | Out-Null
+            Invoke-MacTool spctl @('--assess','--type','open','--context','context:primary-signature','--verbose=2',$diskImage) -Operation AssessTrust | Out-Null
         }
         foreach ($file in @('DashyNMS','dashynms-login','libdashynms-notifications.dylib')) {
             if (-not (Test-Path "$app/Contents/MacOS/$file" -PathType Leaf)) { throw "Missing packaged file: $file" }
