@@ -182,9 +182,8 @@ public partial class App : Application
         // The tray (#252): closing the window can leave DashyNMS running there,
         // so it's Exit that ends the app - or closing the window when it doesn't.
         SetUpTray();
-        desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
         MainWindowLifetime.Attach(_mainWindow, () => CanLiveInTray && settings.Current.MinimiseToTrayOnClose);
-        _mainWindow.Closed += (_, _) => desktop.Shutdown();
 
         // Nothing to sign back in with: just the sign-in window, no empty main window behind it (#231).
         var hasSavedSession = !string.IsNullOrWhiteSpace(settings.Current.ServerUrl)
