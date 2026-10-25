@@ -246,6 +246,9 @@ exactly one valid identity matching `MACOS_SIGNING_IDENTITY`, then signs with
 that certificate's fingerprint. It reports missing or untrusted identities
 before signing. Code-signing failures include bounded native diagnostics with
 configured credential values redacted.
+The packager appends the temporary keychain to the existing user search list
+so that `codesign` can find its intermediate issuers. Cleanup restores the
+original search list before deleting the temporary keychain.
 
 The distribution packager signs nested native code before sealing the app,
 submits the app and disk image to Apple, staples the accepted tickets, and checks

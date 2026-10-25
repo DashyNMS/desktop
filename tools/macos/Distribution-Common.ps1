@@ -85,6 +85,7 @@ function Invoke-MacTool(
     [Parameter(Mandatory)]
     [ValidateSet('SetPermissions','CreateKeychain','ConfigureKeychain','UnlockKeychain','ImportCertificate',
         'ValidateSigningIdentity','ImportIntermediateCertificate',
+        'ReadKeychainSearchList','ConfigureKeychainSearchList','RestoreKeychainSearchList',
         'ConfigureKeyAccess','StoreNotaryCredentials','SignCode','VerifySignature','ArchiveApp','StapleTicket',
         'ValidateTicket','AssessTrust','CreateDiskImage','DeleteKeychain')]
     [string]$Operation

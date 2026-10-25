@@ -23,16 +23,25 @@ try {
     $testModule = New-Module -ArgumentList $scriptDirectory -ScriptBlock {
         param($Directory)
         $script:IsMacOS = $true
-        $global:DashySigningTestState = @{ Calls = [Collections.Generic.List[object]]::new(); Failure = @(); Output = ''; Identity = 'Valid' }
+        $global:DashySigningTestState = @{ Calls = [Collections.Generic.List[object]]::new(); Failure = @(); Output = ''; Identity = 'Valid'; SearchListWrites = 0 }
 
         . "$Directory/Distribution-Common.ps1"
         function Record([string]$Tool, [object[]]$Arguments) {
             $global:DashySigningTestState.Calls.Add([pscustomobject]@{ Tool=$Tool; Arguments=$Arguments })
             $selectors = @($Tool,"$Tool $($Arguments[0])","$Tool $($Arguments[0]) $($Arguments[1])")
+            if ($Tool -eq 'security' -and $Arguments[0] -eq 'list-keychains' -and $Arguments -contains '-s') {
+                $selectors += if ($global:DashySigningTestState.SearchListWrites -eq 0) { 'security configure-search-list' } else { 'security restore-search-list' }
+            }
             $global:LASTEXITCODE = if (@($selectors | Where-Object { $_ -in $global:DashySigningTestState.Failure }).Count) { 1 } else { 0 }
         }
         function security {
             Record security $args
+            if ($args[0] -eq 'list-keychains') {
+                if ($args -contains '-s') { $global:DashySigningTestState.SearchListWrites++ } else {
+                    '    "/Users/runner/Library/Keychains/login.keychain-db"'
+                    '    "/Library/Keychains/System.keychain"'
+                }
+            }
             if ($args[0] -eq 'find-identity' -and $global:LASTEXITCODE -eq 0) {
                 $scenario = $global:DashySigningTestState.Identity
                 $validOnly = $args -contains '-v'
@@ -74,6 +83,7 @@ try {
             $global:DashySigningTestState.Failure = $Failure
             $global:DashySigningTestState.Output = $Output
             $global:DashySigningTestState.Identity = $Identity
+            $global:DashySigningTestState.SearchListWrites = 0
         }
         Export-ModuleMember -Function Assert-MacOSDistribution,Test-MachO,Invoke-MacTool,Resolve-MacSigningIdentity,Protect-MacCodeSigningDiagnostic,Run-Packager,Get-Calls,Reset-Calls
     }
@@ -128,6 +138,14 @@ try {
     $intermediateImports = @($calls | Where-Object { $_.Tool -eq 'security' -and $_.Arguments[0] -eq 'import' -and $_.Arguments[1] -like '*.cer' })
     Require ($intermediateImports.Count -eq 2) 'Both Apple Developer ID intermediate issuers must be available in the temporary keychain.'
     Require (-not ($calls | Where-Object { $_.Arguments -contains 'add-trusted-cert' })) 'Certificate preparation must not override trust.'
+    $searchListWrites = @($calls | Where-Object { $_.Tool -eq 'security' -and $_.Arguments[0] -eq 'list-keychains' -and $_.Arguments -contains '-s' })
+    Require ($searchListWrites.Count -eq 2) 'The signing keychain search list must be configured and restored.'
+    Require ($searchListWrites[0].Arguments[4] -eq '/Users/runner/Library/Keychains/login.keychain-db' -and
+        $searchListWrites[0].Arguments[5] -eq '/Library/Keychains/System.keychain' -and $searchListWrites[0].Arguments.Count -eq 7) 'Signing replaced existing keychain search entries.'
+    Require ($searchListWrites[1].Arguments.Count -eq 6 -and $searchListWrites[1].Arguments[4] -eq $searchListWrites[0].Arguments[4] -and
+        $searchListWrites[1].Arguments[5] -eq $searchListWrites[0].Arguments[5]) 'Cleanup did not restore the original keychain search entries.'
+    $deleteCall = @($calls | Where-Object { $_.Tool -eq 'security' -and $_.Arguments[0] -eq 'delete-keychain' })[0]
+    Require ([array]::IndexOf($calls,$searchListWrites[1]) -lt [array]::IndexOf($calls,$deleteCall)) 'The temporary keychain was deleted before restoring its search list.'
     $submissions = @($calls | Where-Object { $_.Tool -eq 'xcrun' -and $_.Arguments[1] -eq 'submit' })
     Require ($submissions.Count -eq 2) 'App and disk image must both be notarised.'
     Require (@(Get-ChildItem $scratch -Directory -Filter 'dashynms-signing-*').Count -eq 0) 'Successful signing left credential files.'
@@ -138,6 +156,8 @@ try {
         try { Run-Packager $app $image $diskImage } catch { $rejected = $true }
         Require $rejected "A failing $failure was ignored."
         Require (@(Get-ChildItem $scratch -Directory -Filter 'dashynms-signing-*').Count -eq 0) "Failed $failure left credential files."
+        $writes = @(Get-Calls | Where-Object { $_.Tool -eq 'security' -and $_.Arguments[0] -eq 'list-keychains' -and $_.Arguments -contains '-s' })
+        if ($writes.Count) { Require ($writes.Count -eq 2 -and $writes[-1].Arguments.Count -eq 6) "Failed $failure did not restore the original keychain search list." }
     }
     foreach ($stage in @(
         @{ Command = 'create-keychain'; Operation = 'CreateKeychain' },
@@ -146,7 +166,10 @@ try {
         @{ Command = 'import'; Operation = 'ImportCertificate' },
         @{ Command = 'set-key-partition-list'; Operation = 'ConfigureKeyAccess' },
         @{ Command = 'delete-keychain'; Operation = 'DeleteKeychain' },
-        @{ Command = 'find-identity'; Operation = 'ValidateSigningIdentity' }
+        @{ Command = 'find-identity'; Operation = 'ValidateSigningIdentity' },
+        @{ Command = 'list-keychains'; Operation = 'ReadKeychainSearchList' },
+        @{ Command = 'configure-search-list'; Operation = 'ConfigureKeychainSearchList' },
+        @{ Command = 'restore-search-list'; Operation = 'RestoreKeychainSearchList' }
     )) {
         Reset-Calls "security $($stage.Command)"
         $failureMessage = ''
@@ -180,6 +203,11 @@ try {
     Require ($visible.Contains('keychain deletion also failed')) 'The secondary keychain cleanup failure was hidden.'
     Require ($visible -notmatch 'synthetic-secret') 'Failure cleanup exposed native secret output.'
     Require (@(Get-ChildItem $scratch -Directory -Filter 'dashynms-signing-*').Count -eq 0) 'Combined import and keychain cleanup failures left credential files.'
+    Reset-Calls @('security import','security restore-search-list')
+    $visible = (& { try { Run-Packager $app $image $diskImage } catch { $_.Exception.Message } } *>&1) -join "`n"
+    Require ($visible.Contains('ImportCertificate failed with exit code 1.')) 'Search-list cleanup masked the original signing failure.'
+    Require ($visible.Contains('original keychain search list failed')) 'Search-list restoration failure was hidden.'
+    Require (@(Get-ChildItem $scratch -Directory -Filter 'dashynms-signing-*').Count -eq 0) 'Search-list restoration failure left credential files.'
     Reset-Calls -Output 'synthetic-secret-success-output'
     $visible = (Run-Packager $app $image $diskImage *>&1) -join "`n"
     Require ($visible -notmatch 'synthetic-secret') 'A successful keychain operation exposed native output.'
