@@ -64,12 +64,14 @@ try {
 
     $appHost = [IO.Path]::GetFullPath((Join-Path $App 'Contents/MacOS/DashyNMS'))
     $mcpHost = [IO.Path]::GetFullPath((Join-Path $App 'Contents/MacOS/mcp/dashynms-mcp'))
-    $nativeFiles = @(Get-ChildItem $App -Recurse -File | Where-Object { -not $_.LinkType -and (Test-MachO $_.FullName) } |
+    if (-not (Test-MachO $appHost)) { throw 'The app main executable is not Mach-O code.' }
+    $nativeFiles = @(Get-ChildItem $App -Recurse -File | Where-Object {
+        -not $_.LinkType -and $_.FullName -ne $appHost -and (Test-MachO $_.FullName)
+    } |
         Sort-Object { ($_.FullName -split '[/\\]').Count } -Descending)
-    if ($nativeFiles.Count -eq 0) { throw 'The app contains no Mach-O code.' }
     foreach ($file in $nativeFiles) {
         $sign = @('--force','--sign',$signingIdentity,'--keychain',$keychain,'--options','runtime','--timestamp')
-        if ($file.FullName -in @($appHost,$mcpHost)) { $sign += @('--entitlements',"$PSScriptRoot/App.entitlements.plist") }
+        if ($file.FullName -eq $mcpHost) { $sign += @('--entitlements',"$PSScriptRoot/App.entitlements.plist") }
         Invoke-MacTool codesign ($sign + $file.FullName) -Operation SignCode | Out-Null
     }
     Invoke-MacTool codesign @('--force','--sign',$signingIdentity,'--keychain',$keychain,
