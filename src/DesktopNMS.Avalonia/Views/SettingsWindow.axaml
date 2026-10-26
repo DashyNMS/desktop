@@ -787,6 +787,22 @@
                                     ToolTip.Tip="What DashyNMS is built with, each with its copyright and licence" />
                         </StackPanel>
 
+                        <TextBlock Text="Error and usage sharing" Classes="section" Margin="0,20,0,0" />
+                        <CheckBox Content="Send crash reports" IsChecked="{Binding SendCrashReports}"
+                                  IsEnabled="{Binding IsCrashReportingAvailable}" />
+                        <CheckBox Content="Share basic usage statistics" IsChecked="{Binding SendUsageStatistics}"
+                                  IsEnabled="{Binding IsCrashReportingAvailable}" />
+                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Text="Reports sent to DashyNMS's Sentry service contain the app version, operating system, architecture, exception types and app method names. Network addresses, credentials, log files and Intelligence content are excluded from the report." />
+                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Text="Usage sharing sends an app-launch count with the version, operating system and architecture, without a user or installation identifier." />
+                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Text="Sentry also receives connection information when a report is sent. Turning this off and applying the change stops uploads and clears pending reports. Local logs remain available on your computer." />
+                        <TextBlock Classes="subtle" Text="Crash reporting is unavailable in this build."
+                                   IsVisible="{Binding !IsCrashReportingAvailable}" Margin="0,4,0,0" />
+                        <HyperlinkButton Content="Read the privacy details" Margin="0,4,0,0"
+                                         NavigateUri="https://github.com/DashyNMS/desktop/blob/master/PRIVACY.md" />
+
                         <TextBlock Text="{Binding Trademarks}" Classes="subtle" TextWrapping="Wrap" Margin="0,14,0,0" />
                     </StackPanel>
                 </Panel>

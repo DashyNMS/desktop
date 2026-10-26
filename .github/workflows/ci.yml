@@ -17,6 +17,7 @@ permissions:
 # DashyNMS.Core comes from GitHub Packages (see nuget.config).
 env:
   DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  DASHYNMS_SENTRY_DSN: ${{ vars.SENTRY_DSN }}
 
 jobs:
   web-sign-in-browser:
@@ -63,6 +64,9 @@ jobs:
       - name: Test UI input routing
         run: dotnet test tests/DesktopNMS.Avalonia.Tests -c Debug --no-build
 
+      - name: Verify fatal-error persistence and restart delivery
+        run: dotnet run --project tools/CrashReportingProbe -c Release
+
   # The cross-platform app (#153) and the shared projects it brings in build
   # on macOS and Linux too. Windows builds it above, with the solution.
   avalonia:
@@ -89,6 +93,9 @@ jobs:
 
       - name: Test UI input routing
         run: dotnet test tests/DesktopNMS.Avalonia.Tests -c Debug
+
+      - name: Verify fatal-error persistence and restart delivery
+        run: dotnet run --project tools/CrashReportingProbe -c Release
 
       - name: Compile the macOS notification bridge
         if: runner.os == 'macOS'

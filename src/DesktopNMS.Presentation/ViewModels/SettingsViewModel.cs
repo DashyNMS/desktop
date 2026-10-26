@@ -133,9 +133,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         IGraylogPasswordProtector graylogPasswords,
         ICustomMapStore customMaps,
         IntelligenceViewModel intelligence,
-        DesktopNMS.Core.Sensors.SensorDefinitionStore? sensorDefinitions = null)
+        DesktopNMS.Core.Sensors.SensorDefinitionStore? sensorDefinitions = null,
+        DesktopNMS.Diagnostics.ICrashReporter? crashReporter = null)
     {
         _store = store;
+        IsCrashReportingAvailable = crashReporter?.IsAvailable == true;
         InitialiseSensorDefinitions(sensorDefinitions);
         Intelligence = intelligence;
         _customMaps = customMaps;
@@ -213,6 +215,35 @@ public sealed partial class SettingsViewModel : ObservableObject
     public event EventHandler? Applied;
 
     public AsyncRelayCommand SaveCommand { get; }
+
+    public bool IsCrashReportingAvailable { get; }
+
+    public bool SendCrashReports
+    {
+        get => _draft.DiagnosticsSharing is DiagnosticsSharingPreference.ErrorsOnly or DiagnosticsSharingPreference.ErrorsAndUsage;
+        set => SetDiagnosticsSharing(value, SendUsageStatistics);
+    }
+
+    public bool SendUsageStatistics
+    {
+        get => _draft.DiagnosticsSharing is DiagnosticsSharingPreference.UsageOnly or DiagnosticsSharingPreference.ErrorsAndUsage;
+        set => SetDiagnosticsSharing(SendCrashReports, value);
+    }
+
+    private void SetDiagnosticsSharing(bool errors, bool usage)
+    {
+        var preference = (errors, usage) switch
+        {
+            (true, true) => DiagnosticsSharingPreference.ErrorsAndUsage,
+            (true, false) => DiagnosticsSharingPreference.ErrorsOnly,
+            (false, true) => DiagnosticsSharingPreference.UsageOnly,
+            _ => DiagnosticsSharingPreference.None
+        };
+        if (_draft.DiagnosticsSharing == preference) return;
+        _draft.DiagnosticsSharing = preference;
+        OnPropertyChanged(nameof(SendCrashReports));
+        OnPropertyChanged(nameof(SendUsageStatistics));
+    }
 
     public RelayCommand CancelCommand { get; }
 

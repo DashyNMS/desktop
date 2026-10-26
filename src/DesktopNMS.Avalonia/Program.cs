@@ -1,10 +1,16 @@
 using Avalonia;
 using Avalonia.Media;
+using Avalonia.Threading;
+using DesktopNMS.Diagnostics;
+using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace DesktopNMS;
 
 internal static class Program
 {
+    internal static CrashReporter Reports { get; } = CreateReporter();
+
     [STAThread]
     public static void Main(string[] args)
     {
@@ -15,7 +21,47 @@ internal static class Program
 #endif
             return;
         }
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+        var observingUi = false;
+        try
+        {
+            BuildAvaloniaApp().AfterSetup(_ =>
+            {
+                Dispatcher.UIThread.UnhandledException += OnUiException;
+                observingUi = true;
+            }).StartWithClassicDesktopLifetime(args);
+        }
+        catch (Exception exception)
+        {
+            Reports.Capture(exception, CrashOrigin.Application);
+            throw;
+        }
+        finally
+        {
+            if (observingUi) Dispatcher.UIThread.UnhandledException -= OnUiException;
+            AppDomain.CurrentDomain.UnhandledException -= OnUnhandledException;
+            Reports.Dispose();
+        }
+    }
+
+    private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs args)
+    {
+        if (args.ExceptionObject is Exception exception)
+            Reports.Capture(exception, CrashOrigin.Application);
+    }
+
+    private static void OnUiException(object? sender, DispatcherUnhandledExceptionEventArgs args)
+        => Reports.Capture(args.Exception, CrashOrigin.UiThread);
+
+    private static CrashReporter CreateReporter()
+    {
+        var assembly = typeof(Program).Assembly;
+        var release = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
+        var operatingSystem = OperatingSystem.IsWindows() ? "Windows" : OperatingSystem.IsMacOS() ? "macOS"
+            : OperatingSystem.IsLinux() ? "Linux" : "Unknown";
+        var dsn = assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(item => item.Key == "SentryDsn")?.Value ?? "";
+        return new CrashReporter(new CrashReportContext(release, operatingSystem,
+            RuntimeInformation.ProcessArchitecture.ToString()), new SentryCrashTransport(dsn));
     }
 
     /// <summary>Also used by the Avalonia designer.</summary>
