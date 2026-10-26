@@ -80,6 +80,37 @@ builds retain the isolated `avalonia` subfolder. macOS and Linux keep their
 existing Avalonia profile path. Each profile has one background instance;
 launching it again brings the existing window forward.
 
+### Error and usage sharing
+
+The first normal launch asks for separate error and usage choices. Both start
+off. Closing the prompt leaves the choice undecided and asks again on the next
+launch. An explicit decline is saved. Settings, About can change either choice.
+Demo and screenshot modes never send reports.
+
+The reporter uses a bounded, sanitised local queue and a small Sentry envelope
+adapter. It does not initialise the Sentry SDK, session tracking, tracing,
+native crash handlers or log collection. Fatal managed errors are queued for
+the next launch. Usage records one `app_start` event per process after consent,
+without a user or installation identifier. See [PRIVACY.md](../PRIVACY.md) for
+the payload and withdrawal behaviour.
+
+GitHub builds read the public ingestion address from the repository variable
+`SENTRY_DSN`. For local builds, set `DASHYNMS_SENTRY_DSN` before publishing. The
+address becomes assembly metadata in the app. No authentication token is needed
+to build or send reports. A build without a valid HTTPS address disables sharing
+and its prompt.
+
+Run the local fatal-error and restart check with:
+
+```powershell
+dotnet run --project tools/CrashReportingProbe -c Release
+```
+
+The probe crashes an isolated child process, verifies its sanitised report,
+then tests next-launch delivery through an in-memory transport. It never
+contacts Sentry. CI runs this check on Windows, macOS and Linux alongside
+payload, queue, cancellation and consent tests.
+
 ### Update download preference
 
 Settings, About has a **Download updates automatically** preference. It defaults

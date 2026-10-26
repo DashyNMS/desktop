@@ -1,4 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <AssemblyMetadata Include="SentryDsn" Value="$(DashyNMSSentryDsn)" />
+  </ItemGroup>
 
   <!--
     The cross-platform DashyNMS app (#153): Avalonia on Windows, macOS and

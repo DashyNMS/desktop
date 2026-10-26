@@ -15,6 +15,7 @@ using DesktopNMS.Core.Sensors;
 using DesktopNMS.Core.Services;
 using DesktopNMS.Core.Topology;
 using DesktopNMS.Demo;
+using DesktopNMS.Diagnostics;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Security;
 using DesktopNMS.Services;
@@ -55,6 +56,7 @@ public partial class App : Application
     private IUiTimer? _updateTimer;
     private IUiTimer? _sensorDefinitionsTimer;
     private DesktopInstance? _instance;
+    private DiagnosticsSharingPreference? _configuredDiagnosticsSharing;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -130,10 +132,16 @@ public partial class App : Application
         _services = BuildServices(_demo);
         _logger = _services.GetRequiredService<ILogger<App>>();
         _logger.LogInformation(_demo.IsActive ? "DashyNMS (cross-platform preview) starting in demo mode on {OS}" : "DashyNMS (cross-platform preview) starting on {OS}", System.Runtime.InteropServices.RuntimeInformation.OSDescription);
-        AsyncRelayCommand.UnhandledError += (_, ex) => _logger.LogError(ex, "A command failed");
+        AsyncRelayCommand.UnhandledError += (_, ex) =>
+        {
+            _logger.LogError(ex, "A command failed");
+            Program.Reports.Capture(ex, CrashOrigin.Command);
+        };
 
         var settings = _services.GetRequiredService<ISettingsStore>();
         settings.Load();
+        ApplyDiagnosticsSharing(settings.Current);
+        settings.Changed += (_, current) => ApplyDiagnosticsSharing(current);
         // Installation definitions are independent of the account profile wiped at sign-out.
         var sensorDefinitions = _services.GetRequiredService<SensorDefinitionStore>();
         sensorDefinitions.InitialiseAsync().GetAwaiter().GetResult();
@@ -253,7 +261,33 @@ public partial class App : Application
         SetUpUpdates(desktop);
 
         // Restoring the session touches the network, so it must not hold up the window.
-        Dispatcher.UIThread.Post(() => _ = RestoreSessionAsync(desktop), DispatcherPriority.Background);
+        Dispatcher.UIThread.Post(async () =>
+        {
+            if (!_demo.IsActive && Program.Reports.IsAvailable &&
+                (settings.Current.DiagnosticsSharing == DiagnosticsSharingPreference.Undecided ||
+                 !Enum.IsDefined(settings.Current.DiagnosticsSharing)))
+            {
+                var preference = await new DiagnosticsSharingWindow().ChooseAsync(_mainWindow);
+                if (preference is { } choice)
+                {
+                    var updated = settings.Current.Clone();
+                    updated.DiagnosticsSharing = choice;
+                    settings.Replace(updated);
+                }
+            }
+            await RestoreSessionAsync(desktop);
+        }, DispatcherPriority.Background);
+    }
+
+    private void ApplyDiagnosticsSharing(AppSettings settings)
+    {
+        if (_configuredDiagnosticsSharing == settings.DiagnosticsSharing) return;
+        _configuredDiagnosticsSharing = settings.DiagnosticsSharing;
+        Program.Reports.Configure(AppPaths.DataDirectory,
+            !_demo.IsActive && (settings.DiagnosticsSharing is DiagnosticsSharingPreference.ErrorsOnly or DiagnosticsSharingPreference.ErrorsAndUsage),
+            !_demo.IsActive && (settings.DiagnosticsSharing is DiagnosticsSharingPreference.UsageOnly or DiagnosticsSharingPreference.ErrorsAndUsage));
+        if (!_demo.IsActive) Program.Reports.RecordUsage();
+        _ = Program.Reports.SendPendingAsync();
     }
 
     private async Task RestoreSessionAsync(IClassicDesktopStyleApplicationLifetime desktop)
@@ -697,6 +731,7 @@ public partial class App : Application
     {
         var services = new ServiceCollection();
         services.AddSingleton(demo);
+        services.AddSingleton<ICrashReporter>(Program.Reports);
 
         services.AddLogging(builder =>
         {
