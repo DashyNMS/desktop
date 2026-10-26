@@ -306,6 +306,12 @@ The signature check exits successfully without output. Gatekeeper should report
 `codesign --display --verbose=4 /Applications/DashyNMS.app`.
 These checks use macOS tools and do not require an in-app verification page.
 
+The protected Intel signing job blocks outbound UDP port 443 on its disposable
+runner to make Apple's ticket requests use HTTPS over TCP. This follows
+[GitHub's workaround for Intel runner connection failures](https://github.com/actions/runner-images/issues/14924).
+Apple Silicon and routine package builds do not change their network policy.
+Signature, ticket and Gatekeeper checks still have to pass before publication.
+
 CI verifies the finished installer, mounted DMG or extracted AppImage, then
 runs the real packaged MCP server against the example network. Separate fresh
 Windows runners install the shipped 1.0 and 1.1 apps and upgrade them without a

@@ -205,6 +205,12 @@ jobs:
       - name: Build the native network tools
         shell: pwsh
         run: ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-source -Runtime '${{ matrix.runtime }}'
+      - name: Route Intel notarisation tickets over HTTPS
+        if: matrix.runtime == 'osx-x64'
+        shell: bash
+        run: |
+          printf '%s\n' 'block return out quick proto udp from any to any port 443' | sudo pfctl -f -
+          sudo pfctl -E
       - name: Build the package
         shell: pwsh
         env:
