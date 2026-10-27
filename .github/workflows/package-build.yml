@@ -16,6 +16,10 @@ on:
       APPLE_API_ISSUER_ID:
         required: false
     inputs:
+      retention_days:
+        description: 'Days to retain package artifacts'
+        type: number
+        default: 30
       distribution:
         type: boolean
         default: false
@@ -164,7 +168,7 @@ jobs:
           name: package-${{ matrix.runtime }}
           path: artifacts/packages/${{ needs.version.outputs.value }}/${{ matrix.runtime }}/*
           if-no-files-found: error
-          retention-days: 30
+          retention-days: ${{ inputs.retention_days || 30 }}
   macos-distribution:
     if: inputs.distribution && needs.version.result == 'success' && github.repository == 'DashyNMS/desktop' && github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch' && (github.workflow_ref == 'DashyNMS/desktop/.github/workflows/preview-build.yml@refs/heads/master' || github.workflow_ref == 'DashyNMS/desktop/.github/workflows/release-build.yml@refs/heads/master')
     environment: DashyNMS_MacOS
@@ -232,7 +236,7 @@ jobs:
           name: package-${{ matrix.runtime }}
           path: artifacts/packages/${{ needs.version.outputs.value }}/${{ matrix.runtime }}/*
           if-no-files-found: error
-          retention-days: 30
+          retention-days: ${{ inputs.retention_days || 30 }}
   upgrade:
     name: Windows upgrade (${{ matrix.from }})
     needs: [version, package]

@@ -58,13 +58,20 @@ dotnet run --project src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj
 
 ### Development builds
 
-Every merge to `master` produces a self-contained Windows Avalonia development
-build in the **Development build** Actions run. Download its artifact and extract
-the complete folder, including `mcp`, before running `DashyNMS.exe`.
-Each build records its desktop and network-tools revisions in `BUILD.txt` and
-remains available for 30 days. These builds do not create GitHub releases.
+Every pull request targeting `master` produces installers in the **Development
+build** Actions run, including updates pushed to the PR. It uses the same native
+packaging and verification workflow as previews: Windows x64 Setup, macOS
+Intel/Apple Silicon DMGs, and Linux x64/ARM64 AppImages. Download the appropriate
+`package-<runtime>` artifact. These artifacts remain available for seven days;
+no tags or GitHub releases are created. Builds use a unique
+`<version>-preview.pr.<PR>.<run>.<attempt>` version and test the PR merge commit.
+They do not use distribution signing credentials or notarisation; macOS uses
+local ad-hoc signatures. Manual runs are also available (with PR number zero).
+Preview, release, and standalone Native packages artifacts retain their existing
+30-day retention.
 
-For a local build, publish the pinned MCP source first (requires .NET 10), then:
+For a local portable Windows build, publish the pinned MCP source first
+(requires .NET 10), then:
 
 ```powershell
 ./tools/Publish-Dev.ps1
