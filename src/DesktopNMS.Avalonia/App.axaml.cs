@@ -193,6 +193,14 @@ public partial class App : Application
         desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
         MainWindowLifetime.Attach(_mainWindow, () => CanLiveInTray && settings.Current.MinimiseToTrayOnClose);
 
+        // macOS sends Reopen when the running app's Dock icon is clicked;
+        // it doesn't launch a second process for DesktopInstance to signal.
+        if (OperatingSystem.IsMacOS() && this.TryGetFeature<IActivatableLifetime>() is { } activatable)
+        {
+            activatable.Activated += OnApplicationActivated;
+            desktop.Exit += (_, _) => activatable.Activated -= OnApplicationActivated;
+        }
+
         // Nothing to sign back in with: just the sign-in window, no empty main window behind it (#231).
         var hasSavedSession = !string.IsNullOrWhiteSpace(settings.Current.ServerUrl)
                               && _services.GetRequiredService<ITokenProtector>().HasStoredToken;
@@ -485,7 +493,15 @@ public partial class App : Application
 
     private bool _signInOpen;
 
-    /// <summary>The tray's Open: the main window when signed in, otherwise the sign-in window (#231).</summary>
+    private void OnApplicationActivated(object? sender, ActivatedEventArgs e)
+    {
+        if (e.Kind == ActivationKind.Reopen)
+        {
+            Dispatcher.UIThread.Post(ShowMainOrSignIn);
+        }
+    }
+
+    /// <summary>The tray's Open and Dock reopen: the main window when signed in, otherwise sign-in.</summary>
     private void ShowMainOrSignIn()
     {
         if (_services is null || _mainViewModel is null || _mainWindow is null)
@@ -502,6 +518,22 @@ public partial class App : Application
 
         if (_mainViewModel.IsSigningIn || _signInOpen)
         {
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                var window = desktop.Windows.OfType<ConnectionWindow>().FirstOrDefault(w => w.IsVisible);
+                if (window is not null)
+                {
+                    if (window.WindowState == WindowState.Minimized)
+                    {
+                        window.WindowState = WindowState.Normal;
+                    }
+                    window.Activate();
+                }
+                else if (_mainViewModel.IsSigningIn)
+                {
+                    windows.ShowMain();
+                }
+            }
             return;
         }
 
