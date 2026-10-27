@@ -58,17 +58,17 @@ dotnet run --project src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj
 
 ### Development builds
 
-Every pull request targeting `master` produces installers in the **Development
-build** Actions run, including updates pushed to the PR. It uses the same native
-packaging and verification workflow as previews: Windows x64 Setup, macOS
-Intel/Apple Silicon DMGs, and Linux x64/ARM64 AppImages. Download the appropriate
-`package-<runtime>` artifact. These artifacts remain available for seven days;
-no tags or GitHub releases are created. Builds use a unique
-`<version>-preview.pr.<PR>.<run>.<attempt>` version and test the PR merge commit.
-They do not use distribution signing credentials or notarisation; macOS uses
-local ad-hoc signatures. Manual runs are also available (with PR number zero).
-Preview, release, and standalone Native packages artifacts retain their existing
-30-day retention.
+After a pull request successfully merges into `master`, the **Development build**
+Actions run produces Windows x64 Setup, macOS Intel/Apple Silicon DMGs, and Linux
+x64/ARM64 AppImages. It builds the merged commit and runs the same package
+verification and Windows upgrade checks used for previews. Closing an unmerged
+PR does not build installers; PR creation and updates do not trigger this workflow.
+Download the appropriate `package-<runtime>` artifact within seven days.
+No tags or GitHub releases are created. Builds use a unique
+`<version>-preview.pr.<PR>.<run>.<attempt>` version. They do not use distribution
+signing credentials or notarisation; macOS uses local ad-hoc signatures.
+Native packages and Native network tools keep their existing triggers and behavior,
+including the 30-day retention for Native packages artifacts.
 
 For a local portable Windows build, publish the pinned MCP source first
 (requires .NET 10), then:
