@@ -1,14 +1,10 @@
 name: Development build
 
+# Build the merged revision only; closing an unmerged PR skips all jobs.
 on:
-  push:
-    branches: [master]
-  workflow_dispatch:
   pull_request:
     branches: [master]
-    paths:
-      - .github/workflows/dev-build.yml
-      - tools/Publish-Dev.ps1
+    types: [closed]
 
 permissions:
   contents: read
@@ -19,35 +15,129 @@ env:
   DASHYNMS_SENTRY_DSN: ${{ vars.SENTRY_DSN }}
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  version:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.version.outputs.value }}
+      commit: ${{ steps.source.outputs.commit }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+      - name: Validate merged package source
+        id: source
+        shell: pwsh
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          ./tools/Test-MacOSWorkflowPolicy.ps1 -SourceCommit $env:SOURCE_COMMIT
+          "commit=$env:SOURCE_COMMIT" >> $env:GITHUB_OUTPUT
+      - name: Test preview release gates
+        shell: pwsh
+        run: |
+          ./tools/Test-PreviewWorkflow.ps1
+          ./tools/Test-MacOSWorkflow.ps1
+          ./tools/Test-ReleaseWorkflow.ps1
+          ./tools/macos/Test-Distribution.ps1
+      - id: version
+        shell: pwsh
+        run: |
+          [xml]$props=Get-Content Directory.Build.props
+          $version="$($props.Project.PropertyGroup.Version)-preview.pr.${{ github.event.number }}.${{ github.run_number }}.${{ github.run_attempt }}"
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw 'Invalid package version.' }
+          "value=$version" >> $env:GITHUB_OUTPUT
+  package:
+    needs: version
+    name: Package (${{ matrix.runtime }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            runtime: win-x64
+          - os: macos-15-intel
+            runtime: osx-x64
+          - os: macos-latest
+            runtime: osx-arm64
+          - os: ubuntu-24.04
+            runtime: linux-x64
+          - os: ubuntu-24.04-arm
+            runtime: linux-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.commit }}
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             9.0.x
             10.0.x
-      - name: Checkout the pinned network tools
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: DashyNMS/mcp
           ref: 61161c4ec4b8f63a6cb8cea104488339d5f1d497
           path: artifacts/mcp-source
           submodules: recursive
           persist-credentials: false
-      - name: Build the network tools
-        shell: pwsh
-        run: ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-source -Runtime win-x64
-      - name: Test and publish the development build
+      - name: Install Linux package dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y squashfs-tools desktop-file-utils libsecret-tools libnotify-bin
+      - name: Install pinned Inno Setup compiler
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          [xml]$props = Get-Content Directory.Build.props
-          ./tools/Publish-Dev.ps1 -Version "$($props.Project.PropertyGroup.Version)-dev.${{ github.run_number }}.${{ github.run_attempt }}"
-      - name: Retain the build
-        uses: actions/upload-artifact@v7
+          $installer=Join-Path $env:RUNNER_TEMP 'innosetup-6.7.3.exe'
+          Invoke-WebRequest https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe -OutFile $installer
+          if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne '9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732') { throw 'Inno Setup checksum mismatch.' }
+          $compiler=Join-Path $env:RUNNER_TEMP 'innosetup'
+          $process=Start-Process $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CURRENTUSER','/NOICONS',"/DIR=`"$compiler`"" -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Installing the package compiler failed.' }
+          "INNO_COMPILER=$compiler/ISCC.exe" >> $env:GITHUB_ENV
+      - name: Test shared behavior
+        run: dotnet test tests/DesktopNMS.Presentation.Tests -c Release
+      - name: Build the native network tools
+        shell: pwsh
+        run: ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-source -Runtime '${{ matrix.runtime }}'
+      - name: Build the package
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ needs.version.outputs.value }}
+        run: ./tools/Publish-Package.ps1 -Runtime '${{ matrix.runtime }}' -Version $env:PACKAGE_VERSION -InnoCompiler $env:INNO_COMPILER
+      - name: Verify the finished package
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ needs.version.outputs.value }}
+        run: ./tools/Test-Package.ps1 -Runtime '${{ matrix.runtime }}' -Version $env:PACKAGE_VERSION
+      - uses: actions/upload-artifact@v7
         with:
-          name: DashyNMS-dev-windows-x64-${{ github.run_number }}-${{ github.run_attempt }}
-          path: artifacts/dev/**/win-x64/**
+          name: package-${{ matrix.runtime }}
+          path: artifacts/packages/${{ needs.version.outputs.value }}/${{ matrix.runtime }}/*
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
+  upgrade:
+    name: Windows upgrade (${{ matrix.from }})
+    needs: [version, package]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        from: ['1.0.0', '1.1.0']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.commit }}
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '9.0.x'
+      - uses: actions/download-artifact@v8
+        with:
+          name: package-win-x64
+          path: artifacts/upgrade-candidate
+      - name: Upgrade the shipped app on a fresh CI account
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_VERSION: ${{ needs.version.outputs.value }}
+        run: ./tools/Test-WindowsUpgrade.ps1 -FromVersion '${{ matrix.from }}' -Version $env:PACKAGE_VERSION -PackageDirectory artifacts/upgrade-candidate
