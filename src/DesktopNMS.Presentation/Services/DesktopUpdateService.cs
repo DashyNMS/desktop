@@ -15,6 +15,7 @@ public interface IUpdateInstallation
     string? Runtime { get; }
     string ActionText { get; }
     bool RestartsApp { get; }
+    Task PrepareAsync(string verifiedPackage, string version, CancellationToken cancellationToken) => Task.CompletedTask;
     Task<bool> InstallAsync(string verifiedPackage);
 }
 
@@ -78,6 +79,7 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         return (version ?? "0.0.0").Split('+')[0];
     }
 
+    public string? InstallationError { get; private set; }
     public string CurrentVersion { get; }
     public bool CanInstallUpdate => _installation.Runtime is not null;
     public bool DownloadsAutomatically => CanInstallUpdate && _settings.Current.DownloadUpdatesAutomatically;
@@ -196,7 +198,13 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
                 var download = _metrics.Begin(MetricArea.UpdateDownload, release.TagName, release.Prerelease,
                     operation.Manual ? MetricMode.Manual : MetricMode.Automatic);
                 string path;
-                try { path = await DownloadAsync(asset, token).ConfigureAwait(false); download.Complete(MetricOutcome.Success); }
+                try
+                {
+                    InstallationError = null;
+                    path = await DownloadAsync(asset, token).ConfigureAwait(false);
+                    await _installation.PrepareAsync(path, release.TagName!, token).ConfigureAwait(false);
+                    download.Complete(MetricOutcome.Success);
+                }
                 catch (OperationCanceledException) { download.Complete(MetricOutcome.Cancelled); throw; }
                 catch { download.Complete(MetricOutcome.Failed); throw; }
                 lock (_gate)
@@ -212,7 +220,11 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
-        catch (Exception ex) { _logger.LogWarning(ex, "Could not prepare desktop update {Version}", release.TagName); }
+        catch (Exception ex)
+        {
+            InstallationError = ex is IOException ? ex.Message : null;
+            _logger.LogWarning(ex, "Could not prepare desktop update {Version}", release.TagName);
+        }
         finally
         {
             lock (_gate)
@@ -259,6 +271,7 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
             }
             install = _metrics.Begin(MetricArea.UpdateInstall, target, readyPreview, MetricMode.Manual);
             if (ready is null || asset is null) { install.Complete(MetricOutcome.Unavailable); return false; }
+            InstallationError = null;
             // Recheck a cached file immediately before handing it to the OS.
             var path = await DownloadAsync(asset, _lifetime.Token).ConfigureAwait(false);
             lock (_gate) { if (_lifetime.IsCancellationRequested || _wantedVersion != ready.Version || _ready != ready) return false; }
@@ -269,7 +282,11 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
             if (_installation.RestartsApp) InstallStarted?.Invoke(this, EventArgs.Empty);
             return true;
         }
-        catch (Exception ex) { _logger.LogWarning(ex, "Could not install a desktop update"); return false; }
+        catch (Exception ex)
+        {
+            InstallationError = ex is IOException ? ex.Message : null;
+            _logger.LogWarning(ex, "Could not install a desktop update"); return false;
+        }
         finally
         {
             if (!launched && install is not null) { _metrics.Withdraw(); install.Complete(_lifetime.IsCancellationRequested ? MetricOutcome.Cancelled : MetricOutcome.Failed); }

@@ -1493,6 +1493,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         var what = release.Prerelease ? $"Preview {release.TagName}" : $"Version {release.TagName}";
         return IsUpdateReady
             ? $"{what} is downloaded and ready to install."
+            : _updates.InstallationError is { Length: > 0 } reason ? reason
             : _updates.IsDownloading ? $"{what} is downloading in the background."
             : CanDownloadUpdates ? $"{what} is available. Download it when you're ready to update."
             : $"{what} is available. View the release for installation options.";
@@ -1519,7 +1520,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             // On success the app shuts down from under this (InstallStarted).
             if (!await _updates.InstallAsync().ConfigureAwait(true))
             {
-                _windows.ShowError("Update", "The update couldn't be started. Check again, or download it from the release page.");
+                _windows.ShowError("Update", _updates.InstallationError ?? "The update couldn't be started. Check again, or download it from the release page.");
             }
         }
         finally

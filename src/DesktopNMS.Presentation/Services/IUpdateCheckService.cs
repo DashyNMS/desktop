@@ -21,6 +21,9 @@ public interface IUpdateCheckService
     /// <summary>The version of the running build, e.g. "0.1.0".</summary>
     string CurrentVersion { get; }
 
+    /// <summary>A platform explanation when preparation or handoff was refused.</summary>
+    string? InstallationError => null;
+
     /// <summary>Package-manager installs only announce updates; they do not download installers.</summary>
     bool DownloadsAutomatically => true;
     bool CanInstallUpdate => DownloadsAutomatically;
