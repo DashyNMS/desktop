@@ -135,7 +135,8 @@ architecture and fixed `mode`, `area` and `outcome` attributes. Individual instr
 described below.
 
 Counters are summed per built-in series, capped at 1,000,000 per buffer.
-Durations/gauges retain the first and every tenth observation per series.
+Durations retain the first and every tenth observation per series. Memory gauges
+retain each five-minute sample within the shared capacity limits.
 The buffer and sampling catalogue each hold at most 32 entries. A one-minute
 background timer persists a batch into the existing ten-report / 32 KiB /
 seven-day queue and attempts delivery. Normal exit persists the tail; abrupt
@@ -341,6 +342,35 @@ Counters/durations require consent at operation start and the same generation
 at completion. No asset URL, filename/path, account or server data is attached.
 Pending-state IO is bounded and best effort; interruption or persistence failure
 can lose confirmation. Existing shared queue/rate/sampling limits still apply.
+
+Memory reporting reads only `Process.GetCurrentProcess().WorkingSet64` after
+Refresh and `GC.GetTotalMemory(false)`. The former is the process's resident
+working set, including shared/private pages; the latter estimates managed heap
+bytes excluding fragmentation and does not force garbage collection. Neither
+is a memory dump, private/native allocation total, or a complete ownership
+accounting. Do not subtract the heap from working set to infer native memory.
+
+A worker timer reads at most once every five minutes, starting five minutes
+after metrics consent is enabled. Monotonic throttling prevents timer catch-up
+bursts; overlapping reads are suppressed and failures skip until the next
+interval. No process enumeration, system RAM total, machine metadata, inventory
+counts or UI-thread sampling is used. `dashynms.memory.working_set` and
+`dashynms.memory.managed_heap` are byte gauges. These already rate-limited gauges
+retain every sample within queue limits rather than applying duration sampling.
+Mode is interactive (a visible non-minimised window) or background/tray according
+to the existing activity signal. Withdrawal stops the timer and generation-aware
+recording rejects reads crossing withdrawal/reconsent; shutdown disposes it.
+
+Compare sustained values within release, OS, architecture and mode. Windows
+working-set trimming and Unix resident-memory accounting/reclamation are not
+identical, and GC scheduling means uncollected allocations affect heap estimates.
+Cross-platform absolute comparisons and sampled short spikes can mislead. Short
+sessions under five minutes produce no memory samples. The real current-process
+read test logs elapsed time without a fragile CI performance deadline; manual-
+clock tests verify rate/overlap/failure bounds and both modes on all CI platforms.
+See the .NET [working set](https://learn.microsoft.com/dotnet/api/system.diagnostics.process.workingset64)
+and [managed heap](https://learn.microsoft.com/dotnet/api/system.gc.gettotalmemory)
+API definitions for interpretation.
 
 GitHub builds read the public ingestion address from the repository variable
 `SENTRY_DSN`. For local builds, set `DASHYNMS_SENTRY_DSN` before publishing. The

@@ -78,7 +78,7 @@ public sealed class AppMetrics : IAppMetrics, IDisposable
                     return;
                 }
             }
-            else
+            else if (!IsGauge(observation.Name))
             {
                 if (!_samples.TryGetValue(key, out var sample) && _samples.Count >= MaximumPoints) return;
                 _samples[key] = (sample + 1) % 10;
