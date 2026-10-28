@@ -43,10 +43,15 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
         if (_endpoint is null || !CrashPayload.IsValid(report)) return new(CrashSendDisposition.Rejected);
         using var body = new MemoryStream();
         WriteJsonLine(body, new { event_id = report.EventId.ToString("N") });
-        var usage = report is UsageReport;
-        var payload = usage ? UsageMetric((UsageReport)report) : CrashEvent((CrashReport)report);
+        var usage = report is not CrashReport;
+        var payload = report switch
+        {
+            UsageReport launch => UsageMetric(launch),
+            MetricsReport metrics => MetricsBatch(metrics),
+            _ => CrashEvent((CrashReport)report),
+        };
         if (usage)
-            WriteJsonLine(body, new { type = "trace_metric", item_count = 1,
+            WriteJsonLine(body, new { type = "trace_metric", item_count = report is MetricsReport batch ? batch.Points.Count : 1,
                 content_type = "application/vnd.sentry.items.trace-metric+json", length = payload.Length });
         else
             WriteJsonLine(body, new { type = "event", length = payload.Length });
@@ -60,9 +65,9 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
         try
         {
             using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-            if (response.IsSuccessStatusCode) return new(CrashSendDisposition.Accepted, RetryDelay(response, usage ? "trace_metric" : "error"));
+            if (response.IsSuccessStatusCode) return new(CrashSendDisposition.Accepted, RetryDelay(response, usage ? "trace_metric" : "error"), IsGlobalLimit(response));
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
-                return new(CrashSendDisposition.Retry, RetryDelay(response, usage ? "trace_metric" : "error") ?? TimeSpan.FromMinutes(1));
+                return new(CrashSendDisposition.Retry, RetryDelay(response, usage ? "trace_metric" : "error") ?? TimeSpan.FromMinutes(1), IsGlobalLimit(response) || !response.Headers.Contains("X-Sentry-Rate-Limits"));
             return new((int)response.StatusCode >= 500 ? CrashSendDisposition.Retry : CrashSendDisposition.Rejected);
         }
         catch (HttpRequestException) { return new(CrashSendDisposition.Retry); }
@@ -95,6 +100,47 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
         },
     });
 
+    private byte[] MetricsBatch(MetricsReport report) => JsonSerializer.SerializeToUtf8Bytes(new
+    {
+        version = 2,
+        ingest_settings = new { infer_ip = "never", infer_user_agent = "never" },
+        items = report.Points.Select(point => new
+        {
+            timestamp = point.Timestamp.ToUnixTimeMilliseconds() / 1000.0,
+            trace_id = report.EventId.ToString("N"),
+            name = point.Observation.Name switch
+            {
+                MetricName.StartupDuration => "dashynms.startup.duration",
+                MetricName.ScreenLoadDuration => "dashynms.screen_load.duration",
+                MetricName.ApiDuration => "dashynms.api.duration",
+                MetricName.FeatureUse => "dashynms.feature.use",
+                MetricName.UpdateOutcome => "dashynms.update.outcome",
+                MetricName.IntelligenceDuration => "dashynms.intelligence.duration",
+                MetricName.IntelligenceFirstResponse => "dashynms.intelligence.first_response",
+                MetricName.UiStallCount => "dashynms.ui_stall.count",
+                MetricName.UiStallDuration => "dashynms.ui_stall.duration",
+                MetricName.WorkingSet => "dashynms.memory.working_set",
+                MetricName.ManagedHeap => "dashynms.memory.managed_heap",
+                _ => throw new InvalidOperationException("Unsupported metric"),
+            },
+            type = AppMetrics.IsCounter(point.Observation.Name) ? "counter" : AppMetrics.IsGauge(point.Observation.Name) ? "gauge" : "distribution",
+            unit = AppMetrics.IsCounter(point.Observation.Name) ? "none" : AppMetrics.IsGauge(point.Observation.Name) ? "byte" : "millisecond",
+            value = point.Observation.Value,
+            attributes = new Dictionary<string, object>
+            {
+                ["sentry.release"] = new { type = "string", value = report.Context.Release },
+                ["operating_system"] = new { type = "string", value = report.Context.OperatingSystem },
+                ["architecture"] = new { type = "string", value = report.Context.Architecture },
+                ["mode"] = new { type = "string", value = point.Observation.Mode.ToString().ToLowerInvariant() },
+                ["outcome"] = new { type = "string", value = point.Observation.Outcome.ToString().ToLowerInvariant() },
+                ["area"] = new { type = "string", value = point.Observation.Area.ToString().ToLowerInvariant() },
+                ["sentry.sdk.name"] = new { type = "string", value = "dashynms.envelope" },
+                ["sentry.sdk.version"] = new { type = "string", value = "1.0.0" },
+                ["sentry.timestamp.sequence"] = new { type = "integer", value = Interlocked.Increment(ref _metricSequence) },
+            },
+        }).ToArray(),
+    });
+
     private static byte[] CrashEvent(CrashReport report) => JsonSerializer.SerializeToUtf8Bytes(new
         {
             event_id = report.EventId.ToString("N"), timestamp = report.Timestamp.ToUnixTimeMilliseconds() / 1000.0,
@@ -111,6 +157,10 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
                 }),
             },
         });
+
+    private static bool IsGlobalLimit(HttpResponseMessage response) => response.Headers.RetryAfter is not null ||
+        (response.Headers.TryGetValues("X-Sentry-Rate-Limits", out var limits) &&
+         limits.SelectMany(value => value.Split(',')).Any(limit => limit.Split(':') is { Length: >= 2 } parts && parts[1].Length == 0));
 
     private static TimeSpan? RetryDelay(HttpResponseMessage response, string category)
     {

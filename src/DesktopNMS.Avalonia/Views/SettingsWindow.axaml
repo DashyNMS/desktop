@@ -790,12 +790,14 @@
                         <TextBlock Text="Error and usage sharing" Classes="section" Margin="0,20,0,0" />
                         <CheckBox Content="Send crash reports" IsChecked="{Binding SendCrashReports}"
                                   IsEnabled="{Binding IsCrashReportingAvailable}" />
-                        <CheckBox Content="Share basic usage statistics" IsChecked="{Binding SendUsageStatistics}"
+                        <CheckBox Content="Share usage and performance metrics" IsChecked="{Binding SendUsageStatistics}"
                                   IsEnabled="{Binding IsCrashReportingAvailable}" />
+                        <TextBlock Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding HasLegacyUsageConsent}"
+                                   Text="Your saved usage choice covers launch counts only. Use the updated startup prompt, or turn usage sharing off and on here, to allow broader metrics. Turning it off stops launch sharing too." />
                         <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
                                    Text="Reports sent to DashyNMS's Sentry service contain the app version, operating system, architecture, exception types and app method names. Network addresses, credentials, log files and Intelligence content are excluded from the report." />
                         <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
-                                   Text="Usage sharing sends an app-launch count with the version, operating system and architecture, without a user or installation identifier." />
+                                   Text="Usage sharing covers launch and feature-use counts, startup and screen-loading times, request and update outcomes, responsiveness and memory measurements. Includes app version and platform; no user or installation identifier." />
                         <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
                                    Text="Sentry also receives connection information when a report is sent. Turning this off and applying the change stops uploads and clears pending reports. Local logs remain available on your computer." />
                         <TextBlock Classes="subtle" Text="Crash reporting is unavailable in this build."

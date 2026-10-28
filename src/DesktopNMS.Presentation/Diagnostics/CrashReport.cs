@@ -13,6 +13,7 @@ public sealed record CrashException(string Type, IReadOnlyList<CrashFrame> Frame
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(CrashReport), "error")]
 [JsonDerivedType(typeof(UsageReport), "usage")]
+[JsonDerivedType(typeof(MetricsReport), "metrics")]
 public abstract record DiagnosticReport(int Schema, Guid EventId, DateTimeOffset Timestamp, CrashReportContext Context);
 
 public sealed record CrashReport(int Schema, Guid EventId, DateTimeOffset Timestamp,
@@ -22,9 +23,13 @@ public sealed record CrashReport(int Schema, Guid EventId, DateTimeOffset Timest
 public sealed record UsageReport(int Schema, Guid EventId, DateTimeOffset Timestamp, CrashReportContext Context)
     : DiagnosticReport(Schema, EventId, Timestamp, Context);
 
+public sealed record MetricsReport(int Schema, Guid EventId, DateTimeOffset Timestamp,
+    CrashReportContext Context, IReadOnlyList<MetricPoint> Points)
+    : DiagnosticReport(Schema, EventId, Timestamp, Context);
+
 public enum CrashSendDisposition { Accepted, Retry, Rejected }
 
-public sealed record CrashSendResult(CrashSendDisposition Disposition, TimeSpan? RetryAfter = null);
+public sealed record CrashSendResult(CrashSendDisposition Disposition, TimeSpan? RetryAfter = null, bool RetryAllCategories = false);
 
 public interface ICrashTransport
 {

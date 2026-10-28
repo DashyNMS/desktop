@@ -8,17 +8,17 @@
         Background="{DynamicResource BackgroundBrush}">
     <StackPanel Margin="28" Spacing="14">
         <TextBlock Text="Help improve DashyNMS" FontSize="22" FontWeight="SemiBold" />
-        <TextBlock Text="Choose what to share with DashyNMS through Sentry. Both options stay off until you allow them. You can change your choice in Settings → About."
+        <TextBlock Text="Choose what to share with DashyNMS through Sentry. Error reporting and usage metrics are separate choices. You can change your choice in Settings → About."
                    TextWrapping="Wrap" />
         <CheckBox Content="Share error reports" IsChecked="{Binding ShareErrors}" />
         <TextBlock Text="App version, operating system, architecture, exception types and app method names."
                    Margin="28,-8,0,0" TextWrapping="Wrap" Opacity="0.75" />
-        <CheckBox Content="Share basic usage statistics" IsChecked="{Binding ShareUsage}" />
-        <TextBlock Text="An app-launch count with its version, operating system and architecture. No user or installation identifier."
+        <CheckBox Content="Share usage and performance metrics" IsChecked="{Binding ShareUsage}" />
+        <TextBlock Text="Launch and feature-use counts, startup and screen-loading times, request and update outcomes, responsiveness and memory measurements. Includes app version, operating system and architecture; no user or installation identifier."
                    Margin="28,-8,0,0" TextWrapping="Wrap" Opacity="0.75" />
         <TextBlock Text="Reports exclude network addresses, credentials, log files and Intelligence content. Sentry receives connection information when reports are sent."
                    TextWrapping="Wrap" Opacity="0.75" />
-        <TextBlock Text="Closing this window leaves sharing off and asks again next time."
+        <TextBlock Text="Closing this window keeps your previous choice and asks again next time."
                    TextWrapping="Wrap" Opacity="0.75" />
         <HyperlinkButton Content="Read the privacy details"
                          NavigateUri="https://github.com/DashyNMS/desktop/blob/master/PRIVACY.md" />

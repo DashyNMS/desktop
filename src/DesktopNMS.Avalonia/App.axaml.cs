@@ -56,7 +56,7 @@ public partial class App : Application
     private IUiTimer? _updateTimer;
     private IUiTimer? _sensorDefinitionsTimer;
     private DesktopInstance? _instance;
-    private DiagnosticsSharingPreference? _configuredDiagnosticsSharing;
+    private (DiagnosticsSharingPreference Choice, int Version)? _configuredDiagnosticsSharing;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -272,14 +272,14 @@ public partial class App : Application
         Dispatcher.UIThread.Post(async () =>
         {
             if (!_demo.IsActive && Program.Reports.IsAvailable &&
-                (settings.Current.DiagnosticsSharing == DiagnosticsSharingPreference.Undecided ||
-                 !Enum.IsDefined(settings.Current.DiagnosticsSharing)))
+                DiagnosticsConsent.NeedsChoice(settings.Current))
             {
-                var preference = await new DiagnosticsSharingWindow().ChooseAsync(_mainWindow);
+                var preference = await new DiagnosticsSharingWindow(DiagnosticsConsent.Errors(settings.Current)).ChooseAsync(_mainWindow);
                 if (preference is { } choice)
                 {
                     var updated = settings.Current.Clone();
                     updated.DiagnosticsSharing = choice;
+                    updated.DiagnosticsConsentVersion = DiagnosticsConsent.CurrentVersion;
                     settings.Replace(updated);
                 }
             }
@@ -289,11 +289,15 @@ public partial class App : Application
 
     private void ApplyDiagnosticsSharing(AppSettings settings)
     {
-        if (_configuredDiagnosticsSharing == settings.DiagnosticsSharing) return;
-        _configuredDiagnosticsSharing = settings.DiagnosticsSharing;
-        Program.Reports.Configure(AppPaths.DataDirectory,
-            !_demo.IsActive && (settings.DiagnosticsSharing is DiagnosticsSharingPreference.ErrorsOnly or DiagnosticsSharingPreference.ErrorsAndUsage),
-            !_demo.IsActive && (settings.DiagnosticsSharing is DiagnosticsSharingPreference.UsageOnly or DiagnosticsSharingPreference.ErrorsAndUsage));
+        var choice = (settings.DiagnosticsSharing, settings.DiagnosticsConsentVersion);
+        if (_configuredDiagnosticsSharing == choice) return;
+        _configuredDiagnosticsSharing = choice;
+        if (_demo.IsActive || !DiagnosticsConsent.Metrics(settings)) Program.Metrics.Configure(false);
+        Program.Reports.ConfigureMetrics(AppPaths.DataDirectory,
+            !_demo.IsActive && DiagnosticsConsent.Errors(settings),
+            !_demo.IsActive && DiagnosticsConsent.Launches(settings),
+            !_demo.IsActive && DiagnosticsConsent.Metrics(settings));
+        Program.Metrics.Configure(!_demo.IsActive && DiagnosticsConsent.Metrics(settings));
         if (!_demo.IsActive) Program.Reports.RecordUsage();
         _ = Program.Reports.SendPendingAsync();
     }
@@ -636,6 +640,7 @@ public partial class App : Application
 
     private void OnExit()
     {
+        Program.Metrics.Flush();
         _updateTimer?.Stop();
         _sensorDefinitionsTimer?.Stop();
         // Stop the sole asynchronous service first, so UI-owned tray resources
@@ -764,6 +769,7 @@ public partial class App : Application
         var services = new ServiceCollection();
         services.AddSingleton(demo);
         services.AddSingleton<ICrashReporter>(Program.Reports);
+        services.AddSingleton<IAppMetrics>(Program.Metrics);
 
         services.AddLogging(builder =>
         {

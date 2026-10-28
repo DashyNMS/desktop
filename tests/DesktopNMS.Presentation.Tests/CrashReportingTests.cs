@@ -404,6 +404,63 @@ public sealed class CrashReportingTests
         Assert.Equal(limited ? TimeSpan.FromSeconds(180) : (TimeSpan?)null, result.RetryAfter);
     }
 
+    [Fact]
+    public async Task Maximum_metrics_batch_fits_the_envelope_limit_and_has_only_bounded_attributes()
+    {
+        var handler = new RecordingHandler();
+        using var transport = new SentryCrashTransport("https://publickey@collector.invalid/123", handler);
+        var now = DateTimeOffset.UtcNow;
+        var report = new MetricsReport(1, Guid.NewGuid(), now,
+            new CrashReportContext("2.0.0-" + new string('a', 90), "windows", "arm64"),
+            Enumerable.Range(0, AppMetrics.MaximumPoints).Select(_ => new MetricPoint(now,
+                new(MetricName.IntelligenceFirstResponse, 1234, MetricMode.Background, MetricOutcome.NetworkFailure, MetricArea.DashboardEditor))).ToArray());
+        var result = await transport.SendAsync(report, CancellationToken.None);
+        Assert.Equal(CrashSendDisposition.Accepted, result.Disposition);
+        var body = Assert.Single(handler.Bodies);
+        Assert.True(Encoding.UTF8.GetByteCount(body) <= 32768);
+        var lines = body.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        using var item = JsonDocument.Parse(lines[1]);
+        using var payload = JsonDocument.Parse(lines[2]);
+        Assert.Equal("trace_metric", item.RootElement.GetProperty("type").GetString());
+        Assert.Equal(AppMetrics.MaximumPoints, item.RootElement.GetProperty("item_count").GetInt32());
+        var points = payload.RootElement.GetProperty("items").EnumerateArray().ToArray();
+        Assert.Equal(AppMetrics.MaximumPoints, points.Length);
+        Assert.All(points, point =>
+        {
+            Assert.Equal("distribution", point.GetProperty("type").GetString());
+            Assert.Equal("millisecond", point.GetProperty("unit").GetString());
+            Assert.Equal("dashynms.intelligence.first_response", point.GetProperty("name").GetString());
+            Assert.Equal(new[] { "architecture", "area", "mode", "operating_system", "outcome", "sentry.release", "sentry.sdk.name", "sentry.sdk.version", "sentry.timestamp.sequence" },
+                point.GetProperty("attributes").EnumerateObject().Select(property => property.Name).Order());
+        });
+        Assert.Equal(Enumerable.Range(0, AppMetrics.MaximumPoints).Select(i => (long)i),
+            points.Select(point => point.GetProperty("attributes").GetProperty("sentry.timestamp.sequence").GetProperty("value").GetInt64()));
+    }
+
+    [Fact]
+    public async Task Withdrawing_metrics_cancels_active_delivery_and_removes_queued_metrics()
+    {
+        using var folder = new TemporaryFolder();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var blocked = new TaskCompletionSource<CrashSendResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken token = default;
+        var transport = new FakeTransport
+        {
+            Send = (_, cancellation) => { token = cancellation; started.SetResult(); return blocked.Task; },
+        };
+        using var reporter = new CrashReporter(Context, transport);
+        reporter.ConfigureMetrics(folder.Path, false, true, true);
+        reporter.RecordMetrics([new(DateTimeOffset.UtcNow, new(MetricName.FeatureUse, 1))]);
+        var send = reporter.SendPendingAsync();
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        reporter.ConfigureMetrics(folder.Path, false, true, false);
+        Assert.True(token.IsCancellationRequested);
+        blocked.SetResult(new(CrashSendDisposition.Retry));
+        await send;
+        Assert.Empty(Pending(folder.Path));
+        Assert.False(reporter.RecordMetrics([new(DateTimeOffset.UtcNow, new(MetricName.FeatureUse, 1))]));
+    }
+
     private static Exception SensitiveException()
     {
         var exception = new InvalidOperationException("secret-token-canary private-host-canary chat-text-canary C:\\Users\\private-user-canary\\private.txt",
