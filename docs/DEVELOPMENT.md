@@ -118,6 +118,20 @@ managed error and confirm it still appears there. HTTP success alone does not
 prove indexing. Metric timestamp acceptance depends on project retention; it
 must cover the seven-day local queue window.
 
+Managed errors include only approved application assemblies. Frames retain method
+names and available IL offsets; async/iterator state-machine frames resolve to
+the original method. Repository-relative `src/<project>/*.cs` names and positive
+line numbers are included when symbols exist. Absolute paths, source text, local
+variables and exception messages remain excluded. Unrecognised source paths are
+omitted, and older queued frames without these optional fields still upload.
+Release builds embed portable PDBs, including both desktop packaging scripts;
+embedded symbols do not require separate PDB files beside a single-file app.
+Build paths are mapped to a fixed root and stripped before reporting. Optimised
+code and dependencies without shipped symbols can still lack line information;
+Core package symbols are determined by that package's build. IL offsets refer to
+the physical compiled method even when the display name is resolved from a
+state machine. No Sentry source integration or source context is enabled here.
+
 Expanded usage consent accepts `AppSettings.DiagnosticsConsentVersion` 1 or 2.
 Version 0 and unknown versions never authorise broader metrics. Version 2 adds
 session health, eligible only when both error and usage sharing are explicitly

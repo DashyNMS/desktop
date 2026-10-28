@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -30,13 +31,10 @@ internal static partial class CrashPayload
             var type = current.GetType();
             var trusted = type.Assembly == typeof(Exception).Assembly || IsAppAssembly(type.Assembly);
             var name = trusted ? MetadataName(type) : "ExternalException";
-            var frames = new StackTrace(current, false).GetFrames()
-                .Select(frame => frame.GetMethod())
-                .Where(method => method?.DeclaringType is not null && IsAppAssembly(method.Module.Assembly))
+            var frames = new StackTrace(current, true).GetFrames()
+                .Where(frame => frame.GetMethod()?.DeclaringType is not null && IsAppAssembly(frame.GetMethod()!.Module.Assembly))
                 .Take(remainingFrames)
-                .Select(method => new CrashFrame(method!.Module.Assembly.GetName().Name!,
-                    MetadataName(method.DeclaringType!), SafeName(method.Name)))
-                .Reverse().ToArray();
+                .Select(CreateFrame).Reverse().ToArray();
             exceptions.Add(new(name, frames));
             remainingFrames -= frames.Length;
         }
@@ -66,8 +64,52 @@ internal static partial class CrashPayload
             crash.Exceptions is null || crash.Exceptions.Count is < 1 or > 3) return false;
         return crash.Exceptions.All(exception => exception is not null && IsName(exception.Type) && exception.Frames is not null &&
             exception.Frames.Count <= 32 && exception.Frames.All(frame => frame is not null &&
-                AppAssemblies.Contains(frame.Module) && IsName(frame.Type) && IsName(frame.Function)));
+                AppAssemblies.Contains(frame.Module) && IsName(frame.Type) && IsName(frame.Function) &&
+                (frame.FileName is null ? frame.LineNumber is null : IsSourceName(frame.Module, frame.FileName)) &&
+                (frame.LineNumber is null || frame.LineNumber is > 0 and <= 10_000_000) &&
+                (frame.IlOffset is null || frame.IlOffset is >= 0)));
     }
+
+    private static CrashFrame CreateFrame(StackFrame frame)
+    {
+        var physical = frame.GetMethod()!;
+        var method = LogicalMethod(physical);
+        var module = physical.Module.Assembly.GetName().Name!;
+        var file = SourceName(module, frame.GetFileName());
+        var line = frame.GetFileLineNumber();
+        var offset = frame.GetILOffset();
+        return new(module, MetadataName(method.DeclaringType!), SafeName(method.Name), file,
+            file is not null && line is > 0 and <= 10_000_000 ? line : null, offset >= 0 ? offset : null);
+    }
+
+    private static MethodBase LogicalMethod(MethodBase method)
+    {
+        if (method.Name != "MoveNext" || method.DeclaringType?.DeclaringType is not { } owner) return method;
+        try
+        {
+            return owner.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
+                .FirstOrDefault(candidate => candidate.GetCustomAttributes<StateMachineAttribute>()
+                    .Any(attribute => attribute.StateMachineType == method.DeclaringType)) ?? method;
+        }
+        catch (Exception) { return method; }
+    }
+
+    private static string? SourceName(string module, string? path)
+    {
+        if (path is null) return null;
+        path = path.Replace('\\', '/');
+        var root = "src/" + SourceProject(module) + "/";
+        var index = path.LastIndexOf("/" + root, StringComparison.Ordinal);
+        var relative = index >= 0 ? path[(index + 1)..] : path;
+        return IsSourceName(module, relative) ? relative : null;
+    }
+
+    private static string SourceProject(string module) => module == "DashyNMS" ? "DesktopNMS.Avalonia" : module;
+    private static bool IsSourceName(string module, string name) => name.Length <= 256 &&
+        name.StartsWith("src/" + SourceProject(module) + "/", StringComparison.Ordinal) &&
+        name.EndsWith(".cs", StringComparison.Ordinal) &&
+        name.Split('/').All(segment => segment.Length > 0 && segment is not ("." or "..") &&
+            segment.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-' or '.'));
 
     private static bool IsAppAssembly(Assembly assembly) => AppAssemblies.Contains(assembly.GetName().Name ?? "");
     private static string MetadataName(Type type) => SafeName(string.IsNullOrEmpty(type.Namespace) ? type.Name : type.Namespace + "." + type.Name);

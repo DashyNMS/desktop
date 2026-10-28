@@ -187,10 +187,22 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
                 {
                     type = exception.Type, value = "Managed application error",
                     mechanism = new { type = "generic", handled = report.Origin == CrashOrigin.Command },
-                    stacktrace = new { frames = exception.Frames.Select(frame => new { module = frame.Module, function = frame.Type + "." + frame.Function, in_app = true }) },
+                    stacktrace = new { frames = exception.Frames.Select(frame => ErrorFrame(frame)) },
                 }),
             },
         });
+
+    private static Dictionary<string, object> ErrorFrame(CrashFrame frame)
+    {
+        var result = new Dictionary<string, object>
+        {
+            ["module"] = frame.Module, ["function"] = frame.Type + "." + frame.Function, ["in_app"] = true,
+        };
+        if (frame.FileName is { } file) result["filename"] = file;
+        if (frame.LineNumber is { } line) result["lineno"] = line;
+        if (frame.IlOffset is { } offset) result["data"] = new { il_offset = offset };
+        return result;
+    }
 
     private static bool IsGlobalLimit(HttpResponseMessage response) => response.Headers.RetryAfter is not null ||
         (response.Headers.TryGetValues("X-Sentry-Rate-Limits", out var limits) &&

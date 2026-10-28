@@ -797,7 +797,7 @@
                         <TextBlock Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding HasLegacyUsageConsent}"
                                    Text="Your saved usage choice covers launch counts only. Use the updated startup prompt, or turn usage sharing off and on here, to allow broader metrics. Turning it off stops launch sharing too." />
                         <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
-                                   Text="Reports sent to DashyNMS's Sentry service contain the app version, operating system, architecture, exception types and app method names. Network addresses, credentials, log files and Intelligence content are excluded from the report." />
+                                   Text="Reports sent to DashyNMS's Sentry service contain the app version, operating system, architecture, exception types, app method names and source-code locations (repository-relative files and line numbers, where available). Network addresses, credentials, log files and Intelligence content are excluded from the report." />
                         <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
                                    Text="Usage sharing covers launch and feature-use counts, startup and screen-loading times, request and update outcomes, responsiveness and memory measurements. Includes app version and platform; no persistent user or installation identifier. Session durations and healthy, errored, managed-crash or unknown outcomes use a fresh per-session ID and require both error and usage sharing." />
                         <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
