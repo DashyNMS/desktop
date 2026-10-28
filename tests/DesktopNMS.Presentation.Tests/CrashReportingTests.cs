@@ -90,7 +90,11 @@ public sealed class CrashReportingTests
         Assert.Contains(frames, frame => frame.GetProperty("module").GetString() == "DesktopNMS.Presentation" &&
             frame.GetProperty("function").GetString() == "DesktopNMS.Infrastructure.RelayCommand.Execute");
         Assert.DoesNotContain("CrashReportingTests.cs", body);
-        Assert.DoesNotContain("filename", body);
+        Assert.Contains(frames, frame => frame.TryGetProperty("filename", out var file) &&
+            file.GetString() == "src/DesktopNMS.Presentation/Infrastructure/RelayCommand.cs" &&
+            frame.GetProperty("lineno").GetInt32() > 0);
+        Assert.DoesNotContain("abs_path", body);
+        Assert.DoesNotContain("/_/dashynms/", body);
         Assert.Empty(Pending(folder.Path));
     }
 
@@ -542,6 +546,67 @@ public sealed class CrashReportingTests
             Assert.Equal("distribution", points[1].GetProperty("type").GetString());
             Assert.Equal("millisecond", points[1].GetProperty("unit").GetString());
         }
+    }
+
+    [Fact]
+    public async Task Async_failures_show_the_source_method_instead_of_MoveNext()
+    {
+        using var folder = new TemporaryFolder();
+        var handler = new RecordingHandler();
+        using var reporter = new CrashReporter(Context, new SentryCrashTransport("https://publickey@collector.invalid/123", handler));
+        reporter.Configure(folder.Path, true);
+        var failure = new InvalidOperationException("secret-token-canary");
+        var captured = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnFailure(object? sender, Exception error)
+        {
+            if (!ReferenceEquals(error, failure)) return;
+            reporter.Capture(error, CrashOrigin.UiThread);
+            captured.SetResult();
+        }
+        AsyncRelayCommand.UnhandledError += OnFailure;
+        try
+        {
+            new AsyncRelayCommand(async () => { await Task.Yield(); throw failure; }).Execute(null);
+            await captured.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await reporter.SendPendingAsync();
+        }
+        finally { AsyncRelayCommand.UnhandledError -= OnFailure; }
+        var body = Assert.Single(handler.Bodies);
+        AssertSafe(body);
+        Assert.DoesNotContain("MoveNext", body);
+        using var payload = JsonDocument.Parse(body.Split('\n', StringSplitOptions.RemoveEmptyEntries)[2]);
+        var frames = payload.RootElement.GetProperty("exception").GetProperty("values")[0].GetProperty("stacktrace").GetProperty("frames");
+        Assert.Contains(frames.EnumerateArray(), frame =>
+            frame.GetProperty("function").GetString() == "DesktopNMS.Infrastructure.AsyncRelayCommand.Execute" &&
+            frame.GetProperty("filename").GetString() == "src/DesktopNMS.Presentation/Infrastructure/RelayCommand.cs" &&
+            frame.GetProperty("lineno").GetInt32() > 0);
+    }
+
+    [Theory]
+    [InlineData("/home/private-user-canary/RelayCommand.cs")]
+    [InlineData("src/DesktopNMS.Presentation/../private.cs")]
+    [InlineData("src/DesktopNMS.Core/Secret.cs")]
+    [InlineData("src/DesktopNMS.Presentation/https://private-host-canary.cs")]
+    public async Task Unsafe_source_locations_are_rejected_before_upload(string path)
+    {
+        var handler = new RecordingHandler();
+        using var transport = new SentryCrashTransport("https://publickey@collector.invalid/123", handler);
+        var report = new CrashReport(1, Guid.NewGuid(), DateTimeOffset.UtcNow, Context with { Architecture = "x64" },
+            CrashOrigin.Application, [new("System.Exception", [new("DesktopNMS.Presentation", "Example", "Method", path, 12)])]);
+        Assert.Equal(CrashSendDisposition.Rejected, (await transport.SendAsync(report, default)).Disposition);
+        Assert.Empty(handler.Bodies);
+    }
+
+    [Fact]
+    public async Task Existing_frames_without_symbols_remain_uploadable()
+    {
+        var old = JsonSerializer.Deserialize<CrashFrame>("{\"Module\":\"DesktopNMS.Core\",\"Type\":\"Example\",\"Function\":\"Method\"}")!;
+        var handler = new RecordingHandler();
+        using var transport = new SentryCrashTransport("https://publickey@collector.invalid/123", handler);
+        var report = new CrashReport(1, Guid.NewGuid(), DateTimeOffset.UtcNow, Context with { Architecture = "x64" },
+            CrashOrigin.Application, [new("System.Exception", [old])]);
+        Assert.Equal(CrashSendDisposition.Accepted, (await transport.SendAsync(report, default)).Disposition);
+        Assert.DoesNotContain("filename", Assert.Single(handler.Bodies));
     }
 
     private static Exception SensitiveException()

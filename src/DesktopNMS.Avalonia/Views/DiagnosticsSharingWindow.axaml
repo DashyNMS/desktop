@@ -11,7 +11,7 @@
         <TextBlock Text="Choose what to share with DashyNMS through Sentry. Error reporting and usage metrics are separate choices. You can change your choice in Settings → About."
                    TextWrapping="Wrap" />
         <CheckBox Content="Share error reports" IsChecked="{Binding ShareErrors}" />
-        <TextBlock Text="App version, operating system, architecture, exception types and app method names."
+        <TextBlock Text="App version, operating system, architecture, exception types, app method names and source-code locations (repository-relative files and line numbers, where available)."
                    Margin="28,-8,0,0" TextWrapping="Wrap" Opacity="0.75" />
         <CheckBox Content="Share usage and performance metrics" IsChecked="{Binding ShareUsage}" />
         <TextBlock Text="Launch and feature-use counts, startup and screen-loading times, request and update outcomes, responsiveness and memory measurements. Includes app version, operating system and architecture; no persistent user or installation identifier. Selecting both choices also shares session duration and healthy, errored, managed-crash or unknown outcomes, using a fresh per-session ID."

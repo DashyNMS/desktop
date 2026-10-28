@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using DesktopNMS.Diagnostics;
+using DesktopNMS.Infrastructure;
 
 var context = new CrashReportContext("2.0.0", "unknown", "unknown");
 if (args is ["--crash-child", var profile])
@@ -12,7 +13,8 @@ if (args is ["--crash-child", var profile])
     {
         if (failure.ExceptionObject is Exception exception) reporter.Capture(exception, CrashOrigin.Application);
     };
-    new Thread(() => throw new InvalidOperationException("synthetic-private-token https://synthetic-network.invalid synthetic-chat"))
+    new Thread(() => typeof(RelayCommand).GetMethod(nameof(RelayCommand.Execute))!.Invoke(
+        new RelayCommand(_ => throw new InvalidOperationException("synthetic-private-token https://synthetic-network.invalid synthetic-chat")), [null]))
         { IsBackground = false }.Start();
     Thread.Sleep(TimeSpan.FromSeconds(15));
     return 2;
@@ -49,6 +51,10 @@ try
     var persisted = File.ReadAllText(files[0]);
     if (persisted.Contains("synthetic-private-token") || persisted.Contains("synthetic-network") || persisted.Contains("synthetic-chat"))
         throw new InvalidOperationException("The persisted report contains exception content.");
+    if (!persisted.Contains("src/DesktopNMS.Presentation/Infrastructure/RelayCommand.cs") || !persisted.Contains("lineNumber"))
+        throw new InvalidOperationException("The Release build did not preserve safe source locations.");
+    if (persisted.Contains("/_/dashynms/") || persisted.Contains("abs_path"))
+        throw new InvalidOperationException("The report contains an absolute build path.");
     var transport = new LocalTransport();
     using var restarted = new CrashReporter(context, transport);
     restarted.Configure(scratch, true);

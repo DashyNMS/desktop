@@ -37,7 +37,7 @@ try {
         @('-p:PublishSingleFile=true','-p:IncludeNativeLibrariesForSelfExtract=false','-p:EnableCompressionInSingleFile=true')
     } else { @('-p:PublishSingleFile=false') }
     dotnet publish src/DesktopNMS.Avalonia -c Release -r $Runtime --self-contained true -m:1 `
-        "-p:Version=$Version" @bundleOptions -p:DebugType=none -o $publish --nologo
+        "-p:Version=$Version" @bundleOptions -p:DebugType=embedded -o $publish --nologo
     Check-Native 'Publish'
     foreach ($file in @($mcpName,'LICENSE','BUILD.txt')) {
         if (-not (Test-Path "$publish/mcp/$file" -PathType Leaf)) { throw "The app is missing mcp/$file." }

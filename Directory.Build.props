@@ -1,6 +1,8 @@
 <Project>
 
   <PropertyGroup>
+    <DebugType Condition="'$(Configuration)' == 'Release'">embedded</DebugType>
+    <PathMap>$(MSBuildThisFileDirectory)=/_/dashynms/</PathMap>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

@@ -6,7 +6,7 @@ public enum CrashOrigin { Application, UiThread, Command }
 
 public sealed record CrashReportContext(string Release, string OperatingSystem, string Architecture);
 
-public sealed record CrashFrame(string Module, string Type, string Function);
+public sealed record CrashFrame(string Module, string Type, string Function, string? FileName = null, int? LineNumber = null, int? IlOffset = null);
 
 public sealed record CrashException(string Type, IReadOnlyList<CrashFrame> Frames);
 
