@@ -9,7 +9,10 @@ namespace DesktopNMS.Services;
 
 public sealed record ComponentVersion(string Name, string Version, string State, string Details = "")
 {
-    public bool HasDetails => Details.Length > 0;
+    public string DisplayVersion => Version.Split('+')[0];
+    public string BuildDetails => Version.Contains('+')
+        ? $"Build identity: {Version}" + (Details.Length == 0 ? "" : "\n" + Details) : Details;
+    public bool HasDetails => BuildDetails.Length > 0;
 }
 
 /// <summary>Offline package identity. Never executes the tools or reads account configuration.</summary>
@@ -93,7 +96,8 @@ public static class ComponentVersions
         var query = template.Query.TrimStart('?').Split('&').Select(part =>
         {
             if (!part.StartsWith("body=", StringComparison.Ordinal)) return part;
-            var body = Uri.UnescapeDataString(part[5..]).Replace("\nWindows: ", "\nOS: ", StringComparison.Ordinal);
+            var body = Uri.UnescapeDataString(part[5..]).Replace("\nWindows: ", "\nOS: ", StringComparison.Ordinal)
+                .Replace("Settings › About › Open log folder", "Settings › Diagnostics › Open log folder", StringComparison.Ordinal);
             return "body=" + Uri.EscapeDataString(body + "\n\nComponent versions:\n" + Format(components));
         });
         return new UriBuilder(template) { Query = string.Join("&", query) }.Uri;

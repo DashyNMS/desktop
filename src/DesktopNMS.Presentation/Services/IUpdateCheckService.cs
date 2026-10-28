@@ -14,7 +14,7 @@ namespace DesktopNMS.Services;
 
 /// <summary>
 /// Checks GitHub for a newer DashyNMS release than the one currently running,
-/// for the Settings "About" page and an occasional startup toast.
+/// for the Settings "Updates" page and an occasional startup toast.
 /// </summary>
 public interface IUpdateCheckService
 {

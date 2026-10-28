@@ -17,4 +17,7 @@ public enum SettingsSection
     Intelligence,
     About,
     SensorDefinitions,
+    ServerInformation,
+    Updates,
+    Diagnostics,
 }

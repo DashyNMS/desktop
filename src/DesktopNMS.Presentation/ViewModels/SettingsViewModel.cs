@@ -166,6 +166,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         PreviewCriticalCommand = new RelayCommand(() => _notifications.ShowPreview(AlertSeverity.Critical));
         PreviewWarningCommand = new RelayCommand(() => _notifications.ShowPreview(AlertSeverity.Warning));
 
+        SelectServerInformationSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.ServerInformation);
+        SelectUpdatesSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Updates);
+        SelectDiagnosticsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Diagnostics);
         SelectPollingSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Polling);
         SelectAlertDisplaySectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.AlertDisplay);
         SelectHealthThresholdsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.HealthThresholds);
@@ -292,6 +295,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     public RelayCommand SelectMapsSectionCommand { get; }
 
     public RelayCommand SelectAboutSectionCommand { get; }
+    public RelayCommand SelectServerInformationSectionCommand { get; }
+    public RelayCommand SelectUpdatesSectionCommand { get; }
+    public RelayCommand SelectDiagnosticsSectionCommand { get; }
 
     public SettingsSection SelectedSection
     {
@@ -313,6 +319,9 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsIntelligenceSectionSelected));
                 OnPropertyChanged(nameof(IsMapsSectionSelected));
                 OnPropertyChanged(nameof(IsAboutSectionSelected));
+                OnPropertyChanged(nameof(IsServerInformationSectionSelected));
+                OnPropertyChanged(nameof(IsUpdatesSectionSelected));
+                OnPropertyChanged(nameof(IsDiagnosticsSectionSelected));
                 OnPropertyChanged(nameof(IsSensorDefinitionsSectionSelected));
 
                 if (value == SettingsSection.Notifications)
@@ -347,6 +356,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool IsMapsSectionSelected => SelectedSection == SettingsSection.Maps;
 
+    public bool IsServerInformationSectionSelected => SelectedSection == SettingsSection.ServerInformation;
+    public bool IsUpdatesSectionSelected => SelectedSection == SettingsSection.Updates;
+    public bool IsDiagnosticsSectionSelected => SelectedSection == SettingsSection.Diagnostics;
     public bool IsAboutSectionSelected => SelectedSection == SettingsSection.About;
 
     // ------------------------------------------------------------- appearance

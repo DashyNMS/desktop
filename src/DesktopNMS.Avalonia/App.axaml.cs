@@ -149,7 +149,7 @@ public partial class App : Application
         settings.Changed += (_, current) => ApplyDiagnosticsSharing(current);
         // Installation definitions are independent of the account profile wiped at sign-out.
         var sensorDefinitions = _services.GetRequiredService<SensorDefinitionStore>();
-        sensorDefinitions.InitialiseAsync().GetAwaiter().GetResult();
+        DesktopSensorDefinitions.InitialiseAsync(sensorDefinitions, _logger, enableByDefault: !_demo.IsActive).GetAwaiter().GetResult();
         _ = sensorDefinitions.SynchroniseAsync(Array.Empty<string>());
         _sensorDefinitionsTimer = UiThread.CreateTimer(TimeSpan.FromHours(1));
         _sensorDefinitionsTimer.Tick += (_, _) => _ = sensorDefinitions.SynchroniseAsync();
@@ -423,7 +423,7 @@ public partial class App : Application
             if (request.Action == ToastAction.OpenUpdates)
             {
                 _services.GetRequiredService<IWindowService>().ShowMain();
-                _services.GetRequiredService<IWindowService>().ShowSettingsDialog(SettingsSection.About);
+                _services.GetRequiredService<IWindowService>().ShowSettingsDialog(SettingsSection.Updates);
                 return;
             }
             if (request.Action == ToastAction.InstallUpdate)

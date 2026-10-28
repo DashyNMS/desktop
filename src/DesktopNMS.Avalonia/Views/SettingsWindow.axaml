@@ -26,31 +26,31 @@
                         <TextBlock Text="ALERTS &amp; HEALTH" Classes="section" Margin="14,16,0,6" />
                         <Button Content="Alert display" Classes="settingsNav" Classes.selected="{Binding IsAlertDisplaySectionSelected}" Command="{Binding SelectAlertDisplaySectionCommand}" />
                         <Button Content="Health thresholds" Classes="settingsNav" Classes.selected="{Binding IsHealthThresholdsSectionSelected}" Command="{Binding SelectHealthThresholdsSectionCommand}" />
-                        <Button Content="Sensor definitions" Classes="settingsNav" Classes.selected="{Binding IsSensorDefinitionsSectionSelected}" Command="{Binding SelectSensorDefinitionsSectionCommand}" IsVisible="{Binding HasSensorDefinitions}" />
                         <Button Content="Notifications" Classes="settingsNav" Classes.selected="{Binding IsNotificationsSectionSelected}" Command="{Binding SelectNotificationsSectionCommand}" />
 
-                        <TextBlock Text="DEVICES" Classes="section" Margin="14,16,0,6" />
+                        <TextBlock Text="APPEARANCE" Classes="section" Margin="14,16,0,6" />
+                        <Button Content="Theme" Classes="settingsNav" Classes.selected="{Binding IsAppearanceSectionSelected}" Command="{Binding SelectAppearanceSectionCommand}" />
+                        <Button Content="Window and start-up" Classes="settingsNav" Classes.selected="{Binding IsWindowSectionSelected}" Command="{Binding SelectWindowSectionCommand}" />
                         <Button Content="Devices" Classes="settingsNav" Classes.selected="{Binding IsDevicesSectionSelected}" Command="{Binding SelectDevicesSectionCommand}" />
-
-                        <TextBlock Text="MAPS" Classes="section" Margin="14,16,0,6" />
                         <Button Content="Maps" Classes="settingsNav" Classes.selected="{Binding IsMapsSectionSelected}" Command="{Binding SelectMapsSectionCommand}" />
 
                         <TextBlock Text="INTEGRATIONS" Classes="section" Margin="14,16,0,6" />
                         <Button Content="Graylog" Classes="settingsNav" Classes.selected="{Binding IsGraylogSectionSelected}" Command="{Binding SelectGraylogSectionCommand}" />
                         <Button Content="Unimus" Classes="settingsNav" Classes.selected="{Binding IsIntegrationsSectionSelected}" Command="{Binding SelectIntegrationsSectionCommand}" />
                         <Button Content="Intelligence" Classes="settingsNav" Classes.selected="{Binding IsIntelligenceSectionSelected}" Command="{Binding SelectIntelligenceSectionCommand}" />
+                        <Button Content="Sensor definitions" Classes="settingsNav" Classes.selected="{Binding IsSensorDefinitionsSectionSelected}" Command="{Binding SelectSensorDefinitionsSectionCommand}" IsVisible="{Binding HasSensorDefinitions}" />
 
-                        <TextBlock Text="WINDOW &amp; APPEARANCE" Classes="section" Margin="14,16,0,6" />
-                        <Button Content="Window and start-up" Classes="settingsNav" Classes.selected="{Binding IsWindowSectionSelected}" Command="{Binding SelectWindowSectionCommand}" />
-                        <Button Content="Appearance" Classes="settingsNav" Classes.selected="{Binding IsAppearanceSectionSelected}" Command="{Binding SelectAppearanceSectionCommand}" />
-
-                        <Button Content="About" Classes="settingsNav" Classes.selected="{Binding IsAboutSectionSelected}" Command="{Binding SelectAboutSectionCommand}" Margin="0,16,0,2" />
+                        <TextBlock Text="APPLICATION" Classes="section" Margin="14,16,0,6" />
+                        <Button Content="About" Classes="settingsNav" Classes.selected="{Binding IsAboutSectionSelected}" Command="{Binding SelectAboutSectionCommand}" />
+                        <Button Content="Server information" Classes="settingsNav" Classes.selected="{Binding IsServerInformationSectionSelected}" Command="{Binding SelectServerInformationSectionCommand}" />
+                        <Button Content="Updates" Classes="settingsNav" Classes.selected="{Binding IsUpdatesSectionSelected}" Command="{Binding SelectUpdatesSectionCommand}" />
+                        <Button Content="Diagnostics" Classes="settingsNav" Classes.selected="{Binding IsDiagnosticsSectionSelected}" Command="{Binding SelectDiagnosticsSectionCommand}" />
                     </StackPanel>
                 </ScrollViewer>
             </Border>
 
             <!-- ======================== Content ======================== -->
-            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="28,24">
+            <ScrollViewer x:Name="SettingsContent" Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="28,24">
                 <Panel>
                     <StackPanel IsVisible="{Binding IsSensorDefinitionsSectionSelected}">
                         <TextBlock Text="Sensor definitions" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,16" />
@@ -440,7 +440,7 @@
 
                     <!-- ==================== Appearance ==================== -->
                     <StackPanel IsVisible="{Binding IsAppearanceSectionSelected}">
-                        <TextBlock Text="Appearance" Classes="heading" Margin="0,0,0,14" />
+                        <TextBlock Text="Theme" Classes="heading" Margin="0,0,0,14" />
                         <Border Classes="card" Margin="0,0,0,16">
                             <StackPanel>
                                 <TextBlock Text="Theme" Classes="section" Margin="0,0,0,6" />
@@ -507,6 +507,13 @@
                             </StackPanel>
                         </Border>
 
+                    </StackPanel>
+
+                    <!-- ==================== Server information ==================== -->
+                    <StackPanel IsVisible="{Binding IsServerInformationSectionSelected}">
+                        <TextBlock Text="Server information" Classes="heading" Margin="0,0,0,6" />
+                        <TextBlock Text="Read-only details reported by the connected LibreNMS server. Connection settings are under Connection → Server."
+                                   Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,16" />
                         <Border Classes="card">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto">
@@ -736,26 +743,7 @@
                             </StackPanel>
                         </Grid>
 
-                        <Border Classes="card">
-                            <StackPanel Spacing="10">
-                                <CheckBox Content="Download updates automatically" IsChecked="{Binding DownloadUpdatesAutomatically}"
-                                          IsVisible="{Binding CanDownloadUpdates}" />
-                                <TextBlock Text="{Binding DownloadUpdatesDescription}" Classes="subtle" TextWrapping="Wrap" />
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <CheckBox Content="Include preview builds" IsChecked="{Binding IncludePreviewBuilds}" VerticalAlignment="Center" />
-                                    <Button Grid.Column="1" Content="Check for updates" Command="{Binding CheckForUpdatesCommand}"
-                                            IsEnabled="{Binding !IsCheckingForUpdates}" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                </Grid>
-                                <TextBlock Text="Checking for updates…" Classes="subtle" IsVisible="{Binding IsCheckingForUpdates}" />
-                                <TextBlock Text="{Binding UpdateStatusText}" TextWrapping="Wrap" />
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Classes="primary" Content="{Binding UpdateActionText}" Command="{Binding InstallUpdateCommand}" IsVisible="{Binding CanInstallUpdate}" />
-                                    <Button Classes.primary="{Binding !CanInstallUpdate}" Content="View release" Command="{Binding ViewLatestReleaseCommand}" IsVisible="{Binding IsNewerVersionAvailable}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-
-                        <TextBlock Text="Component versions" Classes="section" />
+                        <TextBlock Text="Application versions" Classes="section" />
                         <Border Classes="card">
                             <StackPanel Spacing="12">
                                 <TextBlock Text="Components are released independently and can have different version numbers."
@@ -763,17 +751,28 @@
                                 <ItemsControl ItemsSource="{Binding PackageVersions}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="services:ComponentVersion">
-                                            <StackPanel Spacing="3" Margin="0,0,0,12">
-                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                                <SelectableTextBlock Text="{Binding Version}" TextWrapping="Wrap" />
+                                            <StackPanel Spacing="3" Margin="0,0,0,8">
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                    <SelectableTextBlock Grid.Column="1" Text="{Binding DisplayVersion}" TextWrapping="Wrap" MaxWidth="230" />
+                                                </Grid>
                                                 <TextBlock Text="{Binding State}" Classes="subtle" TextWrapping="Wrap" />
-                                                <Expander Header="Build details" IsVisible="{Binding HasDetails}">
-                                                    <SelectableTextBlock Text="{Binding Details}" TextWrapping="Wrap" />
-                                                </Expander>
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <Expander Header="Build details">
+                                    <ItemsControl ItemsSource="{Binding PackageVersions}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="services:ComponentVersion">
+                                                <StackPanel IsVisible="{Binding HasDetails}" Spacing="3" Margin="0,0,0,10">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                    <SelectableTextBlock Text="{Binding BuildDetails}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Expander>
                                 <WrapPanel>
                                     <Button Content="Copy version details" Command="{Binding CopyVersionDetailsCommand}" Margin="0,0,8,8" />
                                     <Button Content="Manage sensor definitions" Command="{Binding SelectSensorDefinitionsSectionCommand}"
@@ -807,36 +806,83 @@
                             </Button>
                         </StackPanel>
 
-                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0" Spacing="8">
-                            <Button Content="Report a bug" Command="{Binding ReportBugCommand}" Padding="10,6"
-                                    ToolTip.Tip="Opens a new GitHub issue with your DashyNMS, system and LibreNMS versions filled in - nothing is sent until you submit it there" />
-                            <Button Content="Open log folder" Command="{Binding OpenLogFolderCommand}" Padding="10,6"
-                                    ToolTip.Tip="Opens the folder DashyNMS writes its log to - check a log for anything private before sharing it" />
-                            <Button Content="Open-source licences" Command="{Binding ShowLicencesCommand}" Padding="10,6"
+                        <Button Content="Open-source licences" Command="{Binding ShowLicencesCommand}" Padding="10,6"
                                     ToolTip.Tip="What DashyNMS is built with, each with its copyright and licence" />
-                        </StackPanel>
-
-                        <TextBlock Text="Error and usage sharing" Classes="section" Margin="0,20,0,0" />
-                        <CheckBox Content="Send crash reports" IsChecked="{Binding SendCrashReports}"
-                                  IsEnabled="{Binding IsCrashReportingAvailable}" />
-                        <CheckBox Content="Share usage and performance metrics" IsChecked="{Binding SendUsageStatistics}"
-                                  IsEnabled="{Binding IsCrashReportingAvailable}" />
-                        <TextBlock Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding HasPendingSessionConsent}"
-                                   Text="Your existing metrics choice continues. Session outcomes and durations need the updated startup choice, or turn usage sharing off and on here. Session health requires both error and usage sharing and uses a fresh per-session ID." />
-                        <TextBlock Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding HasLegacyUsageConsent}"
-                                   Text="Your saved usage choice covers launch counts only. Use the updated startup prompt, or turn usage sharing off and on here, to allow broader metrics. Turning it off stops launch sharing too." />
-                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
-                                   Text="Reports sent to DashyNMS's Sentry service contain the app version, operating system, architecture, exception types, app method names and source-code locations (repository-relative files and line numbers, where available). Network addresses, credentials, log files and Intelligence content are excluded from the report." />
-                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
-                                   Text="Usage sharing covers launch and feature-use counts, startup and screen-loading times, request and update outcomes, responsiveness and memory measurements. Includes app version and platform; no persistent user or installation identifier. Session durations and healthy, errored, managed-crash or unknown outcomes use a fresh per-session ID and require both error and usage sharing." />
-                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
-                                   Text="Sentry also receives connection information when a report is sent. Turning this off and applying the change stops uploads and clears pending reports. Local logs remain available on your computer." />
-                        <TextBlock Classes="subtle" Text="Crash reporting is unavailable in this build."
-                                   IsVisible="{Binding !IsCrashReportingAvailable}" Margin="0,4,0,0" />
-                        <HyperlinkButton Content="Read the privacy details" Margin="0,4,0,0"
-                                         NavigateUri="https://github.com/DashyNMS/desktop/blob/master/PRIVACY.md" />
 
                         <TextBlock Text="{Binding Trademarks}" Classes="subtle" TextWrapping="Wrap" Margin="0,14,0,0" />
+                    </StackPanel>
+
+                    <!-- ==================== Updates ==================== -->
+                    <StackPanel IsVisible="{Binding IsUpdatesSectionSelected}">
+                        <TextBlock Text="Updates" Classes="heading" Margin="0,0,0,6" />
+                        <TextBlock Text="{Binding CurrentVersionText}" Classes="subtle" Margin="0,0,0,16" />
+                        <Border Classes="card">
+                            <StackPanel Spacing="10">
+                                <CheckBox Content="Download updates automatically" IsChecked="{Binding DownloadUpdatesAutomatically}"
+                                          IsVisible="{Binding CanDownloadUpdates}" />
+                                <TextBlock Text="{Binding DownloadUpdatesDescription}" Classes="subtle" TextWrapping="Wrap" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <CheckBox Content="Include preview builds" IsChecked="{Binding IncludePreviewBuilds}" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Content="Check for updates" Command="{Binding CheckForUpdatesCommand}"
+                                            IsEnabled="{Binding !IsCheckingForUpdates}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                </Grid>
+                                <TextBlock Text="Checking for updates…" Classes="subtle" IsVisible="{Binding IsCheckingForUpdates}" />
+                                <TextBlock Text="{Binding UpdateStatusText}" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Classes="primary" Content="{Binding UpdateActionText}" Command="{Binding InstallUpdateCommand}" IsVisible="{Binding CanInstallUpdate}" />
+                                    <Button Classes.primary="{Binding !CanInstallUpdate}" Content="View release" Command="{Binding ViewLatestReleaseCommand}" IsVisible="{Binding IsNewerVersionAvailable}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+
+                    <!-- ==================== Diagnostics ==================== -->
+                    <StackPanel IsVisible="{Binding IsDiagnosticsSectionSelected}">
+                        <TextBlock Text="Diagnostics" Classes="heading" Margin="0,0,0,6" />
+                        <TextBlock Text="Get help, open local logs, and choose whether to share errors and usage information."
+                                   Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,16" />
+                        <Border Classes="card" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Support" Classes="section" />
+                                <WrapPanel Margin="0,14,0,0">
+                                    <Button Content="Report a bug" Command="{Binding ReportBugCommand}" Padding="10,6" Margin="0,0,8,8"
+                                            ToolTip.Tip="Opens a new GitHub issue with your DashyNMS, system and LibreNMS versions filled in - nothing is sent until you submit it there" />
+                                    <Button Content="Open log folder" Command="{Binding OpenLogFolderCommand}" Padding="10,6" Margin="0,0,8,8"
+                                            ToolTip.Tip="Opens the folder DashyNMS writes its log to - check a log for anything private before sharing it" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card">
+                            <StackPanel>
+                                <TextBlock Text="Error and usage sharing" Classes="section" Margin="0,0,0,8" />
+                                <TextBlock Text="Choose what to share with DashyNMS. These choices are optional and independent."
+                                           Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,12" />
+                                <CheckBox Content="Send crash reports" IsChecked="{Binding SendCrashReports}"
+                                          IsEnabled="{Binding IsCrashReportingAvailable}" />
+                                <CheckBox Content="Share usage and performance metrics" IsChecked="{Binding SendUsageStatistics}"
+                                          IsEnabled="{Binding IsCrashReportingAvailable}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding HasPendingSessionConsent}"
+                                           Text="Your existing metrics choice continues. Session outcomes and durations need the updated startup choice, or turn usage sharing off and on here. Session health requires both error and usage sharing and uses a fresh per-session ID." />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding HasLegacyUsageConsent}"
+                                           Text="Your saved usage choice covers launch counts only. Use the updated startup prompt, or turn usage sharing off and on here, to allow broader metrics. Turning it off stops launch sharing too." />
+                                <Expander Header="What is shared" Margin="0,10,0,0">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                   Text="Reports sent to DashyNMS's Sentry service contain the app version, operating system, architecture, exception types, app method names and source-code locations (repository-relative files and line numbers, where available). Network addresses, credentials, log files and Intelligence content are excluded from the report." />
+                                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                   Text="Usage sharing covers launch and feature-use counts, startup and screen-loading times, request and update outcomes, responsiveness and memory measurements. Includes app version and platform; no persistent user or installation identifier. Session durations and healthy, errored, managed-crash or unknown outcomes use a fresh per-session ID and require both error and usage sharing." />
+                                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                   Text="Sentry also receives connection information when a report is sent. Turning this off and applying the change stops uploads and clears pending reports. Local logs remain available on your computer." />
+                                    </StackPanel>
+                                </Expander>
+                                <TextBlock Classes="subtle" Text="Crash reporting is unavailable in this build."
+                                           IsVisible="{Binding !IsCrashReportingAvailable}" Margin="0,4,0,0" />
+                                <HyperlinkButton Content="Read the privacy details" Margin="0,4,0,0"
+                                                 NavigateUri="https://github.com/DashyNMS/desktop/blob/master/PRIVACY.md" />
+
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Panel>
             </ScrollViewer>

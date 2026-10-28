@@ -2,7 +2,7 @@
 Preview 9, 26 October 2026
 
 ## New
-- **Optional error and usage sharing.** Choose separate, initially unchecked options on first launch or in Settings, About. Share sanitised managed errors, basic app-launch counts, or neither. Dismissing the prompt asks again next launch; an explicit choice is remembered. {settings}
+- **Optional error and usage sharing.** Choose separate, initially unchecked options on first launch or in Settings, Diagnostics. Share sanitised managed errors, basic app-launch counts, or neither. Dismissing the prompt asks again next launch; an explicit choice is remembered. {settings}
 - **Sensor state definitions.** Supported numeric states gain meaningful names and status colours in Health, Device Details and dashboard sensors. Raw readings remain available in tooltips and graphs. {chart}
 - **Manage definitions in Settings.** Enable independently updated definitions, use the official catalogue or a compatible custom repository, and check or refresh the installed catalogue. Intelligence uses the same definitions. {settings}
 - **Ask Intelligence.** Right-click a network object, including objects on dashboard widgets, to start a chat with it in Spotlight. Add objects mentioned in replies to Spotlight for follow-up questions. {search}
