@@ -21,20 +21,20 @@ struct UpdateTests {
         try swap(app, previous)
         // Launch failures, failed health confirmation, a stuck process and a
         // failed replacement must each preserve the recoverable prior version.
-        for failure in ["none", "exchange", "start", "confirm", "stop", "journal"] {
+        for failure in ["none", "exchange", "start", "confirm", "stop", "journal", "rollback"] {
             var exchanges = 0, starts = 0, restores = 0
             var states: [String] = []
             var failed = false
             do {
                 try replaceAndConfirm(exchange: {
-                    if failure == "exchange" { throw UpdateFailure(message: "injected exchange failure") }
+                    if failure == "exchange" || failure == "rollback" && exchanges == 1 { throw UpdateFailure(message: "injected exchange failure") }
                     exchanges += 1
                 }, start: { () throws -> Int in
                     starts += 1
                     if failure == "start" { throw UpdateFailure(message: "injected restart failure") }
                     return 1
                 }, confirm: { _ in
-                    if failure == "confirm" || failure == "stop" { throw UpdateFailure(message: "injected health failure") }
+                    if failure == "confirm" || failure == "stop" || failure == "rollback" { throw UpdateFailure(message: "injected health failure") }
                 }, stop: { _ in failure != "stop" }, state: { state in
                     if failure == "journal" && state == "awaiting-startup" { throw UpdateFailure(message: "injected journal failure") }
                     states.append(state)
@@ -46,7 +46,7 @@ struct UpdateTests {
                 try expect(exchanges == 1 && starts == 1 && restores == 0 && states.last == "confirmed", "Successful update did not launch exactly once")
             case "exchange":
                 try expect(exchanges == 0 && starts == 0 && restores == 0, "Failed replacement tried to restart")
-            case "stop":
+            case "stop", "rollback":
                 try expect(exchanges == 1 && restores == 0, "Recovery replaced a still-running app")
             default:
                 try expect(exchanges == 2 && restores == 1 && states.last == "rolled-back", "Failed update was not rolled back")

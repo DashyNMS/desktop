@@ -18,6 +18,21 @@ internal sealed class MacUpdateInstallation
         _architecture = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x86_64";
     }
 
+    public string? UnavailableReason
+    {
+        get
+        {
+            var parent = Path.GetDirectoryName(_app)!;
+            var userApplications = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Applications");
+            if (!Directory.Exists(_app) || !string.Equals(Path.GetExtension(_app), ".app", StringComparison.Ordinal)
+                || parent != "/Applications" && parent != userApplications)
+                return "Install DashyNMS in your user Applications folder (~/Applications), or a writable /Applications folder, before updating. Apps running from a disk image or another location cannot update in place.";
+            if (NativeAccess(_app, 2) != 0 || NativeAccess(parent, 2) != 0)
+                return "DashyNMS cannot replace this installation without administrator access. Move it to ~/Applications or ask your administrator to install the update. The current app has been kept.";
+            return null;
+        }
+    }
+
     public async Task PrepareAsync(string package, string version, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -130,7 +145,7 @@ internal sealed class MacUpdateInstallation
                 if (transaction.RootElement.GetProperty("app").GetString() == app
                     && transaction.RootElement.GetProperty("token").GetString() == token) return true;
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or KeyNotFoundException) { }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException) { }
         }
         var path = Path.Combine(Path.GetDirectoryName(app)!, ".DashyNMS-update-lock");
         // Darwin O_NOFOLLOW; do not create a lock for ordinary app launches.
@@ -140,6 +155,8 @@ internal sealed class MacUpdateInstallation
         finally { NativeClose(descriptor); }
     }
 
+    [DllImport("libSystem.B.dylib", EntryPoint = "access", SetLastError = true)]
+    private static extern int NativeAccess([MarshalAs(UnmanagedType.LPUTF8Str)] string path, int mode);
     [DllImport("libSystem.B.dylib", EntryPoint = "open", SetLastError = true)]
     private static extern int NativeOpen([MarshalAs(UnmanagedType.LPUTF8Str)] string path, int flags);
     [DllImport("libSystem.B.dylib", EntryPoint = "flock", SetLastError = true)]
@@ -155,23 +172,28 @@ internal sealed class MacUpdateInstallation
         Environment.SetEnvironmentVariable("DASHYNMS_UPDATE_DIRECTORY", null);
         Environment.SetEnvironmentVariable("DASHYNMS_UPDATE_TOKEN", null);
         if (!OperatingSystem.IsMacOS() || directory is null || token is null) return;
+        var app = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", ".."));
+        TryConfirmStartup(app, directory, token, DesktopUpdateService.RunningVersion(), Environment.ProcessId);
+    }
+
+    internal static bool TryConfirmStartup(string app, string directory, string token, string version, int pid)
+    {
         try
         {
-            var app = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", ".."));
-            if (!IsTransactionDirectory(app, directory)) return;
+            if (!IsTransactionDirectory(app, directory)) return false;
             using var transaction = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "transaction.json")));
             var value = transaction.RootElement;
-            var version = DesktopUpdateService.RunningVersion();
             if (value.GetProperty("token").GetString() != token || value.GetProperty("app").GetString() != app
-                || value.GetProperty("version").GetString() != version) return;
+                || value.GetProperty("version").GetString() != version) return false;
             // The native helper checks the sealed bundle and matching native MCP
             // hash before swapping. This receipt additionally proves this exact
             // release claimed the instance and reached the UI dispatcher.
             var temporary = Path.Combine(directory, "startup-" + Guid.NewGuid().ToString("N") + ".json");
-            File.WriteAllText(temporary, JsonSerializer.Serialize(new { token, version, pid = Environment.ProcessId }));
+            File.WriteAllText(temporary, JsonSerializer.Serialize(new { token, version, pid }));
             File.Move(temporary, Path.Combine(directory, "startup.json"), overwrite: true);
+            return true;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or KeyNotFoundException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException) { return false; }
     }
 
     /// <summary>Explain an interrupted or rolled-back update once, on the next normal launch.</summary>
@@ -195,7 +217,7 @@ internal sealed class MacUpdateInstallation
                 return message;
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or KeyNotFoundException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException) { }
         return null;
     }
 

@@ -16,12 +16,13 @@ public sealed class PlatformUpdateInstallation : IUpdateInstallation
             var architecture = RuntimeInformation.ProcessArchitecture switch { Architecture.X64 => "x64", Architecture.Arm64 => "arm64", _ => null };
             if (architecture is null) return null;
             if (OperatingSystem.IsWindows()) return architecture == "x64" ? "win-x64" : null;
-            if (OperatingSystem.IsMacOS()) return "osx-" + architecture;
+            if (OperatingSystem.IsMacOS()) return _mac?.UnavailableReason is null ? "osx-" + architecture : null;
             if (OperatingSystem.IsLinux() && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FLATPAK_ID"))
                 && _appImage is not null && Path.IsPathFullyQualified(_appImage) && File.Exists(_appImage)) return "linux-" + architecture;
             return null;
         }
     }
+    public string? UnavailableReason => _mac?.UnavailableReason;
     public bool RestartsApp => true;
     public string ActionText => OperatingSystem.IsMacOS() ? "Relaunch" : "Restart to update";
 

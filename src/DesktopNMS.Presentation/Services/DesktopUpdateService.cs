@@ -15,6 +15,7 @@ public interface IUpdateInstallation
     string? Runtime { get; }
     string ActionText { get; }
     bool RestartsApp { get; }
+    string? UnavailableReason => null;
     Task PrepareAsync(string verifiedPackage, string version, CancellationToken cancellationToken) => Task.CompletedTask;
     Task<bool> InstallAsync(string verifiedPackage);
 }
@@ -79,7 +80,12 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         return (version ?? "0.0.0").Split('+')[0];
     }
 
-    public string? InstallationError { get; private set; }
+    private string? _installationError;
+    public string? InstallationError
+    {
+        get => _installation.UnavailableReason ?? _installationError;
+        private set => _installationError = value;
+    }
     public string CurrentVersion { get; }
     public bool CanInstallUpdate => _installation.Runtime is not null;
     public bool DownloadsAutomatically => CanInstallUpdate && _settings.Current.DownloadUpdatesAutomatically;
@@ -133,7 +139,7 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
                 if (_wantedVersion != version)
                 {
                     _operation?.Cancellation.Cancel();
-                    _wantedVersion = version; _ready = null; _readyAsset = null;
+                    _wantedVersion = version; _ready = null; _readyAsset = null; InstallationError = null;
                     ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
                 }
                 _latestRelease = newer ? release : null;
@@ -222,7 +228,11 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
         catch (Exception ex)
         {
-            InstallationError = ex is IOException ? ex.Message : null;
+            lock (_gate)
+            {
+                if (_operation == operation && _wantedVersion == release.TagName && !token.IsCancellationRequested)
+                    InstallationError = ex is IOException ? ex.Message : null;
+            }
             _logger.LogWarning(ex, "Could not prepare desktop update {Version}", release.TagName);
         }
         finally
