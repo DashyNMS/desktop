@@ -51,9 +51,16 @@ try {
     dotnet publish (Join-Path $source 'src\DashyNMS.Mcp\DashyNMS.Mcp.csproj') `
         -c Release -r $Runtime --self-contained true `
         -p:PublishSingleFile=true $nativeLibraries -p:EnableCompressionInSingleFile=true `
-        -p:DebugType=none `
+        -p:DebugType=none "-p:SourceRevisionId=$commit" `
         -o $output --nologo -v quiet
     if ($LASTEXITCODE -ne 0) { throw "Publishing the MCP server failed." }
+    $version = dotnet msbuild (Join-Path $source 'src/DashyNMS.Mcp/DashyNMS.Mcp.csproj') `
+        -nologo -verbosity:quiet -target:GenerateAssemblyInfo -getProperty:InformationalVersion `
+        -property:Configuration=Release "-property:SourceRevisionId=$commit"
+    if ($LASTEXITCODE -ne 0 -or -not $version -or ($version -join '').Trim() -notmatch '^[0-9A-Za-z][0-9A-Za-z.+_-]{0,199}$') {
+        throw 'Could not read the MCP informational version.'
+    }
+    $version = ($version -join '').Trim()
 } finally {
     Pop-Location
 }
@@ -66,3 +73,7 @@ if (-not $IsWindows -and -not $Runtime.StartsWith('win-')) {
     if ($LASTEXITCODE -ne 0) { throw 'Could not mark the network tools executable.' }
 }
 Get-Item (Join-Path $output $name) | ForEach-Object { Write-Host ("  {0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB)) }
+
+@{ SchemaVersion = 1; Version = $version; Commit = $commit; Runtime = $Runtime;
+   Sha256 = (Get-FileHash -LiteralPath (Join-Path $output $name) -Algorithm SHA256).Hash } |
+    ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output 'version.json') -Encoding utf8NoBOM

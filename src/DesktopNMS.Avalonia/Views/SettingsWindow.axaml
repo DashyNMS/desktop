@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:services="using:DesktopNMS.Services"
         xmlns:infra="using:DesktopNMS.Infrastructure"
         xmlns:views="using:DesktopNMS.Views"
         x:Class="DesktopNMS.Views.SettingsWindow"
@@ -751,6 +752,34 @@
                                     <Button Classes="primary" Content="{Binding UpdateActionText}" Command="{Binding InstallUpdateCommand}" IsVisible="{Binding CanInstallUpdate}" />
                                     <Button Classes.primary="{Binding !CanInstallUpdate}" Content="View release" Command="{Binding ViewLatestReleaseCommand}" IsVisible="{Binding IsNewerVersionAvailable}" />
                                 </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="Component versions" Classes="section" />
+                        <Border Classes="card">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="Components are released independently and can have different version numbers."
+                                           Classes="subtle" TextWrapping="Wrap" />
+                                <ItemsControl ItemsSource="{Binding PackageVersions}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="services:ComponentVersion">
+                                            <StackPanel Spacing="3" Margin="0,0,0,12">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                <SelectableTextBlock Text="{Binding Version}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding State}" Classes="subtle" TextWrapping="Wrap" />
+                                                <Expander Header="Build details" IsVisible="{Binding HasDetails}">
+                                                    <SelectableTextBlock Text="{Binding Details}" TextWrapping="Wrap" />
+                                                </Expander>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <WrapPanel>
+                                    <Button Content="Copy version details" Command="{Binding CopyVersionDetailsCommand}" Margin="0,0,8,8" />
+                                    <Button Content="Manage sensor definitions" Command="{Binding SelectSensorDefinitionsSectionCommand}"
+                                            IsVisible="{Binding HasSensorDefinitions}" Margin="0,0,0,8" />
+                                </WrapPanel>
+                                <TextBlock Text="{Binding CopyVersionsStatus}" Classes="subtle" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
 

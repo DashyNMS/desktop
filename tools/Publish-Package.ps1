@@ -19,7 +19,7 @@ if ((Test-Path $stage) -or (Test-Path $output)) { throw 'This package version al
 $publish = Join-Path $stage 'publish'
 New-Item $output -ItemType Directory -Force | Out-Null
 $mcpName = if ($IsWindows) { 'dashynms-mcp.exe' } else { 'dashynms-mcp' }
-foreach ($file in @($mcpName,'LICENSE','BUILD.txt')) {
+foreach ($file in @($mcpName,'LICENSE','BUILD.txt','version.json')) {
     if (-not (Test-Path "$root/artifacts/mcp/$Runtime/$file" -PathType Leaf)) { throw "Build the $Runtime MCP bundle first; missing $file." }
 }
 function Check-Native([string]$step) { if ($LASTEXITCODE -ne 0) { throw "$step failed with exit code $LASTEXITCODE." } }
@@ -39,7 +39,7 @@ try {
     dotnet publish src/DesktopNMS.Avalonia -c Release -r $Runtime --self-contained true -m:1 `
         "-p:Version=$Version" @bundleOptions -p:DebugType=embedded -o $publish --nologo
     Check-Native 'Publish'
-    foreach ($file in @($mcpName,'LICENSE','BUILD.txt')) {
+    foreach ($file in @($mcpName,'LICENSE','BUILD.txt','version.json')) {
         if (-not (Test-Path "$publish/mcp/$file" -PathType Leaf)) { throw "The app is missing mcp/$file." }
     }
     Copy-Item LICENSE "$publish/LICENSE"
@@ -73,9 +73,9 @@ try {
         Get-ChildItem $publish | Where-Object Name -NotIn @('mcp','LICENSE','BUILD.txt') |
             ForEach-Object { Copy-Item $_.FullName $mac -Recurse }
         New-Item "$mac/mcp","$resources/mcp" -ItemType Directory -Force | Out-Null
-        Get-ChildItem "$publish/mcp" | Where-Object Name -NotIn @('LICENSE','BUILD.txt') |
+        Get-ChildItem "$publish/mcp" | Where-Object Name -NotIn @('LICENSE','BUILD.txt','version.json') |
             ForEach-Object { Copy-Item $_.FullName "$mac/mcp" -Recurse }
-        Copy-Item "$publish/mcp/LICENSE","$publish/mcp/BUILD.txt" "$resources/mcp"
+        Copy-Item "$publish/mcp/LICENSE","$publish/mcp/BUILD.txt","$publish/mcp/version.json" "$resources/mcp"
         Copy-Item "$publish/LICENSE","$publish/BUILD.txt" $resources
         $architecture=if ($Runtime -eq 'osx-arm64') { 'arm64' } else { 'x86_64' }
         swiftc -swift-version 5 -target "$architecture-apple-macos13" -emit-library tools/macos/Notifications.swift -o "$mac/libdashynms-notifications.dylib"
@@ -115,6 +115,8 @@ try {
             foreach ($file in Get-ChildItem $mac -Recurse -File | Where-Object { $_.Extension -eq '.dylib' -or $_.Name -in @('dashynms-login',$mcpName) }) {
                 codesign --force --sign - $file.FullName; Check-Native 'Sign native code'
             }
+            . "$PSScriptRoot/Mcp-VersionMetadata.ps1"
+            Update-McpVersionHash -Executable "$mac/mcp/$mcpName" -Metadata "$resources/mcp/version.json"
             codesign --force --sign - $app; Check-Native 'Sign app bundle'
             codesign --verify --deep --strict $app; Check-Native 'Verify app signature'
             hdiutil create -volname DashyNMS -srcfolder $image -format UDZO $diskImage; Check-Native 'Create disk image'

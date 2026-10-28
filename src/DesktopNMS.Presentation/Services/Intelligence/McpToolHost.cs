@@ -45,6 +45,18 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly DesktopNMS.Core.Sensors.SensorDefinitionStore? _sensorDefinitions;
 
+    public event EventHandler? VersionChanged;
+    public string? ReportedVersion => _client is { } client && !client.Completion.IsCompleted
+        ? ComponentVersions.Clean(client.ServerInfo.Version) : null;
+
+    private void NotifyVersionChanged() => VersionChanged?.Invoke(this, EventArgs.Empty);
+
+    private async Task ObserveCompletionAsync(McpClient client)
+    {
+        await client.Completion.ConfigureAwait(false);
+        if (ReferenceEquals(_client, client)) NotifyVersionChanged();
+    }
+
     private McpClient? _client;
     private IReadOnlyList<IntelligenceTool>? _tools;
     private Dictionary<string, McpClientTool> _byName = new();
@@ -133,6 +145,7 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
     {
         var client = _client;
         _client = null;
+        NotifyVersionChanged();
         _tools = null;
         _byName = new Dictionary<string, McpClientTool>();
         _startedFor = null;
@@ -161,7 +174,7 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
         // A changed config-text choice restarts it too: it's set at startup.
         var identity = connection.WebRoot + "|" + connection.ApiToken.GetHashCode(StringComparison.Ordinal).ToString(CultureInfo.InvariantCulture)
                        + "|" + ConfigText(_settings.Current);
-        if (_client is not null && _startedFor == identity)
+        if (_client is not null && !_client.Completion.IsCompleted && _startedFor == identity)
         {
             return;
         }
@@ -219,6 +232,8 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
                 ClientInfo = new Implementation { Name = "DashyNMS desktop", Version = typeof(McpToolHost).Assembly.GetName().Version?.ToString(3) ?? "0.0.0" },
             }, NullLoggerFactory.Instance, startTimeout.Token).ConfigureAwait(false);
 
+            NotifyVersionChanged();
+            _ = ObserveCompletionAsync(_client);
             var listed = await _client.ListToolsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
             _byName = listed
                 .Where(t => IntelligenceToolAllowlist.Names.Contains(t.Name))

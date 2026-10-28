@@ -74,6 +74,8 @@ try {
         if ($file.FullName -eq $mcpHost) { $sign += @('--entitlements',"$PSScriptRoot/App.entitlements.plist") }
         Invoke-MacTool codesign ($sign + $file.FullName) -Operation SignCode | Out-Null
     }
+    . "$PSScriptRoot/../Mcp-VersionMetadata.ps1"
+    Update-McpVersionHash -Executable $mcpHost -Metadata (Join-Path $App 'Contents/Resources/mcp/version.json')
     Invoke-MacTool codesign @('--force','--sign',$signingIdentity,'--keychain',$keychain,
         '--options','runtime','--timestamp','--entitlements',"$PSScriptRoot/App.entitlements.plist",$App) -Operation SignCode | Out-Null
     Invoke-MacTool codesign @('--verify','--deep','--strict',$App) -Operation VerifySignature | Out-Null

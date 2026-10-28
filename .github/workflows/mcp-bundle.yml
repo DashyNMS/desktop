@@ -7,6 +7,10 @@ on:
     paths:
       - .github/workflows/mcp-bundle.yml
       - tools/Publish-Mcp.ps1
+      - tools/Mcp-VersionMetadata.ps1
+      - tools/Publish-Package.ps1
+      - tools/macos/Publish-Distribution.ps1
+      - src/DesktopNMS.Presentation/Services/ComponentVersions.cs
       - src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj
       - src/DesktopNMS.Presentation/Services/Intelligence/McpToolHost.cs
       - tests/DesktopNMS.Presentation.Tests/McpBundleTests.cs
@@ -15,6 +19,10 @@ on:
     paths:
       - .github/workflows/mcp-bundle.yml
       - tools/Publish-Mcp.ps1
+      - tools/Mcp-VersionMetadata.ps1
+      - tools/Publish-Package.ps1
+      - tools/macos/Publish-Distribution.ps1
+      - src/DesktopNMS.Presentation/Services/ComponentVersions.cs
 
 permissions:
   contents: read
@@ -67,7 +75,7 @@ jobs:
           $name = if ($IsWindows) { 'dashynms-mcp.exe' } else { 'dashynms-mcp' }
           $env:DASHYNMS_TEST_MCP = (Resolve-Path "artifacts/bundle-check/mcp/$name").Path
           if (-not $IsWindows) { chmod +x $env:DASHYNMS_TEST_MCP }
-          foreach ($file in @('LICENSE', 'BUILD.txt')) {
+          foreach ($file in @('LICENSE', 'BUILD.txt', 'version.json')) {
             if (-not (Test-Path "artifacts/bundle-check/mcp/$file" -PathType Leaf)) { throw "Missing network-tools $file" }
           }
           dotnet test tests/DesktopNMS.Presentation.Tests -c Release --filter FullyQualifiedName~McpBundleTests
