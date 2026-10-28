@@ -19,16 +19,20 @@ public sealed class AvaloniaAppActivity : IAppActivity
 
     public event EventHandler? Changed;
 
+    /// <summary>UI-thread-only visibility check, including changes since the periodic update.</summary>
+    public bool IsForegroundOnUiThread => Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+        && desktop.Windows.Any(w => w.IsVisible && w.WindowState != WindowState.Minimized);
+
     public void Start()
     {
+        Update();
         _timer ??= new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) => Update());
         _timer.Start();
     }
 
     private void Update()
     {
-        var onScreen = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                       && desktop.Windows.Any(w => w.IsVisible && w.WindowState != WindowState.Minimized);
+        var onScreen = IsForegroundOnUiThread;
         if (_isInBackground == !onScreen)
         {
             return;
