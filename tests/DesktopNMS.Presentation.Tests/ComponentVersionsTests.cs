@@ -79,7 +79,7 @@ public sealed class ComponentVersionsTests : IDisposable
     [Fact]
     public void Bug_report_keeps_template_and_other_parameters_with_one_encoded_body()
     {
-        var uri = new Uri("https://github.com/DashyNMS/desktop/issues/new?body=" + Uri.EscapeDataString("Describe it\nWindows: example\n") + "&labels=bug");
+        var uri = new Uri("https://github.com/DashyNMS/desktop/issues/new?body=" + Uri.EscapeDataString("Describe it\nWindows: example\nSettings › About › Open log folder") + "&labels=bug");
         var result = ComponentVersions.AddToBugReport(uri, new[] { new ComponentVersion("Core", "2.0.0-ci.42", "Loaded") });
         var parts = result.Query.TrimStart('?').Split('&');
         Assert.Contains("labels=bug", parts);
@@ -87,6 +87,7 @@ public sealed class ComponentVersionsTests : IDisposable
         Assert.Contains("Describe it\nOS: example", body);
         Assert.Contains("Core: 2.0.0-ci.42 (Loaded)", body);
         Assert.Contains("Architecture:", body);
+        Assert.Contains("Settings › Diagnostics › Open log folder", body);
     }
 
     [Fact]
@@ -127,6 +128,14 @@ public sealed class ComponentVersionsTests : IDisposable
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             throw new HttpRequestException("https://private.example/token");
+    }
+
+    [Fact]
+    public void Compact_version_keeps_preview_label_and_preserves_full_build_identity_for_support()
+    {
+        var component = new ComponentVersion("Core", "2.0.0-preview.4+abcdef", "Loaded");
+        Assert.Equal("2.0.0-preview.4", component.DisplayVersion);
+        Assert.Contains("2.0.0-preview.4+abcdef", ComponentVersions.Format(new[] { component }));
     }
 
     [Fact]

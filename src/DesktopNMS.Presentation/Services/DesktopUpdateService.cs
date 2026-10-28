@@ -226,7 +226,7 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         try
         {
             await _announcements.ShowAsync($"DashyNMS {release.TagName} is {(ready ? "ready to install" : "available")}",
-                ready ? _installation.ActionText : "Open Settings, About to view the release and installation instructions.", ready).ConfigureAwait(false);
+                ready ? _installation.ActionText : "Open Settings, Updates to view the release and installation instructions.", ready).ConfigureAwait(false);
             _settings.Current.LastNotifiedUpdateVersion = release.TagName;
             _settings.SaveQuietly();
         }

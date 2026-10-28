@@ -8,7 +8,7 @@
         Background="{DynamicResource BackgroundBrush}">
     <StackPanel Margin="28" Spacing="14">
         <TextBlock Text="Help improve DashyNMS" FontSize="22" FontWeight="SemiBold" />
-        <TextBlock Text="Choose what to share with DashyNMS through Sentry. Error reporting and usage metrics are separate choices. You can change your choice in Settings → About."
+        <TextBlock Text="Choose what to share with DashyNMS through Sentry. Error reporting and usage metrics are separate choices. You can change your choice in Settings → Diagnostics."
                    TextWrapping="Wrap" />
         <CheckBox Content="Share error reports" IsChecked="{Binding ShareErrors}" />
         <TextBlock Text="App version, operating system, architecture, exception types, app method names and source-code locations (repository-relative files and line numbers, where available)."

@@ -15,7 +15,7 @@ public enum ToastAction
     /// <summary>"Restart to update" on the update-ready toast.</summary>
     InstallUpdate,
 
-    /// <summary>Open Settings, About for release and installation options.</summary>
+    /// <summary>Open Settings, Updates for release and installation options.</summary>
     OpenUpdates,
 }
 

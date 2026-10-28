@@ -405,7 +405,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             {
                 _windows.ShowError(
                     "Update",
-                    "The update couldn't be started. Check for updates again from Settings, About, or download it from the release page.");
+                    "The update couldn't be started. Check for updates again from Settings, Updates, or download it from the release page.");
             }
         }
         finally

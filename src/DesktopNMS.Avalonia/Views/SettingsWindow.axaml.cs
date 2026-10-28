@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -26,10 +27,12 @@ public partial class SettingsWindow : Window
         DataContext = viewModel;
         viewModel.RequestClose += OnRequestClose;
         viewModel.Applied += OnApplied;
+        viewModel.PropertyChanged += OnSettingsSectionChanged;
         Closed += (_, _) =>
         {
             viewModel.RequestClose -= OnRequestClose;
             viewModel.Applied -= OnApplied;
+            viewModel.PropertyChanged -= OnSettingsSectionChanged;
             viewModel.Detach();
         };
 
@@ -66,6 +69,11 @@ public partial class SettingsWindow : Window
 
     /// <summary>True once any changes have been saved, including through Apply.</summary>
     public bool Saved { get; private set; }
+
+    private void OnSettingsSectionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SettingsViewModel.SelectedSection)) SettingsContent.Offset = default;
+    }
 
     private void OnApplied(object? sender, EventArgs e) => Saved = true;
 
