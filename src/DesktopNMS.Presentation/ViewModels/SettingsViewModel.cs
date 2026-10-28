@@ -96,6 +96,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IGraylogApi _graylog;
     private readonly IGraylogPasswordProtector _graylogPasswords;
     private readonly AppSettings _draft;
+    private readonly bool _demoMode;
 
     private SettingsSection _selectedSection = SettingsSection.Polling;
     private bool _isCheckingForUpdates;
@@ -135,9 +136,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         IntelligenceViewModel intelligence,
         DesktopNMS.Core.Sensors.SensorDefinitionStore? sensorDefinitions = null,
         DesktopNMS.Diagnostics.ICrashReporter? crashReporter = null,
-        DesktopNMS.Services.Intelligence.McpToolHost? versionTools = null)
+        DesktopNMS.Services.Intelligence.McpToolHost? versionTools = null,
+        DesktopNMS.Demo.DemoMode? demo = null)
     {
         _store = store;
+        _demoMode = demo?.IsActive == true;
         IsCrashReportingAvailable = crashReporter?.IsAvailable == true;
         InitialiseSensorDefinitions(sensorDefinitions);
         Intelligence = intelligence;
@@ -197,7 +200,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         ViewLatestReleaseCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri(_latestRelease!.HtmlUrl!)),
             () => _latestRelease?.HtmlUrl is not null);
-        ShowWhatsNewCommand = new RelayCommand(() => _windows.ShowWhatsNew());
+        ShowWhatsNewCommand = new RelayCommand(() => _windows.ShowWhatsNew(), () => HasWhatsNew);
         ShowLicencesCommand = new RelayCommand(() => _windows.ShowLicences());
         ViewReleasesPageCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri("https://github.com/DashyNMS/desktop/releases")));
@@ -1444,13 +1447,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
-    /// <summary>This build has a "What's new" (#227) to show again.</summary>
-    public bool HasWhatsNew => BundledWhatsNew.Current is not null;
+    private WhatsNewNotes? CurrentNotes => BundledWhatsNew.ForVersion(_updates.CurrentVersion);
 
-    public string WhatsNewTitle => "DashyNMS " + BundledWhatsNew.Current?.Version;
+    /// <summary>This exact release has offline notes to reopen.</summary>
+    public bool HasWhatsNew => !_demoMode && CurrentNotes is not null;
+
+    public string WhatsNewTitle => "DashyNMS " + CurrentNotes?.Version;
 
     /// <summary>e.g. "Maps, Neighbours, Graylog integration and 14 more changes".</summary>
-    public string WhatsNewSummary => BundledWhatsNew.Current?.Summary() ?? string.Empty;
+    public string WhatsNewSummary => CurrentNotes?.Summary() ?? string.Empty;
 
     public RelayCommand ShowWhatsNewCommand { get; }
 

@@ -80,6 +80,10 @@ jobs:
       - name: Test UI input routing
         run: dotnet test tests/DesktopNMS.Avalonia.Tests -c Debug --no-build
 
+      - name: Verify exact embedded release notes
+        shell: pwsh
+        run: ./tools/Test-BundledReleaseNotes.ps1
+
       - name: Verify fatal-error persistence and restart delivery
         run: dotnet run --project tools/CrashReportingProbe -c Release
 

@@ -55,7 +55,7 @@ public partial class App : Application
     private UpdateProgressWindow? _updateProgressWindow;
     private bool _startDemoOnExit;
     private bool _leaveDemoOnExit;
-    private bool _whatsNewScheduled;
+    private readonly ReleaseNotesPresenter _whatsNew = new();
     private IUiTimer? _updateTimer;
     private UiStallMonitor? _uiStalls;
     private MemoryMonitor? _memory;
@@ -642,19 +642,16 @@ public partial class App : Application
     /// <summary>After an upgrade, wait for a connected, visible window before showing the notes.</summary>
     private void ScheduleWhatsNew()
     {
-        if (_whatsNewScheduled || _demo.IsActive || _services is null || _signInOpen
-            || _mainViewModel is not { IsConnected: true, IsSigningIn: false }
-            || _mainWindow is not { IsVisible: true } || _mainWindow.WindowState == WindowState.Minimized)
-        {
-            return;
-        }
-
+        if (_services is null) return;
         var settings = _services.GetRequiredService<ISettingsStore>();
         var version = _services.GetRequiredService<IUpdateCheckService>().CurrentVersion;
-        if (!DesktopNMS.Core.Updates.WhatsNewNotes.IsDue(BundledWhatsNew.Current, version, settings.Current.WhatsNewShownVersion)) return;
-
-        _whatsNewScheduled = true;
-        Dispatcher.UIThread.Post(() => _services.GetRequiredService<IWindowService>().ShowWhatsNew(), DispatcherPriority.Background);
+        _whatsNew.TrySchedule(BundledWhatsNew.Current, version,
+            () => settings.Current.WhatsNewShownVersion,
+            () => !_demo.IsActive && !_signInOpen
+                && _mainViewModel is { IsConnected: true, IsSigningIn: false }
+                && _mainWindow is { IsVisible: true } && _mainWindow.WindowState != WindowState.Minimized,
+            action => Dispatcher.UIThread.Post(action, DispatcherPriority.Background),
+            () => _services.GetRequiredService<IWindowService>().ShowWhatsNew());
     }
 
     private void UpdateTrayStatus()

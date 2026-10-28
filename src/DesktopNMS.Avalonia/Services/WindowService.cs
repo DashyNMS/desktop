@@ -7,6 +7,7 @@ using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Services;
 using DesktopNMS.Infrastructure;
+using DesktopNMS.Demo;
 using DesktopNMS.ViewModels;
 using DesktopNMS.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -173,7 +174,8 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
 
     public bool ShowWhatsNew()
     {
-        if (BundledWhatsNew.Current is not { } notes)
+        if (services.GetRequiredService<DemoMode>().IsActive
+            || BundledWhatsNew.ForVersion(services.GetRequiredService<IUpdateCheckService>().CurrentVersion) is not { } notes)
         {
             return false;
         }

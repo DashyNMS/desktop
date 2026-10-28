@@ -482,6 +482,22 @@ GitHub's size and SHA-256 before the platform installer receives it. Downloads
 never start an installation without the user's update action. Linux packages
 managed by a package manager keep their notification-only behaviour.
 
+### What's New after an upgrade
+
+Desktop packages embed `docs/releases/<full-version>.md`, the same file used for
+the published release. Each stable release and numbered preview has its own
+identity, including the preview suffix. Development builds do not fall back to
+another release's notes. The package builder requires an exact notes file for
+published-version packages, and package verification checks the parsed embedded
+notes. The app can show them offline.
+
+Automatic presentation waits for a connected, visible main window with sign-in
+finished. The queued UI callback checks readiness and the saved version again.
+Closing the dialog records the exact version. Startup does not mark notes as
+seen, including on a fresh installation. Settings, About can reopen matching
+notes explicitly. Demo mode does not present or record release notes. Shared
+Core's previous stable-only policy remains unchanged for other consumers.
+
 ### Core
 
 The shared code (`DesktopNMS.Core`: the LibreNMS client, models, alerting, graph
@@ -689,13 +705,13 @@ src/
     Infrastructure/         Commands, filtering, CSV, UI dispatch interfaces
     Demo/                   Example network used by demo mode and screenshots
     Security/               Encrypted credentials and chat storage on each OS
-    WhatsNew.md             Bundled release notes
   DesktopNMS.Avalonia/      Desktop app for Windows, macOS and Linux
     Assets/                 App icon, brand fonts and their licences
     Views/                  Views, dialogs and device detail sections
     Themes/                 Dark/light palette and styles
     Infrastructure/         UI dispatch, dialogs, theme and window placement
     Services/               Windows, tray, notifications and startup adapters
+docs/releases/              Exact-version release notes embedded by Presentation
 tools/
   Publish-Dev.ps1           Versioned Windows development builds
   Publish-Mcp.ps1           Bundled Intelligence network tools

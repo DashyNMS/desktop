@@ -497,6 +497,15 @@ public sealed class DesktopUpdateTests : IDisposable
     }
 
     [Fact]
+    public void Startup_does_not_mark_notes_seen_before_the_user_can_dismiss_them()
+    {
+        using var service = Create(currentVersion: "2.0.0-preview.11");
+        service.OnStartup();
+        Assert.Null(_settings.Current.WhatsNewShownVersion);
+        Assert.Equal("2.0.0-preview.11", _settings.Current.LastRunVersion);
+    }
+
+    [Fact]
     public void Untracked_version_startup_is_confirmed_once_without_inventing_an_installer()
     {
         _settings.Current.LastRunVersion = "2.0.0";

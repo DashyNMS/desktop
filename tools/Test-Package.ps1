@@ -11,6 +11,7 @@ $verify=Join-Path $root "artifacts/package-verification/$Version/$Runtime"
 if (Test-Path $verify) { throw 'Package verification requires a fresh folder.' }
 New-Item $verify -ItemType Directory -Force | Out-Null
 $mounted=$false
+$previousExpectedNotes = $env:DASHYNMS_EXPECTED_RELEASE_NOTES
 Push-Location $root
 try {
     if ($IsWindows) {
@@ -76,10 +77,14 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'The desktop launcher is invalid.' }
     }
     $env:DASHYNMS_TEST_MCP=(Resolve-Path $executable).Path
-    dotnet test tests/DesktopNMS.Presentation.Tests -c Release --filter FullyQualifiedName~McpBundleTests
-    if ($LASTEXITCODE -ne 0) { throw 'The network tools failed from inside the finished package.' }
+    $requiresNotes = $Version -match '^\d+\.\d+\.\d+(-preview\.\d+)?$'
+    [string[]]$notesOptions = @("-p:Version=$Version", "-p:RequireReleaseNotes=$($requiresNotes.ToString().ToLowerInvariant())")
+    $env:DASHYNMS_EXPECTED_RELEASE_NOTES = if ($requiresNotes) { Join-Path $root "docs/releases/$Version.md" } else { $null }
+    dotnet test tests/DesktopNMS.Presentation.Tests -c Release @notesOptions --filter 'FullyQualifiedName~McpBundleTests|FullyQualifiedName~BundledWhatsNewTests'
+    if ($LASTEXITCODE -ne 0) { throw 'Packaged network tools or exact release notes verification failed.' }
 } finally {
     if ($mounted) { hdiutil detach $mount | Out-Null }
     Remove-Item Env:DASHYNMS_TEST_MCP -ErrorAction SilentlyContinue
+    $env:DASHYNMS_EXPECTED_RELEASE_NOTES = $previousExpectedNotes
     Pop-Location
 }

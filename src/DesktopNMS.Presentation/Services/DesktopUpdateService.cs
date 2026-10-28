@@ -336,7 +336,6 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         if (_demo.IsActive) return;
         if (!_metrics.ConfirmStartup(CurrentVersion))
             _metrics.ConfirmUntrackedStartup(_settings.Current.LastRunVersion, CurrentVersion);
-        if (WhatsNewNotes.MarkSeenIfFreshInstall(_settings.Current, CurrentVersion)) _settings.SaveQuietly();
         if (_settings.Current.LastRunVersion == CurrentVersion) return;
         _settings.Current.LastRunVersion = CurrentVersion;
         _settings.SaveQuietly();
