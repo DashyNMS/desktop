@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 @main
 struct UpdateTests {
@@ -6,6 +7,44 @@ struct UpdateTests {
         func expect(_ condition: @autoclosure () throws -> Bool, _ message: String) throws {
             try require(try condition(), message)
         }
+        try expect(Bundle.main.bundleIdentifier == "net.dashynms.desktop.updater", "The helper inherited the host app identity")
+        try expect(Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? Bool == true, "The helper is not a Dock-less accessory")
+        _ = NSApplication.shared.setActivationPolicy(.accessory)
+        try expect(NSApplication.shared.activationPolicy() == .accessory, "The helper can appear as a Dock application")
+
+        let appPath = "/Applications/DashyNMS.app"
+        let snapshot = [
+            AppProcess(pid: 101, bundlePath: appPath), // The updater, registered under the host.
+            AppProcess(pid: 102, bundlePath: appPath), // A stale, already-exited host.
+            AppProcess(pid: 103, bundlePath: appPath), // Another genuine live instance.
+            AppProcess(pid: 104, bundlePath: "/Applications/Other.app")
+        ]
+        let blockers = blockingAppProcesses(appPath, applications: snapshot, helperPid: 101, isAlive: { $0 != 102 })
+        try expect(blockers == [103], "The process check counted the helper/stale host, or ignored a real instance")
+        try expect(blockingAppProcesses(appPath, applications: Array(snapshot.prefix(2)), helperPid: 101, isAlive: { $0 != 102 }).isEmpty,
+            "A stale Dock entry prevented replacement after host exit")
+        var snapshots = 0
+        try requireNoOtherApps(at: URL(fileURLWithPath: appPath), wait: 1, snapshot: {
+            snapshots += 1
+            return snapshots == 1 ? [103] : []
+        })
+        try expect(snapshots == 2, "A short-lived Dock launch did not get time to exit")
+        var refusedLiveProcess = false
+        do {
+            try requireNoOtherApps(at: URL(fileURLWithPath: appPath), wait: 0, snapshot: { [103] })
+        } catch let error as UpdateFailure {
+            refusedLiveProcess = error.blockingPids == [103]
+        }
+        try expect(refusedLiveProcess, "The updater replaced or failed to identify a live blocking process")
+        // Exercise the real kernel-liveness path as well as synthetic snapshots.
+        let child = Process()
+        child.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        child.arguments = ["30"]
+        try child.run()
+        try expect(processExists(child.processIdentifier), "A live process was treated as exited")
+        child.terminate(); child.waitUntilExit()
+        try expect(!processExists(child.processIdentifier), "A reaped process was treated as still running")
+
         // Exercise real same-volume atomic exchange, including interruption at
         // the exchange boundary: a complete installed app always remains.
         let directory = files.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)

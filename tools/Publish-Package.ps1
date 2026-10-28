@@ -82,7 +82,7 @@ try {
         Check-Native 'Compile notifications'
         swiftc -target "$architecture-apple-macos13" tools/macos/LoginItem.swift -o "$mac/dashynms-login"
         Check-Native 'Compile login helper'
-        swiftc -swift-version 5 -parse-as-library -target "$architecture-apple-macos13" tools/macos/Update.swift -o "$mac/dashynms-update"
+        swiftc -swift-version 5 -parse-as-library -target "$architecture-apple-macos13" tools/macos/Update.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker tools/macos/UpdateInfo.plist -o "$mac/dashynms-update"
         Check-Native 'Compile update helper'
         # This is a public identifier, not a credential. Distribution hosts also
         # derive trust from their own Developer ID signature; ad-hoc dev builds

@@ -53,10 +53,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Compile the shipping updater
-        run: swiftc -swift-version 5 -parse-as-library -target "$(uname -m)-apple-macos13" tools/macos/Update.swift -o "$RUNNER_TEMP/dashynms-update"
+        run: swiftc -swift-version 5 -parse-as-library -target "$(uname -m)-apple-macos13" tools/macos/Update.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker tools/macos/UpdateInfo.plist -o "$RUNNER_TEMP/dashynms-update"
       - name: Test native replacement and recovery
         run: |
-          swiftc -swift-version 5 -D UPDATE_TESTS -parse-as-library tools/macos/Update.swift tools/macos/UpdateTests.swift -o "$RUNNER_TEMP/update-tests"
+          swiftc -swift-version 5 -D UPDATE_TESTS -parse-as-library tools/macos/Update.swift tools/macos/UpdateTests.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker tools/macos/UpdateInfo.plist -o "$RUNNER_TEMP/update-tests"
           "$RUNNER_TEMP/update-tests"
 
   build-and-test:

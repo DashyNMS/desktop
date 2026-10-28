@@ -46,6 +46,7 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
     private bool _automaticDownloads;
     private bool _readyPreview;
     private int _checkGeneration;
+    private UpdateProgress? _installProgress;
     private ReadyUpdate? _ready;
     private GitHubReleaseAsset? _readyAsset;
     private readonly string _directory;
@@ -86,6 +87,21 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         get => _installation.UnavailableReason ?? _installationError;
         private set => _installationError = value;
     }
+    public UpdateProgress? InstallProgress { get { lock (_gate) return _installProgress; } }
+    public event EventHandler? InstallProgressChanged;
+
+    private void SetInstallProgress(UpdateStage? stage, bool begin = false)
+    {
+        lock (_gate)
+        {
+            if (stage is not null && !begin && _installProgress is null) return;
+            var next = stage is { } value ? new UpdateProgress(value) : null;
+            if (_installProgress == next) return;
+            _installProgress = next;
+        }
+        InstallProgressChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public string CurrentVersion { get; }
     public bool CanInstallUpdate => _installation.Runtime is not null;
     public bool DownloadsAutomatically => CanInstallUpdate && _settings.Current.DownloadUpdatesAutomatically;
@@ -207,7 +223,10 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
                 try
                 {
                     InstallationError = null;
+                    SetInstallProgress(UpdateStage.Downloading);
                     path = await DownloadAsync(asset, token).ConfigureAwait(false);
+                    lock (_gate) operation.Stage = UpdateStage.Preparing;
+                    SetInstallProgress(UpdateStage.Preparing);
                     await _installation.PrepareAsync(path, release.TagName!, token).ConfigureAwait(false);
                     download.Complete(MetricOutcome.Success);
                 }
@@ -262,15 +281,19 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         var launched = false;
         try
         {
+            SetInstallProgress(UpdateStage.Checking, begin: true);
             bool needsCheck;
             lock (_gate) needsCheck = _ready is null && _latestRelease is null;
             if (needsCheck) await CheckAsync(false).ConfigureAwait(false);
             Task preparing;
+            UpdateStage preparationStage;
             lock (_gate)
             {
                 if (_ready is null && _latestRelease is { } latest) StartPreparation(latest, notify: false, manual: true);
                 preparing = _ready is null ? _preparing : Task.CompletedTask;
+                preparationStage = _operation?.Stage ?? UpdateStage.Downloading;
             }
+            if (!preparing.IsCompleted) SetInstallProgress(preparationStage);
             await preparing.ConfigureAwait(false);
             ReadyUpdate? ready; GitHubReleaseAsset? asset; bool readyPreview; string? target;
             lock (_gate)
@@ -283,12 +306,15 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
             if (ready is null || asset is null) { install.Complete(MetricOutcome.Unavailable); return false; }
             InstallationError = null;
             // Recheck a cached file immediately before handing it to the OS.
+            SetInstallProgress(UpdateStage.Preparing);
             var path = await DownloadAsync(asset, _lifetime.Token).ConfigureAwait(false);
             lock (_gate) { if (_lifetime.IsCancellationRequested || _wantedVersion != ready.Version || _ready != ready) return false; }
             _metrics.MarkPending(install);
+            SetInstallProgress(UpdateStage.StartingInstaller);
             if (!await _installation.InstallAsync(path).ConfigureAwait(false)) return false;
             launched = true;
             install.Complete(MetricOutcome.Launched);
+            SetInstallProgress(null);
             if (_installation.RestartsApp) InstallStarted?.Invoke(this, EventArgs.Empty);
             return true;
         }
@@ -299,6 +325,7 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         }
         finally
         {
+            SetInstallProgress(null);
             if (!launched && install is not null) { _metrics.Withdraw(); install.Complete(_lifetime.IsCancellationRequested ? MetricOutcome.Cancelled : MetricOutcome.Failed); }
             _installGate.Release();
         }
@@ -347,6 +374,7 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         public GitHubRelease Release { get; } = release;
         public bool Manual { get; } = manual;
         public CancellationTokenSource Cancellation { get; } = cancellation;
+        public UpdateStage Stage { get; set; } = UpdateStage.Downloading;
         public bool Downloading { get; set; }
     }
 }

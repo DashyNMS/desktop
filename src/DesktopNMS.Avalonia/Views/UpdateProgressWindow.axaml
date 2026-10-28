@@ -1,0 +1,15 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="DesktopNMS.Views.UpdateProgressWindow"
+        Title="Updating DashyNMS" Width="440" SizeToContent="Height"
+        CanResize="False" ShowInTaskbar="False" ShowActivated="False"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource BackgroundBrush}">
+    <StackPanel Margin="28" Spacing="18">
+        <TextBlock Text="Updating DashyNMS" FontSize="22" FontWeight="SemiBold" />
+        <TextBlock Name="StageText" Text="Preparing the update…" TextWrapping="Wrap" />
+        <ProgressBar IsIndeterminate="True" Height="6" AutomationProperties.Name="Update progress" />
+        <TextBlock Text="DashyNMS will close briefly and reopen when installation is complete."
+                   TextWrapping="Wrap" Opacity="0.75" />
+    </StackPanel>
+</Window>

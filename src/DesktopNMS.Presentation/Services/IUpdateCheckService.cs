@@ -24,6 +24,10 @@ public interface IUpdateCheckService
     /// <summary>A platform explanation when preparation or handoff was refused.</summary>
     string? InstallationError => null;
 
+    /// <summary>Progress for the user's explicit install action; background downloads do not open a popup.</summary>
+    UpdateProgress? InstallProgress => null;
+    event EventHandler? InstallProgressChanged { add { } remove { } }
+
     /// <summary>Package-manager installs only announce updates; they do not download installers.</summary>
     bool DownloadsAutomatically => true;
     bool CanInstallUpdate => DownloadsAutomatically;

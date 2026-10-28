@@ -36,8 +36,10 @@ public sealed class PlatformUpdateInstallation : IUpdateInstallation
             var app = Path.Combine(WindowsInstallDirectory(), "DashyNMS.exe");
             // Encode paths as PowerShell literals rather than interpolate them into cmd syntax.
             static string Quote(string value) => "'" + value.Replace("'", "''") + "'";
+            // /SILENT keeps Setup's real installation progress visible after
+            // this app closes; /VERYSILENT would hide that progress window.
             var command = "$ErrorActionPreference='Stop'; $installer = Start-Process -FilePath " + Quote(verifiedPackage)
-                + " -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CLOSEAPPLICATIONS' -WindowStyle Hidden -Wait -PassThru; Start-Process -FilePath " + Quote(app);
+                + " -ArgumentList '/SILENT','/SP-','/SUPPRESSMSGBOXES','/NOCANCEL','/NORESTART','/CLOSEAPPLICATIONS' -WindowStyle Normal -Wait -PassThru; Start-Process -FilePath " + Quote(app);
             var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe"))
                 { UseShellExecute = false, CreateNoWindow = true };
             foreach (var argument in new[] { "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(command)) }) start.ArgumentList.Add(argument);

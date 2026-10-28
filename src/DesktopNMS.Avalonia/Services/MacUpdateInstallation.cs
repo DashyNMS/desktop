@@ -46,6 +46,8 @@ internal sealed class MacUpdateInstallation
             {
                 UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
             };
+            // A detached native helper must not inherit the host's LaunchServices identity.
+            start.Environment.Remove("__CFBundleIdentifier");
             foreach (var argument in new[] { "prepare", _app, package, version.TrimStart('v'), _architecture }) start.ArgumentList.Add(argument);
             using var process = Process.Start(start) ?? throw new IOException("The macOS updater could not start.");
             var output = process.StandardOutput.ReadToEndAsync();
@@ -79,6 +81,7 @@ internal sealed class MacUpdateInstallation
             {
                 UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
             };
+            start.Environment.Remove("__CFBundleIdentifier");
             foreach (var argument in new[] { "apply", ready.Directory, Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture) }) start.ArgumentList.Add(argument);
             var process = Process.Start(start) ?? throw new IOException("The macOS updater could not start.");
             // The helper writes handoff only after revalidation and taking the

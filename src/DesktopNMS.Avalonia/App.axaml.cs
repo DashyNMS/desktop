@@ -52,6 +52,7 @@ public partial class App : Application
     private DemoMode _demo = new(isActive: false);
     private DemoServer? _demoServer;
     private DemoFleet? _demoFleet;
+    private UpdateProgressWindow? _updateProgressWindow;
     private bool _startDemoOnExit;
     private bool _leaveDemoOnExit;
     private bool _whatsNewScheduled;
@@ -140,6 +141,7 @@ public partial class App : Application
         _services = BuildServices(_demo);
         _logger = _services.GetRequiredService<ILogger<App>>();
         _logger.LogInformation(_demo.IsActive ? "DashyNMS (cross-platform preview) starting in demo mode on {OS}" : "DashyNMS (cross-platform preview) starting on {OS}", System.Runtime.InteropServices.RuntimeInformation.OSDescription);
+        _logger.LogInformation("Running DashyNMS {Version} as process {ProcessId}", DesktopUpdateService.RunningVersion(), Environment.ProcessId);
         AsyncRelayCommand.UnhandledError += (_, ex) =>
         {
             _logger.LogError(ex, "A command failed");
@@ -605,7 +607,31 @@ public partial class App : Application
     {
         if (_services is null || _demo.IsActive) return;
         var updates = _services.GetRequiredService<IUpdateCheckService>();
-        updates.InstallStarted += (_, _) => Dispatcher.UIThread.Post(() => desktop.Shutdown());
+        updates.InstallStarted += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            _logger?.LogInformation("Update handoff accepted; requesting full shutdown of process {ProcessId}", Environment.ProcessId);
+            desktop.Shutdown();
+        });
+        if (OperatingSystem.IsMacOS() || OperatingSystem.IsWindows())
+        {
+            void RefreshProgress()
+            {
+                if (updates.InstallProgress is not { } progress)
+                {
+                    _updateProgressWindow?.Finish();
+                    _updateProgressWindow = null;
+                    return;
+                }
+                _updateProgressWindow ??= new UpdateProgressWindow();
+                _updateProgressWindow.SetProgress(progress);
+                if (!_updateProgressWindow.IsVisible) _updateProgressWindow.Show();
+            }
+            updates.InstallProgressChanged += (_, _) =>
+            {
+                if (Dispatcher.UIThread.CheckAccess()) RefreshProgress();
+                else Dispatcher.UIThread.Post(RefreshProgress);
+            };
+        }
         updates.OnStartup();
         _updateTimer = UiThread.CreateTimer(TimeSpan.FromHours(6));
         _updateTimer.Tick += (_, _) => _ = updates.CheckAsync(notifyIfNewer: true);
@@ -678,6 +704,7 @@ public partial class App : Application
 
     private void OnExit()
     {
+        _logger?.LogInformation("Application shutdown started for process {ProcessId}", Environment.ProcessId);
         _uiStalls?.Dispose();
         _memory?.Dispose();
         Program.Metrics.Flush();
@@ -686,6 +713,7 @@ public partial class App : Application
         // Stop the sole asynchronous service first, so UI-owned tray resources
         // are then disposed synchronously on this thread by the container.
         _services?.GetService<McpToolHost>()?.StopAsync().GetAwaiter().GetResult();
+        _logger?.LogInformation("Network tools stopped; disposing application services for process {ProcessId}", Environment.ProcessId);
         _services?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _instance?.Dispose();
         _demoServer?.Dispose();
