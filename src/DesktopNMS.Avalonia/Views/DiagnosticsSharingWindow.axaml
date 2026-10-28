@@ -21,7 +21,7 @@
         <TextBlock Text="Closing this window keeps your previous choice and asks again next time."
                    TextWrapping="Wrap" Opacity="0.75" />
         <HyperlinkButton Content="Read the privacy details"
-                         NavigateUri="https://github.com/DashyNMS/desktop/blob/master/PRIVACY.md" />
+                         NavigateUri="https://dashynms.pckp.net/desktop/privacy/" />
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,6,0,0">
             <Button Content="Don't share" Command="{Binding DeclineCommand}" />
             <Button Content="Allow selected" Command="{Binding AllowSelectedCommand}" />
