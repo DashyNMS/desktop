@@ -41,15 +41,17 @@ func info(_ app: URL) throws -> [String: Any] {
     }
     return result
 }
+func publisherRequirement(_ team: String) throws -> SecRequirement {
+    try require(team.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil, "The update publisher is not configured.")
+    let rule = "anchor apple generic and certificate leaf[subject.OU] = \"\(team)\" and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and notarized and identifier \"\(bundleID)\""
+    var requirement: SecRequirement?
+    try require(SecRequirementCreateWithString(rule as CFString, [], &requirement) == errSecSuccess, "The update publisher requirement is invalid.")
+    return requirement!
+}
 func signature(_ app: URL, team: String? = nil) throws -> [String: Any] {
     var code: SecStaticCode?
     try require(SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess, "The app has no valid code signature.")
-    var requirement: SecRequirement?
-    if let team = team {
-        try require(team.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil, "The update publisher is not configured.")
-        let rule = "anchor apple generic and certificate leaf[subject.OU] = \"\(team)\" and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and notarized and identifier \"\(bundleID)\""
-        try require(SecRequirementCreateWithString(rule as CFString, [], &requirement) == errSecSuccess, "The update publisher requirement is invalid.")
-    }
+    let requirement = try team.map { try publisherRequirement($0) }
     let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSStrictValidate | kSecCSCheckNestedCode)
     try require(SecStaticCodeCheckValidity(code!, flags, requirement) == errSecSuccess, "The update signature does not match the trusted DashyNMS publisher, or bundle contents have changed.")
     var dictionary: CFDictionary?
@@ -82,15 +84,22 @@ func installedLocation(_ app: URL) throws {
     let parent = app.deletingLastPathComponent()
     let userApps = files.homeDirectoryForCurrentUser.appendingPathComponent("Applications").standardizedFileURL
     try require(app.path == app.resolvingSymlinksInPath().path && app.pathExtension == "app"
-        && (parent.path == "/Applications" || parent == userApps),
+        && (parent.path == "/Applications" || parent.path == userApps.path),
         "Install DashyNMS in your user Applications folder (~/Applications), or a writable /Applications folder, before updating. Apps running from a disk image or another location cannot update in place.")
     try require(geteuid() != 0 && files.isWritableFile(atPath: parent.path) && files.isWritableFile(atPath: app.path),
         "DashyNMS cannot replace this installation without administrator access. Move it to ~/Applications or ask your administrator to install the update. The current app has been kept.")
     try require(try info(app)["CFBundleIdentifier"] as? String == bundleID, "The installed app identity is invalid.")
 }
 func swap(_ first: URL, _ second: URL) throws {
-    try require(renamex_np(first.path, second.path, UInt32(RENAME_SWAP | RENAME_NOFOLLOW_ANY)) == 0,
-        "This destination does not support safe bundle replacement or is no longer writable. The previous bundle has been retained.")
+    // RENAME_NOFOLLOW_ANY is not supported with atomic exchange on all
+    // supported macOS filesystems. Refuse links explicitly and use the same
+    // renameatx_np exchange primitive as Foundation's safe replacement path.
+    try require(first.path == first.resolvingSymlinksInPath().path && second.path == second.resolvingSymlinksInPath().path,
+        "The update destination contains a symbolic link. The installed app has been kept.")
+    let result = renameatx_np(AT_FDCWD, first.path, AT_FDCWD, second.path, UInt32(RENAME_SWAP))
+    let failure = errno
+    try require(result == 0,
+        "This destination does not support safe bundle replacement or is no longer writable (macOS error \(failure)). The previous bundle has been retained.")
 }
 struct Transaction: Codable {
     let app: String
@@ -109,7 +118,7 @@ func load(_ directory: URL) throws -> Transaction {
     let value = try JSONDecoder().decode(Transaction.self, from: Data(contentsOf: directory.appendingPathComponent("transaction.json")))
     let app = URL(fileURLWithPath: value.app)
     try installedLocation(app)
-    try require(directory.deletingLastPathComponent() == app.deletingLastPathComponent()
+    try require(directory.deletingLastPathComponent().path == app.deletingLastPathComponent().path
         && directory.lastPathComponent.hasPrefix(".DashyNMS-update-"), "The update transaction location is invalid.")
     try require(try trustedTeam(app) == value.team, "The installed update publisher has changed.")
     return value
@@ -149,6 +158,11 @@ func validateCandidate(_ app: URL, version: String, architecture: String, team: 
         let path = app.appendingPathComponent("Contents/MacOS/" + executable)
         try require(files.isExecutableFile(atPath: path.path), "The update is missing a required executable.")
         try require(try supportsArchitecture(path, architecture), "The update contains code for a different processor.")
+    }
+    if let entries = files.enumerator(at: app, includingPropertiesForKeys: nil) {
+        for case let library as URL in entries where library.pathExtension == "dylib" {
+            try require(try supportsArchitecture(library, architecture), "The update contains a native library for a different processor.")
+        }
     }
     // This resource is sealed by the bundle signature. Verify it after signing,
     // which changes the native executable bytes during distribution packaging.
@@ -190,7 +204,7 @@ func prepare(app: URL, package: URL, version: String, architecture: String) thro
     try files.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
     var completed = false
     defer { if !completed { try? files.removeItem(at: directory) } }
-    // Check the filesystem capability before downloading/copying an entire bundle.
+    // Check the filesystem capability before copying an entire bundle.
     let probeA = directory.appendingPathComponent("probe-a"), probeB = directory.appendingPathComponent("probe-b")
     try files.createDirectory(at: probeA, withIntermediateDirectories: false)
     try files.createDirectory(at: probeB, withIntermediateDirectories: false)
@@ -199,7 +213,7 @@ func prepare(app: URL, package: URL, version: String, architecture: String) thro
     let mount = directory.appendingPathComponent("mount")
     try files.createDirectory(at: mount, withIntermediateDirectories: false)
     var mounted = true
-    defer { if mounted { try? run("/usr/bin/hdiutil", ["detach", mount.path]) } }
+    defer { if mounted { _ = try? run("/usr/bin/hdiutil", ["detach", mount.path]) } }
     try run("/usr/bin/hdiutil", ["attach", package.path, "-readonly", "-nobrowse", "-noautoopen", "-mountpoint", mount.path])
     let candidate = directory.appendingPathComponent("Previous.app")
     try run("/usr/bin/ditto", [mount.appendingPathComponent("DashyNMS.app").path, candidate.path])
@@ -281,7 +295,7 @@ func recover(_ directory: URL) throws {
     let app = URL(fileURLWithPath: value.app)
     let lock = try acquireLock(app)
     defer { close(lock) }
-    try require(!NSWorkspace.shared.runningApplications.contains { $0.bundleURL?.standardizedFileURL == app.standardizedFileURL }, "Quit DashyNMS before recovering its previous version.")
+    try require(!NSWorkspace.shared.runningApplications.contains { $0.bundleURL?.standardizedFileURL.path == app.standardizedFileURL.path }, "Quit DashyNMS before recovering its previous version.")
     let previous = directory.appendingPathComponent("Previous.app")
     try require(try fingerprint(app) == value.candidateFingerprint && fingerprint(previous) == value.previousFingerprint,
         "These bundles no longer match the recoverable update. No files have been changed.")
@@ -300,7 +314,7 @@ func apply(directory: URL, parent: Int32) throws {
     try require(try fingerprint(app) == value.previousFingerprint, "The installed app has changed since this update was prepared. Check for updates again.")
     try validateCandidate(previous, version: value.version, architecture: value.architecture, team: value.team)
     let host = NSRunningApplication(processIdentifier: parent)
-    try require(host?.bundleURL?.standardizedFileURL == app.standardizedFileURL && parent == getppid(), "The updater was not started by the installed app.")
+    try require(host?.bundleURL?.standardizedFileURL.path == app.standardizedFileURL.path && parent == getppid(), "The updater was not started by the installed app.")
     for name in ["handoff", "startup.json"] {
         let path = directory.appendingPathComponent(name)
         if files.fileExists(atPath: path.path) { try files.removeItem(at: path) }
@@ -309,7 +323,7 @@ func apply(directory: URL, parent: Int32) throws {
     try Data().write(to: directory.appendingPathComponent("handoff"), options: .atomic)
     try require(waitUntil(60) { host?.isTerminated != false }, "DashyNMS did not finish closing. The current installation has been kept.")
     // Refuse replacement if a login item or a second launch raced shutdown.
-    try require(!NSWorkspace.shared.runningApplications.contains { $0.bundleURL?.standardizedFileURL == app.standardizedFileURL }, "DashyNMS is still running. The current installation has been kept.")
+    try require(!NSWorkspace.shared.runningApplications.contains { $0.bundleURL?.standardizedFileURL.path == app.standardizedFileURL.path }, "DashyNMS is still running. The current installation has been kept.")
     try require(try fingerprint(app) == value.previousFingerprint, "The installed app changed while closing.")
     try replaceAndConfirm(exchange: { try swap(app, previous) }, start: {
         try launch(app, environment: ["DASHYNMS_UPDATE_DIRECTORY": directory.path, "DASHYNMS_UPDATE_TOKEN": value.token])
@@ -341,29 +355,29 @@ func apply(directory: URL, parent: Int32) throws {
 #if !UPDATE_TESTS
 @main
 struct UpdateMain {
-static func main() {
-let arguments = Array(CommandLine.arguments.dropFirst())
-do {
-    switch arguments.first {
-    case "prepare" where arguments.count == 5:
-        try prepare(app: URL(fileURLWithPath: arguments[1]), package: URL(fileURLWithPath: arguments[2]), version: arguments[3], architecture: arguments[4])
-    case "recover" where arguments.count == 2:
-        try recover(URL(fileURLWithPath: arguments[1]))
-    case "apply" where arguments.count == 3:
-        guard let parent = Int32(arguments[2]) else { throw UpdateFailure(message: "Invalid updater parent process.") }
-        try apply(directory: URL(fileURLWithPath: arguments[1]), parent: parent)
-    default: throw UpdateFailure(message: "Invalid updater command.")
-    }
-} catch {
-    let message = (error as? UpdateFailure)?.message ?? "The macOS update could not complete. The installed or previous app bundle has been retained."
-    if arguments.first == "apply", arguments.count == 3 {
-        let directory = URL(fileURLWithPath: arguments[1])
-        if (try? safeDirectory(directory)) != nil { try? save(["state": "failed", "message": message], at: directory.appendingPathComponent("failure.json")) }
-    }
-    fputs(message + "\n", stderr)
-    exit(1)
-}
+    static func main() {
+        let arguments = Array(CommandLine.arguments.dropFirst())
+        do {
+            switch arguments.first {
+            case "prepare" where arguments.count == 5:
+                try prepare(app: URL(fileURLWithPath: arguments[1]), package: URL(fileURLWithPath: arguments[2]), version: arguments[3], architecture: arguments[4])
+            case "recover" where arguments.count == 2:
+                try recover(URL(fileURLWithPath: arguments[1]))
+            case "apply" where arguments.count == 3:
+                guard let parent = Int32(arguments[2]) else { throw UpdateFailure(message: "Invalid updater parent process.") }
+                try apply(directory: URL(fileURLWithPath: arguments[1]), parent: parent)
+            default: throw UpdateFailure(message: "Invalid updater command.")
+            }
+        } catch {
+            let message = (error as? UpdateFailure)?.message ?? "The macOS update could not complete. The installed or previous app bundle has been retained."
+            if arguments.first == "apply", arguments.count == 3 {
+                let directory = URL(fileURLWithPath: arguments[1])
+                if (try? safeDirectory(directory)) != nil { try? save(["state": "failed", "message": message], at: directory.appendingPathComponent("failure.json")) }
+            }
+            fputs(message + "\n", stderr)
+            exit(1)
+        }
 
-}
+    }
 }
 #endif

@@ -72,6 +72,13 @@ struct UpdateTests {
             try Data(header).write(to: binary)
             try expect(try supportsArchitecture(binary, architecture) == expected, "Incorrect Mach-O architecture result")
         }
+        _ = try publisherRequirement("ABCDEFGHIJ")
+        var rejectedPublisher = false
+        do { _ = try publisherRequirement("invalid\"publisher") } catch { rejectedPublisher = true }
+        try expect(rejectedPublisher, "An invalid publisher was accepted")
+        var rejectedLocation = false
+        do { try installedLocation(app) } catch { rejectedLocation = true }
+        try expect(rejectedLocation, "An unsupported installation location was accepted")
         var rejectedSignature = false
         do { _ = try signature(binary, team: "ABCDEFGHIJ") } catch { rejectedSignature = true }
         try expect(rejectedSignature, "Unsigned update code was accepted")
