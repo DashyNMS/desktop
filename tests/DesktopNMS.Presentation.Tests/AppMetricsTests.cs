@@ -8,10 +8,11 @@ public sealed class AppMetricsTests
 {
     [Theory]
     [InlineData(0, true, false, true)]
-    [InlineData(1, true, true, false)]
+    [InlineData(1, true, true, true)]
+    [InlineData(2, true, true, false)]
     [InlineData(99, true, false, true)]
     [InlineData(-1, true, false, true)]
-    public void Broader_collection_requires_the_exact_disclosure_version(int version, bool launches, bool metrics, bool prompt)
+    public void Broader_collection_preserves_version_one_but_reprompts_for_session_health(int version, bool launches, bool metrics, bool prompt)
     {
         var settings = new AppSettings { DiagnosticsSharing = DiagnosticsSharingPreference.ErrorsAndUsage, DiagnosticsConsentVersion = version };
         Assert.True(DiagnosticsConsent.Errors(settings));

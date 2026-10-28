@@ -118,12 +118,16 @@ managed error and confirm it still appears there. HTTP success alone does not
 prove indexing. Metric timestamp acceptance depends on project retention; it
 must cover the seven-day local queue window.
 
-Expanded usage consent uses `AppSettings.DiagnosticsConsentVersion == 1`.
-Version 0 and unknown versions never authorise broader metrics. Legacy launch
-consent is retained and the updated prompt starts usage unchecked, preserving
-the existing error choice. Explicit declines do not trigger a new prompt.
-Settings shows whether a saved choice is still launch-only; disabling usage
-withdraws both launch and broader metrics consent.
+Expanded usage consent accepts `AppSettings.DiagnosticsConsentVersion` 1 or 2.
+Version 0 and unknown versions never authorise broader metrics. Version 2 adds
+session health, eligible only when both error and usage sharing are explicitly
+selected. Existing version-1 metrics continue without sessions; legacy launch
+consent continues with launches only. The updated prompt starts usage unchecked,
+preserving the existing error choice. Explicit declines do not trigger a new
+prompt. Closing the prompt leaves the old scope unchanged. Settings shows the
+old scope; an explicit usage off/on choice accepts the current disclosure.
+Disabling usage withdraws launch, broader metrics and session consent; disabling
+errors withdraws sessions while leaving separately allowed usage metrics active.
 
 `IAppMetrics.Record(MetricObservation)` accepts enum names and dimensions only.
 No string tags, HTTP instrumentation, machine metadata or content are accepted.
@@ -372,6 +376,68 @@ See the .NET [working set](https://learn.microsoft.com/dotnet/api/system.diagnos
 and [managed heap](https://learn.microsoft.com/dotnet/api/system.gc.gettotalmemory)
 API definitions for interpretation.
 
+### Session health
+
+`SessionHealth` defines a session as an eligible process interval, including
+foreground and tray/background operation. Restart creates a fresh random GUID;
+consent enabled midway starts a new interval without backfilling. There is no
+persistent installation/user ID and no unique-user or retention claim.
+Only version-2 explicit error **and** usage consent is eligible for all outcomes.
+Version-1 metrics continue, but cannot enter this denominator. Withdrawal of
+either choice purges session state and queued session reports independently of
+other allowed usage metrics.
+
+A normal exit is `healthy`, or `errored` if a command/UI error was observed.
+`Application`-origin unhandled managed exceptions produce `managedcrash`, even
+when the same exception was already captured at the UI hook. A missing terminal
+marker produces `abnormal` on the next eligible launch: native crashes, forced
+kill, power loss and other unknown fates are not confirmed crashes. UI errors
+alone do not prove termination. Unknown outcomes have no invented duration;
+their timestamp is recovery time, not an inferred termination time. Fatal reports
+are saved synchronously and remain separate from the original error event.
+
+The local marker is strict JSON, at most 2 KiB, atomically replaced with a disk
+flush. It has a fresh GUID, consent/schema versions, safe release/platform
+context, timestamps, error/sampling flags and optional terminal outcome/duration.
+Recovery expires after seven days and rejects malformed, future, oversized or
+reparse-point state. A known terminal marker survives a failed queue write and
+is retried by ID; withdrawal deletes it. Terminal records use the existing
+bounded queue, cancellation, metrics pacing and server backoff. Queue loss,
+expiry and retries make counts approximate; running intervals and unknown fates
+without a subsequent launch are not visible.
+
+Sentry Release Health support was verified on the EU project with controlled
+native `session` fixtures: healthy, errored, crashed and abnormal each indexed.
+However, native `avg(session.duration)` returned null, consistent with [Sentry's
+session-statistics API documentation](https://docs.sentry.io/api/releases/retrieve-release-health-session-statistics/),
+which says durations have not been recorded since January 2023. The [session
+protocol](https://develop.sentry.dev/sdk/sessions/) distinguishes unknown fate
+from confirmed crashes. We use Application Metrics for the explicit four-outcome
+view and durations; this does not populate the native Release Health widget or
+consume an additional error event for each session. It uses the existing
+Application Metrics allowance, so inspect that project's usage/quota before
+increasing volume.
+
+`dashynms.session.outcome` is a counter of 1, with fixed `mode=process`,
+`area=application`, release/platform and `outcome=healthy|errored|managedcrash|abnormal`.
+`dashynms.session.duration` is a distribution in milliseconds, sampled once at
+interval start with probability 1/10 and emitted only for known-ended intervals,
+with a 90-day cap. Both points use the fresh interval GUID as their trace ID;
+there is no user dimension. For comparable release/platform populations, calculate
+managed crash-free known-ended intervals as
+`100 * (healthy + errored) / (healthy + errored + managedcrash)` when the denominator
+is positive. Display abnormal counts separately; never count them as successful
+sessions or describe this as overall/native crash-free reliability. Duration
+percentiles cover sampled known endings, including tray time, not active usage.
+
+`tools/SessionHealthProbe` starts actual child processes for clean exit, unhandled
+managed failure and forced kill, then restarts against the saved profile. CI runs
+it on Windows, macOS and Linux and verifies classifications, recovery delivery
+and sanitisation. Unit tests cover consent populations, error refinement, state
+bounds and withdrawal. For live verification use a dedicated synthetic release;
+confirm all four outcome counters, only three known duration points and no
+session-generated Errors. Do not treat envelope HTTP success alone as indexing.
+
 GitHub builds read the public ingestion address from the repository variable
 `SENTRY_DSN`. For local builds, set `DASHYNMS_SENTRY_DSN` before publishing. The
 address becomes assembly metadata in the app. No authentication token is needed
@@ -596,6 +662,7 @@ Windows runners install the shipped 1.0 and 1.1 apps and upgrade them without a
 new install path, checking settings, layouts, window placement, encrypted
 secrets, startup registration and the existing shortcut. Installer tests are
 restricted to disposable GitHub Actions accounts.
+
 
 ## Layout
 

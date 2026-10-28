@@ -507,6 +507,43 @@ public sealed class CrashReportingTests
         Assert.Equal(12, attributes.EnumerateObject().Count());
     }
 
+    [Theory]
+    [InlineData(SessionOutcome.Healthy, "healthy", true)]
+    [InlineData(SessionOutcome.Errored, "errored", true)]
+    [InlineData(SessionOutcome.ManagedCrash, "managedcrash", true)]
+    [InlineData(SessionOutcome.Abnormal, "abnormal", false)]
+    public async Task Sessions_use_metrics_with_a_fresh_interval_ID_and_no_unknown_duration(SessionOutcome outcome, string dimension, bool duration)
+    {
+        var handler = new RecordingHandler();
+        using var transport = new SentryCrashTransport("https://publickey@collector.invalid/123", handler);
+        var id = Guid.NewGuid();
+        var report = new SessionHealthReport(1, id, DateTimeOffset.UtcNow, Context with { Architecture = "x64" }, outcome, duration ? 10000 : null);
+        Assert.Equal(CrashSendDisposition.Accepted, (await transport.SendAsync(report, default)).Disposition);
+        var lines = Assert.Single(handler.Bodies).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        using var item = JsonDocument.Parse(lines[1]);
+        Assert.Equal("trace_metric", item.RootElement.GetProperty("type").GetString());
+        Assert.Equal(duration ? 2 : 1, item.RootElement.GetProperty("item_count").GetInt32());
+        using var payload = JsonDocument.Parse(lines[2]);
+        Assert.Equal("never", payload.RootElement.GetProperty("ingest_settings").GetProperty("infer_ip").GetString());
+        var points = payload.RootElement.GetProperty("items").EnumerateArray().ToArray();
+        Assert.Equal("dashynms.session.outcome", points[0].GetProperty("name").GetString());
+        Assert.Equal(1, points[0].GetProperty("value").GetDouble());
+        foreach (var point in points)
+        {
+            Assert.Equal(id.ToString("N"), point.GetProperty("trace_id").GetString());
+            var attributes = point.GetProperty("attributes");
+            Assert.Equal(9, attributes.EnumerateObject().Count());
+            Assert.Equal(dimension, attributes.GetProperty("outcome").GetProperty("value").GetString());
+            Assert.Equal("process", attributes.GetProperty("mode").GetProperty("value").GetString());
+        }
+        if (duration)
+        {
+            Assert.Equal("dashynms.session.duration", points[1].GetProperty("name").GetString());
+            Assert.Equal("distribution", points[1].GetProperty("type").GetString());
+            Assert.Equal("millisecond", points[1].GetProperty("unit").GetString());
+        }
+    }
+
     private static Exception SensitiveException()
     {
         var exception = new InvalidOperationException("secret-token-canary private-host-canary chat-text-canary C:\\Users\\private-user-canary\\private.txt",

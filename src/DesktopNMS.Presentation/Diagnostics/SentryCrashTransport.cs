@@ -48,10 +48,11 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
         {
             UsageReport launch => UsageMetric(launch),
             MetricsReport metrics => MetricsBatch(metrics),
+            SessionHealthReport session => MetricsBatch(SessionMetrics(session)),
             _ => CrashEvent((CrashReport)report),
         };
         if (usage)
-            WriteJsonLine(body, new { type = "trace_metric", item_count = report is MetricsReport batch ? batch.Points.Count : 1,
+            WriteJsonLine(body, new { type = "trace_metric", item_count = report is MetricsReport batch ? batch.Points.Count : report is SessionHealthReport session && session.DurationMilliseconds is not null ? 2 : 1,
                 content_type = "application/vnd.sentry.items.trace-metric+json", length = payload.Length });
         else
             WriteJsonLine(body, new { type = "event", length = payload.Length });
@@ -115,6 +116,8 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
                 MetricName.ApiRequestCount => "dashynms.api.requests",
                 MetricName.ApiDuration => "dashynms.api.duration",
                 MetricName.FeatureUse => "dashynms.feature.use",
+                MetricName.SessionOutcome => "dashynms.session.outcome",
+                MetricName.SessionDuration => "dashynms.session.duration",
                 MetricName.UpdateDuration => "dashynms.update.duration",
                 MetricName.UpdateOutcome => "dashynms.update.outcome",
                 MetricName.IntelligenceRequests => "dashynms.intelligence.requests",
@@ -132,6 +135,22 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
             attributes = MetricAttributes(report.Context, point.Observation),
         }).ToArray(),
     });
+
+    private static MetricsReport SessionMetrics(SessionHealthReport report)
+    {
+        var outcome = report.Outcome switch
+        {
+            SessionOutcome.Healthy => MetricOutcome.Healthy,
+            SessionOutcome.Errored => MetricOutcome.Errored,
+            SessionOutcome.ManagedCrash => MetricOutcome.ManagedCrash,
+            _ => MetricOutcome.Abnormal,
+        };
+        var points = new List<MetricPoint> { new(report.Timestamp,
+            new(MetricName.SessionOutcome, 1, MetricMode.Process, outcome)) };
+        if (report.DurationMilliseconds is { } duration) points.Add(new(report.Timestamp,
+            new(MetricName.SessionDuration, duration, MetricMode.Process, outcome)));
+        return new(1, report.EventId, report.Timestamp, report.Context, points);
+    }
 
     private Dictionary<string, object> MetricAttributes(CrashReportContext context, MetricObservation observation)
     {

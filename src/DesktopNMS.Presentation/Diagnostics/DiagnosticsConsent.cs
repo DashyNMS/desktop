@@ -4,12 +4,14 @@ namespace DesktopNMS.Diagnostics;
 
 public static class DiagnosticsConsent
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
     public static bool Errors(AppSettings settings) => settings.DiagnosticsSharing is
         DiagnosticsSharingPreference.ErrorsOnly or DiagnosticsSharingPreference.ErrorsAndUsage;
     public static bool Launches(AppSettings settings) => settings.DiagnosticsSharing is
         DiagnosticsSharingPreference.UsageOnly or DiagnosticsSharingPreference.ErrorsAndUsage;
-    public static bool Metrics(AppSettings settings) => Launches(settings) && settings.DiagnosticsConsentVersion == CurrentVersion;
+    public static bool Metrics(AppSettings settings) => Launches(settings) && settings.DiagnosticsConsentVersion is 1 or CurrentVersion;
+    public static bool Sessions(AppSettings settings) => Metrics(settings) && Errors(settings) &&
+        settings.DiagnosticsConsentVersion == CurrentVersion;
     public static bool NeedsChoice(AppSettings settings) => !Enum.IsDefined(settings.DiagnosticsSharing) ||
         settings.DiagnosticsSharing == DiagnosticsSharingPreference.Undecided ||
         (Launches(settings) && settings.DiagnosticsConsentVersion != CurrentVersion);

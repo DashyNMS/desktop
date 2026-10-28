@@ -232,8 +232,11 @@ public sealed partial class SettingsViewModel : ObservableObject
             if (!DesktopNMS.Diagnostics.DiagnosticsConsent.ChangeUsageChoice(_draft, value)) return;
             OnPropertyChanged(nameof(SendUsageStatistics));
             OnPropertyChanged(nameof(HasLegacyUsageConsent));
+            OnPropertyChanged(nameof(HasPendingSessionConsent));
         }
     }
+
+    public bool HasPendingSessionConsent => SendUsageStatistics && _draft.DiagnosticsConsentVersion == 1;
 
     public bool HasLegacyUsageConsent => SendUsageStatistics && !DesktopNMS.Diagnostics.DiagnosticsConsent.Metrics(_draft);
 
@@ -251,6 +254,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(SendCrashReports));
         OnPropertyChanged(nameof(SendUsageStatistics));
         OnPropertyChanged(nameof(HasLegacyUsageConsent));
+        OnPropertyChanged(nameof(HasPendingSessionConsent));
     }
 
     public RelayCommand CancelCommand { get; }

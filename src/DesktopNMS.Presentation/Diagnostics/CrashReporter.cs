@@ -17,6 +17,7 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
     private bool _sendErrors;
     private bool _sendUsage;
     private bool _sendMetrics;
+    private bool _sendSessionHealth;
     private bool _usageRecorded;
     private bool _disposed;
     private long _generation;
@@ -32,11 +33,13 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
     }
 
     public bool IsAvailable => _transport.IsAvailable;
+    public CrashReportContext Context => CrashPayload.SafeContext(_context);
+    public event Action<CrashOrigin>? ManagedFailureObserved;
 
     public void Configure(string dataDirectory, bool sendErrors, bool sendUsage = false)
         => ConfigureMetrics(dataDirectory, sendErrors, sendUsage, false);
 
-    public void ConfigureMetrics(string dataDirectory, bool sendErrors, bool sendUsage, bool sendMetrics)
+    public void ConfigureMetrics(string dataDirectory, bool sendErrors, bool sendUsage, bool sendMetrics, bool sendSessionHealth = false)
     {
         lock (_gate)
         {
@@ -47,8 +50,9 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
                 sendErrors &= IsAvailable;
                 sendUsage &= IsAvailable;
                 sendMetrics &= sendUsage;
+                sendSessionHealth &= sendMetrics && sendErrors;
                 var enabled = sendErrors || sendUsage;
-                if (_directory == directory && _sendErrors == sendErrors && _sendUsage == sendUsage && _sendMetrics == sendMetrics)
+                if (_directory == directory && _sendErrors == sendErrors && _sendUsage == sendUsage && _sendMetrics == sendMetrics && _sendSessionHealth == sendSessionHealth)
                 {
                     if (!enabled) Purge(directory);
                     return;
@@ -57,6 +61,7 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
                 _sendErrors = sendErrors;
                 _sendUsage = sendUsage;
                 _sendMetrics = sendMetrics;
+                _sendSessionHealth = sendSessionHealth;
                 _generation++;
                 _consent.Cancel();
                 _consent.Dispose();
@@ -78,20 +83,27 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
     public void Capture(Exception exception, CrashOrigin origin)
     {
         var send = false;
-        lock (_gate)
+        Action<CrashOrigin>? observed = null;
+        try
         {
-            if (!_enabled || !_sendErrors || _disposed || _captured.TryGetValue(exception, out _)) return;
-            try
+            lock (_gate)
             {
-                var report = CrashPayload.Create(exception, origin, _context, _time.GetUtcNow());
-                if (!CrashPayload.IsValid(report)) return;
-                if (!Persist(report)) return;
-                _captured.Add(exception, new object());
-                ReadQueue();
-                send = origin == CrashOrigin.Command;
+                if (!_enabled || !_sendErrors || _disposed) return;
+                observed = ManagedFailureObserved;
+                if (_captured.TryGetValue(exception, out _)) return;
+                try
+                {
+                    var report = CrashPayload.Create(exception, origin, _context, _time.GetUtcNow());
+                    if (!CrashPayload.IsValid(report)) return;
+                    if (!Persist(report)) return;
+                    _captured.Add(exception, new object());
+                    ReadQueue();
+                    send = origin == CrashOrigin.Command;
+                }
+                catch (Exception) { }
             }
-            catch (Exception) { }
         }
+        finally { try { observed?.Invoke(origin); } catch (Exception) { } }
         if (send && Interlocked.CompareExchange(ref _pumpScheduled, 1, 0) == 0) _ = PumpAsync();
     }
 
@@ -123,6 +135,21 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
             {
                 var report = new MetricsReport(1, Guid.NewGuid(), points.Min(point => point.Timestamp), CrashPayload.SafeContext(_context), points);
                 return CrashPayload.IsValid(report) && Persist(report);
+            }
+            catch (Exception) { return false; }
+        }
+    }
+
+    public bool RecordSessionHealth(SessionHealthReport report)
+    {
+        lock (_gate)
+        {
+            if (!_enabled || !_sendSessionHealth || _disposed || !CrashPayload.IsValid(report)) return false;
+            try
+            {
+                // Recovery can retry the same terminal session after an interrupted save.
+                if (ReadQueue().Any(item => item.Report is SessionHealthReport && item.Report.EventId == report.EventId)) return true;
+                return Persist(report);
             }
             catch (Exception) { return false; }
         }
@@ -238,7 +265,7 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
                 var report = JsonSerializer.Deserialize<DiagnosticReport>(File.ReadAllBytes(path), CrashPayload.JsonOptions);
                 var now = _time.GetUtcNow();
                 if (report is null || !CrashPayload.IsValid(report) ||
-                    (report is CrashReport && !_sendErrors) || (report is UsageReport && !_sendUsage) || (report is MetricsReport && !_sendMetrics) || report.Timestamp < now.AddDays(-7) ||
+                    (report is CrashReport && !_sendErrors) || (report is UsageReport && !_sendUsage) || (report is MetricsReport && !_sendMetrics) || (report is SessionHealthReport && !_sendSessionHealth) || report.Timestamp < now.AddDays(-7) ||
                     report.Timestamp > now.AddMinutes(5) ||
                     (report is MetricsReport metrics && metrics.Points.Any(point => point.Timestamp > now.AddMinutes(5))) ||
                     Path.GetFileName(path) != report.EventId.ToString("N") + ".json")
