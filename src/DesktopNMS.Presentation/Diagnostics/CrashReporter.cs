@@ -111,11 +111,14 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
         }
     }
 
-    public bool RecordMetrics(IReadOnlyList<MetricPoint> points)
+    internal long ConsentGeneration { get { lock (_gate) return _generation; } }
+
+    public bool RecordMetrics(IReadOnlyList<MetricPoint> points, long? expectedGeneration = null)
     {
         lock (_gate)
         {
-            if (!_enabled || !_sendMetrics || _disposed) return false;
+            if (!_enabled || !_sendMetrics || _disposed ||
+                (expectedGeneration is { } generation && generation != _generation)) return false;
             try
             {
                 var report = new MetricsReport(1, Guid.NewGuid(), points.Min(point => point.Timestamp), CrashPayload.SafeContext(_context), points);

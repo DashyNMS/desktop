@@ -1,3 +1,4 @@
+using DesktopNMS.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -31,6 +32,8 @@ namespace DesktopNMS.ViewModels;
 /// </summary>
 public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 {
+    private readonly ScreenLoadTiming _screenLoad;
+
     private readonly int _deviceId;
     private readonly DeviceMonitor _deviceMonitor;
     private readonly SensorMonitor _sensorMonitor;
@@ -194,8 +197,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         IUnimusDeviceResolver unimusResolver,
         IGraylogApi graylog,
         IFleetLinks fleetLinks,
-        ILogger<DeviceDetailViewModel> logger)
+        ILogger<DeviceDetailViewModel> logger, IAppMetrics? metrics = null)
     {
+        _screenLoad = new ScreenLoadTiming(metrics, MetricArea.DeviceDetails);
+        _screenLoad.Begin(false);
         _deviceId = deviceId;
         _deviceMonitor = deviceMonitor;
         _sensorMonitor = sensorMonitor;
@@ -377,6 +382,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             _ = LoadConfigAsync();
         }
         _ = OverviewGraph.LoadAsync(_loadCts.Token);
+        if (HasLoaded) _screenLoad.Complete(MetricOutcome.Cached);
     }
 
     /// <summary>
@@ -2609,12 +2615,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     {
         if (!result.Succeeded)
         {
+            _screenLoad.Complete(MetricOutcome.Failed);
             return;
         }
 
         var device = result.Devices.FirstOrDefault(d => d.DeviceId == _deviceId);
         if (device is null)
         {
+            _screenLoad.Complete(MetricOutcome.Failed);
             // Removed from LibreNMS since the window opened - leave the last
             // known detail showing rather than blanking the window out.
             return;
@@ -2623,6 +2631,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _device = device;
         _isUnderMaintenance = result.DeviceIdsUnderMaintenance.Contains(_deviceId);
         RaiseDeviceChanged();
+        _screenLoad.Complete(MetricOutcome.Success);
     });
 
     private void OnSensorPolled(object? sender, SensorPollResult result) => _dispatcher.InvokeAsync(() =>
@@ -4590,6 +4599,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _screenLoad.Complete(MetricOutcome.Cancelled);
         Graylog.PropertyChanged -= OnGraylogPropertyChanged;
         Inventory.PropertyChanged -= OnInventoryPropertyChanged;
         Routing.PropertyChanged -= OnRoutingPropertyChanged;

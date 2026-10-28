@@ -1,3 +1,4 @@
+using DesktopNMS.Diagnostics;
 using System;
 using System.ComponentModel;
 using System.Linq;
@@ -29,6 +30,8 @@ public enum HealthCategory
 /// </summary>
 public sealed class HealthViewModel : ObservableObject, IDisposable
 {
+    private readonly ScreenLoadTiming _screenLoad;
+
     private readonly SensorMonitor _sensorMonitor;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
@@ -48,8 +51,9 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
         ISessionService session,
         ISettingsStore settings,
         IDeviceCache devices,
-        IWindowService windows)
+        IWindowService windows, IAppMetrics? metrics = null)
     {
+        _screenLoad = new ScreenLoadTiming(metrics, MetricArea.Health);
         _sensorMonitor = sensorMonitor;
         _session = session;
         _settings = settings;
@@ -204,8 +208,11 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
     /// nothing else has already (e.g. the Dashboard), and asks it to poll
     /// right away so this tab is not left empty until the next scheduled tick.
     /// </summary>
+    public void OnHidden() => _screenLoad.Complete(MetricOutcome.Cancelled);
+
     public void OnShown()
     {
+        if (_session.IsConnected) _screenLoad.Begin(_hasLoadedOnce);
         _sensorMonitor.Start();
 
         // Always started, never gated on _hasLoadedOnce: this view model
@@ -228,6 +235,13 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
     private void OnPolled(object? sender, SensorPollResult result) => _dispatcher.InvokeAsync(() => ApplyPollResult(result));
 
     internal void ApplyPollResult(SensorPollResult result)
+    {
+        try { ApplyPollResultCore(result); }
+        catch { _screenLoad.Complete(MetricOutcome.Failed); throw; }
+        _screenLoad.Complete(result.Succeeded ? MetricOutcome.Success : MetricOutcome.Failed);
+    }
+
+    private void ApplyPollResultCore(SensorPollResult result)
     {
         IsBusy = false;
         OnPropertyChanged(nameof(NextRefreshText));
@@ -288,6 +302,7 @@ public sealed class HealthViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _screenLoad.Complete(MetricOutcome.Cancelled);
         _autoRefresh.Dispose();
         Dbm.PropertyChanged -= OnCategoryPropertyChanged;
         Signal.PropertyChanged -= OnCategoryPropertyChanged;

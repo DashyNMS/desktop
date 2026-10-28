@@ -1,3 +1,4 @@
+using DesktopNMS.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -33,6 +34,8 @@ namespace DesktopNMS.ViewModels;
 /// </summary>
 public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetActions
 {
+    private readonly ScreenLoadTiming _screenLoad;
+
     /// <summary>How many steps Undo goes back (#276).</summary>
     private const int MaxUndo = 50;
 
@@ -92,8 +95,9 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         IFleetPorts fleetPorts,
         IGraylogApi graylog,
         IUnimusApi unimus,
-        ILogger<DashboardViewModel> logger)
+        ILogger<DashboardViewModel> logger, IAppMetrics? metrics = null)
     {
+        _screenLoad = new ScreenLoadTiming(metrics, MetricArea.Dashboard);
         _fleetPorts = fleetPorts;
         _graylog = graylog;
         _sensorMonitor = sensorMonitor;
@@ -602,8 +606,11 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
     /// nothing else has already (e.g. the Health tab), and asks it to poll
     /// right away so this tab is not left empty until the next scheduled tick.
     /// </summary>
+    public void OnHidden() => _screenLoad.Complete(MetricOutcome.Cancelled);
+
     public void OnShown()
     {
+        if (_session.IsConnected) _screenLoad.Begin(_hasLoadedOnce);
         _sensorMonitor.Start();
 
         // Always started, never gated on _hasLoadedOnce - see the matching
@@ -684,6 +691,13 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
     }
 
     private void ApplyPollResult(SensorPollResult result)
+    {
+        try { ApplyPollResultCore(result); }
+        catch { _screenLoad.Complete(MetricOutcome.Failed); throw; }
+        _screenLoad.Complete(result.Succeeded ? MetricOutcome.Success : MetricOutcome.Failed);
+    }
+
+    private void ApplyPollResultCore(SensorPollResult result)
     {
         IsBusy = false;
         OnPropertyChanged(nameof(NextRefreshText));
@@ -923,6 +937,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
 
     public void Dispose()
     {
+        _screenLoad.Complete(MetricOutcome.Cancelled);
         _autoRefresh.Dispose();
         Welcome.Dispose();
         _settings.Changed -= OnSettingsChanged;
