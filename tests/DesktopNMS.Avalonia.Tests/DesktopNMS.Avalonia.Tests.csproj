@@ -15,6 +15,7 @@
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" />
     <ProjectReference Include="../../src/DesktopNMS.Presentation/DesktopNMS.Presentation.csproj" />
+    <Compile Include="../../src/DesktopNMS.Avalonia/Infrastructure/StartupTimingObserver.cs" Link="StartupTimingObserver.cs" />
     <Compile Include="../../src/DesktopNMS.Avalonia/Infrastructure/MainWindowLifetime.cs" Link="MainWindowLifetime.cs" />
     <Compile Include="../../src/DesktopNMS.Avalonia/Infrastructure/MacFullScreenExit.cs" Link="MacFullScreenExit.cs" />
     <Compile Include="../../src/DesktopNMS.Avalonia/Views/Intelligence/IntelligenceObjectMenu.cs" Link="IntelligenceObjectMenu.cs" />

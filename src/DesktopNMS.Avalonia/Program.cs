@@ -9,6 +9,8 @@ namespace DesktopNMS;
 
 internal static class Program
 {
+    internal static StartupTiming Startup { get; } = new();
+
     internal static CrashReporter Reports { get; } = CreateReporter();
 
     internal static AppMetrics Metrics { get; } = new(Reports);

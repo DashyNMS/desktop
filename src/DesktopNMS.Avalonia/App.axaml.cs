@@ -43,6 +43,8 @@ public partial class App : Application
     private ServiceProvider? _services;
     private ILogger<App>? _logger;
     private MainWindow? _mainWindow;
+    private bool _startupMetricsAllowed;
+    internal bool StartupMetricsAllowed => _startupMetricsAllowed;
     private MainViewModel? _mainViewModel;
     private bool _restartFresh;
     private TrayIconService? _tray;
@@ -140,6 +142,7 @@ public partial class App : Application
 
         var settings = _services.GetRequiredService<ISettingsStore>();
         settings.Load();
+        _startupMetricsAllowed = !_demo.IsActive && DiagnosticsConsent.Metrics(settings.Current);
         ApplyDiagnosticsSharing(settings.Current);
         settings.Changed += (_, current) => ApplyDiagnosticsSharing(current);
         // Installation definitions are independent of the account profile wiped at sign-out.
@@ -181,6 +184,7 @@ public partial class App : Application
 
         _mainViewModel = _services.GetRequiredService<MainViewModel>();
         _mainWindow = new MainWindow(_mainViewModel, settings);
+        StartupTimingObserver.Observe(_mainWindow, Program.Startup, Program.Metrics, () => _startupMetricsAllowed);
         _mainWindow.Activated += (_, _) => ScheduleWhatsNew();
         var windows = _services.GetRequiredService<WindowService>();
         windows.AttachMainWindow(_mainWindow);
@@ -211,6 +215,10 @@ public partial class App : Application
         {
             _mainWindow.Show();
         }
+
+        if (hasSavedSession && startHidden && CanLiveInTray)
+            Dispatcher.UIThread.Post(() => Program.Startup.Ready(Program.Metrics, _startupMetricsAllowed,
+                MetricMode.Background), DispatcherPriority.Loaded);
 
         // The tray follows the app's state as it changes, not just on each
         // poll (#232): signing in, failover, a ready update, an acknowledgement.
@@ -314,6 +322,7 @@ public partial class App : Application
 
         _mainViewModel.IsSigningIn = true;
         ConnectionTestResult? restored;
+        Program.Startup.PauseForSessionRestore();
         try
         {
             restored = await session.TryRestoreAsync().ConfigureAwait(true);
@@ -333,6 +342,7 @@ public partial class App : Application
         finally
         {
             _mainViewModel.IsSigningIn = false;
+            Program.Startup.ResumeAfterSessionRestore();
         }
 
         if (restored is not { Succeeded: true })

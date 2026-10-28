@@ -131,8 +131,8 @@ The catalogue reserves counters for feature use, update outcomes and UI stalls;
 distributions for startup, screen loads, API calls, Intelligence response/first
 response and stall durations (milliseconds); and gauges for working set and
 managed heap (bytes). Names use `dashynms.*`; each point has release, OS,
-architecture and fixed `mode`, `area` and `outcome` attributes. These are delivery
-capabilities: individual instrumentation remains in #499–507, not this change.
+architecture and fixed `mode`, `area` and `outcome` attributes. Individual instrumentation is introduced separately; startup timing is
+described below.
 
 Counters are summed per built-in series, capped at 1,000,000 per buffer.
 Durations/gauges retain the first and every tenth observation per series.
@@ -146,6 +146,32 @@ affected reports. Launch-only consent also purges broader queued metrics.
 Capacity/expiry drops and at-least-once retries mean counts are approximate;
 sampled durations are not exact population percentiles. Do not scale sampled
 gauges as counts or infer users/retention from these measurements.
+
+Startup timing (`dashynms.startup.duration`, milliseconds) starts at the first
+Program static field initialisation, before the reporter and Avalonia setup.
+It is a managed-entry proxy for process startup: OS process creation and CLR
+loading before that point are excluded. Interactive readiness is the first
+main or sign-in window's `Opened` callback followed by dispatcher `Loaded`
+priority (after layout/render, before input). Subsequent shows and tray restores
+do not generate a second observation. Hidden startup completes at the first
+`Loaded` dispatcher turn after the main window and tray are configured and is
+labelled `mode:background`; visible/sign-in startup uses `mode:interactive`.
+
+Initial session restoration, including network and certificate confirmation,
+is explicitly paused out of the monotonic duration. Screen/network data loading
+is not a startup completion condition. Time uses `TimeProvider.GetTimestamp` /
+`GetElapsedTime`, never wall-clock subtraction. A random 10% of eligible starts
+is retained; durations over five minutes are discarded to bound debugger/sleep
+outliers. Consent must already cover metrics at startup; accepting the prompt
+cannot retrospectively report this launch. Demo/screenshot modes are excluded.
+
+In Sentry Explore → Metrics, select `dashynms.startup.duration`, filter by
+`sentry.release`, `operating_system` and `architecture`, and split by `mode`.
+Use `p50(value,dashynms.startup.duration,distribution,millisecond)` for the median
+and `p95(value,dashynms.startup.duration,distribution,millisecond)` for slow-case
+startup. Never combine background and interactive starts into one percentile.
+Small sampled populations and bounded delivery make these estimates, not
+complete installation-wide measurements.
 
 GitHub builds read the public ingestion address from the repository variable
 `SENTRY_DSN`. For local builds, set `DASHYNMS_SENTRY_DSN` before publishing. The
