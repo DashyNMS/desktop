@@ -30,7 +30,10 @@ public sealed class CrashReportingTests
         Assert.All(handler.Bodies, body =>
         {
             using var payload = JsonDocument.Parse(body.Split('\n', StringSplitOptions.RemoveEmptyEntries)[2]);
-            Assert.Equal(release, payload.RootElement.GetProperty("release").GetString());
+            var root = payload.RootElement;
+            Assert.Equal(release, root.TryGetProperty("items", out var metrics)
+                ? metrics[0].GetProperty("attributes").GetProperty("sentry.release").GetProperty("value").GetString()
+                : root.GetProperty("release").GetString());
         });
     }
 
@@ -268,12 +271,20 @@ public sealed class CrashReportingTests
         var body = Assert.Single(handler.Bodies);
         AssertSafe(body);
         using var payload = JsonDocument.Parse(body.Split('\n', StringSplitOptions.RemoveEmptyEntries)[2]);
-        Assert.Equal("app_start", payload.RootElement.GetProperty("message").GetString());
-        Assert.Equal("dashynms.usage", payload.RootElement.GetProperty("logger").GetString());
-        Assert.Equal("info", payload.RootElement.GetProperty("level").GetString());
-        Assert.False(payload.RootElement.TryGetProperty("exception", out _));
-        Assert.Equal(new[] { "event_id", "level", "logger", "message", "platform", "release", "tags", "timestamp" },
-            payload.RootElement.EnumerateObject().Select(property => property.Name).Order());
+        using var item = JsonDocument.Parse(body.Split('\n', StringSplitOptions.RemoveEmptyEntries)[1]);
+        Assert.Equal("trace_metric", item.RootElement.GetProperty("type").GetString());
+        Assert.Equal(1, item.RootElement.GetProperty("item_count").GetInt32());
+        Assert.Equal("application/vnd.sentry.items.trace-metric+json", item.RootElement.GetProperty("content_type").GetString());
+        Assert.Equal("never", payload.RootElement.GetProperty("ingest_settings").GetProperty("infer_ip").GetString());
+        Assert.Equal("never", payload.RootElement.GetProperty("ingest_settings").GetProperty("infer_user_agent").GetString());
+        var metric = Assert.Single(payload.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal("dashynms.app_start", metric.GetProperty("name").GetString());
+        Assert.Equal("counter", metric.GetProperty("type").GetString());
+        Assert.Equal(1, metric.GetProperty("value").GetInt32());
+        Assert.Equal(new[] { "attributes", "name", "timestamp", "trace_id", "type", "value" },
+            metric.EnumerateObject().Select(property => property.Name).Order());
+        Assert.Equal(new[] { "architecture", "operating_system", "sentry.release", "sentry.sdk.name", "sentry.sdk.version", "sentry.timestamp.sequence" },
+            metric.GetProperty("attributes").EnumerateObject().Select(property => property.Name).Order());
         reporter.Configure(folder.Path, false, false);
         reporter.Configure(folder.Path, false, true);
         reporter.RecordUsage();
@@ -337,6 +348,60 @@ public sealed class CrashReportingTests
         Assert.Equal(2, transport.Reports.Count);
         Assert.IsType<UsageReport>(transport.Reports[1]);
         Assert.Empty(Pending(folder.Path));
+    }
+
+    [Fact]
+    public async Task Previously_queued_launch_is_sent_as_a_metric_with_its_original_time()
+    {
+        using var folder = new TemporaryFolder();
+        var clock = new Clock();
+        using (var previous = new CrashReporter(Context, new FakeTransport(), clock))
+        {
+            previous.Configure(folder.Path, false, true);
+            previous.RecordUsage();
+        }
+        var original = clock.GetUtcNow();
+        clock.Advance(TimeSpan.FromDays(6));
+        var handler = new RecordingHandler();
+        using var restarted = new CrashReporter(Context,
+            new SentryCrashTransport("https://publickey@collector.invalid/123", handler), clock);
+        restarted.Configure(folder.Path, false, true);
+        await restarted.SendPendingAsync();
+        Assert.Empty(Pending(folder.Path));
+        var lines = Assert.Single(handler.Bodies).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        using var item = JsonDocument.Parse(lines[1]);
+        using var payload = JsonDocument.Parse(lines[2]);
+        Assert.Equal("trace_metric", item.RootElement.GetProperty("type").GetString());
+        Assert.Equal(original.ToUnixTimeMilliseconds() / 1000.0,
+            payload.RootElement.GetProperty("items")[0].GetProperty("timestamp").GetDouble());
+    }
+
+    [Theory]
+    [InlineData(true, "trace_metric", true)]
+    [InlineData(true, "error", false)]
+    [InlineData(false, "error", true)]
+    [InlineData(false, "trace_metric", false)]
+    [InlineData(true, "", true)]
+    public async Task Successful_delivery_reads_only_the_relevant_rate_limit(bool usage, string category, bool limited)
+    {
+        var handler = new RecordingHandler
+        {
+            Response = () =>
+            {
+                var response = new HttpResponseMessage(HttpStatusCode.OK);
+                response.Headers.TryAddWithoutValidation("X-Sentry-Rate-Limits", $"180:{category}:organization");
+                return response;
+            },
+        };
+        using var transport = new SentryCrashTransport("https://publickey@collector.invalid/123", handler);
+        var context = Context with { Architecture = "x64" };
+        DiagnosticReport report = usage
+            ? new UsageReport(1, Guid.NewGuid(), DateTimeOffset.UtcNow, context)
+            : new CrashReport(1, Guid.NewGuid(), DateTimeOffset.UtcNow, context, CrashOrigin.Application,
+                [new CrashException("System.Exception", [])]);
+        var result = await transport.SendAsync(report, CancellationToken.None);
+        Assert.Equal(CrashSendDisposition.Accepted, result.Disposition);
+        Assert.Equal(limited ? TimeSpan.FromSeconds(180) : (TimeSpan?)null, result.RetryAfter);
     }
 
     private static Exception SensitiveException()
