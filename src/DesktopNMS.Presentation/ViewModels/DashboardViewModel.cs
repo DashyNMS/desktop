@@ -35,6 +35,7 @@ namespace DesktopNMS.ViewModels;
 public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetActions
 {
     private readonly ScreenLoadTiming _screenLoad;
+    private readonly FeatureMetrics _featureMetrics;
 
     /// <summary>How many steps Undo goes back (#276).</summary>
     private const int MaxUndo = 50;
@@ -97,6 +98,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         IUnimusApi unimus,
         ILogger<DashboardViewModel> logger, IAppMetrics? metrics = null)
     {
+        _featureMetrics = new FeatureMetrics(metrics);
         _screenLoad = new ScreenLoadTiming(metrics, MetricArea.Dashboard);
         _fleetPorts = fleetPorts;
         _graylog = graylog;
@@ -214,6 +216,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
             }
 
             _editStart = value ? _layout.Snapshot() : null;
+            if (value) _featureMetrics.EnteredDashboardEdit();
             if (!value)
             {
                 SelectedWidget = null;
@@ -880,6 +883,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         }
 
         _layout.AddWidgets(models);
+        foreach (var model in models) _featureMetrics.WidgetAdded(model.WidgetType);
 
         DashboardWidgetViewModel? last = null;
         foreach (var model in models)
