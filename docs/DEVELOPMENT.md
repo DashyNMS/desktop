@@ -923,3 +923,76 @@ Larger pieces of work have an epic issue that lists its parts in order:
 
 Issues are labelled by kind: `bug`, `Feature`, `enhancement`, `UI/UX`,
 `Performance`, `accessibility`, `documentation`, `.NET` or `github_actions`.
+
+### macOS Relaunch updates
+
+The shared update service continues to select stable/preview releases and the
+running process architecture, honour the download preference, and verify the
+GitHub asset URL, size and SHA-256. On macOS, `dashynms-update` then stages a
+complete bundle in a private `.DashyNMS-update-<UUID>` folder beside the installed
+app. Relaunch becomes available only after platform preparation succeeds.
+
+The supported unattended path is a user-owned `~/Applications/DashyNMS.app`,
+or an installation directly in `/Applications` where both the app and its parent
+are writable by the current user. Disk images, translocated apps, symlinked paths,
+other locations and destinations without atomic exchange support are refused.
+The helper does not elevate, modify Gatekeeper settings or strip quarantine.
+An administrator-managed installation retains its manual installation route.
+
+The updater requires the exact `DashyNMSReleaseVersion` (including preview suffix),
+bundle identifier, matching native architecture, Developer ID Application
+signature from the installed app's team, Apple notarisation and Gatekeeper
+acceptance. It also verifies the bundled MCP executable against its sealed
+version metadata. These runtime checks use macOS system facilities; installing
+Xcode or command-line developer tools is not required.
+
+On Relaunch, a copy of the currently installed helper outside the app revalidates
+the candidate and obtains a destination lock. Only then does the app shut down,
+stopping MCP and releasing its profile lock. The helper waits for termination
+and refuses replacement if another copy is running. `RENAME_SWAP` exchanges the
+entire staged and installed bundles on the same filesystem. The original path
+always contains a complete bundle; the old bundle remains as `Previous.app`.
+
+The helper launches the exact new executable once. A token, exact release version
+and process ID receipt confirms that managed startup claimed the profile and
+reached the UI dispatcher. Network sign-in is not a health requirement. If the
+new process fails to confirm within two minutes, the helper asks it to terminate,
+restores the old bundle and attempts one restart. If the process cannot stop,
+replacement is not reversed underneath it; the prior bundle remains recoverable.
+The updater never changes the user's profile, Keychain, dashboards or login/tray
+preferences. As with any binary rollback, future incompatible profile migrations
+would need their own recovery design.
+
+`transaction.json`, `state.json` and, on failure, `failure.json` describe recovery
+inside the transaction folder. After quitting all copies of DashyNMS, a retained
+transaction can be restored explicitly with:
+
+```bash
+"/Applications/.DashyNMS-update-<UUID>/apply" recover "/Applications/.DashyNMS-update-<UUID>"
+```
+
+For a user installation, substitute `~/Applications` using an expanded absolute
+path. Recovery verifies both bundle fingerprints before swapping; a transaction
+from an older, unrelated installation is refused. A successful update keeps its
+previous bundle. Older confirmed transactions are removed only after a subsequent
+update confirms startup; incomplete transactions are retained for investigation.
+
+Development packages remain ad-hoc signed. To test a dev-to-preview upgrade,
+set the public `MACOS_UPDATE_TEAM_ID` repository variable (or environment variable
+for a local package build) to the Developer ID team's ten-character identifier.
+It can be read from `codesign --display --verbose=4` on a trusted distribution
+bundle (`TeamIdentifier`). No signing private key is needed for the dev build.
+An unpinned ad-hoc build refuses to learn a publisher from its download. The
+protected distribution build also embeds the team derived from its configured
+signing identity. Both source and target must contain this updater; older public
+builds still use the manual DMG route for their first upgrade.
+
+Install the updater-enabled dev bundle in a supported location, opt into previews,
+and upgrade to the upcoming signed preview on Intel and Apple Silicon. Check
+settings/sign-ins, native MCP version, tray/login preferences, one restart and
+#509's release-notes behaviour. Repeat with automatic downloads disabled, an
+interrupted download, invalid signature/version/architecture, failed launch,
+shutdown timeout and an unwritable destination. Native atomic replacement and
+injected restart/recovery failures run in CI on both architectures. This feature
+is deliberately omitted from the upcoming preview's public notes; public mention
+is deferred until preview 11 after the real upgrade has been verified.

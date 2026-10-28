@@ -43,6 +43,22 @@ jobs:
         if: runner.os == 'Linux'
         run: xvfb-run -a dotnet run --project tools/WebSignInSmoke
 
+  macos-update:
+    name: macOS update (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compile the shipping updater
+        run: swiftc -swift-version 5 -parse-as-library -target "$(uname -m)-apple-macos13" tools/macos/Update.swift -o "$RUNNER_TEMP/dashynms-update"
+      - name: Test native replacement and recovery
+        run: |
+          swiftc -swift-version 5 -D UPDATE_TESTS -parse-as-library tools/macos/Update.swift tools/macos/UpdateTests.swift -o "$RUNNER_TEMP/update-tests"
+          "$RUNNER_TEMP/update-tests"
+
   build-and-test:
     name: Build and test
     runs-on: windows-latest
@@ -105,7 +121,7 @@ jobs:
 
       - name: Compile the macOS notification bridge
         if: runner.os == 'macOS'
-        run: swiftc -swift-version 5 -target "$(uname -m)-apple-macos13" -emit-library tools/macos/Notifications.swift -o "$RUNNER_TEMP/libdashynms-notifications.dylib"
+        run: swiftc -swift-version 5 -parse-as-library -target "$(uname -m)-apple-macos13" -emit-library tools/macos/Notifications.swift -o "$RUNNER_TEMP/libdashynms-notifications.dylib"
       - name: Compile the macOS login-item helper
         if: runner.os == 'macOS'
         run: swiftc tools/macos/LoginItem.swift -o "$RUNNER_TEMP/dashynms-login"

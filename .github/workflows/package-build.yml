@@ -68,6 +68,7 @@ permissions:
 env:
   DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   DASHYNMS_SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+  MACOS_UPDATE_TEAM_ID: ${{ vars.MACOS_UPDATE_TEAM_ID }}
 
 jobs:
   version:

@@ -125,7 +125,7 @@ try {
     $app = Join-Path $image 'DashyNMS.app'
     $mac = Join-Path $app 'Contents/MacOS'
     New-Item "$mac/mcp" -ItemType Directory -Force | Out-Null
-    foreach ($file in @('DashyNMS','dashynms-login','libdashynms-notifications.dylib',
+    foreach ($file in @('DashyNMS','dashynms-login','dashynms-update','libdashynms-notifications.dylib',
         'mcp/dashynms-mcp','mcp/libcoreclr.dylib','other-native.so')) {
         [IO.File]::WriteAllBytes((Join-Path $mac $file), [byte[]]@(0xCF,0xFA,0xED,0xFE))
     }
@@ -142,18 +142,18 @@ try {
     Run-Packager $app $image $diskImage
     $calls = @(Get-Calls)
     $signs = @($calls | Where-Object { $_.Tool -eq 'codesign' -and $_.Arguments -contains '--sign' })
-    Require ($signs.Count -eq 7) 'Every nested native file, app bundle and disk image must be signed.'
+    Require ($signs.Count -eq 8) 'Every nested native file, app bundle and disk image must be signed.'
     $nestedPaths = @([IO.Path]::GetFullPath("$mac/mcp/dashynms-mcp"),[IO.Path]::GetFullPath("$mac/mcp/libcoreclr.dylib"))
     Require ($signs[0].Arguments[-1] -in $nestedPaths -and $signs[1].Arguments[-1] -in $nestedPaths) 'Nested MCP code was not signed first.'
-    Require ($signs[5].Arguments[-1] -eq $app) 'App bundle must seal the nested signatures.'
-    Require $signs[5].McpMetadataMatches 'MCP metadata must match the signed executable before sealing the app bundle.'
+    Require ($signs[6].Arguments[-1] -eq $app) 'App bundle must seal the nested signatures.'
+    Require $signs[6].McpMetadataMatches 'MCP metadata must match the signed executable before sealing the app bundle.'
     $metadata = Get-Content (Join-Path $resources 'version.json') -Raw | ConvertFrom-Json
     Require ($metadata.Version -eq $version -and $metadata.Commit -eq ('a' * 40) -and $metadata.Runtime -eq 'osx-arm64') 'Signing changed MCP build identity.'
 
-    Require ($signs[6].Arguments[-1] -eq $diskImage) 'Disk image was not signed last.'
+    Require ($signs[7].Arguments[-1] -eq $diskImage) 'Disk image was not signed last.'
     Require (@($signs | Where-Object { $_.Arguments[-1] -eq [IO.Path]::GetFullPath("$mac/DashyNMS") }).Count -eq 0) 'Signing the main app executable separately can seal the bundle before its helper signatures exist.'
     $nestedSignatures = @($signs | Where-Object { $_.Arguments[-1] -ne $app -and $_.Arguments[-1] -ne $diskImage })
-    foreach ($nestedPath in @('dashynms-login','libdashynms-notifications.dylib','other-native.so','mcp/dashynms-mcp','mcp/libcoreclr.dylib')) {
+    foreach ($nestedPath in @('dashynms-login','dashynms-update','libdashynms-notifications.dylib','other-native.so','mcp/dashynms-mcp','mcp/libcoreclr.dylib')) {
         Require (@($nestedSignatures | Where-Object { $_.Arguments[-1] -eq [IO.Path]::GetFullPath("$mac/$nestedPath") }).Count -eq 1) 'Nested code was not signed before the bundle.'
     }
     foreach ($sign in $signs) {

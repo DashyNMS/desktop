@@ -48,6 +48,19 @@ public sealed class DesktopUpdateTests : IDisposable
     }
 
     [Fact]
+    public async Task An_unsupported_installation_explains_the_manual_route_without_downloading()
+    {
+        _installation.Runtime = null;
+        _installation.UnavailableReason = "Move DashyNMS to your user Applications folder.";
+        using var service = Create();
+        await service.CheckAsync(true); await service.WhenIdle;
+        Assert.False(service.CanInstallUpdate); Assert.Null(service.ReadyUpdate);
+        Assert.Equal(0, _download.Calls);
+        Assert.Equal(_installation.UnavailableReason, service.InstallationError);
+        Assert.False(await service.InstallAsync());
+    }
+
+    [Fact]
     public async Task Notifications_only_checks_announce_once_without_fetching_a_package()
     {
         _settings.Current.DownloadUpdatesAutomatically = false;
@@ -227,15 +240,79 @@ public sealed class DesktopUpdateTests : IDisposable
     }
 
     [Fact]
-    public async Task Opening_a_mac_disk_image_does_not_shutdown_the_app()
+    public async Task A_prepared_mac_update_offers_relaunch_and_shuts_down_after_handoff()
     {
-        _installation.Runtime = "osx-arm64"; _installation.RestartsApp = false; _installation.ActionText = "Open update disk image";
+        _installation.Runtime = "osx-arm64"; _installation.ActionText = "Relaunch";
         _releases.Latest = Release("2.1.0", "osx-arm64");
         using var service = Create(); var exits = 0; service.InstallStarted += (_, _) => exits++;
         await service.CheckAsync(false); await service.WhenIdle;
         Assert.EndsWith("osx-arm64.dmg", service.ReadyUpdate!.InstallerPath);
-        Assert.Equal("Open update disk image", service.UpdateActionText);
-        Assert.True(await service.InstallAsync()); Assert.Equal(0, exits);
+        Assert.Equal("Relaunch", service.UpdateActionText);
+        Assert.True(await service.InstallAsync()); Assert.Equal(1, exits);
+    }
+
+    [Theory]
+    [InlineData("osx-arm64", "2.0.0-preview.pr.536.123.1")]
+    [InlineData("osx-x64", "2.0.0-preview.pr.536.123.1")]
+    [InlineData("osx-arm64", "2.0.0-preview.ci.123.1")]
+    [InlineData("osx-x64", "2.0.0-preview.ci.123.1")]
+    public async Task A_development_package_can_offer_the_numbered_public_preview(string runtime, string developmentVersion)
+    {
+        _installation.Runtime = runtime;
+        var preview = Release("2.0.0-preview.10", runtime); preview.Prerelease = true;
+        _releases.All = new[] { preview };
+        using var service = Create(currentVersion: developmentVersion);
+        Assert.True((await service.CheckAsync(false, includePreviewBuildsOverride: true)).IsNewerVersionAvailable);
+        await service.WhenIdle;
+        Assert.Equal("v2.0.0-preview.10", service.ReadyUpdate?.Version);
+        Assert.EndsWith(runtime + ".dmg", service.ReadyUpdate!.InstallerPath);
+    }
+
+    [Fact]
+    public async Task Relaunch_is_not_offered_until_platform_validation_finishes()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var held = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _installation.Prepare = async (path, version, token) =>
+        {
+            Assert.True(File.Exists(path)); Assert.Equal("v2.1.0", version);
+            started.SetResult(); await held.Task.WaitAsync(token);
+        };
+        using var service = Create();
+        await service.CheckAsync(true);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Null(service.ReadyUpdate); Assert.True(service.IsDownloading); Assert.Equal(0, _announcements.Calls);
+        held.SetResult(); await service.WhenIdle;
+        Assert.NotNull(service.ReadyUpdate); Assert.True(_announcements.Ready);
+    }
+
+    [Fact]
+    public async Task A_platform_trust_or_permission_failure_keeps_the_app_running_and_explains_why()
+    {
+        _installation.Prepare = (_, _, _) => throw new IOException("Move DashyNMS to your user Applications folder.");
+        using var service = Create(); var exits = 0; service.InstallStarted += (_, _) => exits++;
+        await service.CheckAsync(true); await service.WhenIdle;
+        Assert.Null(service.ReadyUpdate); Assert.False(_announcements.Ready);
+        Assert.False(await service.InstallAsync()); Assert.Equal(0, exits); Assert.Equal(0, _installation.Calls);
+        Assert.Equal("Move DashyNMS to your user Applications folder.", service.InstallationError);
+    }
+
+    [Fact]
+    public async Task A_channel_change_cannot_publish_a_platform_preparation_that_completed_late()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var held = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _installation.Prepare = async (_, _, _) => { started.SetResult(); await held.Task; };
+        var preview = Release("2.2.0-preview.1"); preview.Prerelease = true;
+        _releases.All = new[] { preview };
+        using var service = Create();
+        await service.CheckAsync(false, includePreviewBuildsOverride: true);
+        var preparing = service.WhenIdle;
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        _releases.Latest = Release("2.0.0");
+        await service.CheckAsync(false, includePreviewBuildsOverride: false);
+        held.SetResult(); await preparing;
+        Assert.Null(service.ReadyUpdate); Assert.False(await service.InstallAsync());
     }
 
     [Fact]
@@ -435,6 +512,9 @@ public sealed class DesktopUpdateTests : IDisposable
     private sealed class Installation : IUpdateInstallation
     {
         public string? Runtime { get; set; } = "win-x64"; public string ActionText { get; set; } = "Restart to update"; public bool RestartsApp { get; set; } = true;
+        public string? UnavailableReason { get; set; }
+        public Func<string, string, CancellationToken, Task>? Prepare;
+        public Task PrepareAsync(string package, string version, CancellationToken token) => Prepare?.Invoke(package, version, token) ?? Task.CompletedTask;
         public int Calls; public Task<bool> InstallAsync(string package) { Assert.True(File.Exists(package)); Calls++; return Task.FromResult(true); }
     }
     private sealed class Announcements : IUpdateAnnouncements

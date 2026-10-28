@@ -78,10 +78,18 @@ try {
         Copy-Item "$publish/mcp/LICENSE","$publish/mcp/BUILD.txt","$publish/mcp/version.json" "$resources/mcp"
         Copy-Item "$publish/LICENSE","$publish/BUILD.txt" $resources
         $architecture=if ($Runtime -eq 'osx-arm64') { 'arm64' } else { 'x86_64' }
-        swiftc -swift-version 5 -target "$architecture-apple-macos13" -emit-library tools/macos/Notifications.swift -o "$mac/libdashynms-notifications.dylib"
+        swiftc -swift-version 5 -parse-as-library -target "$architecture-apple-macos13" -emit-library tools/macos/Notifications.swift -o "$mac/libdashynms-notifications.dylib"
         Check-Native 'Compile notifications'
         swiftc -target "$architecture-apple-macos13" tools/macos/LoginItem.swift -o "$mac/dashynms-login"
         Check-Native 'Compile login helper'
+        swiftc -swift-version 5 -parse-as-library -target "$architecture-apple-macos13" tools/macos/Update.swift -o "$mac/dashynms-update"
+        Check-Native 'Compile update helper'
+        # This is a public identifier, not a credential. Distribution hosts also
+        # derive trust from their own Developer ID signature; ad-hoc dev builds
+        # need an explicit pin to test upgrading to a signed preview.
+        $updateTeam = $env:MACOS_UPDATE_TEAM_ID
+        if ($MacOSDistribution -and $env:MACOS_SIGNING_IDENTITY -match '\(([A-Z0-9]{10})\)$') { $updateTeam = $Matches[1] }
+        if ($updateTeam -and $updateTeam -notmatch '^[A-Z0-9]{10}$') { throw 'Invalid public macOS update team identifier.' }
         $iconset=Join-Path $stage 'DashyNMS.iconset'; New-Item $iconset -ItemType Directory | Out-Null
         foreach ($size in @(16,32,128,256,512)) {
             sips -z $size $size $png --out "$iconset/icon_${size}x${size}.png" | Out-Null; Check-Native 'Build app icon'
@@ -102,17 +110,19 @@ try {
 <key>CFBundleIconFile</key><string>DashyNMS.icns</string>
 <key>CFBundleShortVersionString</key><string>$numeric</string>
 <key>CFBundleVersion</key><string>$numeric</string>
+<key>DashyNMSReleaseVersion</key><string>$Version</string>
+<key>DashyNMSUpdateTeamIdentifier</key><string>$updateTeam</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 "@ | Set-Content "$contents/Info.plist" -Encoding utf8NoBOM
-        chmod +x "$mac/DashyNMS" "$mac/dashynms-login" "$mac/mcp/$mcpName"; Check-Native 'Mark bundle executables'
+        chmod +x "$mac/DashyNMS" "$mac/dashynms-login" "$mac/dashynms-update" "$mac/mcp/$mcpName"; Check-Native 'Mark bundle executables'
         New-Item (Join-Path $image 'Applications') -ItemType SymbolicLink -Target /Applications | Out-Null
         $diskImage = "$output/DashyNMS-$Version-$Runtime.dmg"
         if ($MacOSDistribution) {
             & "$PSScriptRoot/macos/Publish-Distribution.ps1" -App $app -ImageDirectory $image -DiskImage $diskImage
         } else {
-            foreach ($file in Get-ChildItem $mac -Recurse -File | Where-Object { $_.Extension -eq '.dylib' -or $_.Name -in @('dashynms-login',$mcpName) }) {
+            foreach ($file in Get-ChildItem $mac -Recurse -File | Where-Object { $_.Extension -eq '.dylib' -or $_.Name -in @('dashynms-login','dashynms-update',$mcpName) }) {
                 codesign --force --sign - $file.FullName; Check-Native 'Sign native code'
             }
             . "$PSScriptRoot/Mcp-VersionMetadata.ps1"

@@ -38,12 +38,14 @@ try {
             Invoke-MacTool spctl @('--assess','--type','execute','--verbose=2',$app) -Operation AssessTrust | Out-Null
             Invoke-MacTool spctl @('--assess','--type','open','--context','context:primary-signature','--verbose=2',$diskImage) -Operation AssessTrust | Out-Null
         }
-        foreach ($file in @('DashyNMS','dashynms-login','libdashynms-notifications.dylib')) {
+        foreach ($file in @('DashyNMS','dashynms-login','dashynms-update','libdashynms-notifications.dylib')) {
             if (-not (Test-Path "$app/Contents/MacOS/$file" -PathType Leaf)) { throw "Missing packaged file: $file" }
         }
         foreach ($file in @('LICENSE','BUILD.txt','mcp/LICENSE','mcp/BUILD.txt')) {
             if (-not (Test-Path "$app/Contents/Resources/$file" -PathType Leaf)) { throw "Missing packaged resource: $file" }
         }
+        $release = (& /usr/libexec/PlistBuddy -c 'Print :DashyNMSReleaseVersion' "$app/Contents/Info.plist").Trim()
+        if ($LASTEXITCODE -ne 0 -or $release -cne $Version) { throw 'Incorrect exact Mac release identity.' }
         $screenshots = Join-Path $verify 'demo-screenshots'
         $start = [Diagnostics.ProcessStartInfo]::new("$app/Contents/MacOS/DashyNMS")
         $start.UseShellExecute = $false

@@ -1,13 +1,13 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
-using Avalonia.Threading;
 
 namespace DesktopNMS.Services;
 
 /// <summary>Use the installer owned by the running package; package managers retain control on Linux.</summary>
-public sealed class PlatformUpdateInstallation(IWindowService windows) : IUpdateInstallation
+public sealed class PlatformUpdateInstallation : IUpdateInstallation
 {
+    private readonly MacUpdateInstallation? _mac = OperatingSystem.IsMacOS() ? new() : null;
     private readonly string? _appImage = Environment.GetEnvironmentVariable("APPIMAGE");
     public string? Runtime
     {
@@ -16,14 +16,18 @@ public sealed class PlatformUpdateInstallation(IWindowService windows) : IUpdate
             var architecture = RuntimeInformation.ProcessArchitecture switch { Architecture.X64 => "x64", Architecture.Arm64 => "arm64", _ => null };
             if (architecture is null) return null;
             if (OperatingSystem.IsWindows()) return architecture == "x64" ? "win-x64" : null;
-            if (OperatingSystem.IsMacOS()) return "osx-" + architecture;
+            if (OperatingSystem.IsMacOS()) return _mac?.UnavailableReason is null ? "osx-" + architecture : null;
             if (OperatingSystem.IsLinux() && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FLATPAK_ID"))
                 && _appImage is not null && Path.IsPathFullyQualified(_appImage) && File.Exists(_appImage)) return "linux-" + architecture;
             return null;
         }
     }
-    public bool RestartsApp => !OperatingSystem.IsMacOS();
-    public string ActionText => OperatingSystem.IsMacOS() ? "Open update disk image" : "Restart to update";
+    public string? UnavailableReason => _mac?.UnavailableReason;
+    public bool RestartsApp => true;
+    public string ActionText => OperatingSystem.IsMacOS() ? "Relaunch" : "Restart to update";
+
+    public Task PrepareAsync(string verifiedPackage, string version, CancellationToken cancellationToken) =>
+        _mac?.PrepareAsync(verifiedPackage, version, cancellationToken) ?? Task.CompletedTask;
 
     public async Task<bool> InstallAsync(string verifiedPackage)
     {
@@ -39,14 +43,7 @@ public sealed class PlatformUpdateInstallation(IWindowService windows) : IUpdate
             foreach (var argument in new[] { "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(command)) }) start.ArgumentList.Add(argument);
             return Process.Start(start) is not null;
         }
-        if (OperatingSystem.IsMacOS())
-        {
-            await Dispatcher.UIThread.InvokeAsync(() => windows.ShowInformation("Install the update",
-                "The verified disk image will open in Finder. Quit DashyNMS, drag the new app into Applications to replace it, then open DashyNMS again. Your saved settings stay in place."));
-            var start = new ProcessStartInfo("/usr/bin/open") { UseShellExecute = false };
-            start.ArgumentList.Add(verifiedPackage);
-            return Process.Start(start) is not null;
-        }
+        if (_mac is not null) return await _mac.InstallAsync(verifiedPackage).ConfigureAwait(false);
         if (OperatingSystem.IsLinux() && Runtime is not null && _appImage is not null)
         {
             return AppImageReplacement.Apply(verifiedPackage, _appImage, path =>

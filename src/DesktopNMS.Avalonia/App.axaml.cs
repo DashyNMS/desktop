@@ -77,6 +77,10 @@ public partial class App : Application
     private void Start(IClassicDesktopStyleApplicationLifetime desktop)
     {
         var args = desktop.Args ?? [];
+        if (!MacUpdateInstallation.CanStartDuringUpdate())
+        {
+            desktop.Shutdown(); return;
+        }
 
         // Demo mode (DemoMode): the whole app on an example network, in its own
         // data folder emptied each time - the real settings are never touched.
@@ -276,6 +280,17 @@ public partial class App : Application
         };
 
         desktop.Exit += (_, _) => OnExit();
+        // A dispatcher turn proves UI initialisation completed after claiming
+        // the profile. Network sign-in is deliberately outside update health.
+        if (!_demo.IsActive && OperatingSystem.IsMacOS())
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                MacUpdateInstallation.ConfirmStartup();
+                if (MacUpdateInstallation.ReadRecoveryNotice() is { Length: > 0 } message)
+                    windows.ShowInformation("Update did not complete", message);
+            }, DispatcherPriority.Loaded);
+        }
         SetUpUpdates(desktop);
 
         // Restoring the session touches the network, so it must not hold up the window.
