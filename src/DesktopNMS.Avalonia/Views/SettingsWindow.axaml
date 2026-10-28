@@ -11,6 +11,19 @@
         Icon="/Assets/app.ico"
         WindowStartupLocation="CenterOwner">
 
+    <Window.Styles>
+        <Style Selector="Button.copyFeedback">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.copyFeedback.confirmed">
+            <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+        </Style>
+    </Window.Styles>
+
     <!-- Settings: a page per section, applied together to the running app. -->
     <Grid RowDefinitions="*,Auto">
         <Grid Grid.Row="0" ColumnDefinitions="190,*">
@@ -522,22 +535,18 @@
                                 </Grid>
                                 <TextBlock Text="Refreshing…" Classes="subtle" IsVisible="{Binding IsRefreshingServerInfo}" Margin="0,8,0,0" />
                                 <TextBlock Text="{Binding ServerInfoStatusText}" Classes="error" TextWrapping="Wrap" Margin="0,8,0,0" IsVisible="{Binding HasServerInfoStatus}" />
-                                <Grid Margin="0,16,0,0" IsVisible="{Binding HasServerInfo}" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
+                                <Grid Margin="0,16,0,0" IsVisible="{Binding HasServerInfo}" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
                                     <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="LibreNMS version" Classes="section" /><SelectableTextBlock Text="{Binding ServerVersionText}" TextWrapping="Wrap" /></StackPanel>
                                     <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Branch" Classes="section" /><SelectableTextBlock Text="{Binding ServerBranchText}" TextWrapping="Wrap" /></StackPanel>
                                     <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="Commit" Classes="section" /><SelectableTextBlock Text="{Binding ServerCommitText}" TextWrapping="Wrap" /></StackPanel>
                                     <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Release date" Classes="section" /><SelectableTextBlock Text="{Binding ServerDateText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="Database version" Classes="section" /><SelectableTextBlock Text="{Binding DatabaseVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Database schema" Classes="section" /><SelectableTextBlock Text="{Binding DatabaseSchemaText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="PHP version" Classes="section" /><SelectableTextBlock Text="{Binding PhpVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Python version" Classes="section" /><SelectableTextBlock Text="{Binding PythonVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,10,0"><TextBlock Text="RRDtool version" Classes="section" /><SelectableTextBlock Text="{Binding RrdToolVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="4" Grid.Column="1"><TextBlock Text="Net-SNMP version" Classes="section" /><SelectableTextBlock Text="{Binding NetSnmpVersionText}" TextWrapping="Wrap" /></StackPanel>
                                 </Grid>
-                                <Expander Header="Server environment" IsVisible="{Binding HasServerInfo}" Margin="0,12,0,0">
-                                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
-                                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="Database version" Classes="section" /><SelectableTextBlock Text="{Binding DatabaseVersionText}" TextWrapping="Wrap" /></StackPanel>
-                                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Database schema" Classes="section" /><SelectableTextBlock Text="{Binding DatabaseSchemaText}" TextWrapping="Wrap" /></StackPanel>
-                                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="PHP version" Classes="section" /><SelectableTextBlock Text="{Binding PhpVersionText}" TextWrapping="Wrap" /></StackPanel>
-                                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Python version" Classes="section" /><SelectableTextBlock Text="{Binding PythonVersionText}" TextWrapping="Wrap" /></StackPanel>
-                                        <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,10,0"><TextBlock Text="RRDtool version" Classes="section" /><SelectableTextBlock Text="{Binding RrdToolVersionText}" TextWrapping="Wrap" /></StackPanel>
-                                        <StackPanel Grid.Row="2" Grid.Column="1"><TextBlock Text="Net-SNMP version" Classes="section" /><SelectableTextBlock Text="{Binding NetSnmpVersionText}" TextWrapping="Wrap" /></StackPanel>
-                                    </Grid>
-                                </Expander>
                                 <TextBlock Text="Server information is unavailable. Connect to LibreNMS, then refresh." Classes="subtle" Margin="0,16,0,0" IsVisible="{Binding !HasServerInfo}" />
                             </StackPanel>
                         </Border>
@@ -748,6 +757,18 @@
                             </StackPanel>
                         </Grid>
 
+                        <!-- This release's "What's new" again (#227). -->
+                        <StackPanel IsVisible="{Binding HasWhatsNew}">
+                            <TextBlock Text="What's new" Classes="section" />
+                            <Border Classes="card">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="{Binding WhatsNewTitle}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding WhatsNewSummary}" Classes="subtle" TextWrapping="Wrap" />
+                                    <Button Content="View what's new" Command="{Binding ShowWhatsNewCommand}" HorizontalAlignment="Left" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
                         <TextBlock Text="Application versions" Classes="section" />
                         <Border Classes="card">
                             <StackPanel Spacing="12">
@@ -766,24 +787,11 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <WrapPanel>
-                                    <Button Content="Copy version details" Command="{Binding CopyVersionDetailsCommand}" Margin="0,0,8,8" />
-                                </WrapPanel>
-                                <TextBlock Text="{Binding CopyVersionsStatus}" Classes="subtle" TextWrapping="Wrap" />
+                                <Button Content="{Binding CopyVersionsButtonText}" Command="{Binding CopyVersionDetailsCommand}"
+                                        Classes="copyFeedback" Classes.confirmed="{Binding HasCopiedVersionDetails}"
+                                        ToolTip.Tip="{Binding CopyVersionsStatus}" Width="180" HorizontalAlignment="Left" />
                             </StackPanel>
                         </Border>
-
-                        <!-- This release's "What's new" again (#227). -->
-                        <StackPanel IsVisible="{Binding HasWhatsNew}">
-                            <TextBlock Text="What's new" Classes="section" />
-                            <Border Classes="card">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="{Binding WhatsNewTitle}" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding WhatsNewSummary}" Classes="subtle" TextWrapping="Wrap" />
-                                    <Button Content="View what's new" Command="{Binding ShowWhatsNewCommand}" HorizontalAlignment="Left" />
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
 
                         <WrapPanel Margin="0,14,0,0">
                             <Button Content="Release notes" Command="{Binding ViewReleasesPageCommand}" Margin="0,0,8,8" />
@@ -804,12 +812,12 @@
                                 <TextBlock Text="Checking for updates…" Classes="subtle" IsVisible="{Binding IsCheckingForUpdates}" />
                                 <TextBlock Text="{Binding UpdateStatusText}" TextWrapping="Wrap" IsVisible="{Binding !IsCheckingForUpdates}" />
                                 <WrapPanel>
-                                    <Button Content="Check for updates" Command="{Binding CheckForUpdatesCommand}"
-                                            IsEnabled="{Binding !IsCheckingForUpdates}" Margin="0,0,8,8" />
                                     <Button Classes="primary" Content="{Binding UpdateActionText}" Command="{Binding InstallUpdateCommand}"
                                             IsVisible="{Binding CanInstallUpdate}" Margin="0,0,8,8" />
-                                    <Button Classes.primary="{Binding !CanInstallUpdate}" Content="View release" Command="{Binding ViewLatestReleaseCommand}"
-                                            IsVisible="{Binding IsNewerVersionAvailable}" Margin="0,0,0,8" />
+                                    <Button Content="View release" Command="{Binding ViewLatestReleaseCommand}"
+                                            IsVisible="{Binding IsNewerVersionAvailable}" Margin="0,0,8,8" />
+                                    <Button Content="Check for updates" Command="{Binding CheckForUpdatesCommand}"
+                                            IsEnabled="{Binding !IsCheckingForUpdates}" Margin="0,0,0,8" />
                                 </WrapPanel>
                             </StackPanel>
                         </Border>
@@ -853,20 +861,19 @@
                                            Text="Your existing metrics choice continues. Session outcomes and durations need the updated startup choice, or turn usage sharing off and on here. Session health requires both error and usage sharing and uses a fresh per-session ID." />
                                 <TextBlock Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding HasLegacyUsageConsent}"
                                            Text="Your saved usage choice covers launch counts only. Use the updated startup prompt, or turn usage sharing off and on here, to allow broader metrics. Turning it off stops launch sharing too." />
-                                <Expander Header="What is shared" Margin="0,10,0,0">
-                                    <StackPanel Spacing="8">
-                                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
-                                                   Text="Reports sent to DashyNMS's Sentry service contain the app version, operating system, architecture, exception types, app method names and source-code locations (repository-relative files and line numbers, where available). Network addresses, credentials, log files and Intelligence content are excluded from the report." />
-                                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
-                                                   Text="Usage sharing covers launch and feature-use counts, startup and screen-loading times, request and update outcomes, responsiveness and memory measurements. Includes app version and platform; no persistent user or installation identifier. Session durations and healthy, errored, managed-crash or unknown outcomes use a fresh per-session ID and require both error and usage sharing." />
-                                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
-                                                   Text="Sentry also receives connection information when a report is sent. Turning this off and applying the change stops uploads and clears pending reports. Local logs remain available on your computer." />
-                                    </StackPanel>
-                                </Expander>
+                                <TextBlock Text="What is shared" Classes="section" Margin="0,16,0,8" />
+                                <StackPanel Spacing="8">
+                                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                               Text="Reports sent to DashyNMS's Sentry service contain the app version, operating system, architecture, exception types, app method names and source-code locations (repository-relative files and line numbers, where available). Network addresses, credentials, log files and Intelligence content are excluded from the report." />
+                                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                               Text="Usage sharing covers launch and feature-use counts, startup and screen-loading times, request and update outcomes, responsiveness and memory measurements. Includes app version and platform; no persistent user or installation identifier. Session durations and healthy, errored, managed-crash or unknown outcomes use a fresh per-session ID and require both error and usage sharing." />
+                                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                               Text="Sentry also receives connection information when a report is sent. Turning this off and applying the change stops uploads and clears pending reports. Local logs remain available on your computer." />
+                                </StackPanel>
                                 <TextBlock Classes="subtle" Text="Crash reporting is unavailable in this build."
                                            IsVisible="{Binding !IsCrashReportingAvailable}" Margin="0,4,0,0" />
                                 <HyperlinkButton Content="Read the privacy details" Margin="0,4,0,0"
-                                                 NavigateUri="https://github.com/DashyNMS/desktop/blob/master/PRIVACY.md" />
+                                                 NavigateUri="https://dashynms.pckp.net/desktop/privacy/" />
 
                             </StackPanel>
                         </Border>

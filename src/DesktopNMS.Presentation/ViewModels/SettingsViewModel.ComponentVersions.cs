@@ -11,7 +11,21 @@ public sealed partial class SettingsViewModel
     private bool _versionsDetached;
     private int _versionRead;
     private string? _copyVersionsStatus;
-    public string? CopyVersionsStatus { get => _copyVersionsStatus; private set => SetProperty(ref _copyVersionsStatus, value); }
+    private const string CopiedVersionsMessage = "Version details copied.";
+    private IUiTimer? _copyVersionsTimer;
+    public string? CopyVersionsStatus
+    {
+        get => _copyVersionsStatus;
+        private set
+        {
+            if (!SetProperty(ref _copyVersionsStatus, value)) return;
+            OnPropertyChanged(nameof(CopyVersionsButtonText));
+            OnPropertyChanged(nameof(HasCopiedVersionDetails));
+        }
+    }
+    public bool HasCopiedVersionDetails => CopyVersionsStatus == CopiedVersionsMessage;
+    public string CopyVersionsButtonText => CopyVersionsStatus is null ? "Copy version details"
+        : HasCopiedVersionDetails ? "Copied" : "Copy unavailable";
     public RelayCommand CopyVersionDetailsCommand { get; private set; } = null!;
     private IReadOnlyList<ComponentVersion> _packageVersions = Array.Empty<ComponentVersion>();
     public IReadOnlyList<ComponentVersion> PackageVersions => _packageVersions;
@@ -36,10 +50,23 @@ public sealed partial class SettingsViewModel
     {
         _versionTools = tools;
         if (tools is not null) tools.VersionChanged += OnComponentVersionsChanged;
-        CopyVersionDetailsCommand = new RelayCommand(() => CopyVersionsStatus = UiPlatform.Clipboard.SetText(ComponentVersions.Format(PackageVersions))
-            ? "Version details copied." : "Clipboard unavailable. Select the version text to copy it.");
+        _copyVersionsTimer = UiThread.CreateTimer(TimeSpan.FromSeconds(2.5));
+        _copyVersionsTimer.Tick += OnCopyVersionsFeedbackExpired;
+        CopyVersionDetailsCommand = new RelayCommand(() =>
+        {
+            CopyVersionsStatus = UiPlatform.Clipboard.SetText(ComponentVersions.Format(PackageVersions))
+                ? CopiedVersionsMessage : "Clipboard unavailable. Select the version text to copy it.";
+            _copyVersionsTimer.Stop();
+            _copyVersionsTimer.Start();
+        });
         RaiseComponentVersions();
         _ = RefreshComponentVersionsAsync();
+    }
+
+    private void OnCopyVersionsFeedbackExpired(object? sender, EventArgs e)
+    {
+        _copyVersionsTimer?.Stop();
+        CopyVersionsStatus = null;
     }
 
     private void OnComponentVersionsChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() =>
@@ -76,6 +103,11 @@ public sealed partial class SettingsViewModel
     private void DetachComponentVersions()
     {
         _versionsDetached = true;
+        if (_copyVersionsTimer is not null)
+        {
+            _copyVersionsTimer.Stop();
+            _copyVersionsTimer.Tick -= OnCopyVersionsFeedbackExpired;
+        }
         if (_versionTools is not null) _versionTools.VersionChanged -= OnComponentVersionsChanged;
     }
 }
