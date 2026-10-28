@@ -225,6 +225,32 @@ counters by area/outcome for volumes and failure ratios, and duration percentile
 by area/outcome for latency; do not use distribution sample counts as request
 totals or count retries as separate requests.
 
+UI responsiveness uses a one-second worker timer and at most one pending normal-
+priority dispatcher callback. Queue-to-acknowledgement delay of at least 500 ms
+increments `dashynms.ui_stall.count` and records a sampled millisecond distribution
+in `dashynms.ui_stall.duration`. This is a dispatcher-latency proxy, not a native
+hang detector or per-frame measurement. Counts aggregate; durations use the
+shared first/every-tenth sampling and the existing queue/transmission limits.
+
+Timing is monotonic. Each worker tick checks both monotonic and UTC elapsed time
+locally: a worker gap over three seconds, or a discrepancy over one second,
+invalidates a pending observation. Acknowledgement repeats the gap check so UI
+resumption before the worker does not report sleep as a stall. Background
+activity changes invalidate pending observations, and acknowledgement checks the
+actual current visible/non-minimised window state on the UI thread. Initial
+activity is refreshed before its periodic timer starts. Debugger attachment
+excludes the entire interval, not just known breakpoints. Withdrawal stops the
+probe timer; the shared consent generation rejects old callbacks after reconsent.
+Shutdown disposes the timer and activity subscription before metrics are flushed.
+
+A blocked UI never accumulates heartbeat callbacks: one remains queued until it
+runs, even across exclusion or consent changes. No frames, screenshots, input,
+window titles or customer content are inspected or sent. Conservative exclusion
+can undercount real stalls during whole-process pauses or worker starvation;
+the metric should not be treated as an exact crash/freeze count. Unit tests use
+a manual clock/dispatcher to verify long stalls, bounded scheduling, sampling,
+withdrawal, background/debugger exclusions and sleep/clock jumps without sleeps.
+
 GitHub builds read the public ingestion address from the repository variable
 `SENTRY_DSN`. For local builds, set `DASHYNMS_SENTRY_DSN` before publishing. The
 address becomes assembly metadata in the app. No authentication token is needed

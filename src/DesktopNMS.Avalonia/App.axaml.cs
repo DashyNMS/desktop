@@ -56,6 +56,7 @@ public partial class App : Application
     private bool _leaveDemoOnExit;
     private bool _whatsNewScheduled;
     private IUiTimer? _updateTimer;
+    private UiStallMonitor? _uiStalls;
     private IUiTimer? _sensorDefinitionsTimer;
     private DesktopInstance? _instance;
     private (DiagnosticsSharingPreference Choice, int Version)? _configuredDiagnosticsSharing;
@@ -307,6 +308,10 @@ public partial class App : Application
             !_demo.IsActive && DiagnosticsConsent.Metrics(settings));
         Program.Metrics.Configure(!_demo.IsActive && DiagnosticsConsent.Metrics(settings));
         ApiMetrics.Configure(_services!.GetRequiredService<LibreNmsTransport>(), Program.Metrics);
+        var activity = _services!.GetRequiredService<AvaloniaAppActivity>();
+        _uiStalls ??= new UiStallMonitor(Program.Metrics, activity, UiThread.Dispatcher,
+            foregroundOnUi: () => activity.IsForegroundOnUiThread);
+        _uiStalls.Configure();
         if (!_demo.IsActive) Program.Reports.RecordUsage();
         _ = Program.Reports.SendPendingAsync();
     }
@@ -651,6 +656,7 @@ public partial class App : Application
 
     private void OnExit()
     {
+        _uiStalls?.Dispose();
         Program.Metrics.Flush();
         _updateTimer?.Stop();
         _sensorDefinitionsTimer?.Stop();
