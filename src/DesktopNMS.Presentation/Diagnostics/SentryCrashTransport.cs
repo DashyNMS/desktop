@@ -112,6 +112,7 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
             {
                 MetricName.StartupDuration => "dashynms.startup.duration",
                 MetricName.ScreenLoadDuration => "dashynms.screen_load.duration",
+                MetricName.ApiRequestCount => "dashynms.api.requests",
                 MetricName.ApiDuration => "dashynms.api.duration",
                 MetricName.FeatureUse => "dashynms.feature.use",
                 MetricName.UpdateOutcome => "dashynms.update.outcome",

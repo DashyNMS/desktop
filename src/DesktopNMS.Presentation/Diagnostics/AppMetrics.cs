@@ -1,10 +1,10 @@
 namespace DesktopNMS.Diagnostics;
 
 // Only built-in dimensions can enter the queue. No caller-supplied names or tags.
-public enum MetricName { StartupDuration, ScreenLoadDuration, ApiDuration, FeatureUse, UpdateOutcome, IntelligenceDuration, IntelligenceFirstResponse, UiStallCount, UiStallDuration, WorkingSet, ManagedHeap }
+public enum MetricName { StartupDuration, ScreenLoadDuration, ApiDuration, FeatureUse, UpdateOutcome, IntelligenceDuration, IntelligenceFirstResponse, UiStallCount, UiStallDuration, WorkingSet, ManagedHeap, ApiRequestCount }
 public enum MetricMode { Interactive, Background }
 public enum MetricOutcome { Success, Failed, Cancelled, Timeout, NetworkFailure, ClientError, ServerError, Cached }
-public enum MetricArea { Application, Dashboard, DeviceDetails, Alerts, Health, Devices, Sensors, Maps, Intelligence, DashboardEditor, Widget, UpdateCheck, UpdateDownload, UpdateInstall, UpdateStartup }
+public enum MetricArea { Application, Dashboard, DeviceDetails, Alerts, Health, Devices, Sensors, Maps, Intelligence, DashboardEditor, Widget, UpdateCheck, UpdateDownload, UpdateInstall, UpdateStartup, DeviceList, ApiOther }
 public sealed record MetricObservation(MetricName Name, double Value, MetricMode Mode = MetricMode.Interactive,
     MetricOutcome Outcome = MetricOutcome.Success, MetricArea Area = MetricArea.Application);
 public sealed record MetricPoint(DateTimeOffset Timestamp, MetricObservation Observation);
@@ -52,11 +52,13 @@ public sealed class AppMetrics : IAppMetrics, IDisposable
         }
     }
 
-    public void Record(MetricObservation observation)
+    public void Record(MetricObservation observation) => Record(observation, expectedGeneration: null);
+
+    public void Record(MetricObservation observation, long? expectedGeneration)
     {
         lock (_gate)
         {
-            if (!_enabled || _disposed || !IsValid(observation)) return;
+            if (!_enabled || _disposed || (expectedGeneration is { } generation && generation != _generation) || !IsValid(observation)) return;
             var key = (observation.Name, observation.Mode, observation.Outcome, observation.Area);
             var counter = IsCounter(observation.Name);
             if (counter)
@@ -97,7 +99,7 @@ public sealed class AppMetrics : IAppMetrics, IDisposable
         if (send) _ = _reporter.SendPendingAsync();
     }
 
-    internal static bool IsCounter(MetricName name) => name is MetricName.FeatureUse or MetricName.UpdateOutcome or MetricName.UiStallCount;
+    internal static bool IsCounter(MetricName name) => name is MetricName.FeatureUse or MetricName.UpdateOutcome or MetricName.UiStallCount or MetricName.ApiRequestCount;
     internal static bool IsGauge(MetricName name) => name is MetricName.WorkingSet or MetricName.ManagedHeap;
     internal static bool IsValid(MetricObservation? observation) => observation is not null &&
         Enum.IsDefined(observation.Name) && Enum.IsDefined(observation.Mode) && Enum.IsDefined(observation.Outcome) && Enum.IsDefined(observation.Area) &&

@@ -198,6 +198,33 @@ Consent must be active at the start and retain the same generation at completion
 withdrawal/reconsent cannot revive a pending observation. Query percentiles split
 by `area` and `outcome`, keeping cached and remote durations separate.
 
+API performance uses Core's optional `LibreNmsTransport.RequestObserver`, attached
+only while expanded metrics consent is active. Core captures monotonic elapsed
+time once around a public transport call, including transient/stale-connection
+retries, failover and response parsing. Collection deserialisation shares that
+boundary and cannot emit a duplicate request observation. Temporary connection
+probe transports do not inherit this observer. Core observer failures are caught
+without changing the returned response or original exception.
+
+Each logical request increments `dashynms.api.requests` (counter); elapsed time
+also enters `dashynms.api.duration` (millisecond distribution, first and every
+tenth observation per series). Fixed areas are `devicelist` (GET devices),
+`alerts` (GET alerts), `sensors` (GET resources/sensors) and `apiother` (all other
+routes/writes). Query parameters never become dimensions. Outcomes are success,
+clienterror (HTTP 4xx), servererror (HTTP 5xx), timeout, networkfailure, cancelled
+and failed (other API/parse failures). Cancellation is not treated as failure.
+The full status code, URL, host, port, IDs, credentials, headers, body and
+exception text are never passed to Desktop's metrics adapter.
+
+Observer delegates capture a consent generation. Collection checks it under
+the metrics buffer lock, so an old in-flight request cannot report after
+withdrawal/reconsent. Error consent remains independent. Counts aggregate before
+batching; duration sampling does not sample the counters, although the shared
+capacity/expiry/retry limitations still affect interpretation. Use summed request
+counters by area/outcome for volumes and failure ratios, and duration percentiles
+by area/outcome for latency; do not use distribution sample counts as request
+totals or count retries as separate requests.
+
 GitHub builds read the public ingestion address from the repository variable
 `SENTRY_DSN`. For local builds, set `DASHYNMS_SENTRY_DSN` before publishing. The
 address becomes assembly metadata in the app. No authentication token is needed
