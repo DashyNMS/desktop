@@ -1,3 +1,4 @@
+using DesktopNMS.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -43,6 +44,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     private readonly IntelligenceConversation _conversation;
     private readonly ISettingsStore _settings;
     private string? _defaultModel;
+    private readonly IAppMetrics? _metrics;
     private readonly IDeviceCache _devices;
     private readonly IntelligenceStarterQuestions _starterQuestions = new(Random.Shared.Next(12));
 
@@ -64,8 +66,9 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         ISettingsStore settings,
         AlertMonitor alerts,
         IIntelligenceChatStore chats,
-        ILogger<IntelligenceViewModel> logger)
+        ILogger<IntelligenceViewModel> logger, IAppMetrics? metrics = null)
     {
+        _metrics = metrics;
         _store = store;
         _devices = devices;
         _tools = tools;
@@ -431,7 +434,9 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
 
         _running = new CancellationTokenSource();
         IsBusy = true;
-        var listener = new Listener(this, answer);
+        var timing = new IntelligenceRequestTiming(_metrics);
+        var outcome = MetricOutcome.Success;
+        var listener = new Listener(this, answer, timing);
         try
         {
             var spotlight = Context.SpotlightForAgent;
@@ -442,25 +447,30 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
             Context.OnAnswer(IntelligenceInlineMarkup.ToReadableText(answer.Text, answer.InlineReferences));
             if (string.IsNullOrWhiteSpace(answer.Text))
             {
+                outcome = MetricOutcome.Failed;
                 answer.Finish(IntelligenceReplyOutcome.Failed, "No answer was returned. You can retry this question.");
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
+            outcome = IntelligenceRequestTiming.Failure(ex, _running.IsCancellationRequested);
             answer.Finish(IntelligenceReplyOutcome.Stopped);
         }
         catch (IntelligenceException ex)
         {
+            outcome = IntelligenceRequestTiming.Failure(ex, _running.IsCancellationRequested);
             ErrorText = ex.Message;
             answer.Finish(IntelligenceReplyOutcome.Failed, ex.Message);
         }
         catch (ChatGptSignInException ex)
         {
+            outcome = IntelligenceRequestTiming.Failure(ex, _running.IsCancellationRequested);
             ErrorText = ex.Message;
             answer.Finish(IntelligenceReplyOutcome.Failed, ex.Message);
         }
         catch (Exception ex)
         {
+            outcome = IntelligenceRequestTiming.Failure(ex, _running.IsCancellationRequested);
             _logger.LogWarning("Intelligence: the question failed ({ErrorType})", ex.GetType().Name);
             ErrorText = "Something went wrong answering that. Try again.";
             answer.Finish(IntelligenceReplyOutcome.Failed, ErrorText);
@@ -468,6 +478,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         finally
         {
             answer.IsStreaming = false;
+            timing.Complete(outcome);
             _running.Dispose();
             _running = null;
             IsBusy = false;
@@ -577,20 +588,27 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     {
         private readonly IntelligenceViewModel _owner;
         private readonly IntelligenceMessageViewModel _answer;
+        private readonly IntelligenceRequestTiming _timing;
 
-        public Listener(IntelligenceViewModel owner, IntelligenceMessageViewModel answer)
+        public Listener(IntelligenceViewModel owner, IntelligenceMessageViewModel answer, IntelligenceRequestTiming timing)
         {
             _owner = owner;
             _answer = answer;
+            _timing = timing;
         }
 
         public void OnText(string delta) => _owner._dispatcher.InvokeAsync(() =>
         {
             _answer.Text += delta;
+            if (!string.IsNullOrWhiteSpace(delta)) _timing.FirstResponse();
             _owner.Chats.SaveWhileStreaming();
         });
 
-        public void OnAnswerCompleted(string text) => _owner._dispatcher.InvokeAsync(() => _answer.Text = text);
+        public void OnAnswerCompleted(string text) => _owner._dispatcher.InvokeAsync(() =>
+        {
+            _answer.Text = text;
+            if (!string.IsNullOrWhiteSpace(text)) _timing.FirstResponse();
+        });
 
         public void OnToolStarted(string name, string arguments) => _owner._dispatcher.InvokeAsync(() =>
         {
