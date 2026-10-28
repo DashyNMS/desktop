@@ -173,6 +173,31 @@ startup. Never combine background and interactive starts into one percentile.
 Small sampled populations and bounded delivery make these estimates, not
 complete installation-wide measurements.
 
+Screen loading (`dashynms.screen_load.duration`, milliseconds) measures primary
+data readiness, not pixel-render time or every optional panel. Dashboard and
+Health begin on `OnShown` after connection and complete after the next sensor
+result has been applied; an already-loaded primary dataset completes as
+`outcome:cached`. Alerts begin on a connected tab visit (including the initial
+connected tab) and finish after the alert list is applied. Device Details begin
+at view-model construction and finish when cached overview identity is ready,
+or after a device poll applies that identity. Graphs, configuration backups,
+inventory and other secondary panels do not extend this primary boundary.
+
+Leaving a pending tab, closing Device Details or disconnecting completes as
+`cancelled`. Primary-data failures are `failed`, and remote success is `success`.
+Only an active visit can complete: overlapping starts cannot reset the timer,
+and duplicate/background poll callbacks cannot create observations. A new
+visible visit is eligible again. Durations above five minutes are discarded.
+Only fixed `area` values (dashboard, health, alerts, devicedetails) and outcomes
+are sent; no device IDs, titles, filters or data are attached. The shared sink
+samples each series (first and every tenth), buffers and sends asynchronously.
+Disk persistence runs outside the collection lock so UI collection never waits
+on a disk flush. Snapshots that cannot be persisted, or whose queue consent
+generation changes before persistence, are dropped.
+Consent must be active at the start and retain the same generation at completion;
+withdrawal/reconsent cannot revive a pending observation. Query percentiles split
+by `area` and `outcome`, keeping cached and remote durations separate.
+
 GitHub builds read the public ingestion address from the repository variable
 `SENTRY_DSN`. For local builds, set `DASHYNMS_SENTRY_DSN` before publishing. The
 address becomes assembly metadata in the app. No authentication token is needed

@@ -3,7 +3,7 @@ namespace DesktopNMS.Diagnostics;
 // Only built-in dimensions can enter the queue. No caller-supplied names or tags.
 public enum MetricName { StartupDuration, ScreenLoadDuration, ApiDuration, FeatureUse, UpdateOutcome, IntelligenceDuration, IntelligenceFirstResponse, UiStallCount, UiStallDuration, WorkingSet, ManagedHeap }
 public enum MetricMode { Interactive, Background }
-public enum MetricOutcome { Success, Failed, Cancelled, Timeout, NetworkFailure, ClientError, ServerError }
+public enum MetricOutcome { Success, Failed, Cancelled, Timeout, NetworkFailure, ClientError, ServerError, Cached }
 public enum MetricArea { Application, Dashboard, DeviceDetails, Alerts, Health, Devices, Sensors, Maps, Intelligence, DashboardEditor, Widget, UpdateCheck, UpdateDownload, UpdateInstall, UpdateStartup }
 public sealed record MetricObservation(MetricName Name, double Value, MetricMode Mode = MetricMode.Interactive,
     MetricOutcome Outcome = MetricOutcome.Success, MetricArea Area = MetricArea.Application);
@@ -11,6 +11,8 @@ public sealed record MetricPoint(DateTimeOffset Timestamp, MetricObservation Obs
 
 public interface IAppMetrics
 {
+    bool IsEnabled => true;
+    long ConsentGeneration => 0;
     void Record(MetricObservation observation);
 }
 
@@ -26,6 +28,9 @@ public sealed class AppMetrics : IAppMetrics, IDisposable
     private readonly Dictionary<(MetricName, MetricMode, MetricOutcome, MetricArea), int> _samples = [];
     private bool _enabled;
     private bool _disposed;
+    private long _generation;
+    public bool IsEnabled { get { lock (_gate) return _enabled && !_disposed; } }
+    public long ConsentGeneration { get { lock (_gate) return _generation; } }
 
     public AppMetrics(CrashReporter reporter, TimeProvider? timeProvider = null)
     {
@@ -40,6 +45,7 @@ public sealed class AppMetrics : IAppMetrics, IDisposable
         {
             if (_disposed || _enabled == enabled) return;
             _enabled = enabled;
+            _generation++;
             if (!enabled) { _points.Clear(); _samples.Clear(); }
             _timer.Change(enabled ? TimeSpan.FromMinutes(1) : Timeout.InfiniteTimeSpan,
                 enabled ? TimeSpan.FromMinutes(1) : Timeout.InfiniteTimeSpan);
@@ -75,12 +81,19 @@ public sealed class AppMetrics : IAppMetrics, IDisposable
 
     public void Flush(bool send = false)
     {
+        // Read the queue generation outside the collection lock: disk IO must not
+        // hold up Record() on the UI thread. A concurrent consent change rejects
+        // the snapshot, including withdrawal followed by immediate reconsent.
+        var reporterGeneration = _reporter.ConsentGeneration;
+        MetricPoint[] snapshot;
         lock (_gate)
         {
             if (!_enabled || _disposed) return;
             _points.RemoveAll(point => point.Timestamp < _time.GetUtcNow().AddDays(-7));
-            if (_points.Count > 0 && _reporter.RecordMetrics(_points.ToArray())) _points.Clear();
+            snapshot = _points.ToArray();
+            _points.Clear();
         }
+        if (snapshot.Length > 0) _reporter.RecordMetrics(snapshot, reporterGeneration);
         if (send) _ = _reporter.SendPendingAsync();
     }
 

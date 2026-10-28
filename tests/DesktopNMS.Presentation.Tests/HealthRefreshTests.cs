@@ -43,6 +43,33 @@ public sealed class HealthRefreshTests
         Assert.Equal("Updating…", health.RefreshText);
     }
 
+    [Fact]
+    public void Cached_health_visit_reports_once_while_background_results_do_not()
+    {
+        var settings = new AppSettings();
+        var store = Proxy<ISettingsStore>((method, _) => method.Name == "get_Current" ? settings : null);
+        var session = Proxy<ISessionService>((method, _) => method.Name == "get_IsConnected" ? true : null);
+        var activity = Proxy<IAppActivity>((method, _) => method.Name == "get_IsInBackground" ? false : null);
+        var cache = Proxy<IDeviceCache>((_, _) => null);
+        using var monitor = new SensorMonitor(null!, session, store, cache, null!, activity, NullLogger<SensorMonitor>.Instance);
+        var sink = new MetricsSink();
+        using var health = new HealthViewModel(monitor, session, store, cache, null!, sink);
+        health.ApplyPollResult(new SensorPollResult { Succeeded = true, CompletedAt = DateTimeOffset.Now, Sensors = [] });
+        Assert.Empty(sink.Points);
+        health.OnShown();
+        var point = Assert.Single(sink.Points);
+        Assert.Equal(DesktopNMS.Diagnostics.MetricOutcome.Cached, point.Outcome);
+        Assert.Equal(DesktopNMS.Diagnostics.MetricArea.Health, point.Area);
+        health.ApplyPollResult(Failed());
+        Assert.Single(sink.Points);
+    }
+
+    private sealed class MetricsSink : DesktopNMS.Diagnostics.IAppMetrics
+    {
+        public List<DesktopNMS.Diagnostics.MetricObservation> Points { get; } = [];
+        public void Record(DesktopNMS.Diagnostics.MetricObservation observation) => Points.Add(observation);
+    }
+
     private static SensorPollResult Failed(DateTimeOffset? observed = null) => new()
     {
         Succeeded = false, CompletedAt = DateTimeOffset.Now, ObservedAt = observed, IsTimeout = true, Sensors = Array.Empty<Sensor>(),

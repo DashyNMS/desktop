@@ -1,3 +1,4 @@
+using DesktopNMS.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -21,6 +22,8 @@ namespace DesktopNMS.ViewModels;
 /// <summary>View model behind the main alert window.</summary>
 public sealed class MainViewModel : ObservableObject, IDisposable
 {
+    private readonly ScreenLoadTiming _screenLoad;
+
     private readonly ILibreNmsClient _client;
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
@@ -108,8 +111,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IUpdateCheckService updates,
         DemoMode demo,
         NotificationRuleService notificationRules,
-        ILogger<MainViewModel> logger)
+        ILogger<MainViewModel> logger, IAppMetrics? metrics = null)
     {
+        _screenLoad = new ScreenLoadTiming(metrics, MetricArea.Alerts);
         _notificationRules = notificationRules;
         _client = client;
         _session = session;
@@ -565,8 +569,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         get => _selectedTab;
         set
         {
+            if (value == _selectedTab) return;
+            if (_selectedTab == MainTab.Dashboard) _dashboard.OnHidden();
+            if (_selectedTab == MainTab.Health) _health.OnHidden();
+            if (_selectedTab == MainTab.Alerts) _screenLoad.Complete(MetricOutcome.Cancelled);
             if (SetProperty(ref _selectedTab, value))
             {
+                if (value == MainTab.Alerts && _session.IsConnected) _screenLoad.Begin(_lastUpdated is not null);
                 OnPropertyChanged(nameof(IsDashboardTabSelected));
                 OnPropertyChanged(nameof(IsDevicesTabSelected));
                 OnPropertyChanged(nameof(IsDevicesFamilyTabSelected));
@@ -1194,6 +1203,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>Called by the app once the session is established.</summary>
     public void OnConnected()
     {
+        if (SelectedTab == MainTab.Alerts) _screenLoad.Begin(_lastUpdated is not null);
         UpdateConnectionState();
         StatusMessage = "Connected. Waiting for the first poll...";
         RequestRefresh();
@@ -1523,6 +1533,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         => _dispatcher.InvokeAsync(() => ApplyPollResult(result));
 
     private void ApplyPollResult(AlertPollResult result)
+    {
+        try { ApplyPollResultCore(result); }
+        catch { _screenLoad.Complete(MetricOutcome.Failed); throw; }
+        _screenLoad.Complete(result.Succeeded ? MetricOutcome.Success : MetricOutcome.Failed);
+    }
+
+    private void ApplyPollResultCore(AlertPollResult result)
     {
         IsBusy = false;
 
@@ -2494,6 +2511,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         if (!IsConnected)
         {
+            _screenLoad.Complete(MetricOutcome.Cancelled);
+            _dashboard.OnHidden();
+            _health.OnHidden();
             StatusMessage = "Not connected.";
         }
     }
@@ -2541,6 +2561,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _screenLoad.Complete(MetricOutcome.Cancelled);
         _ageTimer.Stop();
         _refreshCountdown.Dispose();
         _monitor.Polled -= OnPolled;

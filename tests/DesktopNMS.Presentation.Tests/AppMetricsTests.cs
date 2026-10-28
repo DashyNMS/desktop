@@ -193,6 +193,19 @@ public sealed class AppMetricsTests
         Assert.True(DiagnosticsConsent.Errors(settings));
     }
 
+    [Fact]
+    public void A_snapshot_from_before_withdrawal_cannot_be_persisted_after_reconsent()
+    {
+        using var folder = new Folder();
+        using var reporter = new CrashReporter(Context, new Transport());
+        reporter.ConfigureMetrics(folder.Path, false, true, true);
+        var generation = reporter.ConsentGeneration;
+        reporter.ConfigureMetrics(folder.Path, false, false, false);
+        reporter.ConfigureMetrics(folder.Path, false, true, true);
+        Assert.False(reporter.RecordMetrics([new(DateTimeOffset.UtcNow, new(MetricName.FeatureUse, 1))], generation));
+        Assert.Empty(Directory.GetFiles(System.IO.Path.Combine(folder.Path, "crash-reports"), "*.json"));
+    }
+
     private static readonly CrashReportContext Context = new("2.0.0", "linux", "x64");
     private sealed class Transport : ICrashTransport
     {
