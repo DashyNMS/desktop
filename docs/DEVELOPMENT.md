@@ -90,9 +90,26 @@ Demo and screenshot modes never send reports.
 The reporter uses a bounded, sanitised local queue and a small Sentry envelope
 adapter. It does not initialise the Sentry SDK, session tracking, tracing,
 native crash handlers or log collection. Fatal managed errors are queued for
-the next launch. Usage records one `app_start` event per process after consent,
+the next launch. Usage records one `dashynms.app_start` Application Metrics counter per process after consent,
 without a user or installation identifier. See [PRIVACY.md](../PRIVACY.md) for
 the payload and withdrawal behaviour.
+
+Launches use `trace_metric` envelope items; managed errors retain `event` items.
+Existing queued usage reports are converted on delivery without changing their
+original timestamps. The queue and independent consent choices are unchanged.
+The adapter supplies only allowlisted typed attributes and a random per-report
+trace context, with no automatic tracing or HTTP instrumentation. IP and
+user-agent inference are disabled for metrics. Application Metrics has its own
+quota (currently 5 GB included on all plans, then $0.50/GB via pay-as-you-go);
+check the project's availability, retention and budget before enabling it.
+
+For release verification, check a consented launch appears under Explore →
+Metrics as `dashynms.app_start` with value 1 and the expected release/platform.
+Check both a fresh launch and a report queued six days earlier. Confirm accepted
+metric outcomes and that neither launch appears in Errors; then send a controlled
+managed error and confirm it still appears there. HTTP success alone does not
+prove indexing. Metric timestamp acceptance depends on project retention; it
+must cover the seven-day local queue window.
 
 GitHub builds read the public ingestion address from the repository variable
 `SENTRY_DSN`. For local builds, set `DASHYNMS_SENTRY_DSN` before publishing. The

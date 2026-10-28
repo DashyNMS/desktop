@@ -19,7 +19,9 @@ Error and usage reports exclude monitored network data.
 The first normal launch after this feature becomes available asks for your choice. Both boxes start unchecked. You can allow either category, both categories, or choose **Don't share**. Closing the window leaves sharing off and asks again on the next launch. An explicit choice is remembered. Change it in **Settings → About**, then apply the change.
 
 - Error reports contain the app version, operating system, processor architecture, time, exception types, and method names from approved application assemblies. They exclude exception messages, file paths, log files, network addresses, credentials and Intelligence content.
-- Basic usage sharing sends one `app_start` event per application process after you enable it. It contains the version, operating system, architecture and time. There is no user or installation identifier, so these events measure launches rather than unique users.
+- Basic usage sharing sends one `dashynms.app_start` counter measurement per application process after you enable it. It contains the version, operating system, architecture and time. There is no user or installation identifier, so these measurements count launches rather than unique users.
+
+Launch counts use Sentry Application Metrics, separately from error events. Metrics ingestion requests disable IP and user-agent inference.
 
 Sentry receives the connection information necessary to accept a report, including its source IP address. Reports are therefore not described as anonymous. The configured project uses Sentry's EU ingestion endpoint. See [Sentry's privacy policy](https://sentry.io/privacy/) for its handling of service data.
 

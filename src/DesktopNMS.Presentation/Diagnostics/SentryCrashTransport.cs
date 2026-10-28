@@ -10,6 +10,7 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
     private readonly HttpClient _client;
     private readonly Uri? _endpoint;
     private readonly string? _publicKey;
+    private long _metricSequence = -1;
 
     public SentryCrashTransport(string dsn) : this(dsn, new HttpClientHandler
     {
@@ -42,14 +43,13 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
         if (_endpoint is null || !CrashPayload.IsValid(report)) return new(CrashSendDisposition.Rejected);
         using var body = new MemoryStream();
         WriteJsonLine(body, new { event_id = report.EventId.ToString("N") });
-        var payload = report is UsageReport ? JsonSerializer.SerializeToUtf8Bytes(new
-        {
-            event_id = report.EventId.ToString("N"), timestamp = report.Timestamp.ToUnixTimeMilliseconds() / 1000.0,
-            platform = "csharp", level = "info", logger = "dashynms.usage", message = "app_start",
-            release = report.Context.Release,
-            tags = new { operating_system = report.Context.OperatingSystem, architecture = report.Context.Architecture },
-        }) : CrashEvent((CrashReport)report);
-        WriteJsonLine(body, new { type = "event", length = payload.Length });
+        var usage = report is UsageReport;
+        var payload = usage ? UsageMetric((UsageReport)report) : CrashEvent((CrashReport)report);
+        if (usage)
+            WriteJsonLine(body, new { type = "trace_metric", item_count = 1,
+                content_type = "application/vnd.sentry.items.trace-metric+json", length = payload.Length });
+        else
+            WriteJsonLine(body, new { type = "event", length = payload.Length });
         body.Write(payload);
         body.WriteByte((byte)'\n');
         if (body.Length > CrashPayload.MaximumBytes) return new(CrashSendDisposition.Rejected);
@@ -60,14 +60,40 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
         try
         {
             using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-            if (response.IsSuccessStatusCode) return new(CrashSendDisposition.Accepted, RetryDelay(response));
+            if (response.IsSuccessStatusCode) return new(CrashSendDisposition.Accepted, RetryDelay(response, usage ? "trace_metric" : "error"));
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
-                return new(CrashSendDisposition.Retry, RetryDelay(response) ?? TimeSpan.FromMinutes(1));
+                return new(CrashSendDisposition.Retry, RetryDelay(response, usage ? "trace_metric" : "error") ?? TimeSpan.FromMinutes(1));
             return new((int)response.StatusCode >= 500 ? CrashSendDisposition.Retry : CrashSendDisposition.Rejected);
         }
         catch (HttpRequestException) { return new(CrashSendDisposition.Retry); }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new(CrashSendDisposition.Retry); }
     }
+
+    // Keep the on-disk usage schema unchanged: old queued launches use this path too.
+    // The random report ID supplies a local propagation context, never an installation ID.
+    private byte[] UsageMetric(UsageReport report) => JsonSerializer.SerializeToUtf8Bytes(new
+    {
+        version = 2,
+        ingest_settings = new { infer_ip = "never", infer_user_agent = "never" },
+        items = new[]
+        {
+            new
+            {
+                timestamp = report.Timestamp.ToUnixTimeMilliseconds() / 1000.0,
+                trace_id = report.EventId.ToString("N"),
+                name = "dashynms.app_start", type = "counter", value = 1,
+                attributes = new Dictionary<string, object>
+                {
+                    ["sentry.release"] = new { type = "string", value = report.Context.Release },
+                    ["operating_system"] = new { type = "string", value = report.Context.OperatingSystem },
+                    ["architecture"] = new { type = "string", value = report.Context.Architecture },
+                    ["sentry.sdk.name"] = new { type = "string", value = "dashynms.envelope" },
+                    ["sentry.sdk.version"] = new { type = "string", value = "1.0.0" },
+                    ["sentry.timestamp.sequence"] = new { type = "integer", value = Interlocked.Increment(ref _metricSequence) },
+                },
+            },
+        },
+    });
 
     private static byte[] CrashEvent(CrashReport report) => JsonSerializer.SerializeToUtf8Bytes(new
         {
@@ -86,7 +112,7 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
             },
         });
 
-    private static TimeSpan? RetryDelay(HttpResponseMessage response)
+    private static TimeSpan? RetryDelay(HttpResponseMessage response, string category)
     {
         var delay = response.Headers.RetryAfter?.Delta ??
             (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow);
@@ -95,7 +121,7 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
             foreach (var limit in values.SelectMany(value => value.Split(',')))
             {
                 var parts = limit.Split(':');
-                if (parts.Length < 2 || (parts[1].Length != 0 && !parts[1].Split(';').Contains("error"))) continue;
+                if (parts.Length < 2 || (parts[1].Length != 0 && !parts[1].Split(';').Contains(category))) continue;
                 if (double.TryParse(parts[0], NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var seconds) &&
                     double.IsFinite(seconds) && seconds > 0)
                     delay = TimeSpan.FromSeconds(Math.Max(delay?.TotalSeconds ?? 0, Math.Min(seconds, 24 * 60 * 60)));
