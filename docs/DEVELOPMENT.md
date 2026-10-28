@@ -275,6 +275,35 @@ does not change them. They still represent only opted-in activity, with possible
 capacity/counter-cap drops, seven-day offline expiry and retry duplicates. Do
 not interpret them as unique users, installation totals, journeys or retention.
 
+Intelligence measurement wraps one `SendAsync` / logical `AskAsync` question,
+including token renewal, internal provider retries and tool rounds. Explicitly
+retrying a question starts a new logical request. Timing starts immediately
+before scheduling the conversation work, after local question/composer setup.
+First response means the first non-whitespace answer delta or completed answer
+text applied to the view model on the UI thread; tool activity/status/image
+callbacks are not first text. Completion is after the logical answer/outcome is
+known, before final local chat persistence. A failed/cancelled request with no
+text has no first-response point; a partial answer retains its first-text time
+with the final failure/cancellation outcome.
+
+`dashynms.intelligence.requests` counts each completion once. The millisecond
+distributions `dashynms.intelligence.duration` and
+`dashynms.intelligence.first_response` use the shared first/every-tenth sampling.
+Only `area:intelligence` and fixed outcomes are added: success, cancelled,
+timeout, authfailure, planlimit, modelfailure, toolfailure, networkfailure or
+failed (including an empty answer). Categories use exception types and Core's
+bounded failure enum; messages are never parsed into dimensions. Caller
+cancellation and a provider timeout are distinguished by the request token.
+Metrics consent must already be active when the question starts, and the same
+generation must remain valid when it completes. Use counters for reliability
+ratios; distribution sample counts are not request totals.
+
+The timing helper accepts no question/answer text, chat/Spotlight objects, tool
+arguments/results, provider/model names, accounts, credentials, token usage or
+cost data. The existing UI callback only checks whether text is non-empty before
+notifying the timer. No transcript tracing or additional tool-call records are
+introduced. The normal bounded buffer/expiry/retry caveats apply.
+
 GitHub builds read the public ingestion address from the repository variable
 `SENTRY_DSN`. For local builds, set `DASHYNMS_SENTRY_DSN` before publishing. The
 address becomes assembly metadata in the app. No authentication token is needed

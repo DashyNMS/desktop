@@ -206,6 +206,37 @@ public sealed class AppMetricsTests
         Assert.Empty(Directory.GetFiles(System.IO.Path.Combine(folder.Path, "crash-reports"), "*.json"));
     }
 
+    [Fact]
+    public async Task Intelligence_requests_aggregate_and_interface_recording_rejects_old_consent()
+    {
+        using var folder = new Folder();
+        var sink = new Transport();
+        using var reporter = new CrashReporter(Context, sink);
+        using var metrics = new AppMetrics(reporter);
+        reporter.ConfigureMetrics(folder.Path, false, true, true);
+        metrics.Configure(true);
+        var previous = new IntelligenceRequestTiming(metrics);
+        previous.FirstResponse();
+        metrics.Configure(false);
+        metrics.Configure(true);
+        previous.Complete(MetricOutcome.Success);
+        metrics.Flush();
+        await reporter.SendPendingAsync();
+        Assert.Empty(sink.Reports);
+        for (var i = 0; i < 20; i++)
+        {
+            var request = new IntelligenceRequestTiming(metrics);
+            request.FirstResponse();
+            request.Complete(MetricOutcome.Success);
+        }
+        metrics.Flush();
+        await reporter.SendPendingAsync();
+        var points = Assert.IsType<MetricsReport>(Assert.Single(sink.Reports)).Points;
+        Assert.Equal(20, Assert.Single(points, p => p.Observation.Name == MetricName.IntelligenceRequests).Observation.Value);
+        Assert.Equal(2, points.Count(p => p.Observation.Name == MetricName.IntelligenceDuration));
+        Assert.Equal(2, points.Count(p => p.Observation.Name == MetricName.IntelligenceFirstResponse));
+    }
+
     private static readonly CrashReportContext Context = new("2.0.0", "linux", "x64");
     private sealed class Transport : ICrashTransport
     {
