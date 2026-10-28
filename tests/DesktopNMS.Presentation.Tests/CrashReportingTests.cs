@@ -461,6 +461,29 @@ public sealed class CrashReportingTests
         Assert.False(reporter.RecordMetrics([new(DateTimeOffset.UtcNow, new(MetricName.FeatureUse, 1))]));
     }
 
+    [Theory]
+    [InlineData(MetricName.ApiRequestCount, "dashynms.api.requests", "counter", "none")]
+    [InlineData(MetricName.ApiDuration, "dashynms.api.duration", "distribution", "millisecond")]
+    public async Task API_counts_and_timings_use_non_error_envelopes(MetricName metricName, string name, string type, string unit)
+    {
+        var handler = new RecordingHandler();
+        using var transport = new SentryCrashTransport("https://publickey@collector.invalid/123", handler);
+        var now = DateTimeOffset.UtcNow;
+        var report = new MetricsReport(1, Guid.NewGuid(), now, Context with { Architecture = "x64" },
+            [new(now, new(metricName, 1, Outcome: MetricOutcome.Timeout, Area: MetricArea.DeviceList))]);
+        Assert.Equal(CrashSendDisposition.Accepted, (await transport.SendAsync(report, default)).Disposition);
+        var lines = Assert.Single(handler.Bodies).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        using var item = JsonDocument.Parse(lines[1]);
+        using var payload = JsonDocument.Parse(lines[2]);
+        Assert.Equal("trace_metric", item.RootElement.GetProperty("type").GetString());
+        var point = Assert.Single(payload.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal(name, point.GetProperty("name").GetString());
+        Assert.Equal(type, point.GetProperty("type").GetString());
+        Assert.Equal(unit, point.GetProperty("unit").GetString());
+        Assert.Equal("timeout", point.GetProperty("attributes").GetProperty("outcome").GetProperty("value").GetString());
+        Assert.Equal("devicelist", point.GetProperty("attributes").GetProperty("area").GetProperty("value").GetString());
+    }
+
     private static Exception SensitiveException()
     {
         var exception = new InvalidOperationException("secret-token-canary private-host-canary chat-text-canary C:\\Users\\private-user-canary\\private.txt",

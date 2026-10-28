@@ -306,6 +306,7 @@ public partial class App : Application
             !_demo.IsActive && DiagnosticsConsent.Launches(settings),
             !_demo.IsActive && DiagnosticsConsent.Metrics(settings));
         Program.Metrics.Configure(!_demo.IsActive && DiagnosticsConsent.Metrics(settings));
+        ApiMetrics.Configure(_services!.GetRequiredService<LibreNmsTransport>(), Program.Metrics);
         if (!_demo.IsActive) Program.Reports.RecordUsage();
         _ = Program.Reports.SendPendingAsync();
     }
