@@ -1,12 +1,12 @@
 namespace DesktopNMS.Diagnostics;
 
 // Only built-in dimensions can enter the queue. No caller-supplied names or tags.
-public enum MetricName { StartupDuration, ScreenLoadDuration, ApiDuration, FeatureUse, UpdateOutcome, IntelligenceDuration, IntelligenceFirstResponse, UiStallCount, UiStallDuration, WorkingSet, ManagedHeap, ApiRequestCount, IntelligenceRequests }
-public enum MetricMode { Interactive, Background }
-public enum MetricOutcome { Success, Failed, Cancelled, Timeout, NetworkFailure, ClientError, ServerError, Cached, AuthFailure, PlanLimit, ModelFailure, ToolFailure }
-public enum MetricArea { Application, Dashboard, DeviceDetails, Alerts, Health, Devices, Sensors, Maps, Intelligence, DashboardEditor, Widget, UpdateCheck, UpdateDownload, UpdateInstall, UpdateStartup, DeviceList, ApiOther, WidgetSensors, WidgetAlerts, WidgetAlertsGauge, WidgetDeviceStatus, WidgetRecentlyViewed, WidgetPinnedDevices, WidgetGraph, WidgetWireless, WidgetTopInterfaces, WidgetTopErrors, WidgetTopDevices, WidgetEventLog, WidgetGraylog }
+public enum MetricName { StartupDuration, ScreenLoadDuration, ApiDuration, FeatureUse, UpdateOutcome, IntelligenceDuration, IntelligenceFirstResponse, UiStallCount, UiStallDuration, WorkingSet, ManagedHeap, ApiRequestCount, IntelligenceRequests, UpdateDuration }
+public enum MetricMode { Interactive, Background, Manual, Automatic, Notification, Untracked }
+public enum MetricOutcome { Success, Failed, Cancelled, Timeout, NetworkFailure, ClientError, ServerError, Cached, AuthFailure, PlanLimit, ModelFailure, ToolFailure, Available, Current, Launched, Confirmed, DifferentVersion, Unavailable }
+public enum MetricArea { Application, Dashboard, DeviceDetails, Alerts, Health, Devices, Sensors, Maps, Intelligence, DashboardEditor, Widget, UpdateCheck, UpdateDownload, UpdateInstall, UpdateStartup, DeviceList, ApiOther, WidgetSensors, WidgetAlerts, WidgetAlertsGauge, WidgetDeviceStatus, WidgetRecentlyViewed, WidgetPinnedDevices, WidgetGraph, WidgetWireless, WidgetTopInterfaces, WidgetTopErrors, WidgetTopDevices, WidgetEventLog, WidgetGraylog, UpdateAvailability }
 public sealed record MetricObservation(MetricName Name, double Value, MetricMode Mode = MetricMode.Interactive,
-    MetricOutcome Outcome = MetricOutcome.Success, MetricArea Area = MetricArea.Application);
+    MetricOutcome Outcome = MetricOutcome.Success, MetricArea Area = MetricArea.Application, UpdateMetricContext? Update = null);
 public sealed record MetricPoint(DateTimeOffset Timestamp, MetricObservation Observation);
 
 public interface IAppMetrics
@@ -29,7 +29,7 @@ public sealed class AppMetrics : IAppMetrics, IDisposable
     private readonly TimeProvider _time;
     private readonly ITimer _timer;
     private readonly List<MetricPoint> _points = [];
-    private readonly Dictionary<(MetricName, MetricMode, MetricOutcome, MetricArea), int> _samples = [];
+    private readonly Dictionary<(MetricName, MetricMode, MetricOutcome, MetricArea, UpdateMetricContext?), int> _samples = [];
     private bool _enabled;
     private bool _disposed;
     private long _generation;
@@ -66,11 +66,11 @@ public sealed class AppMetrics : IAppMetrics, IDisposable
         lock (_gate)
         {
             if (!_enabled || _disposed || (expectedGeneration is { } generation && generation != _generation) || !IsValid(observation)) return;
-            var key = (observation.Name, observation.Mode, observation.Outcome, observation.Area);
+            var key = (observation.Name, observation.Mode, observation.Outcome, observation.Area, observation.Update);
             var counter = IsCounter(observation.Name);
             if (counter)
             {
-                var index = _points.FindIndex(p => (p.Observation.Name, p.Observation.Mode, p.Observation.Outcome, p.Observation.Area) == key);
+                var index = _points.FindIndex(p => (p.Observation.Name, p.Observation.Mode, p.Observation.Outcome, p.Observation.Area, p.Observation.Update) == key);
                 if (index >= 0)
                 {
                     var point = _points[index];
@@ -110,7 +110,7 @@ public sealed class AppMetrics : IAppMetrics, IDisposable
     internal static bool IsGauge(MetricName name) => name is MetricName.WorkingSet or MetricName.ManagedHeap;
     internal static bool IsValid(MetricObservation? observation) => observation is not null &&
         Enum.IsDefined(observation.Name) && Enum.IsDefined(observation.Mode) && Enum.IsDefined(observation.Outcome) && Enum.IsDefined(observation.Area) &&
-        double.IsFinite(observation.Value) && observation.Value >= 0 &&
+        (observation.Update is null || observation.Update.IsValid) && double.IsFinite(observation.Value) && observation.Value >= 0 &&
         (IsCounter(observation.Name) ? observation.Value is > 0 and <= 1_000_000 && observation.Value == Math.Truncate(observation.Value) :
          observation.Value <= (IsGauge(observation.Name) ? 1_099_511_627_776 : 86_400_000));
 

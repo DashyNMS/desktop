@@ -1,3 +1,4 @@
+using DesktopNMS.Diagnostics;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Reflection;
@@ -46,11 +47,13 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
     private ReadyUpdate? _ready;
     private GitHubReleaseAsset? _readyAsset;
     private readonly string _directory;
+    private readonly UpdateMetrics _metrics;
+    private MetricMode DeliveryMode => !CanInstallUpdate ? MetricMode.Notification : DownloadsAutomatically ? MetricMode.Automatic : MetricMode.Manual;
 
     public DesktopUpdateService(IGitHubReleaseService releases, ISettingsStore settings,
         IUpdateInstallation installation, IUpdateAnnouncements announcements, DemoMode demo,
         ILogger<DesktopUpdateService> logger, HttpClient? http = null, string? directory = null,
-        string? currentVersion = null)
+        string? currentVersion = null, IAppMetrics? metrics = null)
     {
         _releases = releases; _settings = settings; _installation = installation;
         _announcements = announcements; _demo = demo; _logger = logger;
@@ -58,6 +61,7 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("DashyNMS/2");
         _directory = directory ?? AppPaths.UpdatesDirectory;
         CurrentVersion = currentVersion ?? RunningVersion();
+        _metrics = new UpdateMetrics(_demo.IsActive ? null : metrics, _directory, CurrentVersion);
         _automaticDownloads = _settings.Current.DownloadUpdatesAutomatically;
         _settings.Changed += OnSettingsChanged;
     }
@@ -89,9 +93,12 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
     {
         if (_demo.IsActive || _lifetime.IsCancellationRequested) return new(true, null, false);
         var generation = Interlocked.Increment(ref _checkGeneration);
+        var previews = includePreviewBuildsOverride ?? _settings.Current.IncludePreviewBuilds;
+        var timing = _metrics.Begin(MetricArea.UpdateCheck, null, previews, DeliveryMode);
+        var outcome = MetricOutcome.Failed;
+        string? target = null;
         try
         {
-            var previews = includePreviewBuildsOverride ?? _settings.Current.IncludePreviewBuilds;
             lock (_gate)
             {
                 if (!previews && (_readyPreview || _latestRelease?.Prerelease == true || _operation?.Release.Prerelease == true))
@@ -110,9 +117,13 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
             }
             else release = await _releases.GetLatestReleaseAsync(cancellationToken).ConfigureAwait(false);
             if (release is null) return new(false, null, false);
+            target = release.TagName;
+            outcome = MetricOutcome.Success;
             if (release.Draft || (!previews && release.Prerelease) || string.IsNullOrWhiteSpace(release.TagName))
                 return new(true, null, false);
             var newer = ReleaseVersion.IsNewer(release.TagName, CurrentVersion);
+            if (timing.IsCurrent) _metrics.Begin(MetricArea.UpdateAvailability, release.TagName, previews, DeliveryMode)
+                .Complete(newer ? MetricOutcome.Available : MetricOutcome.Current);
             lock (_gate)
             {
                 if (_lifetime.IsCancellationRequested || generation != Volatile.Read(ref _checkGeneration)) return new(true, release, newer);
@@ -130,9 +141,11 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         }
         catch (Exception ex)
         {
+            outcome = ex is OperationCanceledException ? MetricOutcome.Cancelled : MetricOutcome.Failed;
             _logger.LogWarning(ex, "Could not check for a desktop update");
             return new(false, null, false);
         }
+        finally { timing.Complete(outcome, target); }
     }
 
     private void StartPreparation(GitHubRelease release, bool notify, bool manual)
@@ -180,7 +193,12 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
                     operation.Downloading = true;
                 }
                 ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
-                var path = await DownloadAsync(asset, token).ConfigureAwait(false);
+                var download = _metrics.Begin(MetricArea.UpdateDownload, release.TagName, release.Prerelease,
+                    operation.Manual ? MetricMode.Manual : MetricMode.Automatic);
+                string path;
+                try { path = await DownloadAsync(asset, token).ConfigureAwait(false); download.Complete(MetricOutcome.Success); }
+                catch (OperationCanceledException) { download.Complete(MetricOutcome.Cancelled); throw; }
+                catch { download.Complete(MetricOutcome.Failed); throw; }
                 lock (_gate)
                 {
                     token.ThrowIfCancellationRequested();
@@ -218,6 +236,8 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
     public async Task<bool> InstallAsync()
     {
         if (_demo.IsActive || _lifetime.IsCancellationRequested || !CanInstallUpdate || !await _installGate.WaitAsync(0).ConfigureAwait(false)) return false;
+        UpdateTiming? install = null;
+        var launched = false;
         try
         {
             bool needsCheck;
@@ -230,23 +250,38 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
                 preparing = _ready is null ? _preparing : Task.CompletedTask;
             }
             await preparing.ConfigureAwait(false);
-            ReadyUpdate? ready; GitHubReleaseAsset? asset;
-            lock (_gate) { ready = _ready; asset = _readyAsset; }
-            if (ready is null || asset is null) return false;
+            ReadyUpdate? ready; GitHubReleaseAsset? asset; bool readyPreview; string? target;
+            lock (_gate)
+            {
+                ready = _ready; asset = _readyAsset;
+                target = ready?.Version ?? _latestRelease?.TagName;
+                readyPreview = ready is not null ? _readyPreview : _latestRelease?.Prerelease == true;
+            }
+            install = _metrics.Begin(MetricArea.UpdateInstall, target, readyPreview, MetricMode.Manual);
+            if (ready is null || asset is null) { install.Complete(MetricOutcome.Unavailable); return false; }
             // Recheck a cached file immediately before handing it to the OS.
             var path = await DownloadAsync(asset, _lifetime.Token).ConfigureAwait(false);
             lock (_gate) { if (_lifetime.IsCancellationRequested || _wantedVersion != ready.Version || _ready != ready) return false; }
+            _metrics.MarkPending(install);
             if (!await _installation.InstallAsync(path).ConfigureAwait(false)) return false;
+            launched = true;
+            install.Complete(MetricOutcome.Launched);
             if (_installation.RestartsApp) InstallStarted?.Invoke(this, EventArgs.Empty);
             return true;
         }
         catch (Exception ex) { _logger.LogWarning(ex, "Could not install a desktop update"); return false; }
-        finally { _installGate.Release(); }
+        finally
+        {
+            if (!launched && install is not null) { _metrics.Withdraw(); install.Complete(_lifetime.IsCancellationRequested ? MetricOutcome.Cancelled : MetricOutcome.Failed); }
+            _installGate.Release();
+        }
     }
 
     public void OnStartup()
     {
         if (_demo.IsActive) return;
+        if (!_metrics.ConfirmStartup(CurrentVersion))
+            _metrics.ConfirmUntrackedStartup(_settings.Current.LastRunVersion, CurrentVersion);
         if (WhatsNewNotes.MarkSeenIfFreshInstall(_settings.Current, CurrentVersion)) _settings.SaveQuietly();
         if (_settings.Current.LastRunVersion == CurrentVersion) return;
         _settings.Current.LastRunVersion = CurrentVersion;
@@ -262,6 +297,7 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
 
     private void OnSettingsChanged(object? sender, AppSettings settings)
     {
+        if (!DiagnosticsConsent.Metrics(settings)) _metrics.Withdraw();
         lock (_gate)
         {
             if (_automaticDownloads == settings.DownloadUpdatesAutomatically || _lifetime.IsCancellationRequested) return;

@@ -304,6 +304,44 @@ cost data. The existing UI callback only checks whether text is non-empty before
 notifying the timer. No transcript tracing or additional tool-call records are
 introduced. The normal bounded buffer/expiry/retry caveats apply.
 
+Update reporting uses `dashynms.update.outcome` counters and sampled
+`dashynms.update.duration` millisecond distributions. Fixed areas distinguish
+check, availability, download/preparation, installation launch and target startup.
+Availability and target-startup outcomes are count-only. Version dimensions
+`update.source` / `update.target` strip a leading v and build metadata and accept
+only validated version strings up to 32 characters; otherwise they are unknown.
+`update.channel` is stable/preview. Check/availability channel describes the
+selected policy; download/install channel describes the selected target release.
+Platform/release remain the shared context. These dimensions participate in
+aggregation keys so different targets/channels never merge.
+
+Mode is the configured automatic/manual/notification policy for checks and
+availability, and the actual manual/automatic path for package preparation.
+Package-manager/unsupported installation flows report availability with
+notification mode and do not invent downloads/installations. Turning automatic
+downloads off still cancels automatic preparation; an explicit Install can
+prepare manually. Download success means a verified package is ready (network
+transfer or valid cache); the pre-install cache recheck is part of installation
+preparation, not another download observation.
+
+A true platform Install return emits `launched`, never confirmed success.
+Before handing off, one local `pending-update-metrics.json` marker stores only
+schema, time, source/target and channel (max 1 KiB). A later target-version startup
+emits confirmed once and deletes it. An old source startup retains it without
+claiming failure; an unrelated known version emits differentversion and removes
+it. Unknown builds do not confirm. Without a usable marker, a known LastRunVersion
+to newer running-version change emits one confirmed startup with untracked mode,
+covering manual/package-manager updates without claiming an installer method.
+Fresh installs and unchanged/downgraded versions do not produce that fallback. Malformed/oversized/reparse-point state is
+rejected and markers expire after seven days. Withdrawal deletes pending state;
+no user/installation ID is introduced. Confirmation means the target app started,
+not that every installer action was verified or that the app never later failed.
+
+Counters/durations require consent at operation start and the same generation
+at completion. No asset URL, filename/path, account or server data is attached.
+Pending-state IO is bounded and best effort; interruption or persistence failure
+can lose confirmation. Existing shared queue/rate/sampling limits still apply.
+
 GitHub builds read the public ingestion address from the repository variable
 `SENTRY_DSN`. For local builds, set `DASHYNMS_SENTRY_DSN` before publishing. The
 address becomes assembly metadata in the app. No authentication token is needed

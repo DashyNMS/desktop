@@ -115,6 +115,7 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
                 MetricName.ApiRequestCount => "dashynms.api.requests",
                 MetricName.ApiDuration => "dashynms.api.duration",
                 MetricName.FeatureUse => "dashynms.feature.use",
+                MetricName.UpdateDuration => "dashynms.update.duration",
                 MetricName.UpdateOutcome => "dashynms.update.outcome",
                 MetricName.IntelligenceRequests => "dashynms.intelligence.requests",
                 MetricName.IntelligenceDuration => "dashynms.intelligence.duration",
@@ -128,20 +129,32 @@ public sealed class SentryCrashTransport : ICrashTransport, IDisposable
             type = AppMetrics.IsCounter(point.Observation.Name) ? "counter" : AppMetrics.IsGauge(point.Observation.Name) ? "gauge" : "distribution",
             unit = AppMetrics.IsCounter(point.Observation.Name) ? "none" : AppMetrics.IsGauge(point.Observation.Name) ? "byte" : "millisecond",
             value = point.Observation.Value,
-            attributes = new Dictionary<string, object>
+            attributes = MetricAttributes(report.Context, point.Observation),
+        }).ToArray(),
+    });
+
+    private Dictionary<string, object> MetricAttributes(CrashReportContext context, MetricObservation observation)
+    {
+        var attributes = new Dictionary<string, object>
             {
-                ["sentry.release"] = new { type = "string", value = report.Context.Release },
-                ["operating_system"] = new { type = "string", value = report.Context.OperatingSystem },
-                ["architecture"] = new { type = "string", value = report.Context.Architecture },
-                ["mode"] = new { type = "string", value = point.Observation.Mode.ToString().ToLowerInvariant() },
-                ["outcome"] = new { type = "string", value = point.Observation.Outcome.ToString().ToLowerInvariant() },
-                ["area"] = new { type = "string", value = point.Observation.Area.ToString().ToLowerInvariant() },
+                ["sentry.release"] = new { type = "string", value = context.Release },
+                ["operating_system"] = new { type = "string", value = context.OperatingSystem },
+                ["architecture"] = new { type = "string", value = context.Architecture },
+                ["mode"] = new { type = "string", value = observation.Mode.ToString().ToLowerInvariant() },
+                ["outcome"] = new { type = "string", value = observation.Outcome.ToString().ToLowerInvariant() },
+                ["area"] = new { type = "string", value = observation.Area.ToString().ToLowerInvariant() },
                 ["sentry.sdk.name"] = new { type = "string", value = "dashynms.envelope" },
                 ["sentry.sdk.version"] = new { type = "string", value = "1.0.0" },
                 ["sentry.timestamp.sequence"] = new { type = "integer", value = Interlocked.Increment(ref _metricSequence) },
-            },
-        }).ToArray(),
-    });
+            };
+        if (observation.Update is { } update)
+        {
+            attributes["update.source"] = new { type = "string", value = update.Source };
+            attributes["update.target"] = new { type = "string", value = update.Target };
+            attributes["update.channel"] = new { type = "string", value = update.Channel.ToString().ToLowerInvariant() };
+        }
+        return attributes;
+    }
 
     private static byte[] CrashEvent(CrashReport report) => JsonSerializer.SerializeToUtf8Bytes(new
         {

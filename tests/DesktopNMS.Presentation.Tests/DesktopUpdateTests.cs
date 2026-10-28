@@ -1,4 +1,5 @@
 using System.Net;
+using DesktopNMS.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using DesktopNMS.Core.Configuration;
@@ -21,8 +22,8 @@ public sealed class DesktopUpdateTests : IDisposable
     private readonly ISettingsStore _settings;
     public DesktopUpdateTests() => _settings = new SettingsStore(NullLogger<SettingsStore>.Instance, Path.Combine(_directory, "settings.json"));
     public void Dispose() { if (Directory.Exists(_directory)) Directory.Delete(_directory, true); }
-    private DesktopUpdateService Create(bool demo = false) => new(_releases, _settings, _installation, _announcements,
-        new DemoMode(demo), NullLogger<DesktopUpdateService>.Instance, new HttpClient(_download), Path.Combine(_directory, "updates"), "2.0.0");
+    private DesktopUpdateService Create(bool demo = false, IAppMetrics? metrics = null, string currentVersion = "2.0.0") => new(_releases, _settings, _installation, _announcements,
+        new DemoMode(demo), NullLogger<DesktopUpdateService>.Instance, new HttpClient(_download), Path.Combine(_directory, "updates"), currentVersion, metrics);
 
     [Fact]
     public async Task A_verified_windows_update_announces_once_and_installs()
@@ -324,6 +325,96 @@ public sealed class DesktopUpdateTests : IDisposable
         using var service = Create(demo: true);
         Assert.False((await service.CheckAsync(true)).IsNewerVersionAvailable);
         Assert.False(await service.InstallAsync()); Assert.Equal(0, _releases.Calls); Assert.Equal(0, _download.Calls);
+    }
+
+    [Fact]
+    public async Task Telemetry_distinguishes_installer_launch_from_a_confirmed_target_startup()
+    {
+        var sink = new MetricsSink();
+        using var service = Create(metrics: sink);
+        await service.CheckAsync(false);
+        await service.WhenIdle;
+        Assert.True(await service.InstallAsync());
+        Assert.Contains(sink.Points, p => p.Area == MetricArea.UpdateInstall && p.Outcome == MetricOutcome.Launched);
+        Assert.DoesNotContain(sink.Points, p => p.Outcome == MetricOutcome.Confirmed);
+        var metrics = new UpdateMetrics(sink, Path.Combine(_directory, "updates"), "2.1.0");
+        metrics.ConfirmStartup("2.0.0");
+        Assert.DoesNotContain(sink.Points, p => p.Outcome == MetricOutcome.Confirmed);
+        metrics.ConfirmStartup("2.1.0");
+        metrics.ConfirmStartup("2.1.0");
+        var confirmed = Assert.Single(sink.Points, p => p.Outcome == MetricOutcome.Confirmed);
+        Assert.Equal("2.0.0", confirmed.Update!.Source);
+        Assert.Equal("2.1.0", confirmed.Update.Target);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Notification_only_and_demo_flows_do_not_invent_downloads(bool demo)
+    {
+        _installation.Runtime = null;
+        var sink = new MetricsSink();
+        using var service = Create(demo, sink);
+        await service.CheckAsync(false);
+        await service.WhenIdle;
+        if (demo) Assert.Empty(sink.Points);
+        else
+        {
+            Assert.Contains(sink.Points, p => p.Area == MetricArea.UpdateAvailability && p.Mode == MetricMode.Notification);
+            Assert.DoesNotContain(sink.Points, p => p.Area == MetricArea.UpdateDownload || p.Area == MetricArea.UpdateInstall);
+        }
+    }
+
+    [Fact]
+    public async Task Manual_download_is_counted_once_and_cached_install_recheck_is_not_another_download()
+    {
+        _settings.Current.DownloadUpdatesAutomatically = false;
+        var sink = new MetricsSink();
+        using var service = Create(metrics: sink);
+        await service.CheckAsync(false);
+        await service.WhenIdle;
+        Assert.DoesNotContain(sink.Points, p => p.Area == MetricArea.UpdateDownload);
+        Assert.True(await service.InstallAsync());
+        var download = Assert.Single(sink.Points, p => p.Name == MetricName.UpdateOutcome && p.Area == MetricArea.UpdateDownload);
+        Assert.Equal(MetricMode.Manual, download.Mode);
+        Assert.Equal(MetricOutcome.Success, download.Outcome);
+    }
+
+    [Fact]
+    public void Untracked_version_startup_is_confirmed_once_without_inventing_an_installer()
+    {
+        _settings.Current.LastRunVersion = "2.0.0";
+        var sink = new MetricsSink();
+        using var service = Create(metrics: sink, currentVersion: "2.1.0");
+        service.OnStartup();
+        service.OnStartup();
+        var point = Assert.Single(sink.Points);
+        Assert.Equal(MetricOutcome.Confirmed, point.Outcome);
+        Assert.Equal(MetricMode.Untracked, point.Mode);
+        Assert.Equal(MetricArea.UpdateStartup, point.Area);
+    }
+
+    [Fact]
+    public async Task Withdrawing_usage_removes_the_pending_target_even_without_a_download_preference_change()
+    {
+        var sink = new MetricsSink();
+        using var service = Create(metrics: sink);
+        await service.CheckAsync(false);
+        await service.WhenIdle;
+        await service.InstallAsync();
+        var marker = Path.Combine(_directory, "updates", "pending-update-metrics.json");
+        Assert.True(File.Exists(marker));
+        _settings.Current.DiagnosticsSharing = DiagnosticsSharingPreference.None;
+        _settings.Save();
+        Assert.False(File.Exists(marker));
+    }
+
+    private sealed class MetricsSink : IAppMetrics
+    {
+        private readonly object _gate = new();
+        private readonly List<MetricObservation> _points = [];
+        public IReadOnlyList<MetricObservation> Points { get { lock (_gate) return _points.ToArray(); } }
+        public void Record(MetricObservation observation) { lock (_gate) _points.Add(observation); }
     }
 
     private static GitHubRelease Release(string version, string runtime = "win-x64")
