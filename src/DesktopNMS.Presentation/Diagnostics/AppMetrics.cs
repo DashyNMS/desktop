@@ -1,9 +1,9 @@
 namespace DesktopNMS.Diagnostics;
 
 // Only built-in dimensions can enter the queue. No caller-supplied names or tags.
-public enum MetricName { StartupDuration, ScreenLoadDuration, ApiDuration, FeatureUse, UpdateOutcome, IntelligenceDuration, IntelligenceFirstResponse, UiStallCount, UiStallDuration, WorkingSet, ManagedHeap, ApiRequestCount, IntelligenceRequests, UpdateDuration }
-public enum MetricMode { Interactive, Background, Manual, Automatic, Notification, Untracked }
-public enum MetricOutcome { Success, Failed, Cancelled, Timeout, NetworkFailure, ClientError, ServerError, Cached, AuthFailure, PlanLimit, ModelFailure, ToolFailure, Available, Current, Launched, Confirmed, DifferentVersion, Unavailable }
+public enum MetricName { StartupDuration, ScreenLoadDuration, ApiDuration, FeatureUse, UpdateOutcome, IntelligenceDuration, IntelligenceFirstResponse, UiStallCount, UiStallDuration, WorkingSet, ManagedHeap, ApiRequestCount, IntelligenceRequests, UpdateDuration, SessionOutcome, SessionDuration }
+public enum MetricMode { Interactive, Background, Manual, Automatic, Notification, Untracked, Process }
+public enum MetricOutcome { Success, Failed, Cancelled, Timeout, NetworkFailure, ClientError, ServerError, Cached, AuthFailure, PlanLimit, ModelFailure, ToolFailure, Available, Current, Launched, Confirmed, DifferentVersion, Unavailable, Healthy, Errored, ManagedCrash, Abnormal }
 public enum MetricArea { Application, Dashboard, DeviceDetails, Alerts, Health, Devices, Sensors, Maps, Intelligence, DashboardEditor, Widget, UpdateCheck, UpdateDownload, UpdateInstall, UpdateStartup, DeviceList, ApiOther, WidgetSensors, WidgetAlerts, WidgetAlertsGauge, WidgetDeviceStatus, WidgetRecentlyViewed, WidgetPinnedDevices, WidgetGraph, WidgetWireless, WidgetTopInterfaces, WidgetTopErrors, WidgetTopDevices, WidgetEventLog, WidgetGraylog, UpdateAvailability }
 public sealed record MetricObservation(MetricName Name, double Value, MetricMode Mode = MetricMode.Interactive,
     MetricOutcome Outcome = MetricOutcome.Success, MetricArea Area = MetricArea.Application, UpdateMetricContext? Update = null);
@@ -106,13 +106,13 @@ public sealed class AppMetrics : IAppMetrics, IDisposable
         if (send) _ = _reporter.SendPendingAsync();
     }
 
-    internal static bool IsCounter(MetricName name) => name is MetricName.FeatureUse or MetricName.UpdateOutcome or MetricName.UiStallCount or MetricName.ApiRequestCount or MetricName.IntelligenceRequests;
+    internal static bool IsCounter(MetricName name) => name is MetricName.FeatureUse or MetricName.UpdateOutcome or MetricName.UiStallCount or MetricName.ApiRequestCount or MetricName.IntelligenceRequests or MetricName.SessionOutcome;
     internal static bool IsGauge(MetricName name) => name is MetricName.WorkingSet or MetricName.ManagedHeap;
     internal static bool IsValid(MetricObservation? observation) => observation is not null &&
         Enum.IsDefined(observation.Name) && Enum.IsDefined(observation.Mode) && Enum.IsDefined(observation.Outcome) && Enum.IsDefined(observation.Area) &&
         (observation.Update is null || observation.Update.IsValid) && double.IsFinite(observation.Value) && observation.Value >= 0 &&
         (IsCounter(observation.Name) ? observation.Value is > 0 and <= 1_000_000 && observation.Value == Math.Truncate(observation.Value) :
-         observation.Value <= (IsGauge(observation.Name) ? 1_099_511_627_776 : 86_400_000));
+         observation.Value <= (IsGauge(observation.Name) ? 1_099_511_627_776 : observation.Name == MetricName.SessionDuration ? 7_776_000_000 : 86_400_000));
 
     public void Dispose()
     {

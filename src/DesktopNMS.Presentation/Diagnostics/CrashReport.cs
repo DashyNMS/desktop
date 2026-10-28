@@ -14,6 +14,7 @@ public sealed record CrashException(string Type, IReadOnlyList<CrashFrame> Frame
 [JsonDerivedType(typeof(CrashReport), "error")]
 [JsonDerivedType(typeof(UsageReport), "usage")]
 [JsonDerivedType(typeof(MetricsReport), "metrics")]
+[JsonDerivedType(typeof(SessionHealthReport), "session_health")]
 public abstract record DiagnosticReport(int Schema, Guid EventId, DateTimeOffset Timestamp, CrashReportContext Context);
 
 public sealed record CrashReport(int Schema, Guid EventId, DateTimeOffset Timestamp,
@@ -25,6 +26,12 @@ public sealed record UsageReport(int Schema, Guid EventId, DateTimeOffset Timest
 
 public sealed record MetricsReport(int Schema, Guid EventId, DateTimeOffset Timestamp,
     CrashReportContext Context, IReadOnlyList<MetricPoint> Points)
+    : DiagnosticReport(Schema, EventId, Timestamp, Context);
+
+public enum SessionOutcome { Healthy, Errored, ManagedCrash, Abnormal }
+
+public sealed record SessionHealthReport(int Schema, Guid EventId, DateTimeOffset Timestamp,
+    CrashReportContext Context, SessionOutcome Outcome, double? DurationMilliseconds)
     : DiagnosticReport(Schema, EventId, Timestamp, Context);
 
 public enum CrashSendDisposition { Accepted, Retry, Rejected }

@@ -15,6 +15,8 @@ internal static class Program
 
     internal static AppMetrics Metrics { get; } = new(Reports);
 
+    internal static SessionHealth? Sessions { get; set; }
+
     [STAThread]
     public static void Main(string[] args)
     {
@@ -42,6 +44,7 @@ internal static class Program
         }
         finally
         {
+            Sessions?.Dispose();
             if (observingUi) Dispatcher.UIThread.UnhandledException -= OnUiException;
             AppDomain.CurrentDomain.UnhandledException -= OnUnhandledException;
             Metrics.Dispose();

@@ -56,6 +56,9 @@ internal static partial class CrashPayload
             report.Context.OperatingSystem is not ("windows" or "macos" or "linux" or "unknown") ||
             report.Context.Architecture is not ("x64" or "arm64" or "x86" or "arm" or "unknown")) return false;
         if (report is UsageReport) return true;
+        if (report is SessionHealthReport session) return Enum.IsDefined(session.Outcome) &&
+            (session.DurationMilliseconds is null || (session.Outcome != SessionOutcome.Abnormal &&
+             double.IsFinite(session.DurationMilliseconds.Value) && session.DurationMilliseconds is >= 0 and <= 7_776_000_000));
         if (report is MetricsReport metrics) return metrics.Points is { Count: > 0 and <= AppMetrics.MaximumPoints } &&
             metrics.Points.All(point => point is not null && AppMetrics.IsValid(point.Observation) &&
                 point.Timestamp >= metrics.Timestamp && (point.Timestamp - metrics.Timestamp) <= TimeSpan.FromDays(7));

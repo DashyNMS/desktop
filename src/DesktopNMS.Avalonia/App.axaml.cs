@@ -302,11 +302,15 @@ public partial class App : Application
         var choice = (settings.DiagnosticsSharing, settings.DiagnosticsConsentVersion);
         if (_configuredDiagnosticsSharing == choice) return;
         _configuredDiagnosticsSharing = choice;
+        var sessions = Program.Sessions ??= new SessionHealth(Program.Reports, AppPaths.DataDirectory);
+        var sessionsAllowed = !_demo.IsActive && DiagnosticsConsent.Sessions(settings);
+        if (!sessionsAllowed) sessions.Configure(false);
         if (_demo.IsActive || !DiagnosticsConsent.Metrics(settings)) Program.Metrics.Configure(false);
         Program.Reports.ConfigureMetrics(AppPaths.DataDirectory,
             !_demo.IsActive && DiagnosticsConsent.Errors(settings),
             !_demo.IsActive && DiagnosticsConsent.Launches(settings),
-            !_demo.IsActive && DiagnosticsConsent.Metrics(settings));
+            !_demo.IsActive && DiagnosticsConsent.Metrics(settings), sessionsAllowed);
+        sessions.Configure(sessionsAllowed);
         Program.Metrics.Configure(!_demo.IsActive && DiagnosticsConsent.Metrics(settings));
         ApiMetrics.Configure(_services!.GetRequiredService<LibreNmsTransport>(), Program.Metrics);
         var activity = _services!.GetRequiredService<AvaloniaAppActivity>();
