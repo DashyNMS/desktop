@@ -484,6 +484,29 @@ public sealed class CrashReportingTests
         Assert.Equal("devicelist", point.GetProperty("attributes").GetProperty("area").GetProperty("value").GetString());
     }
 
+    [Fact]
+    public async Task Maximum_update_batch_fits_and_has_only_sanitised_version_dimensions()
+    {
+        var handler = new RecordingHandler();
+        using var transport = new SentryCrashTransport("https://publickey@collector.invalid/123", handler);
+        var now = DateTimeOffset.UtcNow;
+        var version = "2.0.0-" + new string('a', 26);
+        var report = new MetricsReport(1, Guid.NewGuid(), now,
+            new("2.0.0-" + new string('a', 90), "windows", "arm64"),
+            Enumerable.Range(0, AppMetrics.MaximumPoints).Select(_ => new MetricPoint(now,
+                new(MetricName.UpdateDuration, 86400000, MetricMode.Notification, MetricOutcome.DifferentVersion,
+                    MetricArea.UpdateAvailability, new(version, version, MetricUpdateChannel.Preview)))).ToArray());
+        Assert.Equal(CrashSendDisposition.Accepted, (await transport.SendAsync(report, default)).Disposition);
+        var body = Assert.Single(handler.Bodies);
+        Assert.True(Encoding.UTF8.GetByteCount(body) <= 32768);
+        using var payload = JsonDocument.Parse(body.Split('\n', StringSplitOptions.RemoveEmptyEntries)[2]);
+        var attributes = payload.RootElement.GetProperty("items")[0].GetProperty("attributes");
+        Assert.Equal(version, attributes.GetProperty("update.source").GetProperty("value").GetString());
+        Assert.Equal(version, attributes.GetProperty("update.target").GetProperty("value").GetString());
+        Assert.Equal("preview", attributes.GetProperty("update.channel").GetProperty("value").GetString());
+        Assert.Equal(12, attributes.EnumerateObject().Count());
+    }
+
     private static Exception SensitiveException()
     {
         var exception = new InvalidOperationException("secret-token-canary private-host-canary chat-text-canary C:\\Users\\private-user-canary\\private.txt",
