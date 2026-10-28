@@ -145,6 +145,8 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
     public bool ShowSignInDialog()
     {
         var window = new ConnectionWindow(services.GetRequiredService<ConnectionViewModel>());
+        DesktopNMS.Infrastructure.StartupTimingObserver.Observe(window, Program.Startup, Program.Metrics,
+            () => (Avalonia.Application.Current as App)?.StartupMetricsAllowed == true);
         Modal.Show(window, Owner());
         return window.Succeeded;
     }
