@@ -23,6 +23,7 @@ namespace DesktopNMS.ViewModels;
 public sealed class MainViewModel : ObservableObject, IDisposable
 {
     private readonly ScreenLoadTiming _screenLoad;
+    private readonly FeatureMetrics _featureMetrics;
 
     private readonly ILibreNmsClient _client;
     private readonly ISessionService _session;
@@ -113,6 +114,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         NotificationRuleService notificationRules,
         ILogger<MainViewModel> logger, IAppMetrics? metrics = null)
     {
+        _featureMetrics = new FeatureMetrics(metrics);
         _screenLoad = new ScreenLoadTiming(metrics, MetricArea.Alerts);
         _notificationRules = notificationRules;
         _client = client;
@@ -570,11 +572,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set
         {
             if (value == _selectedTab) return;
+            var previousTab = _selectedTab;
             if (_selectedTab == MainTab.Dashboard) _dashboard.OnHidden();
             if (_selectedTab == MainTab.Health) _health.OnHidden();
             if (_selectedTab == MainTab.Alerts) _screenLoad.Complete(MetricOutcome.Cancelled);
             if (SetProperty(ref _selectedTab, value))
             {
+                _featureMetrics.Navigated(previousTab, value);
                 if (value == MainTab.Alerts && _session.IsConnected) _screenLoad.Begin(_lastUpdated is not null);
                 OnPropertyChanged(nameof(IsDashboardTabSelected));
                 OnPropertyChanged(nameof(IsDevicesTabSelected));

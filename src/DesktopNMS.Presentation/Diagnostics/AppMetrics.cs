@@ -4,7 +4,7 @@ namespace DesktopNMS.Diagnostics;
 public enum MetricName { StartupDuration, ScreenLoadDuration, ApiDuration, FeatureUse, UpdateOutcome, IntelligenceDuration, IntelligenceFirstResponse, UiStallCount, UiStallDuration, WorkingSet, ManagedHeap, ApiRequestCount }
 public enum MetricMode { Interactive, Background }
 public enum MetricOutcome { Success, Failed, Cancelled, Timeout, NetworkFailure, ClientError, ServerError, Cached }
-public enum MetricArea { Application, Dashboard, DeviceDetails, Alerts, Health, Devices, Sensors, Maps, Intelligence, DashboardEditor, Widget, UpdateCheck, UpdateDownload, UpdateInstall, UpdateStartup, DeviceList, ApiOther }
+public enum MetricArea { Application, Dashboard, DeviceDetails, Alerts, Health, Devices, Sensors, Maps, Intelligence, DashboardEditor, Widget, UpdateCheck, UpdateDownload, UpdateInstall, UpdateStartup, DeviceList, ApiOther, WidgetSensors, WidgetAlerts, WidgetAlertsGauge, WidgetDeviceStatus, WidgetRecentlyViewed, WidgetPinnedDevices, WidgetGraph, WidgetWireless, WidgetTopInterfaces, WidgetTopErrors, WidgetTopDevices, WidgetEventLog, WidgetGraylog }
 public sealed record MetricObservation(MetricName Name, double Value, MetricMode Mode = MetricMode.Interactive,
     MetricOutcome Outcome = MetricOutcome.Success, MetricArea Area = MetricArea.Application);
 public sealed record MetricPoint(DateTimeOffset Timestamp, MetricObservation Observation);

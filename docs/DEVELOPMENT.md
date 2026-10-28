@@ -251,6 +251,30 @@ the metric should not be treated as an exact crash/freeze count. Unit tests use
 a manual clock/dispatcher to verify long stalls, bounded scheduling, sampling,
 withdrawal, background/debugger exclusions and sleep/clock jumps without sleeps.
 
+Feature use increments `dashynms.feature.use` under the existing expanded
+consent. One use means a transition to a different Maps tab (network,
+geographical or custom, all combined as `area:maps`), a transition into
+Intelligence, entering dashboard edit mode from non-edit mode, or each built-in
+widget successfully added through the picker. Re-selecting the active tab,
+startup layout restoration, cancelling the picker, leaving edit mode, and
+background callbacks do not count. Duplicate/template operations outside the
+picker are not included in the widget-add measurement.
+
+Widget categories are an explicit whitelist: Sensors, Alerts, AlertsGauge,
+DeviceStatus, RecentlyViewed, PinnedDevices, Graph, Wireless, TopInterfaces,
+TopErrors, TopDevices, EventLog and Graylog. Their fixed areas are the lowercase
+`widget`-prefixed enum names (for example `widgetsensors`); unknown/future types
+are skipped until deliberately added to the catalogue. No widget title,
+dashboard name, custom type text, object ID, device detail, search term or map
+location enters the adapter. The previous tab is used only to reject a repeated
+selection and is not stored or transmitted as a transition history.
+
+Counts are combined in the bounded local buffer and emitted as summaries, not
+one outbound event per click. Feature counters are not sampled: timing sampling
+does not change them. They still represent only opted-in activity, with possible
+capacity/counter-cap drops, seven-day offline expiry and retry duplicates. Do
+not interpret them as unique users, installation totals, journeys or retention.
+
 GitHub builds read the public ingestion address from the repository variable
 `SENTRY_DSN`. For local builds, set `DASHYNMS_SENTRY_DSN` before publishing. The
 address becomes assembly metadata in the app. No authentication token is needed
