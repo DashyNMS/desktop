@@ -57,3 +57,13 @@ foreach ($workflow in @('preview-build.yml','release-build.yml')) {
     if ($assetLines.Count -ne 5 -or $assetLines -match '\.sha256|BUILD') { throw "$workflow must publish only the five installers." }
 }
 Write-Host 'Distribution caller, source and installer publication checks passed.'
+
+# Development builds invoke the packager directly, outside package-build.yml.
+# Both paths must embed the public pin for an ad-hoc dev-to-preview upgrade.
+foreach ($workflow in @('dev-build.yml','package-build.yml')) {
+    $text = Get-Content (Join-Path $PSScriptRoot "../.github/workflows/$workflow") -Raw
+    if (-not $text.Contains('  MACOS_UPDATE_TEAM_ID: ${{ vars.MACOS_UPDATE_TEAM_ID }}')) {
+        throw "$workflow does not pass the public update publisher pin to the packager."
+    }
+}
+Write-Host 'Development and native package builds share the public update publisher pin.'
