@@ -237,6 +237,21 @@ public sealed class AppMetricsTests
         Assert.Equal(2, points.Count(p => p.Observation.Name == MetricName.IntelligenceFirstResponse));
     }
 
+    [Fact]
+    public async Task Rate_limited_memory_gauges_are_not_resampled_like_duration_streams()
+    {
+        using var folder = new Folder();
+        var sink = new Transport();
+        using var reporter = new CrashReporter(Context, sink);
+        using var metrics = new AppMetrics(reporter);
+        reporter.ConfigureMetrics(folder.Path, false, true, true);
+        metrics.Configure(true);
+        foreach (var value in new[] { 1024d, 2048d, 3072d }) metrics.Record(new(MetricName.WorkingSet, value));
+        metrics.Flush();
+        await reporter.SendPendingAsync();
+        Assert.Equal(new[] { 1024d, 2048d, 3072d }, Assert.IsType<MetricsReport>(Assert.Single(sink.Reports)).Points.Select(p => p.Observation.Value));
+    }
+
     private static readonly CrashReportContext Context = new("2.0.0", "linux", "x64");
     private sealed class Transport : ICrashTransport
     {
