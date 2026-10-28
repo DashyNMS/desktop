@@ -6,7 +6,10 @@ import Darwin
 
 // This tool never elevates. Its transaction is a private sibling of the installed
 // bundle, so RENAME_SWAP keeps a complete app at its original path at all times.
-struct UpdateFailure: Error { let message: String }
+struct UpdateFailure: Error {
+    let message: String
+    var blockingPids: [Int32] = []
+}
 func require(_ condition: @autoclosure () throws -> Bool, _ message: String) throws {
     if try !condition() { throw UpdateFailure(message: message) }
 }
@@ -234,6 +237,12 @@ func waitUntil(_ seconds: TimeInterval, _ condition: () -> Bool) -> Bool {
     let deadline = ProcessInfo.processInfo.systemUptime + seconds
     while !condition() {
         if ProcessInfo.processInfo.systemUptime >= deadline { return false }
+        if let application = NSApp {
+            while let event = application.nextEvent(matching: .any, until: Date(), inMode: .default, dequeue: true) {
+                application.sendEvent(event)
+            }
+            application.updateWindows()
+        }
         RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
     }
     return true
@@ -249,6 +258,7 @@ func launch(_ app: URL, environment: [String: String] = [:]) throws -> Process {
     process.standardOutput = FileHandle.nullDevice
     process.standardError = FileHandle.nullDevice
     var variables = ProcessInfo.processInfo.environment
+    variables.removeValue(forKey: "__CFBundleIdentifier")
     variables.removeValue(forKey: "DASHYNMS_UPDATE_DIRECTORY")
     variables.removeValue(forKey: "DASHYNMS_UPDATE_TOKEN")
     process.environment = variables.merging(environment) { _, new in new }
@@ -274,10 +284,45 @@ func replaceAndConfirm<Running>(exchange: () throws -> Void, start: () throws ->
         if let application = running {
             try require(stop(application), "The updated app could not close for recovery. The previous bundle is retained in the update folder.")
         }
+        try? state("restoring")
         try exchange()
         try state("rolled-back")
         restartPrevious()
         throw error
+    }
+}
+struct AppProcess {
+    let pid: Int32
+    let bundlePath: String?
+}
+func processExists(_ pid: Int32) -> Bool {
+    guard pid > 0 else { return false }
+    if kill(pid, 0) == 0 { return true }
+    // EPERM and unexpected errors cannot prove a process has exited.
+    return errno != ESRCH
+}
+func blockingAppProcesses(_ appPath: String, applications: [AppProcess], helperPid: Int32,
+    isAlive: (Int32) -> Bool = processExists) -> [Int32] {
+    // AppKit can register this helper under the host app and can briefly keep
+    // terminated hosts in its snapshot. Neither is another live app instance.
+    applications.filter { $0.pid != helperPid && $0.bundlePath == appPath && isAlive($0.pid) }.map { $0.pid }
+}
+func blockingAppProcesses(at app: URL) -> [Int32] {
+    let applications = NSWorkspace.shared.runningApplications.map {
+        AppProcess(pid: $0.processIdentifier, bundlePath: $0.bundleURL?.standardizedFileURL.path)
+    }
+    return blockingAppProcesses(app.standardizedFileURL.path, applications: applications, helperPid: getpid())
+}
+func requireNoOtherApps(at app: URL, wait: TimeInterval = 5, snapshot: (() -> [Int32])? = nil) throws {
+    // A Dock/login launch that loses the update lock needs time to exit. Keep
+    // blocking an actual live instance instead of replacing files under it.
+    var blocking: [Int32] = []
+    let clear = waitUntil(wait) {
+        blocking = snapshot?() ?? blockingAppProcesses(at: app)
+        return blocking.isEmpty
+    }
+    if !clear {
+        throw UpdateFailure(message: "Another DashyNMS process is still running. Quit any other copies and retry the update. The current installation has been kept.", blockingPids: blocking)
     }
 }
 func acquireLock(_ app: URL) throws -> Int32 {
@@ -295,7 +340,7 @@ func recover(_ directory: URL) throws {
     let app = URL(fileURLWithPath: value.app)
     let lock = try acquireLock(app)
     defer { close(lock) }
-    try require(!NSWorkspace.shared.runningApplications.contains { $0.bundleURL?.standardizedFileURL.path == app.standardizedFileURL.path }, "Quit DashyNMS before recovering its previous version.")
+    try requireNoOtherApps(at: app)
     let previous = directory.appendingPathComponent("Previous.app")
     try require(try fingerprint(app) == value.candidateFingerprint && fingerprint(previous) == value.previousFingerprint,
         "These bundles no longer match the recoverable update. No files have been changed.")
@@ -303,7 +348,51 @@ func recover(_ directory: URL) throws {
     try save(["state": "rolled-back"], at: directory.appendingPathComponent("state.json"))
     _ = try launch(app, environment: ["DASHYNMS_UPDATE_DIRECTORY": directory.path, "DASHYNMS_UPDATE_TOKEN": value.token])
 }
+// The helper is an accessory app: it can show progress while the host is
+// closed, without registering a second Dock application or a regular window.
+final class UpdateProgressPanel {
+    private let panel: NSPanel
+    private let status: NSTextField
+    private let bar: NSProgressIndicator
+
+    init() {
+        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 440, height: 150), styleMask: [.titled], backing: .buffered, defer: false)
+        status = NSTextField(labelWithString: "Verifying the update…")
+        bar = NSProgressIndicator(frame: NSRect(x: 24, y: 35, width: 392, height: 12))
+        panel.title = "Updating DashyNMS"
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        let heading = NSTextField(labelWithString: "Updating DashyNMS")
+        heading.font = NSFont.systemFont(ofSize: 20, weight: .semibold)
+        heading.frame = NSRect(x: 24, y: 99, width: 392, height: 28)
+        status.frame = NSRect(x: 24, y: 65, width: 392, height: 24)
+        bar.style = .bar
+        bar.isIndeterminate = true
+        bar.startAnimation(nil)
+        panel.contentView?.addSubview(heading)
+        panel.contentView?.addSubview(status)
+        panel.contentView?.addSubview(bar)
+        panel.center()
+        panel.orderFrontRegardless()
+        panel.displayIfNeeded()
+    }
+
+    func show(_ message: String, complete: Bool = false) {
+        status.stringValue = message
+        if complete {
+            bar.stopAnimation(nil)
+            bar.isIndeterminate = false
+            bar.doubleValue = 100
+        }
+        panel.displayIfNeeded()
+    }
+
+    func close() { panel.close() }
+}
+
 func apply(directory: URL, parent: Int32) throws {
+    let progress = UpdateProgressPanel()
+    defer { progress.close() }
     let value = try load(directory)
     let app = URL(fileURLWithPath: value.app)
     let previous = directory.appendingPathComponent("Previous.app")
@@ -319,15 +408,19 @@ func apply(directory: URL, parent: Int32) throws {
         let path = directory.appendingPathComponent(name)
         if files.fileExists(atPath: path.path) { try files.removeItem(at: path) }
     }
+    progress.show("Waiting for DashyNMS to quit…")
     try save(["state": "waiting"], at: directory.appendingPathComponent("state.json"))
     try Data().write(to: directory.appendingPathComponent("handoff"), options: .atomic)
-    try require(waitUntil(60) { host?.isTerminated != false }, "DashyNMS did not finish closing. The current installation has been kept.")
+    try require(waitUntil(60) { !processExists(parent) }, "DashyNMS did not finish closing. The current installation has been kept.")
     // Refuse replacement if a login item or a second launch raced shutdown.
-    try require(!NSWorkspace.shared.runningApplications.contains { $0.bundleURL?.standardizedFileURL.path == app.standardizedFileURL.path }, "DashyNMS is still running. The current installation has been kept.")
+    progress.show("Checking for running copies…")
+    try requireNoOtherApps(at: app)
     try require(try fingerprint(app) == value.previousFingerprint, "The installed app changed while closing.")
     try replaceAndConfirm(exchange: { try swap(app, previous) }, start: {
-        try launch(app, environment: ["DASHYNMS_UPDATE_DIRECTORY": directory.path, "DASHYNMS_UPDATE_TOKEN": value.token])
+        progress.show("Starting DashyNMS…")
+        return try launch(app, environment: ["DASHYNMS_UPDATE_DIRECTORY": directory.path, "DASHYNMS_UPDATE_TOKEN": value.token])
     }, confirm: { process in
+        progress.show("Waiting for DashyNMS to start…")
         let confirmed = waitUntil(120) {
             guard process.isRunning,
                   let data = try? Data(contentsOf: directory.appendingPathComponent("startup.json")),
@@ -343,9 +436,18 @@ func apply(directory: URL, parent: Int32) throws {
         }
         return waitUntil(20) { !process.isRunning }
     }, state: { state in
+        switch state {
+        case "replacing": progress.show("Installing the update…")
+        case "restoring": progress.show("Restoring the previous version…")
+        case "confirmed": progress.show("Update complete", complete: true)
+        default: break
+        }
         try save(["state": state], at: directory.appendingPathComponent("state.json"))
     }, restartPrevious: {
         try? save(["state": "failed", "message": "The updated app did not start successfully. DashyNMS restored the previous version."], at: directory.appendingPathComponent("failure.json"))
+        // The native helper presents the error after recovery. Do not race it
+        // with a second recovery notice from the relaunched old app.
+        try? Data().write(to: directory.appendingPathComponent("failure-shown"), options: .atomic)
         _ = try? launch(app, environment: ["DASHYNMS_UPDATE_DIRECTORY": directory.path, "DASHYNMS_UPDATE_TOKEN": value.token])
     })
     cleanupConfirmedTransactions(except: directory, app: app)
@@ -356,6 +458,10 @@ func apply(directory: URL, parent: Int32) throws {
 @main
 struct UpdateMain {
     static func main() {
+        // The embedded accessory identity permits the progress panel without
+        // keeping the host's Dock icon alive during the update handoff.
+        _ = NSApplication.shared.setActivationPolicy(.accessory)
+        NSApplication.shared.finishLaunching()
         let arguments = Array(CommandLine.arguments.dropFirst())
         do {
             switch arguments.first {
@@ -372,7 +478,30 @@ struct UpdateMain {
             let message = (error as? UpdateFailure)?.message ?? "The macOS update could not complete. The installed or previous app bundle has been retained."
             if arguments.first == "apply", arguments.count == 3 {
                 let directory = URL(fileURLWithPath: arguments[1])
-                if (try? safeDirectory(directory)) != nil { try? save(["state": "failed", "message": message], at: directory.appendingPathComponent("failure.json")) }
+                if (try? safeDirectory(directory)) != nil {
+                    struct FailureRecord: Encodable {
+                        let state = "failed"
+                        let message: String
+                        let updaterPid: Int32
+                        let parentPid: Int32?
+                        let blockingPids: [Int32]
+                    }
+                    try? save(FailureRecord(message: message, updaterPid: getpid(), parentPid: Int32(arguments[2]),
+                        blockingPids: (error as? UpdateFailure)?.blockingPids ?? []), at: directory.appendingPathComponent("failure.json"))
+                    if let parent = Int32(arguments[2]), !processExists(parent) {
+                        // The original app can no longer explain a failed install.
+                        // Keep its native error visible, and avoid repeating it
+                        // from the saved recovery notice on the next launch.
+                        let alert = NSAlert()
+                        alert.messageText = "Update did not complete"
+                        alert.informativeText = message
+                        alert.alertStyle = .warning
+                        alert.addButton(withTitle: "OK")
+                        NSApplication.shared.activate(ignoringOtherApps: true)
+                        _ = alert.runModal()
+                        try? Data().write(to: directory.appendingPathComponent("failure-shown"), options: .atomic)
+                    }
+                }
             }
             fputs(message + "\n", stderr)
             exit(1)

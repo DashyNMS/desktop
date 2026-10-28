@@ -269,6 +269,45 @@ public sealed class DesktopUpdateTests : IDisposable
     }
 
     [Fact]
+    public async Task Automatic_downloads_do_not_open_an_install_progress_popup()
+    {
+        using var service = Create(); var changes = 0;
+        service.InstallProgressChanged += (_, _) => changes++;
+        await service.CheckAsync(false); await service.WhenIdle;
+        Assert.NotNull(service.ReadyUpdate);
+        Assert.Null(service.InstallProgress); Assert.Equal(0, changes);
+    }
+
+    [Fact]
+    public async Task An_explicit_update_reports_real_stages_and_closes_progress_before_shutdown()
+    {
+        _settings.Current.DownloadUpdatesAutomatically = false;
+        using var service = Create();
+        var stages = new List<UpdateStage?>();
+        service.InstallProgressChanged += (_, _) => stages.Add(service.InstallProgress?.Stage);
+        service.InstallStarted += (_, _) => Assert.Null(service.InstallProgress);
+        Assert.True(await service.InstallAsync());
+        Assert.Equal(UpdateStage.Checking, stages.First());
+        Assert.Contains(UpdateStage.Downloading, stages);
+        Assert.Contains(UpdateStage.Preparing, stages);
+        Assert.Contains(UpdateStage.StartingInstaller, stages);
+        Assert.Null(stages.Last()); Assert.Null(service.InstallProgress);
+    }
+
+    [Fact]
+    public async Task Failed_preparation_closes_progress_without_claiming_an_installer_started()
+    {
+        _installation.Prepare = (_, _, _) => throw new IOException("Synthetic trust failure.");
+        using var service = Create();
+        var stages = new List<UpdateStage?>();
+        service.InstallProgressChanged += (_, _) => stages.Add(service.InstallProgress?.Stage);
+        Assert.False(await service.InstallAsync());
+        Assert.Contains(UpdateStage.Preparing, stages);
+        Assert.DoesNotContain(UpdateStage.StartingInstaller, stages);
+        Assert.Null(stages.Last()); Assert.Null(service.InstallProgress);
+    }
+
+    [Fact]
     public async Task Relaunch_is_not_offered_until_platform_validation_finishes()
     {
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

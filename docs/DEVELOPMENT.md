@@ -949,9 +949,23 @@ Xcode or command-line developer tools is not required.
 On Relaunch, a copy of the currently installed helper outside the app revalidates
 the candidate and obtains a destination lock. Only then does the app shut down,
 stopping MCP and releasing its profile lock. The helper waits for termination
-and refuses replacement if another copy is running. `RENAME_SWAP` exchanges the
+and refuses replacement if another live copy is running. The helper has its own
+embedded accessory identity and never counts itself as a running host.
+The process check confirms kernel liveness instead of treating a stale AppKit
+snapshot as proof that another instance is alive. It allows a short grace period
+for Dock/login launches rejected by the update lock to exit. Native failure
+records include parent, helper and blocking process IDs; the app log records
+handoff acceptance and shutdown progress. `RENAME_SWAP` exchanges the
 entire staged and installed bundles on the same filesystem. The original path
 always contains a complete bundle; the old bundle remains as `Previous.app`.
+
+Explicit updates on macOS and Windows open a progress popup for checking,
+downloading, verification and installer handoff. Background automatic downloads
+do not open windows. Stages with no measured fraction use an indeterminate bar.
+The macOS helper keeps its own native progress panel visible while the host
+quits, the bundle is replaced and startup is confirmed, including rollback.
+Windows Setup uses `/SILENT` with its real installation progress window visible;
+it does not show the setup wizard or request an extra installation confirmation.
 
 The helper launches the exact new executable once. A token, exact release version
 and process ID receipt confirms that managed startup claimed the profile and
