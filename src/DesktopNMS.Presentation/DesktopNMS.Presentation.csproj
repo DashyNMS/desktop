@@ -53,9 +53,19 @@
     <Using Include="DesktopNMS.Infrastructure" />
   </ItemGroup>
 
-  <!-- BundledWhatsNew reads from this assembly (#391). -->
-  <ItemGroup>
-    <EmbeddedResource Include="WhatsNew.md" LogicalName="DesktopNMS.WhatsNew.md" />
+  <!-- Published packages embed the same exact-version file that GitHub publishes.
+       Routine/debug development builds do not fall back to a stable or cumulative changelog. -->
+  <PropertyGroup>
+    <PublishedNotesVersion>$([System.Text.RegularExpressions.Regex]::IsMatch('$(Version)', '^\d+\.\d+\.\d+(-preview\.\d+)?$'))</PublishedNotesVersion>
+    <ReleaseNotesFile>$(MSBuildThisFileDirectory)..\..\docs\releases\$(Version).md</ReleaseNotesFile>
+    <HasReleaseNotes Condition="'$(Configuration)' == 'Release' and '$(PublishedNotesVersion)' == 'True' and Exists('$(ReleaseNotesFile)')">true</HasReleaseNotes>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(HasReleaseNotes)' == 'true'">
+    <EmbeddedResource Include="$(ReleaseNotesFile)" LogicalName="DesktopNMS.ReleaseNotes.md" />
+    <AssemblyMetadata Include="ReleaseNotesVersion" Value="$(Version)" />
   </ItemGroup>
+  <Target Name="RequireExactReleaseNotes" BeforeTargets="PrepareForBuild" Condition="'$(RequireReleaseNotes)' == 'true'">
+    <Error Condition="'$(HasReleaseNotes)' != 'true'" Text="Missing exact release notes: docs/releases/$(Version).md" />
+  </Target>
 
 </Project>

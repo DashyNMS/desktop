@@ -36,8 +36,9 @@ try {
         # beside it so each Mach-O file can be signed before sealing the app.
         @('-p:PublishSingleFile=true','-p:IncludeNativeLibrariesForSelfExtract=false','-p:EnableCompressionInSingleFile=true')
     } else { @('-p:PublishSingleFile=false') }
+    $requireNotes = $Version -match '^\d+\.\d+\.\d+(-preview\.\d+)?$'
     dotnet publish src/DesktopNMS.Avalonia -c Release -r $Runtime --self-contained true -m:1 `
-        "-p:Version=$Version" @bundleOptions -p:DebugType=embedded -o $publish --nologo
+        "-p:Version=$Version" "-p:RequireReleaseNotes=$($requireNotes.ToString().ToLowerInvariant())" @bundleOptions -p:DebugType=embedded -o $publish --nologo
     Check-Native 'Publish'
     foreach ($file in @($mcpName,'LICENSE','BUILD.txt','version.json')) {
         if (-not (Test-Path "$publish/mcp/$file" -PathType Leaf)) { throw "The app is missing mcp/$file." }
