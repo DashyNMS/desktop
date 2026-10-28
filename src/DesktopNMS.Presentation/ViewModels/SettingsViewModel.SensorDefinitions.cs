@@ -53,6 +53,7 @@ public sealed partial class SettingsViewModel
                      nameof(SensorDefinitionsSource), nameof(SensorDefinitionsStatus), nameof(SensorDefinitionsVersion), nameof(SensorDefinitionsPath), nameof(SensorDefinitionsLastSync) })
             OnPropertyChanged(name);
         UpdateSensorDefinitionsCommand.RaiseCanExecuteChanged();
+        RaiseComponentVersions();
     }
 
     private async Task<bool> ApplySensorDefinitionsAsync()

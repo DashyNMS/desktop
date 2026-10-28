@@ -59,6 +59,18 @@ try {
         function chmod { Record chmod $args }
         function codesign {
             Record codesign $args
+            if ($global:LASTEXITCODE -eq 0 -and $args -contains '--sign') {
+                $target = [string]$args[-1]
+                if ([IO.Path]::GetFileName($target) -eq 'dashynms-mcp' -and [IO.File]::Exists($target)) {
+                    # Real codesign changes executable bytes, while retaining the Mach-O header.
+                    [IO.File]::AppendAllText($target, 'synthetic-signature')
+                }
+                if ([IO.Directory]::Exists($target)) {
+                    $metadata = Get-Content (Join-Path $target 'Contents/Resources/mcp/version.json') -Raw | ConvertFrom-Json
+                    $actualHash = (Get-FileHash (Join-Path $target 'Contents/MacOS/mcp/dashynms-mcp') -Algorithm SHA256).Hash
+                    $global:DashySigningTestState.Calls[-1] | Add-Member -NotePropertyName McpMetadataMatches -NotePropertyValue ($metadata.Sha256 -eq $actualHash)
+                }
+            }
             if ($global:LASTEXITCODE -ne 0 -and $global:DashySigningTestState.Output) {
                 Write-Output $global:DashySigningTestState.Output
                 Write-Error $global:DashySigningTestState.Output -ErrorAction Continue
@@ -120,6 +132,12 @@ try {
     [IO.File]::WriteAllText((Join-Path $mac 'managed.dll'), 'managed code')
     Require (Test-MachO "$mac/other-native.so") 'Mach-O detection depended on a filename extension.'
     Require (-not (Test-MachO "$mac/managed.dll")) 'Managed code was mistaken for Mach-O.'
+    $resources = Join-Path $app 'Contents/Resources/mcp'
+    New-Item $resources -ItemType Directory -Force | Out-Null
+    $version = '1.1.0-preview.1+' + ('a' * 40)
+    @{ SchemaVersion = 1; Version = $version; Commit = ('a' * 40); Runtime = 'osx-arm64';
+       Sha256 = (Get-FileHash "$mac/mcp/dashynms-mcp" -Algorithm SHA256).Hash } |
+        ConvertTo-Json | Set-Content (Join-Path $resources 'version.json') -Encoding utf8NoBOM
     $diskImage = Join-Path $scratch 'test.dmg'
     Run-Packager $app $image $diskImage
     $calls = @(Get-Calls)
@@ -128,6 +146,10 @@ try {
     $nestedPaths = @([IO.Path]::GetFullPath("$mac/mcp/dashynms-mcp"),[IO.Path]::GetFullPath("$mac/mcp/libcoreclr.dylib"))
     Require ($signs[0].Arguments[-1] -in $nestedPaths -and $signs[1].Arguments[-1] -in $nestedPaths) 'Nested MCP code was not signed first.'
     Require ($signs[5].Arguments[-1] -eq $app) 'App bundle must seal the nested signatures.'
+    Require $signs[5].McpMetadataMatches 'MCP metadata must match the signed executable before sealing the app bundle.'
+    $metadata = Get-Content (Join-Path $resources 'version.json') -Raw | ConvertFrom-Json
+    Require ($metadata.Version -eq $version -and $metadata.Commit -eq ('a' * 40) -and $metadata.Runtime -eq 'osx-arm64') 'Signing changed MCP build identity.'
+
     Require ($signs[6].Arguments[-1] -eq $diskImage) 'Disk image was not signed last.'
     Require (@($signs | Where-Object { $_.Arguments[-1] -eq [IO.Path]::GetFullPath("$mac/DashyNMS") }).Count -eq 0) 'Signing the main app executable separately can seal the bundle before its helper signatures exist.'
     $nestedSignatures = @($signs | Where-Object { $_.Arguments[-1] -ne $app -and $_.Arguments[-1] -ne $diskImage })

@@ -13,6 +13,9 @@ public sealed class McpBundleTests
     {
         var executable = Path.GetFullPath(Environment.GetEnvironmentVariable("DASHYNMS_TEST_MCP")!);
         Assert.True(File.Exists(executable), "The native network-tools executable is missing.");
+        var metadata = await DesktopNMS.Services.ComponentVersions.ReadMcpAsync(executable);
+        Assert.Equal("Bundled", metadata.State);
+        Assert.NotEqual(DesktopNMS.Services.ComponentVersions.Unavailable, metadata.Version);
         using var server = new DemoServer(new DemoFleet(), NullLogger.Instance);
         server.Start();
         var environment = StdioClientTransportOptions.GetDefaultEnvironmentVariables();

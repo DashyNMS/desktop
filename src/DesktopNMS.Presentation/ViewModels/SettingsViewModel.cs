@@ -134,7 +134,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         ICustomMapStore customMaps,
         IntelligenceViewModel intelligence,
         DesktopNMS.Core.Sensors.SensorDefinitionStore? sensorDefinitions = null,
-        DesktopNMS.Diagnostics.ICrashReporter? crashReporter = null)
+        DesktopNMS.Diagnostics.ICrashReporter? crashReporter = null,
+        DesktopNMS.Services.Intelligence.McpToolHost? versionTools = null)
     {
         _store = store;
         IsCrashReportingAvailable = crashReporter?.IsAvailable == true;
@@ -178,7 +179,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         SelectIntelligenceSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Intelligence);
         SelectMapsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Maps);
         ResetMapTileUrlCommand = new RelayCommand(() => MapTileUrl = null);
-        SelectAboutSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.About);
+        SelectAboutSectionCommand = new RelayCommand(() =>
+        {
+            SelectedSection = SettingsSection.About;
+            _ = RefreshComponentVersionsAsync();
+        });
 
         RefreshServerInfoCommand = new AsyncRelayCommand(RefreshServerInfoAsync, () => !IsRefreshingServerInfo);
 
@@ -193,11 +198,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         ShowLicencesCommand = new RelayCommand(() => _windows.ShowLicences());
         ViewReleasesPageCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri("https://github.com/DashyNMS/desktop/releases")));
-        ReportBugCommand = new RelayCommand(
-            () => _windows.OpenUrl(BugReportLink.Build(
-                _updates.CurrentVersion.ToString(),
-                System.Runtime.InteropServices.RuntimeInformation.OSDescription,
-                _serverInfo?.LocalVersion)));
+        ReportBugCommand = new RelayCommand(() => _windows.OpenUrl(ComponentBugReportLink()));
+        InitialiseComponentVersions(versionTools);
 
         OpenLogFolderCommand = new RelayCommand(OpenLogFolder);
 
@@ -1536,6 +1538,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public void Detach()
     {
         DetachSensorDefinitions();
+        DetachComponentVersions();
         _updates.ReadyUpdateChanged -= OnReadyUpdateChanged;
         Intelligence.Models.CollectionChanged -= OnIntelligenceModelsChanged;
     }
