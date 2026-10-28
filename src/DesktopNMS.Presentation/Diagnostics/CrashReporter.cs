@@ -16,10 +16,12 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
     private bool _enabled;
     private bool _sendErrors;
     private bool _sendUsage;
+    private bool _sendMetrics;
     private bool _usageRecorded;
     private bool _disposed;
     private long _generation;
-    private DateTimeOffset _nextAttempt;
+    private DateTimeOffset _nextErrorAttempt;
+    private DateTimeOffset _nextUsageAttempt;
     private int _pumpScheduled;
 
     public CrashReporter(CrashReportContext context, ICrashTransport transport, TimeProvider? timeProvider = null)
@@ -32,6 +34,9 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
     public bool IsAvailable => _transport.IsAvailable;
 
     public void Configure(string dataDirectory, bool sendErrors, bool sendUsage = false)
+        => ConfigureMetrics(dataDirectory, sendErrors, sendUsage, false);
+
+    public void ConfigureMetrics(string dataDirectory, bool sendErrors, bool sendUsage, bool sendMetrics)
     {
         lock (_gate)
         {
@@ -41,8 +46,9 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
                 var directory = Path.Combine(Path.GetFullPath(dataDirectory), "crash-reports");
                 sendErrors &= IsAvailable;
                 sendUsage &= IsAvailable;
+                sendMetrics &= sendUsage;
                 var enabled = sendErrors || sendUsage;
-                if (_directory == directory && _sendErrors == sendErrors && _sendUsage == sendUsage)
+                if (_directory == directory && _sendErrors == sendErrors && _sendUsage == sendUsage && _sendMetrics == sendMetrics)
                 {
                     if (!enabled) Purge(directory);
                     return;
@@ -50,13 +56,15 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
                 _enabled = false;
                 _sendErrors = sendErrors;
                 _sendUsage = sendUsage;
+                _sendMetrics = sendMetrics;
                 _generation++;
                 _consent.Cancel();
                 _consent.Dispose();
                 _consent = new();
                 if (_directory is not null && _directory != directory) Purge(_directory);
                 _directory = directory;
-                _nextAttempt = default;
+                _nextErrorAttempt = default;
+                _nextUsageAttempt = default;
                 if (!enabled) { Purge(directory); return; }
                 Directory.CreateDirectory(directory);
                 if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) return;
@@ -100,6 +108,20 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
                 ReadQueue();
             }
             catch (Exception) { }
+        }
+    }
+
+    public bool RecordMetrics(IReadOnlyList<MetricPoint> points)
+    {
+        lock (_gate)
+        {
+            if (!_enabled || !_sendMetrics || _disposed) return false;
+            try
+            {
+                var report = new MetricsReport(1, Guid.NewGuid(), points.Min(point => point.Timestamp), CrashPayload.SafeContext(_context), points);
+                return CrashPayload.IsValid(report) && Persist(report);
+            }
+            catch (Exception) { return false; }
         }
     }
 
@@ -152,8 +174,10 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
                 CancellationTokenSource linked;
                 lock (_gate)
                 {
-                    if (!_enabled || _disposed || _time.GetUtcNow() < _nextAttempt) return;
-                    var pending = ReadQueue();
+                    if (!_enabled || _disposed) return;
+                    var now = _time.GetUtcNow();
+                    var pending = ReadQueue().Where(item => now >=
+                        (item.Report is CrashReport ? _nextErrorAttempt : _nextUsageAttempt)).ToList();
                     if (pending.Count == 0) return;
                     (path, report) = pending[0];
                     generation = _generation;
@@ -174,21 +198,25 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
                     if (result.Disposition == CrashSendDisposition.Retry)
                     {
                         var delay = result.RetryAfter ?? TimeSpan.FromMinutes(1);
-                        _nextAttempt = _time.GetUtcNow() + TimeSpan.FromSeconds(Math.Clamp(delay.TotalSeconds, 1, 86400));
-                        return;
+                        SetNextAttempt(report, delay, result.RetryAllCategories);
+                        continue;
                     }
                     Delete(path);
                     if (File.Exists(path)) return;
-                    if (result.RetryAfter is { } backoff && backoff > TimeSpan.Zero)
-                    {
-                        _nextAttempt = _time.GetUtcNow() + TimeSpan.FromSeconds(Math.Clamp(backoff.TotalSeconds, 1, 86400));
-                        return;
-                    }
+                    if (result.RetryAfter is { } backoff && backoff > TimeSpan.Zero) SetNextAttempt(report, backoff, result.RetryAllCategories);
+                    if (report is not CrashReport) SetNextAttempt(report, TimeSpan.FromMinutes(1));
                 }
             }
         }
         catch (Exception) { }
         finally { if (acquired) _sender.Release(); }
+    }
+
+    private void SetNextAttempt(DiagnosticReport report, TimeSpan delay, bool allCategories = false)
+    {
+        var next = _time.GetUtcNow() + TimeSpan.FromSeconds(Math.Clamp(delay.TotalSeconds, 1, 86400));
+        if (allCategories || report is CrashReport) _nextErrorAttempt = next > _nextErrorAttempt ? next : _nextErrorAttempt;
+        if (allCategories || report is not CrashReport) _nextUsageAttempt = next > _nextUsageAttempt ? next : _nextUsageAttempt;
     }
 
     private List<(string Path, DiagnosticReport Report)> ReadQueue()
@@ -207,8 +235,9 @@ public sealed class CrashReporter : ICrashReporter, IDisposable
                 var report = JsonSerializer.Deserialize<DiagnosticReport>(File.ReadAllBytes(path), CrashPayload.JsonOptions);
                 var now = _time.GetUtcNow();
                 if (report is null || !CrashPayload.IsValid(report) ||
-                    (report is CrashReport && !_sendErrors) || (report is UsageReport && !_sendUsage) || report.Timestamp < now.AddDays(-7) ||
+                    (report is CrashReport && !_sendErrors) || (report is UsageReport && !_sendUsage) || (report is MetricsReport && !_sendMetrics) || report.Timestamp < now.AddDays(-7) ||
                     report.Timestamp > now.AddMinutes(5) ||
+                    (report is MetricsReport metrics && metrics.Points.Any(point => point.Timestamp > now.AddMinutes(5))) ||
                     Path.GetFileName(path) != report.EventId.ToString("N") + ".json")
                 { Delete(path); continue; }
                 queue.Add((path, report));

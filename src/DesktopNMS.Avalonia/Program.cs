@@ -11,6 +11,8 @@ internal static class Program
 {
     internal static CrashReporter Reports { get; } = CreateReporter();
 
+    internal static AppMetrics Metrics { get; } = new(Reports);
+
     [STAThread]
     public static void Main(string[] args)
     {
@@ -40,6 +42,7 @@ internal static class Program
         {
             if (observingUi) Dispatcher.UIThread.UnhandledException -= OnUiException;
             AppDomain.CurrentDomain.UnhandledException -= OnUnhandledException;
+            Metrics.Dispose();
             Reports.Dispose();
         }
     }

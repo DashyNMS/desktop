@@ -221,14 +221,21 @@ public sealed partial class SettingsViewModel : ObservableObject
     public bool SendCrashReports
     {
         get => _draft.DiagnosticsSharing is DiagnosticsSharingPreference.ErrorsOnly or DiagnosticsSharingPreference.ErrorsAndUsage;
-        set => SetDiagnosticsSharing(value, SendUsageStatistics);
+        set => SetDiagnosticsSharing(value, DesktopNMS.Diagnostics.DiagnosticsConsent.Launches(_draft));
     }
 
     public bool SendUsageStatistics
     {
-        get => _draft.DiagnosticsSharing is DiagnosticsSharingPreference.UsageOnly or DiagnosticsSharingPreference.ErrorsAndUsage;
-        set => SetDiagnosticsSharing(SendCrashReports, value);
+        get => DesktopNMS.Diagnostics.DiagnosticsConsent.Launches(_draft);
+        set
+        {
+            if (!DesktopNMS.Diagnostics.DiagnosticsConsent.ChangeUsageChoice(_draft, value)) return;
+            OnPropertyChanged(nameof(SendUsageStatistics));
+            OnPropertyChanged(nameof(HasLegacyUsageConsent));
+        }
     }
+
+    public bool HasLegacyUsageConsent => SendUsageStatistics && !DesktopNMS.Diagnostics.DiagnosticsConsent.Metrics(_draft);
 
     private void SetDiagnosticsSharing(bool errors, bool usage)
     {
@@ -243,6 +250,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _draft.DiagnosticsSharing = preference;
         OnPropertyChanged(nameof(SendCrashReports));
         OnPropertyChanged(nameof(SendUsageStatistics));
+        OnPropertyChanged(nameof(HasLegacyUsageConsent));
     }
 
     public RelayCommand CancelCommand { get; }

@@ -8,8 +8,11 @@ public partial class DiagnosticsSharingWindow : Window
 {
     private readonly DiagnosticsSharingViewModel _viewModel = new();
 
-    public DiagnosticsSharingWindow()
+    public DiagnosticsSharingWindow() : this(false) { }
+
+    public DiagnosticsSharingWindow(bool shareErrors)
     {
+        _viewModel.ShareErrors = shareErrors;
         InitializeComponent();
         DataContext = _viewModel;
         _viewModel.RequestClose += (_, choice) => Close(choice);

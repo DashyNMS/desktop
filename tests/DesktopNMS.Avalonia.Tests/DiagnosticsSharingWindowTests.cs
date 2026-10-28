@@ -26,7 +26,7 @@ public sealed class DiagnosticsSharingWindowTests
             Dispatcher.UIThread.RunJobs();
             Assert.True(window.IsVisible);
             Assert.False(FindCheckBox(window, "Share error reports").IsChecked);
-            Assert.False(FindCheckBox(window, "Share basic usage statistics").IsChecked);
+            Assert.False(FindCheckBox(window, "Share usage and performance metrics").IsChecked);
             Assert.False(FindButton(window, "Allow selected").IsEffectivelyEnabled);
             Assert.True(FindButton(window, "Don't share").IsEffectivelyEnabled);
             window.Close();
@@ -46,7 +46,7 @@ public sealed class DiagnosticsSharingWindowTests
         {
             var decision = window.ChooseAsync(owner);
             Click(window, FindCheckBox(window, "Share error reports"));
-            Click(window, FindCheckBox(window, "Share basic usage statistics"));
+            Click(window, FindCheckBox(window, "Share usage and performance metrics"));
             Click(window, FindButton(window, "Don't share"));
             Assert.Equal(DiagnosticsSharingPreference.None, await decision);
             Assert.False(window.IsVisible);
@@ -70,9 +70,9 @@ public sealed class DiagnosticsSharingWindowTests
         {
             var decision = window.ChooseAsync(owner);
             if (errors) Click(window, FindCheckBox(window, "Share error reports"));
-            if (usage) Click(window, FindCheckBox(window, "Share basic usage statistics"));
+            if (usage) Click(window, FindCheckBox(window, "Share usage and performance metrics"));
             Assert.Equal(errors, FindCheckBox(window, "Share error reports").IsChecked);
-            Assert.Equal(usage, FindCheckBox(window, "Share basic usage statistics").IsChecked);
+            Assert.Equal(usage, FindCheckBox(window, "Share usage and performance metrics").IsChecked);
             var allow = FindButton(window, "Allow selected");
             Assert.True(allow.IsEffectivelyEnabled);
             Click(window, allow);
@@ -97,6 +97,22 @@ public sealed class DiagnosticsSharingWindowTests
             Assert.Null(await decision);
         }
         finally { window.Close(); owner?.Close(); }
+    }
+
+    [AvaloniaFact]
+    public async Task Updated_prompt_preserves_error_choice_without_preselecting_broader_usage()
+    {
+        var window = new DiagnosticsSharingWindow(shareErrors: true);
+        try
+        {
+            var decision = window.ChooseAsync(null);
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(FindCheckBox(window, "Share error reports").IsChecked);
+            Assert.False(FindCheckBox(window, "Share usage and performance metrics").IsChecked);
+            window.Close();
+            Assert.Null(await decision);
+        }
+        finally { window.Close(); }
     }
 
     private static Window? ShowOwner(bool show)

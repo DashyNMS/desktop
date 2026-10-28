@@ -118,6 +118,35 @@ managed error and confirm it still appears there. HTTP success alone does not
 prove indexing. Metric timestamp acceptance depends on project retention; it
 must cover the seven-day local queue window.
 
+Expanded usage consent uses `AppSettings.DiagnosticsConsentVersion == 1`.
+Version 0 and unknown versions never authorise broader metrics. Legacy launch
+consent is retained and the updated prompt starts usage unchecked, preserving
+the existing error choice. Explicit declines do not trigger a new prompt.
+Settings shows whether a saved choice is still launch-only; disabling usage
+withdraws both launch and broader metrics consent.
+
+`IAppMetrics.Record(MetricObservation)` accepts enum names and dimensions only.
+No string tags, HTTP instrumentation, machine metadata or content are accepted.
+The catalogue reserves counters for feature use, update outcomes and UI stalls;
+distributions for startup, screen loads, API calls, Intelligence response/first
+response and stall durations (milliseconds); and gauges for working set and
+managed heap (bytes). Names use `dashynms.*`; each point has release, OS,
+architecture and fixed `mode`, `area` and `outcome` attributes. These are delivery
+capabilities: individual instrumentation remains in #499–507, not this change.
+
+Counters are summed per built-in series, capped at 1,000,000 per buffer.
+Durations/gauges retain the first and every tenth observation per series.
+The buffer and sampling catalogue each hold at most 32 entries. A one-minute
+background timer persists a batch into the existing ten-report / 32 KiB /
+seven-day queue and attempts delivery. Normal exit persists the tail; abrupt
+termination can lose it. Metrics uploads are paced to one request per minute.
+Errors have independent backoff; global server limits pause both categories.
+Withdrawal clears the buffer, stops the timer, cancels delivery and purges the
+affected reports. Launch-only consent also purges broader queued metrics.
+Capacity/expiry drops and at-least-once retries mean counts are approximate;
+sampled durations are not exact population percentiles. Do not scale sampled
+gauges as counts or infer users/retention from these measurements.
+
 GitHub builds read the public ingestion address from the repository variable
 `SENTRY_DSN`. For local builds, set `DASHYNMS_SENTRY_DSN` before publishing. The
 address becomes assembly metadata in the app. No authentication token is needed
