@@ -135,8 +135,6 @@ public sealed class ComponentVersionsTests : IDisposable
     {
         var component = new ComponentVersion("Core", "2.0.0-preview.4+abcdef", "Loaded");
         Assert.Equal("2.0.0-preview.4", component.DisplayVersion);
-        Assert.True(component.HasDetails);
-        Assert.Contains("2.0.0-preview.4+abcdef", component.BuildDetails);
         Assert.Contains("2.0.0-preview.4+abcdef", ComponentVersions.Format(new[] { component }));
     }
 

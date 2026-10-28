@@ -520,20 +520,25 @@
                                     <TextBlock Text="{Binding ServerUrlText}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                     <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshServerInfoCommand}" Padding="10,6" Margin="12,0,0,0" />
                                 </Grid>
+                                <TextBlock Text="Refreshing…" Classes="subtle" IsVisible="{Binding IsRefreshingServerInfo}" Margin="0,8,0,0" />
                                 <TextBlock Text="{Binding ServerInfoStatusText}" Classes="error" TextWrapping="Wrap" Margin="0,8,0,0" IsVisible="{Binding HasServerInfoStatus}" />
-                                <Grid Margin="0,16,0,0" IsVisible="{Binding HasServerInfo}" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
-                                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="LibreNMS version" Classes="section" /><TextBlock Text="{Binding ServerVersionText}" TextWrapping="Wrap" /></StackPanel>
-                                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Branch" Classes="section" /><TextBlock Text="{Binding ServerBranchText}" TextWrapping="Wrap" /></StackPanel>
-                                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="Commit" Classes="section" /><TextBlock Text="{Binding ServerCommitText}" TextWrapping="Wrap" /></StackPanel>
-                                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Release date" Classes="section" /><TextBlock Text="{Binding ServerDateText}" TextWrapping="Wrap" /></StackPanel>
-                                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="Database version" Classes="section" /><TextBlock Text="{Binding DatabaseVersionText}" TextWrapping="Wrap" /></StackPanel>
-                                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Database schema" Classes="section" /><TextBlock Text="{Binding DatabaseSchemaText}" TextWrapping="Wrap" /></StackPanel>
-                                    <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="PHP version" Classes="section" /><TextBlock Text="{Binding PhpVersionText}" TextWrapping="Wrap" /></StackPanel>
-                                    <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Python version" Classes="section" /><TextBlock Text="{Binding PythonVersionText}" TextWrapping="Wrap" /></StackPanel>
-                                    <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,10,0"><TextBlock Text="RRDtool version" Classes="section" /><TextBlock Text="{Binding RrdToolVersionText}" TextWrapping="Wrap" /></StackPanel>
-                                    <StackPanel Grid.Row="4" Grid.Column="1"><TextBlock Text="Net-SNMP version" Classes="section" /><TextBlock Text="{Binding NetSnmpVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                <Grid Margin="0,16,0,0" IsVisible="{Binding HasServerInfo}" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
+                                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="LibreNMS version" Classes="section" /><SelectableTextBlock Text="{Binding ServerVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Branch" Classes="section" /><SelectableTextBlock Text="{Binding ServerBranchText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="Commit" Classes="section" /><SelectableTextBlock Text="{Binding ServerCommitText}" TextWrapping="Wrap" /></StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Release date" Classes="section" /><SelectableTextBlock Text="{Binding ServerDateText}" TextWrapping="Wrap" /></StackPanel>
                                 </Grid>
-                                <TextBlock Text="Not connected to a server." Classes="subtle" Margin="0,16,0,0" IsVisible="{Binding !HasServerInfo}" />
+                                <Expander Header="Server environment" IsVisible="{Binding HasServerInfo}" Margin="0,12,0,0">
+                                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
+                                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="Database version" Classes="section" /><SelectableTextBlock Text="{Binding DatabaseVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Database schema" Classes="section" /><SelectableTextBlock Text="{Binding DatabaseSchemaText}" TextWrapping="Wrap" /></StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,10,14"><TextBlock Text="PHP version" Classes="section" /><SelectableTextBlock Text="{Binding PhpVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,14"><TextBlock Text="Python version" Classes="section" /><SelectableTextBlock Text="{Binding PythonVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                        <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,10,0"><TextBlock Text="RRDtool version" Classes="section" /><SelectableTextBlock Text="{Binding RrdToolVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                        <StackPanel Grid.Row="2" Grid.Column="1"><TextBlock Text="Net-SNMP version" Classes="section" /><SelectableTextBlock Text="{Binding NetSnmpVersionText}" TextWrapping="Wrap" /></StackPanel>
+                                    </Grid>
+                                </Expander>
+                                <TextBlock Text="Server information is unavailable. Connect to LibreNMS, then refresh." Classes="subtle" Margin="0,16,0,0" IsVisible="{Binding !HasServerInfo}" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -739,7 +744,7 @@
                             <views:DashyMark Name="AboutLogo" Width="44" Height="44" Margin="0,0,14,0" VerticalAlignment="Center" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="About" Classes="heading" Margin="0,0,0,4" />
-                                <TextBlock Text="{Binding CurrentVersionText}" Classes="subtle" />
+                                <TextBlock Text="DashyNMS" Classes="subtle" />
                             </StackPanel>
                         </Grid>
 
@@ -761,22 +766,8 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <Expander Header="Build details">
-                                    <ItemsControl ItemsSource="{Binding PackageVersions}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="services:ComponentVersion">
-                                                <StackPanel IsVisible="{Binding HasDetails}" Spacing="3" Margin="0,0,0,10">
-                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                                    <SelectableTextBlock Text="{Binding BuildDetails}" TextWrapping="Wrap" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </Expander>
                                 <WrapPanel>
                                     <Button Content="Copy version details" Command="{Binding CopyVersionDetailsCommand}" Margin="0,0,8,8" />
-                                    <Button Content="Manage sensor definitions" Command="{Binding SelectSensorDefinitionsSectionCommand}"
-                                            IsVisible="{Binding HasSensorDefinitions}" Margin="0,0,0,8" />
                                 </WrapPanel>
                                 <TextBlock Text="{Binding CopyVersionsStatus}" Classes="subtle" TextWrapping="Wrap" />
                             </StackPanel>
@@ -785,29 +776,20 @@
                         <!-- This release's "What's new" again (#227). -->
                         <StackPanel IsVisible="{Binding HasWhatsNew}">
                             <TextBlock Text="What's new" Classes="section" />
-                            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1" CornerRadius="8" Padding="14,12">
-                                <Grid ColumnDefinitions="Auto,*,Auto">
-                                    <Border Width="34" Height="34" CornerRadius="8" Background="{DynamicResource AccentSubtleBrush}" VerticalAlignment="Center">
-                                        <TextBlock Text="✦" FontSize="16" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                    <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding WhatsNewTitle}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding WhatsNewSummary}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0" Classes="subtle" />
-                                    </StackPanel>
-                                    <Button Grid.Column="2" Content="Take a look" Command="{Binding ShowWhatsNewCommand}" Padding="10,6" VerticalAlignment="Center" />
-                                </Grid>
+                            <Border Classes="card">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="{Binding WhatsNewTitle}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding WhatsNewSummary}" Classes="subtle" TextWrapping="Wrap" />
+                                    <Button Content="View what's new" Command="{Binding ShowWhatsNewCommand}" HorizontalAlignment="Left" />
+                                </StackPanel>
                             </Border>
                         </StackPanel>
 
-                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0" Spacing="6">
-                            <TextBlock Text="Every release's full notes are on GitHub." Classes="subtle" VerticalAlignment="Center" />
-                            <Button Classes="link" Command="{Binding ViewReleasesPageCommand}">
-                                <TextBlock Text="Release notes" FontSize="12" />
-                            </Button>
-                        </StackPanel>
-
-                        <Button Content="Open-source licences" Command="{Binding ShowLicencesCommand}" Padding="10,6"
+                        <WrapPanel Margin="0,14,0,0">
+                            <Button Content="Release notes" Command="{Binding ViewReleasesPageCommand}" Margin="0,0,8,8" />
+                            <Button Content="Open-source licences" Command="{Binding ShowLicencesCommand}" Margin="0,0,0,8"
                                     ToolTip.Tip="What DashyNMS is built with, each with its copyright and licence" />
+                        </WrapPanel>
 
                         <TextBlock Text="{Binding Trademarks}" Classes="subtle" TextWrapping="Wrap" Margin="0,14,0,0" />
                     </StackPanel>
@@ -816,25 +798,30 @@
                     <StackPanel IsVisible="{Binding IsUpdatesSectionSelected}">
                         <TextBlock Text="Updates" Classes="heading" Margin="0,0,0,6" />
                         <TextBlock Text="{Binding CurrentVersionText}" Classes="subtle" Margin="0,0,0,16" />
+                        <Border Classes="card" Margin="0,0,0,16">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Update status" Classes="section" />
+                                <TextBlock Text="Checking for updates…" Classes="subtle" IsVisible="{Binding IsCheckingForUpdates}" />
+                                <TextBlock Text="{Binding UpdateStatusText}" TextWrapping="Wrap" IsVisible="{Binding !IsCheckingForUpdates}" />
+                                <WrapPanel>
+                                    <Button Content="Check for updates" Command="{Binding CheckForUpdatesCommand}"
+                                            IsEnabled="{Binding !IsCheckingForUpdates}" Margin="0,0,8,8" />
+                                    <Button Classes="primary" Content="{Binding UpdateActionText}" Command="{Binding InstallUpdateCommand}"
+                                            IsVisible="{Binding CanInstallUpdate}" Margin="0,0,8,8" />
+                                    <Button Classes.primary="{Binding !CanInstallUpdate}" Content="View release" Command="{Binding ViewLatestReleaseCommand}"
+                                            IsVisible="{Binding IsNewerVersionAvailable}" Margin="0,0,0,8" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
                         <Border Classes="card">
                             <StackPanel Spacing="10">
+                                <TextBlock Text="Update preferences" Classes="section" />
                                 <CheckBox Content="Download updates automatically" IsChecked="{Binding DownloadUpdatesAutomatically}"
                                           IsVisible="{Binding CanDownloadUpdates}" />
                                 <TextBlock Text="{Binding DownloadUpdatesDescription}" Classes="subtle" TextWrapping="Wrap" />
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <CheckBox Content="Include preview builds" IsChecked="{Binding IncludePreviewBuilds}" VerticalAlignment="Center" />
-                                    <Button Grid.Column="1" Content="Check for updates" Command="{Binding CheckForUpdatesCommand}"
-                                            IsEnabled="{Binding !IsCheckingForUpdates}" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                </Grid>
-                                <TextBlock Text="Checking for updates…" Classes="subtle" IsVisible="{Binding IsCheckingForUpdates}" />
-                                <TextBlock Text="{Binding UpdateStatusText}" TextWrapping="Wrap" />
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Classes="primary" Content="{Binding UpdateActionText}" Command="{Binding InstallUpdateCommand}" IsVisible="{Binding CanInstallUpdate}" />
-                                    <Button Classes.primary="{Binding !CanInstallUpdate}" Content="View release" Command="{Binding ViewLatestReleaseCommand}" IsVisible="{Binding IsNewerVersionAvailable}" />
-                                </StackPanel>
+                                <CheckBox Content="Include preview builds" IsChecked="{Binding IncludePreviewBuilds}" />
                             </StackPanel>
                         </Border>
-
                     </StackPanel>
 
                     <!-- ==================== Diagnostics ==================== -->

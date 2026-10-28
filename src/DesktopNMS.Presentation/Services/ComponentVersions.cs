@@ -10,9 +10,6 @@ namespace DesktopNMS.Services;
 public sealed record ComponentVersion(string Name, string Version, string State, string Details = "")
 {
     public string DisplayVersion => Version.Split('+')[0];
-    public string BuildDetails => Version.Contains('+')
-        ? $"Build identity: {Version}" + (Details.Length == 0 ? "" : "\n" + Details) : Details;
-    public bool HasDetails => BuildDetails.Length > 0;
 }
 
 /// <summary>Offline package identity. Never executes the tools or reads account configuration.</summary>
