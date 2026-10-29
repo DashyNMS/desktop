@@ -144,6 +144,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         IsCrashReportingAvailable = crashReporter?.IsAvailable == true;
         InitialiseSensorDefinitions(sensorDefinitions);
         Intelligence = intelligence;
+        MobileSignIn = new MobileSignInViewModel(session, _demoMode);
         _customMaps = customMaps;
         _startup = startup;
         _notifications = notifications;
@@ -330,6 +331,11 @@ public sealed partial class SettingsViewModel : ObservableObject
                 if (value == SettingsSection.Notifications)
                 {
                     _ = LoadNotificationRuleChoicesAsync();
+                }
+
+                if (value != SettingsSection.Server)
+                {
+                    MobileSignIn.Hide();
                 }
             }
         }
@@ -1557,6 +1563,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         DetachSensorDefinitions();
         DetachComponentVersions();
+        MobileSignIn.Detach();
         _updates.ReadyUpdateChanged -= OnReadyUpdateChanged;
         Intelligence.Models.CollectionChanged -= OnIntelligenceModelsChanged;
     }
@@ -2094,6 +2101,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>The Intelligence page's account controls - the live ChatGPT connection, not part of the draft.</summary>
     public IntelligenceViewModel Intelligence { get; }
+
+    /// <summary>Server's "Sign in DashyNMS Mobile" QR code (#263).</summary>
+    public MobileSignInViewModel MobileSignIn { get; }
 
     /// <summary>See <see cref="AppSettings.EnablePinnedDevices"/> (#98).</summary>
     public bool EnablePinnedDevices

@@ -78,7 +78,7 @@ Dark or light, with your choice of accent colour. It checks for new versions and
 
 ## Private by design
 
-DashyNMS talks to your own LibreNMS server, and to Graylog and Unimus only if you set them up. There's no DashyNMS account to create. Optional error reports and basic launch statistics stay off until you choose to share them. Your API token never leaves your computer except to go to your server. Read the full [privacy notes](PRIVACY.md).
+DashyNMS talks to your own LibreNMS server, and to Graylog and Unimus only if you set them up. There's no DashyNMS account to create. Optional error reports and basic launch statistics stay off until you choose to share them. Your API token never leaves your computer except to go to your server, or to your phone if you show it the sign-in QR code. Read the full [privacy notes](PRIVACY.md).
 
 ## Get the app
 
@@ -94,6 +94,8 @@ Download the installer from the [latest release](https://github.com/DashyNMS/des
 Open DashyNMS, enter your server's address and choose **Sign in with LibreNMS**. You sign in on your server's own page, however it signs people in, and DashyNMS creates its API token for you. That's it. This needs LibreNMS 26.4 or later and an https address.
 
 You can paste an API token instead: in LibreNMS, open the settings menu, then **API → API Tokens**, and create one. If you don't have access, your LibreNMS administrator can make one for you in a couple of minutes.
+
+To sign DashyNMS Mobile in to the same server, open **Settings → Server**, choose **Show** under **Sign in DashyNMS Mobile** and scan the code with your phone's camera. The phone asks before it signs in. It shares this computer's token, so a separate token for the phone is the better choice if you'd rather revoke them separately.
 
 Closing the window keeps DashyNMS running in the notification area, so it can still tell you when something needs attention.
 
