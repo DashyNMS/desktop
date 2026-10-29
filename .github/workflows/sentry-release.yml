@@ -38,17 +38,36 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
-      - name: Name the release as the app reports it
+      - name: Name the release and find the previous one
         id: release
         shell: pwsh
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
         run: |
-          if (-not ($env:RELEASE_TAG -cmatch '^v(\d+\.\d+\.\d+(-preview\.\d+)?)$')) { throw "Unexpected release tag '$env:RELEASE_TAG'." }
+          $pattern = '^v(\d+\.\d+\.\d+(-preview\.\d+)?)$'
+          if (-not ($env:RELEASE_TAG -cmatch $pattern)) { throw "Unexpected release tag '$env:RELEASE_TAG'." }
           $version = $Matches[1]
           $commit = git rev-parse --verify "refs/tags/$env:RELEASE_TAG^{commit}"
           if ($LASTEXITCODE -ne 0) { throw "Tag $env:RELEASE_TAG was not found." }
           "name=$version+$($commit.Trim())" >> $env:GITHUB_OUTPUT
+          "commit=$($commit.Trim())" >> $env:GITHUB_OUTPUT
+          # The commits since the previous published release, by version
+          # rather than by when Sentry recorded it, so releases can be recorded
+          # or re-recorded in any order. A tag without a published release
+          # never reached users, so its commits belong to the next release.
+          [string[]]$published = gh release list --repo $env:GITHUB_REPOSITORY --limit 1000 --exclude-drafts --json tagName --jq '.[].tagName'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not list the published releases.' }
+          [string[]]$ordered = git -c versionsort.suffix=-preview tag --list 'v*' --sort=v:refname
+          $index = [array]::IndexOf($ordered, $env:RELEASE_TAG)
+          if ($index -lt 0) { throw "Tag $env:RELEASE_TAG was not found." }
+          $previous = $ordered[0..$index] | Where-Object { $_ -cne $env:RELEASE_TAG -and $_ -cmatch $pattern -and $published -ccontains $_ } | Select-Object -Last 1
+          if ($previous) {
+            $previousCommit = git rev-parse --verify "refs/tags/$previous^{commit}"
+            if ($LASTEXITCODE -ne 0) { throw "Tag $previous was not found." }
+            "previous_commit=$($previousCommit.Trim())" >> $env:GITHUB_OUTPUT
+            Write-Host "Commits from $previous to $env:RELEASE_TAG."
+          }
       - name: Create and finalise the Sentry release
         uses: getsentry/action-release@v3
         env:
@@ -57,8 +76,11 @@ jobs:
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         with:
           release: ${{ steps.release.outputs.name }}
-          # Links the commits since the previous Sentry release through
-          # Sentry's GitHub integration. If that release's commit isn't in the
-          # history, Sentry takes its default count rather than failing.
-          set_commits: auto
+          # Links the commits between the two tags through Sentry's GitHub
+          # integration. The first release has no previous one, so Sentry
+          # takes its default count instead.
+          set_commits: ${{ steps.release.outputs.previous_commit && 'manual' || 'auto' }}
+          repo: ${{ github.repository }}
+          commit: ${{ steps.release.outputs.commit }}
+          previous_commit: ${{ steps.release.outputs.previous_commit }}
           ignore_missing: true

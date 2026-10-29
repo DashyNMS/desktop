@@ -466,9 +466,12 @@ releases made with the workflow token raise no event. To record an earlier
 release, run the workflow by hand with its tag. It needs the secret
 `SENTRY_AUTH_TOKEN` (an organisation token, which also carries the EU region)
 and the variables `SENTRY_ORG` and `SENTRY_PROJECT`. Each release lists the
-commits since the previous Sentry release, which needs the repository added to
-Sentry's GitHub integration. Sentry takes "previous" in the order releases were
-recorded, so record earlier releases oldest first.
+commits since the previous published GitHub release by version, which needs the
+repository added to Sentry's GitHub integration. A tag without a published
+release is skipped, so its commits count towards the next release. Because the
+range comes from the tags, releases can be recorded again in any order. Sentry
+reporting started with `v2.0.0-preview.9`; earlier versions never send reports,
+so there's no reason to record them.
 
 Two code mappings in Sentry (Settings → Integrations → GitHub → Code Mappings,
 project `dashynms-desktop`) link stack frames to GitHub, which also lets Sentry
