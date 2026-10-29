@@ -332,8 +332,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         SaveEditCommand = new AsyncRelayCommand(SaveEditAsync, () => !IsSavingEdit);
 
         LoadMoreEventLogCommand = new AsyncRelayCommand(LoadMoreEventLogAsync, () => HasMoreEventLog && !IsLoadingMoreEventLog);
-        CopyEventLogCsvCommand = new RelayCommand(CopyEventLogCsv);
-        ExportEventLogCsvCommand = new RelayCommand(ExportEventLogCsv);
+        CopyEventLogCsvCommand = EventLogCsv.CopyCommand;
+        ExportEventLogCsvCommand = EventLogCsv.SaveCommand;
 
         // Shows whatever is already cached instantly, rather than a blank
         // window until the next shared poll lands.
@@ -3307,6 +3307,27 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private CsvExport? _arpCsv;
     private CsvExport? _sensorsCsv;
 
+    private CsvExport? _eventLogCsv;
+    private CsvExport? _alertHistoryCsv;
+
+    /// <summary>The view supplies grid order; headless callers use the filtered source order.</summary>
+    public Func<IEnumerable<EventLogItemViewModel>>? EventLogExportRows { get; set; }
+
+    /// <summary>The view supplies grid order for the loaded alert history.</summary>
+    public Func<IEnumerable<AlertLogItemViewModel>>? AlertHistoryExportRows { get; set; }
+
+    public CsvExport EventLogCsv => _eventLogCsv ??= new CsvExport(
+        () => $"device-{_deviceId}-eventlog",
+        new[] { "Time", "Type", "User", "Message" },
+        () => (EventLogExportRows?.Invoke() ?? EventLogView.Cast<EventLogItemViewModel>())
+            .Select(e => CsvExport.Row(e.TimeText, e.TypeText, e.Username, e.Message)));
+
+    public CsvExport AlertHistoryCsv => _alertHistoryCsv ??= new CsvExport(
+        () => $"device-{_deviceId}-alertlog",
+        new[] { "Time", "Rule", "Severity", "State", "Detail" },
+        () => (AlertHistoryExportRows?.Invoke() ?? AlertHistory)
+            .Select(a => CsvExport.Row(a.TimeText, a.RuleName, a.SeverityText, a.StateText, a.DetailText)));
+
     public CsvExport PortsCsv => _portsCsv ??= new CsvExport(
         () => $"{Name}-ports",
         new[] { "Port", "Description", "Status", "Speed", "In", "Out", "Errors", "Media", "Duplex", "MTU", "MAC", "IP addresses", "Neighbour" },
@@ -3997,30 +4018,6 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         if (!_loadCts.IsCancellationRequested)
         {
             SelectPendingEventLogEntry();
-        }
-    }
-
-    private static readonly string[] EventLogCsvHeaders = { "Time", "Type", "User", "Message" };
-
-    private string BuildEventLogCsv() => CsvWriter.ToCsv(
-        EventLogCsvHeaders,
-        EventLogView.Cast<EventLogItemViewModel>().Select(e => (IReadOnlyList<string>)new[]
-        {
-            e.TimeText, e.TypeText, e.Username, e.Message,
-        }));
-
-    private void CopyEventLogCsv()
-    {
-        UiPlatform.Clipboard.SetText(BuildEventLogCsv());
-    }
-
-    private void ExportEventLogCsv()
-    {
-        var dialogPath = UiPlatform.FileDialogs.PickFileToSave(new FileDialogOptions(Filter: "CSV files (*.csv)|*.csv", FileName: $"device-{_deviceId}-eventlog-{DateTime.Now:yyyy-MM-dd-HHmmss}.csv"));
-
-        if (dialogPath is not null)
-        {
-            File.WriteAllText(dialogPath, BuildEventLogCsv());
         }
     }
 

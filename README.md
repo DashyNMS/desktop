@@ -46,7 +46,7 @@ Add devices one at a time or in bulk, put them into maintenance, ask LibreNMS to
 A full alert rule editor, as on the LibreNMS website: build conditions, import from another rule or an SQL query, and choose which devices, groups and locations a rule covers. Edit alert templates and see which rules use each one.
 
 **Every log in one place**
-The Logs tab brings LibreNMS's event log and alert log for your whole network together with Graylog. Search and filter them, go back up to 1,000 entries, and open any entry's device.
+The Logs tab brings LibreNMS's event log and alert log for your whole network together with Graylog. Search and filter them, go back up to 1,000 entries, and open any entry's device. Copy or save CSV from Graylog and each device's Event log and Alert history. Exports include the current Graylog page or the loaded log entries, with the current search and row sort order applied.
 
 **See how it all connects**
 Network and geographical maps, maps of your own, and a view of each device's neighbours. Health brings temperature, fan, optical power and signal readings from across your network into one place.

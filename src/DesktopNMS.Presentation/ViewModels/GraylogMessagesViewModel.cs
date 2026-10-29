@@ -248,6 +248,14 @@ public sealed class GraylogMessagesViewModel : ObservableObject, IDisposable
 
     public BatchObservableCollection<GraylogMessageItemViewModel> Messages { get; }
 
+    /// <summary>The current page, already restricted by the Graylog query.</summary>
+    public CsvExport Csv => _csv ??= new CsvExport(
+        () => FixedDeviceId is { } id ? $"device-{id}-graylog" : "graylog",
+        new[] { "Origin", "Timestamp", "Level", "Source", "Message", "Facility" },
+        () => Messages.Select(m => CsvExport.Row(m.OriginText, m.TimestampText, m.LevelText, m.SourceText, m.FullText, m.FacilityText)));
+
+    private CsvExport? _csv;
+
     public AsyncRelayCommand RefreshCommand { get; }
 
     public AsyncRelayCommand PreviousPageCommand { get; }

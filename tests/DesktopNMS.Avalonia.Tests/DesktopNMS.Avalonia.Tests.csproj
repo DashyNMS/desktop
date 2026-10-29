@@ -24,5 +24,7 @@
     <Compile Include="../../src/DesktopNMS.Avalonia/Views/UpdateProgressWindow.axaml.cs" Link="Views/UpdateProgressWindow.axaml.cs" />
     <AvaloniaXaml Include="../../src/DesktopNMS.Avalonia/Views/UpdateProgressWindow.axaml" Link="Views/UpdateProgressWindow.axaml" />
     <AvaloniaXaml Include="../../src/DesktopNMS.Avalonia/Views/DiagnosticsSharingWindow.axaml" Link="Views/DiagnosticsSharingWindow.axaml" />
+    <Compile Include="../../src/DesktopNMS.Avalonia/Views/CsvExportButton.axaml.cs" Link="Views/CsvExportButton.axaml.cs" />
+    <AvaloniaXaml Include="../../src/DesktopNMS.Avalonia/Views/CsvExportButton.axaml" Link="Views/CsvExportButton.axaml" />
   </ItemGroup>
 </Project>
