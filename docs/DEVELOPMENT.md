@@ -470,6 +470,26 @@ commits since the previous Sentry release, which needs the repository added to
 Sentry's GitHub integration. Sentry takes "previous" in the order releases were
 recorded, so record earlier releases oldest first.
 
+Two code mappings in Sentry (Settings → Integrations → GitHub → Code Mappings,
+project `dashynms-desktop`) link stack frames to GitHub, which also lets Sentry
+name suspect commits. Frames already carry repository-relative paths, and Core
+frames arrive under `src/DesktopNMS.Core/`, so the longer root sends them to the
+Core repository:
+
+| Stack trace root | Repository | Branch | Source root |
+|---|---|---|---|
+| `src/DesktopNMS.Core/` | `DashyNMS/core` | `main` | `src/DesktopNMS.Core/` |
+| `src/` | `DashyNMS/desktop` | `master` | `src/` |
+
+Sentry only links out to GitHub; it fetches no source. Core links open `main`
+rather than the pinned package version, so their lines can drift, and suspect
+commits cover desktop code only because releases list desktop commits.
+
+To resolve a Sentry issue with a change, add `Fixes DASHYNMS-DESKTOP-<id>` to a
+branch commit message, which the squash commit keeps, or to the PR description
+under `Closes #NN`. Sentry marks the issue resolved once a release with that
+commit is recorded, and flags it as a regression if it returns later.
+
 Run the local fatal-error and restart check with:
 
 ```powershell
@@ -931,7 +951,9 @@ Commits, PRs and release notes carry no AI attribution or `Co-Authored-By`
 lines.
 
 The PR description starts with `Closes #NN`, then says briefly what changed
-and how it was checked. Release notes and What's New are written separately,
+and how it was checked. A fix for a Sentry issue adds
+`Fixes DASHYNMS-DESKTOP-<id>` under that line (see
+[Error and usage sharing](#error-and-usage-sharing)). Release notes and What's New are written separately,
 for users.
 
 ## Roadmap
