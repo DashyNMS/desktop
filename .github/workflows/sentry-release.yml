@@ -1,0 +1,57 @@
+name: Sentry release
+
+# Records each published GitHub release in Sentry under the name the app
+# reports (its informational version, `X.Y.Z[-preview.N]+<commit>`).
+# Releases published with the workflow token raise no release event, so the
+# preview build calls this workflow directly.
+on:
+  release:
+    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+    secrets:
+      SENTRY_AUTH_TOKEN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Published release tag to record in Sentry (vX.Y.Z or vX.Y.Z-preview.N)'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  sentry:
+    if: github.repository == 'DashyNMS/desktop'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - name: Name the release as the app reports it
+        id: release
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          if (-not ($env:RELEASE_TAG -cmatch '^v(\d+\.\d+\.\d+(-preview\.\d+)?)$')) { throw "Unexpected release tag '$env:RELEASE_TAG'." }
+          $version = $Matches[1]
+          $commit = git rev-parse --verify "refs/tags/$env:RELEASE_TAG^{commit}"
+          if ($LASTEXITCODE -ne 0) { throw "Tag $env:RELEASE_TAG was not found." }
+          "name=$version+$($commit.Trim())" >> $env:GITHUB_OUTPUT
+      - name: Create and finalise the Sentry release
+        uses: getsentry/action-release@v3
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        with:
+          release: ${{ steps.release.outputs.name }}
+          set_commits: skip

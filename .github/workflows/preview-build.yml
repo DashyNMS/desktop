@@ -106,3 +106,10 @@ jobs:
             dist/DashyNMS-${{ needs.prepare.outputs.version }}-osx-arm64.dmg
             dist/DashyNMS-${{ needs.prepare.outputs.version }}-linux-x64.AppImage
             dist/DashyNMS-${{ needs.prepare.outputs.version }}-linux-arm64.AppImage
+  sentry:
+    needs: [prepare, publish]
+    uses: ./.github/workflows/sentry-release.yml
+    secrets:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
