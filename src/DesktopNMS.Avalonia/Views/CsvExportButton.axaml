@@ -6,7 +6,7 @@
 
     <!-- The share icon on a table's toolbar: Copy as CSV or Save as CSV… for
          whatever Export the table's view model provides - the Alerts tab's menu. -->
-    <Button Classes="icon" ToolTip.Tip="Export the rows shown" IsEnabled="{Binding #Root.Export, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <Button Classes="icon" ToolTip.Tip="{Binding #Root.ScopeHint}" IsEnabled="{Binding #Root.Export, Converter={x:Static ObjectConverters.IsNotNull}}">
         <fi:SymbolIcon Symbol="Share" />
         <Button.Flyout>
             <MenuFlyout Placement="BottomEdgeAlignedRight">

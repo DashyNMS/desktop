@@ -18,7 +18,7 @@
 
     <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
         <!-- ==================== Header ==================== -->
-        <Grid Margin="0,0,0,10" ColumnDefinitions="Auto,*,Auto,Auto">
+        <Grid Margin="0,0,0,10" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
             <TextBlock Text="Graylog" Classes="heading" VerticalAlignment="Center" />
 
             <TextBlock Grid.Column="1" Text="{Binding LastUpdatedText}" Classes="subtle updated" Classes.failed="{Binding HasUpdateError}"
@@ -33,7 +33,9 @@
                           DisplayMemberBinding="{ReflectionBinding Label}" IsEnabled="{Binding AutoUpdate}" Width="150" />
             </StackPanel>
 
-            <Button Grid.Column="3" Command="{Binding RefreshCommand}" Padding="10,7"><TextBlock Text="Refresh" /></Button>
+            <views:CsvExportButton Grid.Column="3" Export="{Binding Csv}" Margin="0,0,8,0" ScopeHint="Export the current page of Graylog messages" />
+
+            <Button Grid.Column="4" Command="{Binding RefreshCommand}" Padding="10,7"><TextBlock Text="Refresh" /></Button>
         </Grid>
 
         <!-- ==================== Filters ==================== -->

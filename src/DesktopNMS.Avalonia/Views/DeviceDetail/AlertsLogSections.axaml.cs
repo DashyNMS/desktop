@@ -14,10 +14,14 @@ public partial class AlertsLogSections : UserControl
     private const double LoadMoreThreshold = 200;
 
     private ScrollBar? _eventLogScrollBar;
+    private DeviceDetailViewModel? _exportOwner;
 
     public AlertsLogSections()
     {
         InitializeComponent();
+        DataContextChanged += (_, _) => UpdateExportRows();
+        AttachedToVisualTree += (_, _) => UpdateExportRows();
+        DetachedFromVisualTree += (_, _) => ClearExportRows();
 
         // An entry picked from elsewhere - a toast, the Alerts tab - is scrolled to.
         AlertHistoryGrid.SelectionChanged += (_, _) => ScrollToSelected(AlertHistoryGrid);
@@ -26,6 +30,27 @@ public partial class AlertsLogSections : UserControl
         // The event log's next page loads as it's scrolled near the end: the
         // grid's own scrollbar is watched, the DataGrid having no ScrollViewer.
         EventLogGrid.LayoutUpdated += (_, _) => HookEventLogScrollBar();
+    }
+
+    private void ClearExportRows()
+    {
+        if (_exportOwner is { } owner)
+        {
+            owner.EventLogExportRows = null;
+            owner.AlertHistoryExportRows = null;
+            _exportOwner = null;
+        }
+    }
+
+    private void UpdateExportRows()
+    {
+        ClearExportRows();
+        if (DataContext is DeviceDetailViewModel owner)
+        {
+            _exportOwner = owner;
+            owner.EventLogExportRows = () => EventLogGrid.CollectionView?.Cast<EventLogItemViewModel>() ?? owner.EventLogView.Cast<EventLogItemViewModel>();
+            owner.AlertHistoryExportRows = () => AlertHistoryGrid.CollectionView?.Cast<AlertLogItemViewModel>() ?? owner.AlertHistory;
+        }
     }
 
     private static void ScrollToSelected(DataGrid grid)
