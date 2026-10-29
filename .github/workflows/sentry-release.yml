@@ -30,8 +30,11 @@ jobs:
     if: github.repository == 'DashyNMS/desktop'
     runs-on: ubuntu-latest
     steps:
+      # Sentry reads the release's commit from HEAD, so check out the tag
+      # itself rather than the branch a manual run starts from.
       - uses: actions/checkout@v7
         with:
+          ref: refs/tags/${{ inputs.tag || github.event.release.tag_name }}
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
@@ -54,4 +57,8 @@ jobs:
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         with:
           release: ${{ steps.release.outputs.name }}
-          set_commits: skip
+          # Links the commits since the previous Sentry release through
+          # Sentry's GitHub integration. If that release's commit isn't in the
+          # history, Sentry takes its default count rather than failing.
+          set_commits: auto
+          ignore_missing: true

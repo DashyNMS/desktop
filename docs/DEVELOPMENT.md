@@ -465,7 +465,10 @@ release event; the preview build calls the workflow after it publishes, because
 releases made with the workflow token raise no event. To record an earlier
 release, run the workflow by hand with its tag. It needs the secret
 `SENTRY_AUTH_TOKEN` (an organisation token, which also carries the EU region)
-and the variables `SENTRY_ORG` and `SENTRY_PROJECT`.
+and the variables `SENTRY_ORG` and `SENTRY_PROJECT`. Each release lists the
+commits since the previous Sentry release, which needs the repository added to
+Sentry's GitHub integration. Sentry takes "previous" in the order releases were
+recorded, so record earlier releases oldest first.
 
 Run the local fatal-error and restart check with:
 
