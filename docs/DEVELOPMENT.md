@@ -458,6 +458,15 @@ address becomes assembly metadata in the app. No authentication token is needed
 to build or send reports. A build without a valid HTTPS address disables sharing
 and its prompt.
 
+Each published GitHub release, stable or preview, is recorded in Sentry by
+`.github/workflows/sentry-release.yml` under the name the app reports:
+`X.Y.Z[-preview.N]+<full commit>`. A release published by hand raises the
+release event; the preview build calls the workflow after it publishes, because
+releases made with the workflow token raise no event. To record an earlier
+release, run the workflow by hand with its tag. It needs the secret
+`SENTRY_AUTH_TOKEN` (an organisation token, which also carries the EU region)
+and the variables `SENTRY_ORG` and `SENTRY_PROJECT`.
+
 Run the local fatal-error and restart check with:
 
 ```powershell
