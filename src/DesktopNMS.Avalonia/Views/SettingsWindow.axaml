@@ -520,6 +520,39 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Classes="card" Margin="0,0,0,14" DataContext="{Binding MobileSignIn}" x:DataType="vm:MobileSignInViewModel">
+                            <StackPanel>
+                                <TextBlock Text="Sign in DashyNMS Mobile" Classes="section" Margin="0,0,0,6" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap"
+                                           Text="Scan this code with your phone's camera to sign DashyNMS Mobile in to the same server. The phone asks you to confirm before it signs in." />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Text="The phone will share this computer's API token, so revoking it in LibreNMS signs out both. Creating a separate token for the phone, and entering that on it, is better. The code holds the token: treat it like a password, and don't show it where others can see or photograph it." />
+                                <Grid ColumnDefinitions="Auto,*" Margin="0,14,0,0" IsVisible="{Binding IsAvailable}">
+                                    <Panel Width="220" Height="220" ClipToBounds="True">
+                                        <views:QrCodeView Code="{Binding StandIn}" IsVisible="{Binding IsHidden}">
+                                            <views:QrCodeView.Effect>
+                                                <BlurEffect Radius="16" />
+                                            </views:QrCodeView.Effect>
+                                        </views:QrCodeView>
+                                        <Button Content="Show" Classes="primary" Command="{Binding ShowCommand}" IsVisible="{Binding IsHidden}"
+                                                HorizontalAlignment="Center" VerticalAlignment="Center" AutomationProperties.Name="Show the sign-in QR code" />
+                                        <views:QrCodeView Code="{Binding Code}" IsVisible="{Binding IsShown}" AutomationProperties.Name="Sign-in QR code" />
+                                    </Panel>
+                                    <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="Signs in to" Classes="section" />
+                                        <SelectableTextBlock Text="{Binding ServerText}" TextWrapping="Wrap" />
+                                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,0"
+                                                   Text="The code hides itself again after a minute, or when you leave this page." />
+                                        <Button Content="Hide now" Command="{Binding HideCommand}" IsVisible="{Binding IsShown}" Padding="10,6" Margin="0,10,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="Sign in to LibreNMS to show a code for the phone." Classes="subtle" Margin="0,14,0,0" IsVisible="{Binding IsUnavailable}" />
+                                <Border Classes="errorNotice" Margin="0,10,0,0" IsVisible="{Binding HasError}">
+                                    <TextBlock Text="{Binding Error}" TextWrapping="Wrap" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
                     </StackPanel>
 
                     <!-- ==================== Server information ==================== -->

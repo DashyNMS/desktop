@@ -26,6 +26,8 @@ public static class DesktopOpenSourceNotices
             new Uri("https://github.com/davidxuang/FluentIcons"), OpenSourceNotices.Mit),
         new("SVG.Skia", "Drawing LibreNMS's graphs", "Copyright (c) Wiesław Šoltés", "MIT",
             new Uri("https://github.com/wieslawsoltes/Svg.Skia"), OpenSourceNotices.Mit),
+        new("QRCoder", "The QR code that signs DashyNMS Mobile in", "Copyright (c) 2013-2025 Raffael Herrmann; copyright (c) 2024-2025 Shane Krueger", "MIT",
+            new Uri("https://github.com/Shane32/QRCoder"), OpenSourceNotices.Mit),
         new("SkiaSharp and HarfBuzzSharp", "Graphics and text rendering", "Copyright (c) 2015-2016 Xamarin, Inc.; copyright (c) 2017-2018 Microsoft Corporation", "MIT",
             new Uri("https://github.com/mono/SkiaSharp"), OpenSourceNotices.Mit),
         new("Windows Community Toolkit Notifications", "Alert notifications", OpenSourceNotices.DotNetFoundation, "MIT",
