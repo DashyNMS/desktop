@@ -31,7 +31,7 @@ No server to hand? Choose **Try the demo** on the sign-in window to look around 
 A desktop notification when an alert fires or clears, with Acknowledge right on it. Choose which alerts notify you: leave out the noisy rules, or only hear about the ones that matter, on every device or just one. Choose how insistent each severity is, and set quiet hours. The tray icon turns amber or red with the number of open alerts, and a click on it shows the worst of them without opening the app.
 
 **See what matters first**
-Build your own dashboard from widgets: open alerts, device status, sensor readings, graphs, the event log, Graylog messages, pinned and recently viewed devices. Drag and resize them however you like, or start from a ready-made one.
+Build your own dashboard from widgets: open alerts, device status, sensor readings, graphs, the event log, Graylog messages, pinned and recently viewed devices. Spotlight an event log or Graylog card on some devices, a group or a location to see only their entries. Drag and resize the widgets however you like, or start from a ready-made one.
 
 **Get to the bottom of it**
 Open any alert to see exactly why it fired and what its rule is looking for. Acknowledge it with a note so your team knows you're on it, and filter, search or export the list.

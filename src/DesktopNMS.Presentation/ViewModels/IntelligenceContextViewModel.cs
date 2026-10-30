@@ -12,6 +12,7 @@ using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Intelligence;
+using DesktopNMS.Core.Spotlights;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
@@ -38,16 +39,10 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
     private readonly IUiDispatcher _dispatcher;
 
     private IReadOnlyList<Alert> _alerts = Array.Empty<Alert>();
-    private SpotlightKind _pickerKind = SpotlightKind.Device;
-    private SpotlightOption? _pickerSelection;
-    private bool _pickerOpen;
-    private bool _loadedScopes;
     private bool _isScopeLocked;
     private DateTimeOffset? _lastAlertRefresh;
     private bool _alertRefreshFailed;
     private int _matchingAlertCount;
-    private List<SpotlightOption> _groups = new();
-    private List<SpotlightOption> _locations = new();
 
     public IntelligenceContextViewModel(
         IDeviceCache devices,
@@ -112,20 +107,7 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
             Spotlight.Clear();
             RaiseSpotlight();
         }, () => CanEditSpotlight && Spotlight.Count > 0);
-        OpenPickerCommand = new AsyncRelayCommand(OpenPickerAsync, () => CanEditSpotlight);
-        ClosePickerCommand = new RelayCommand(() => PickerOpen = false);
-        AddPickedCommand = new RelayCommand(() =>
-        {
-            if (_pickerSelection is { } picked)
-            {
-                AddSpotlight(picked);
-                PickerSelection = null;
-                PickerOpen = false;
-            }
-        }, () => CanEditSpotlight && _pickerSelection is not null);
-        PickDevicesCommand = new RelayCommand(() => PickerKind = SpotlightKind.Device);
-        PickGroupCommand = new RelayCommand(() => PickerKind = SpotlightKind.Group);
-        PickLocationCommand = new RelayCommand(() => PickerKind = SpotlightKind.Location);
+        Picker = new SpotlightPickerViewModel(devices, client, settings, logger, option => AddSpotlight(option), () => CanEditSpotlight);
     }
 
     public ObservableCollection<MentionedDeviceViewModel> Mentioned { get; } = new();
@@ -137,8 +119,6 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
     /// <summary>What the agent is kept to: devices, or one group or location.</summary>
     public ObservableCollection<SpotlightOption> Spotlight { get; } = new();
 
-    public ObservableCollection<SpotlightOption> PickerOptions { get; } = new();
-
     public RelayCommand OpenDeviceCommand { get; }
 
     public RelayCommand SpotlightDeviceCommand { get; }
@@ -147,17 +127,8 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
 
     public RelayCommand ClearSpotlightCommand { get; }
 
-    public AsyncRelayCommand OpenPickerCommand { get; }
-
-    public RelayCommand ClosePickerCommand { get; }
-
-    public RelayCommand AddPickedCommand { get; }
-
-    public RelayCommand PickDevicesCommand { get; }
-
-    public RelayCommand PickGroupCommand { get; }
-
-    public RelayCommand PickLocationCommand { get; }
+    /// <summary>Choosing what to spotlight - the same picker as the Dashboard's log cards (#552).</summary>
+    public SpotlightPickerViewModel Picker { get; }
 
     public bool HasMentioned => Mentioned.Count > 0;
 
@@ -180,13 +151,11 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
         set
         {
             if (!SetProperty(ref _isScopeLocked, value)) return;
-            if (value) PickerOpen = false;
             OnPropertyChanged(nameof(CanEditSpotlight));
+            Picker.RefreshCanEdit();
             SpotlightDeviceCommand.RaiseCanExecuteChanged();
             RemoveSpotlightCommand.RaiseCanExecuteChanged();
             ClearSpotlightCommand.RaiseCanExecuteChanged();
-            OpenPickerCommand.RaiseCanExecuteChanged();
-            AddPickedCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -203,45 +172,6 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
             }
 
             return string.Join("; ", Spotlight.Select(s => s.AgentDescription));
-        }
-    }
-
-    public bool PickerOpen
-    {
-        get => _pickerOpen;
-        set => SetProperty(ref _pickerOpen, value);
-    }
-
-    public SpotlightKind PickerKind
-    {
-        get => _pickerKind;
-        set
-        {
-            if (SetProperty(ref _pickerKind, value))
-            {
-                OnPropertyChanged(nameof(IsPickingDevices));
-                OnPropertyChanged(nameof(IsPickingGroup));
-                OnPropertyChanged(nameof(IsPickingLocation));
-                FillPicker();
-            }
-        }
-    }
-
-    public bool IsPickingDevices => _pickerKind == SpotlightKind.Device;
-
-    public bool IsPickingGroup => _pickerKind == SpotlightKind.Group;
-
-    public bool IsPickingLocation => _pickerKind == SpotlightKind.Location;
-
-    public SpotlightOption? PickerSelection
-    {
-        get => _pickerSelection;
-        set
-        {
-            if (SetProperty(ref _pickerSelection, value))
-            {
-                AddPickedCommand.RaiseCanExecuteChanged();
-            }
         }
     }
 
@@ -420,52 +350,6 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
         return true;
     }
 
-    private async Task OpenPickerAsync()
-    {
-        if (!CanEditSpotlight) return;
-        PickerOpen = true;
-        if (!_loadedScopes)
-        {
-            _loadedScopes = true;
-            try
-            {
-                var groups = await _client.DeviceGroups.ListAsync(CancellationToken.None).ConfigureAwait(true);
-                _groups = groups.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase).Select(g => new SpotlightOption(SpotlightKind.Group, g.Id, g.Name)).ToList();
-                var locations = await _client.Locations.ListAsync(CancellationToken.None).ConfigureAwait(true);
-                _locations = locations.OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase).Select(l => new SpotlightOption(SpotlightKind.Location, l.Id, l.Name)).ToList();
-            }
-            catch (Exception ex) when (ex is LibreNmsApiException or OperationCanceledException)
-            {
-                _logger.LogDebug(ex, "Intelligence: couldn't list groups and locations for Spotlight");
-                _loadedScopes = false;
-            }
-        }
-
-        FillPicker();
-    }
-
-    private void FillPicker()
-    {
-        var style = _settings.Current.DeviceNameStyle;
-        var options = _pickerKind switch
-        {
-            SpotlightKind.Group => _groups,
-            SpotlightKind.Location => _locations,
-            _ => _devices.All
-                .Select(d => new SpotlightOption(SpotlightKind.Device, d.DeviceId, style.Resolve(d, d.Hostname)))
-                .OrderBy(o => o.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList(),
-        };
-
-        PickerOptions.Clear();
-        foreach (var option in options)
-        {
-            PickerOptions.Add(option);
-        }
-
-        PickerSelection = null;
-    }
-
     private void RaiseLists()
     {
         OnPropertyChanged(nameof(HasMentioned));
@@ -488,17 +372,6 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
     // Hostnames, sysNames and IPv4 addresses as they appear in an answer.
     [GeneratedRegex(@"[A-Za-z0-9][A-Za-z0-9._-]{2,}")]
     private static partial Regex Word();
-}
-
-public enum SpotlightKind
-{
-    Device,
-    Group,
-    Location,
-    Sensor,
-    Alert,
-    Fault,
-    Port,
 }
 
 /// <summary>One thing the conversation is narrowed to.</summary>

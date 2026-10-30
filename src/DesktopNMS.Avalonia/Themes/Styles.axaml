@@ -510,8 +510,9 @@
         <Setter Property="Margin" Value="8,4" />
     </Style>
 
-    <!-- A small glyph toggle in a title bar: a widget's search, its "hide quiet ports". -->
-    <Style Selector="ToggleButton.glyph">
+    <!-- A small glyph toggle in a title bar: a widget's search, its "hide quiet ports";
+         or a glyph button, such as a log widget's Spotlight, tinted while .active. -->
+    <Style Selector="ToggleButton.glyph, Button.glyph">
         <Setter Property="Width" Value="28" />
         <Setter Property="Height" Value="28" />
         <Setter Property="Padding" Value="0" />
@@ -523,15 +524,15 @@
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
-    <Style Selector="ToggleButton.glyph:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ToggleButton.glyph:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.glyph:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
-    <Style Selector="ToggleButton.glyph:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ToggleButton.glyph:checked /template/ ContentPresenter#PART_ContentPresenter, Button.glyph.active /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     </Style>
-    <Style Selector="ToggleButton.glyph fi|SymbolIcon">
+    <Style Selector="ToggleButton.glyph fi|SymbolIcon, Button.glyph fi|SymbolIcon">
         <Setter Property="FontSize" Value="14" />
     </Style>
 

@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             x:Class="DesktopNMS.Views.SpotlightPicker"
+             x:DataType="vm:SpotlightPickerViewModel">
+
+    <!-- Picking something to spotlight (#552): Devices, Group or Location,
+         then a name. Intelligence's sidebar and the Dashboard's log cards
+         share it; it shows while the picker is open. -->
+    <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="10" IsVisible="{Binding IsOpen}">
+        <StackPanel>
+            <Border Classes="navTabTrack" HorizontalAlignment="Left" Margin="0,0,0,8">
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton Classes="navTab" Content="Devices" IsChecked="{Binding IsPickingDevices, Mode=OneWay}" Command="{Binding PickDevicesCommand}" />
+                    <RadioButton Classes="navTab" Content="Group" IsChecked="{Binding IsPickingGroup, Mode=OneWay}" Command="{Binding PickGroupCommand}" />
+                    <RadioButton Classes="navTab" Content="Location" IsChecked="{Binding IsPickingLocation, Mode=OneWay}" Command="{Binding PickLocationCommand}" />
+                </StackPanel>
+            </Border>
+            <AutoCompleteBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selection}" ValueMemberBinding="{ReflectionBinding Name}"
+                             FilterMode="Contains" MinimumPrefixLength="0" PlaceholderText="Start typing a name"
+                             AutomationProperties.Name="Name to spotlight" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6" Margin="0,8,0,0">
+                <Button Padding="12,5" Command="{Binding CloseCommand}"><TextBlock Text="Cancel" /></Button>
+                <Button Classes="primary" Padding="12,5" Command="{Binding AddCommand}"><TextBlock Text="Spotlight" /></Button>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

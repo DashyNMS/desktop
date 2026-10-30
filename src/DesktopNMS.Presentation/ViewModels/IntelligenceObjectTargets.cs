@@ -1,5 +1,6 @@
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Core.Spotlights;
 
 namespace DesktopNMS.ViewModels;
 
