@@ -187,7 +187,7 @@
                             <!-- ===== Spotlight ===== -->
                             <DockPanel Margin="8,0,0,6">
                                 <Button DockPanel.Dock="Right" Classes="icon" Width="24" Height="24" ToolTip.Tip="Narrow the conversation to devices, a group or a location"
-                                        Command="{Binding OpenPickerCommand}">
+                                        Command="{Binding Picker.OpenCommand}">
                                     <fi:SymbolIcon Symbol="Add" FontSize="12" />
                                 </Button>
                                 <TextBlock Text="SPOTLIGHT" Classes="section" VerticalAlignment="Center" />
@@ -214,23 +214,7 @@
                             </ItemsControl>
 
                             <!-- Picking what to spotlight. -->
-                            <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="10" Margin="0,6,0,0" IsVisible="{Binding PickerOpen}">
-                                <StackPanel>
-                                    <Border Classes="navTabTrack" HorizontalAlignment="Left" Margin="0,0,0,8">
-                                        <StackPanel Orientation="Horizontal">
-                                            <RadioButton Classes="navTab" GroupName="SpotlightKind" Content="Devices" IsChecked="{Binding IsPickingDevices, Mode=OneWay}" Command="{Binding PickDevicesCommand}" />
-                                            <RadioButton Classes="navTab" GroupName="SpotlightKind" Content="Group" IsChecked="{Binding IsPickingGroup, Mode=OneWay}" Command="{Binding PickGroupCommand}" />
-                                            <RadioButton Classes="navTab" GroupName="SpotlightKind" Content="Location" IsChecked="{Binding IsPickingLocation, Mode=OneWay}" Command="{Binding PickLocationCommand}" />
-                                        </StackPanel>
-                                    </Border>
-                                    <AutoCompleteBox ItemsSource="{Binding PickerOptions}" SelectedItem="{Binding PickerSelection}" ValueMemberBinding="{ReflectionBinding Name}"
-                                                     FilterMode="Contains" MinimumPrefixLength="0" PlaceholderText="Start typing a name" />
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6" Margin="0,8,0,0">
-                                        <Button Padding="12,5" Command="{Binding ClosePickerCommand}"><TextBlock Text="Cancel" /></Button>
-                                        <Button Classes="primary" Padding="12,5" Command="{Binding AddPickedCommand}"><TextBlock Text="Spotlight" /></Button>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
+                            <views:SpotlightPicker DataContext="{Binding Picker}" Margin="0,6,0,0" />
 
                             <!-- ===== Mentioned devices ===== -->
                             <Rectangle Classes="contextRule" />

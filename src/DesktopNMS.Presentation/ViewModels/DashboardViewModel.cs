@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Core.Spotlights;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
@@ -64,6 +65,9 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
     private readonly ILibreNmsClient _client;
     private readonly IFleetPorts _fleetPorts;
     private readonly IGraylogApi _graylog;
+
+    /// <summary>Shared by the log cards, so their group and location lookups are cached once (#552).</summary>
+    private readonly SpotlightResolver _spotlight;
     private readonly ILogger<DashboardViewModel> _logger;
     private readonly IUiDispatcher _dispatcher;
     private readonly Dictionary<string, DashboardWidgetViewModel> _widgetIndex = new();
@@ -111,6 +115,7 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         _alertMonitor = alertMonitor;
         _deviceMonitor = deviceMonitor;
         _client = client;
+        _spotlight = new SpotlightResolver(client);
         _logger = logger;
         _dispatcher = UiThread.Dispatcher;
 
@@ -119,6 +124,9 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         RefreshCommand = new AsyncRelayCommand(() =>
         {
             _sensorMonitor.RequestRefresh();
+
+            // A refresh asked for by hand picks up group and location changes too.
+            _spotlight.Invalidate();
             ReloadGraphWidgets();
             return Task.CompletedTask;
         }, () => _session.IsConnected && !IsBusy);
@@ -930,8 +938,8 @@ public sealed class DashboardViewModel : ObservableObject, IDisposable, IWidgetA
         DashboardWidgetTypes.TopInterfaces => new TopInterfacesWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
         DashboardWidgetTypes.TopErrors => new TopErrorsWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
         DashboardWidgetTypes.TopDevices => new TopDevicesWidgetViewModel(_layout, model, _fleetPorts, _devices, _settings, _deviceMonitor, _logger, OpenTopRow),
-        DashboardWidgetTypes.EventLog => new EventLogWidgetViewModel(_layout, model, _client, _devices, _settings, _deviceMonitor, _windows, _logger),
-        DashboardWidgetTypes.Graylog => new GraylogWidgetViewModel(_layout, model, _graylog, _devices, _settings, _deviceMonitor, _windows, _logger),
+        DashboardWidgetTypes.EventLog => new EventLogWidgetViewModel(_layout, model, _client, _devices, _settings, _deviceMonitor, _windows, _spotlight, _logger),
+        DashboardWidgetTypes.Graylog => new GraylogWidgetViewModel(_layout, model, _graylog, _client, _devices, _settings, _deviceMonitor, _windows, _spotlight, _logger),
         "Sensors" => new SensorWidgetViewModel(_layout, model, OpenDeviceCommand),
 
         // A type from DashyNMS Mobile or a newer version: say so, rather than

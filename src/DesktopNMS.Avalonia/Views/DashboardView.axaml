@@ -670,11 +670,22 @@
         <!-- Two-line rows (#202, #203): who it's about with a tag, the message
              under it and the time; rows new since the last refresh are tinted. -->
         <DataTemplate DataType="vm:LogFeedWidgetViewModel">
-            <Grid RowDefinitions="Auto,*,Auto">
-                <TextBox Grid.Row="0" Classes="search" PlaceholderText="{Binding SearchHint}" ToolTip.Tip="{Binding SearchHint}"
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
+                <!-- What it's kept to (#552); a click opens the set-up panel to change it. -->
+                <Button Grid.Row="0" Classes="link" Command="{Binding ChooseSpotlightCommand}" Margin="12,0,12,4" HorizontalAlignment="Left"
+                        ToolTip.Tip="Change the Spotlight" IsVisible="{Binding HasSpotlight}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <fi:SymbolIcon Symbol="Target" FontSize="12" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                        <TextBlock FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center">
+                            <Run Text="Spotlight: " Foreground="{DynamicResource TextSecondaryBrush}" /><Run Text="{Binding SpotlightSummary, Mode=OneWay}" FontWeight="SemiBold" />
+                        </TextBlock>
+                    </StackPanel>
+                </Button>
+
+                <TextBox Grid.Row="1" Classes="search" PlaceholderText="{Binding SearchHint}" ToolTip.Tip="{Binding SearchHint}"
                          Text="{Binding SearchText, Delay=500}" Margin="12,0,12,6" IsVisible="{Binding IsSearchOpen}" />
 
-                <Panel Grid.Row="1">
+                <Panel Grid.Row="2">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding HasRows}">
                         <ItemsControl ItemsSource="{Binding Rows}" Margin="6,0,6,6">
                             <ItemsControl.ItemTemplate>
@@ -706,13 +717,16 @@
                     <views:EmptyState Icon="TextBulletList" Title="{Binding EmptyText}" IsVisible="{Binding ShowEmptyMessage}" />
                 </Panel>
 
-                <TextBlock Grid.Row="2" Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="11" Margin="12,0,12,6"
-                           Foreground="{DynamicResource CriticalBrush}" IsVisible="{Binding HasError}" />
+                <StackPanel Grid.Row="3">
+                    <TextBlock Text="{Binding SpotlightNote}" TextWrapping="Wrap" FontSize="11" Margin="12,0,12,6" Classes="subtle" IsVisible="{Binding HasSpotlightNote}" />
+                    <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="11" Margin="12,0,12,6"
+                               Foreground="{DynamicResource CriticalBrush}" IsVisible="{Binding HasError}" />
+                </StackPanel>
             </Grid>
         </DataTemplate>
 
         <!-- A log widget's title-bar options: the Event log's type, or Graylog's
-             stream and range; the search toggle; the count. -->
+             stream and range; the Spotlight (#552); the search toggle; the count. -->
         <DataTemplate DataType="vm:LogFeedHeader">
             <StackPanel Orientation="Horizontal" Spacing="4">
                 <ComboBox Classes="compact" MinWidth="96" MaxWidth="150" ToolTip.Tip="Only this type of event"
@@ -724,6 +738,10 @@
                 <ComboBox Classes="compact" MinWidth="72" ToolTip.Tip="How far back"
                           ItemsSource="{ReflectionBinding Widget.Ranges}" SelectedItem="{ReflectionBinding Widget.SelectedRange}"
                           DisplayMemberBinding="{ReflectionBinding Label}" IsVisible="{Binding Widget.OffersStream}" />
+                <Button Classes="glyph" Classes.active="{Binding Widget.HasSpotlight}" Command="{Binding Widget.ChooseSpotlightCommand}"
+                        ToolTip.Tip="{Binding Widget.SpotlightToolTip}" AutomationProperties.Name="Spotlight">
+                    <fi:SymbolIcon Symbol="Target" />
+                </Button>
                 <ToggleButton Classes="glyph" IsChecked="{Binding Widget.IsSearchOpen}" ToolTip.Tip="Search">
                     <fi:SymbolIcon Symbol="Search" />
                 </ToggleButton>
@@ -1106,6 +1124,44 @@
                                                     <views:GraphTimeRangePicker DataContext="{Binding TimeRange}" HorizontalAlignment="Left" />
                                                 </StackPanel>
                                             </StackPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+
+                                    <!-- Event log and Graylog: the title bar's options, then the Spotlight (#552). -->
+                                    <DataTemplate DataType="vm:LogFeedWidgetViewModel">
+                                        <StackPanel>
+                                            <TextBlock Text="OPTIONS" Classes="section" Margin="0,0,0,6" />
+                                            <ContentControl Content="{Binding HeaderOptions}" Focusable="False" HorizontalAlignment="Left" />
+
+                                            <DockPanel Margin="0,16,0,6">
+                                                <Button DockPanel.Dock="Right" Content="Add" Padding="8,3" Command="{Binding Picker.OpenCommand}" IsVisible="{Binding !Picker.IsOpen}"
+                                                        ToolTip.Tip="Keep this card to devices, a group or a location" />
+                                                <TextBlock Text="SPOTLIGHT" Classes="section" Margin="0" VerticalAlignment="Center" />
+                                            </DockPanel>
+                                            <TextBlock Text="Whole network" Classes="subtle" Margin="0,0,0,4" IsVisible="{Binding !HasSpotlight}" />
+                                            <ItemsControl Name="CardSpotlightList" ItemsSource="{Binding Spotlight}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:SpotlightOption">
+                                                        <DockPanel Margin="0,2">
+                                                            <Button DockPanel.Dock="Right" Classes="icon small" ToolTip.Tip="Remove from Spotlight" AutomationProperties.Name="Remove from Spotlight"
+                                                                    Command="{Binding #CardSpotlightList.((vm:LogFeedWidgetViewModel)DataContext).RemoveSpotlightCommand}" CommandParameter="{Binding}">
+                                                                <fi:SymbolIcon Symbol="Dismiss" FontSize="10" />
+                                                            </Button>
+                                                            <fi:SymbolIcon DockPanel.Dock="Left" Symbol="Target" FontSize="12" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                            <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                                                                <Run Text="{Binding Name, Mode=OneWay}" />
+                                                                <Run Text="{Binding KindText, Mode=OneWay}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" />
+                                                            </TextBlock>
+                                                        </DockPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBlock Text="{Binding SpotlightSummary, StringFormat='Showing entries for {0}.'}" Classes="subtle" TextWrapping="Wrap" FontSize="12"
+                                                       Margin="0,4,0,0" IsVisible="{Binding HasSpotlight}" />
+                                            <views:SpotlightPicker DataContext="{Binding Picker}" Margin="0,6,0,0" />
+                                            <Button Classes="link" Margin="0,6,0,0" Command="{Binding ClearSpotlightCommand}" IsVisible="{Binding HasSpotlight}">
+                                                <TextBlock Text="Show the whole network" />
+                                            </Button>
                                         </StackPanel>
                                     </DataTemplate>
 

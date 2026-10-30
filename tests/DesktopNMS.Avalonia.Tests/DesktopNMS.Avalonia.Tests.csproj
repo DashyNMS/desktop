@@ -26,5 +26,7 @@
     <AvaloniaXaml Include="../../src/DesktopNMS.Avalonia/Views/DiagnosticsSharingWindow.axaml" Link="Views/DiagnosticsSharingWindow.axaml" />
     <Compile Include="../../src/DesktopNMS.Avalonia/Views/CsvExportButton.axaml.cs" Link="Views/CsvExportButton.axaml.cs" />
     <AvaloniaXaml Include="../../src/DesktopNMS.Avalonia/Views/CsvExportButton.axaml" Link="Views/CsvExportButton.axaml" />
+    <Compile Include="../../src/DesktopNMS.Avalonia/Views/SpotlightPicker.axaml.cs" Link="Views/SpotlightPicker.axaml.cs" />
+    <AvaloniaXaml Include="../../src/DesktopNMS.Avalonia/Views/SpotlightPicker.axaml" Link="Views/SpotlightPicker.axaml" />
   </ItemGroup>
 </Project>

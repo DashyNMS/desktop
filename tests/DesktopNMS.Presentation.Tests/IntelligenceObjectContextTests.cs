@@ -3,6 +3,7 @@ using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Core.Spotlights;
 using DesktopNMS.Core.Services;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;

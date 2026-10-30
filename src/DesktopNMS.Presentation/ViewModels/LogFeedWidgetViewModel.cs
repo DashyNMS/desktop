@@ -10,6 +10,7 @@ using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Graylog;
 using DesktopNMS.Core.Logs;
 using DesktopNMS.Core.Models;
+using DesktopNMS.Core.Spotlights;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using Microsoft.Extensions.Logging;
@@ -20,7 +21,8 @@ namespace DesktopNMS.ViewModels;
 /// What the Event log and Graylog dashboard widgets (#202, #203) share: the
 /// newest entries as two-line rows, refreshed with each device poll and the
 /// Dashboard's refresh button; a count, a search and (per widget) a filter
-/// in the title bar, saved per widget; and a brief tint on entries that are
+/// in the title bar, saved per widget; a Spotlight (#552) keeping it to
+/// some devices, a group or a location; and a brief tint on entries that are
 /// new since the last refresh. If a refresh fails, the last rows stay under
 /// the error.
 /// </summary>
@@ -29,6 +31,9 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
     public static readonly IReadOnlyList<int> CountChoices = new[] { 10, 25, 50 };
 
     public const int DefaultCount = 10;
+
+    /// <summary>As many as Intelligence's Spotlight holds.</summary>
+    public const int MaxSpotlight = 32;
 
     /// <summary>How long a new entry stays tinted.</summary>
     private static readonly TimeSpan NewHighlight = TimeSpan.FromSeconds(4);
@@ -39,6 +44,11 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
     private readonly IUiDispatcher _dispatcher;
     private readonly IUiTimer _newTimer;
     private readonly HashSet<string> _shownKeys = new(StringComparer.Ordinal);
+    private readonly IDeviceCache _devices;
+    private readonly SpotlightResolver _spotlightResolver;
+
+    /// <summary>Entries of a kind a newer app added - not shown or used here, but kept when the Spotlight is saved.</summary>
+    private readonly List<SpotlightTarget> _otherTargets;
 
     private int _count;
     private string? _searchText;
@@ -47,14 +57,60 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
     private bool _hasLoaded;
     private string? _errorMessage;
     private int _loadVersion;
+    private SpotlightScope _scope = SpotlightScope.WholeNetwork;
+    private string? _spotlightNote;
 
-    protected LogFeedWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model, DeviceMonitor deviceMonitor, ILogger logger)
+    protected LogFeedWidgetViewModel(
+        IDashboardLayoutService layout,
+        DashboardWidget model,
+        DeviceMonitor deviceMonitor,
+        IDeviceCache devices,
+        ILibreNmsClient client,
+        ISettingsStore settings,
+        SpotlightResolver spotlightResolver,
+        ILogger logger)
         : base(layout, model)
     {
         _layout = layout;
         _deviceMonitor = deviceMonitor;
+        _devices = devices;
+        _spotlightResolver = spotlightResolver;
         _logger = logger;
         _dispatcher = UiThread.Dispatcher;
+
+        foreach (var target in model.Spotlight)
+        {
+            if (target.Kind is { } kind)
+            {
+                Spotlight.Add(new SpotlightOption(kind, target.Id, target.Name));
+            }
+        }
+
+        _otherTargets = model.Spotlight.Where(t => t.Kind is null).Select(t => t.Clone()).ToList();
+        Picker = new SpotlightPickerViewModel(devices, client, settings, logger, AddSpotlight);
+        RemoveSpotlightCommand = new RelayCommand(parameter =>
+        {
+            if (parameter is SpotlightOption option && Spotlight.Remove(option))
+            {
+                SaveSpotlightAndReload();
+            }
+        });
+        ClearSpotlightCommand = new RelayCommand(() =>
+        {
+            Spotlight.Clear();
+            SaveSpotlightAndReload();
+        }, () => HasSpotlight);
+
+        // The title bar's Spotlight button: the set-up panel, with the
+        // picker already open when there's nothing spotlighted yet.
+        ChooseSpotlightCommand = new RelayCommand(() =>
+        {
+            SetUpCommand.Execute(null);
+            if (!HasSpotlight)
+            {
+                Picker.OpenCommand.Execute(null);
+            }
+        });
 
         _count = CountChoices.Contains(model.LogCount) ? model.LogCount : DefaultCount;
         _searchText = model.LogSearch;
@@ -95,6 +151,48 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
     public RelayCommand OpenCommand { get; }
 
     public RelayCommand ToggleSearchCommand { get; }
+
+    /// <summary>What the card is kept to (#552): devices, groups and locations. Empty for the whole network.</summary>
+    public ObservableCollection<SpotlightOption> Spotlight { get; } = new();
+
+    /// <summary>Choosing what to spotlight - the same picker as Intelligence's.</summary>
+    public SpotlightPickerViewModel Picker { get; }
+
+    public RelayCommand RemoveSpotlightCommand { get; }
+
+    public RelayCommand ClearSpotlightCommand { get; }
+
+    public RelayCommand ChooseSpotlightCommand { get; }
+
+    public bool HasSpotlight => Spotlight.Count > 0;
+
+    /// <summary>
+    /// "Core routers, edge-01" - with a group's or location's current name
+    /// and "Unknown group" for one LibreNMS no longer has, once worked out;
+    /// the saved names before that.
+    /// </summary>
+    public string SpotlightSummary => _scope.IsWholeNetwork
+        ? SpotlightScope.Describe(Spotlight.Select(ToTarget).ToList())
+        : _scope.Summary;
+
+    public string SpotlightToolTip => HasSpotlight
+        ? "Spotlight: " + SpotlightSummary
+        : "Spotlight devices, a group or a location";
+
+    /// <summary>Anything the card should say about its Spotlight - devices left out of a Graylog search, say.</summary>
+    public string? SpotlightNote
+    {
+        get => _spotlightNote;
+        protected set
+        {
+            if (SetProperty(ref _spotlightNote, value))
+            {
+                OnPropertyChanged(nameof(HasSpotlightNote));
+            }
+        }
+    }
+
+    public bool HasSpotlightNote => !string.IsNullOrEmpty(_spotlightNote);
 
     /// <summary>The title bar's controls - see <see cref="LogFeedHeader"/>.</summary>
     public override object? HeaderOptions => Header;
@@ -198,6 +296,11 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
 
     protected int Count => _count;
 
+    /// <summary>The Spotlight as worked out for this fetch - the whole network when there isn't one.</summary>
+    protected SpotlightScope Scope => _scope;
+
+    protected IDeviceCache Devices => _devices;
+
     /// <summary>The Dashboard's refresh button: fetch again.</summary>
     public void Reload() => _ = LoadAsync();
 
@@ -232,6 +335,73 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
             : local.ToString("d MMM HH:mm", CultureInfo.CurrentCulture);
     }
 
+    /// <summary>
+    /// Spotlights <paramref name="option"/> - the picker's Spotlight button.
+    /// False, keeping the picker open, once the Spotlight is full.
+    /// </summary>
+    public bool AddSpotlight(SpotlightOption option)
+    {
+        if (option.Id <= 0 || option.Kind is not (SpotlightKind.Device or SpotlightKind.Group or SpotlightKind.Location))
+        {
+            return false;
+        }
+
+        if (Spotlight.Any(s => s.Kind == option.Kind && s.Id == option.Id))
+        {
+            return true;
+        }
+
+        if (Spotlight.Count >= MaxSpotlight)
+        {
+            return false;
+        }
+
+        Spotlight.Add(option);
+        SaveSpotlightAndReload();
+        return true;
+    }
+
+    protected override void OnEditingClosed() => Picker.IsOpen = false;
+
+    private void SaveSpotlightAndReload()
+    {
+        _layout.SetSpotlight(Id, Spotlight.Select(ToTarget).Concat(_otherTargets).ToList());
+
+        // Until it's worked out again, describe it by the names it was saved with.
+        _scope = SpotlightScope.WholeNetwork;
+        RaiseSpotlightChanged();
+        ClearSpotlightCommand.RaiseCanExecuteChanged();
+
+        _shownKeys.Clear();
+        _ = LoadAsync();
+    }
+
+    private static SpotlightTarget ToTarget(SpotlightOption option) => new(option.Kind, option.Id, option.Name);
+
+    /// <summary>The devices the Spotlight covers now - after the device list has loaded, so a location has devices to look among.</summary>
+    private async Task<SpotlightScope> ResolveSpotlightAsync()
+    {
+        if (Spotlight.Count == 0)
+        {
+            return SpotlightScope.WholeNetwork;
+        }
+
+        if (!_devices.IsLoaded)
+        {
+            await _devices.EnsureCurrentAsync(Array.Empty<int>()).ConfigureAwait(true);
+        }
+
+        return await _spotlightResolver.ResolveAsync(Spotlight.Select(ToTarget).ToList(), _devices.All).ConfigureAwait(true);
+    }
+
+    private void RaiseSpotlightChanged()
+    {
+        OnPropertyChanged(nameof(HasSpotlight));
+        OnPropertyChanged(nameof(SpotlightSummary));
+        OnPropertyChanged(nameof(SpotlightToolTip));
+        OnPropertyChanged(nameof(EmptyText));
+    }
+
     protected async Task LoadAsync()
     {
         var version = ++_loadVersion;
@@ -239,6 +409,16 @@ public abstract class LogFeedWidgetViewModel : DashboardWidgetViewModel, IDispos
 
         try
         {
+            var scope = await ResolveSpotlightAsync().ConfigureAwait(true);
+            if (version != _loadVersion)
+            {
+                return;
+            }
+
+            _scope = scope;
+            SpotlightNote = null;
+            RaiseSpotlightChanged();
+
             var rows = await FetchAsync().ConfigureAwait(true);
             if (version != _loadVersion)
             {
@@ -409,8 +589,8 @@ public sealed class EventLogWidgetViewModel : LogFeedWidgetViewModel
     private readonly IWindowService _windows;
     private LogFeedChoice _selectedType;
 
-    public EventLogWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model, ILibreNmsClient client, IDeviceCache devices, ISettingsStore settings, DeviceMonitor deviceMonitor, IWindowService windows, ILogger logger)
-        : base(layout, model, deviceMonitor, logger)
+    public EventLogWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model, ILibreNmsClient client, IDeviceCache devices, ISettingsStore settings, DeviceMonitor deviceMonitor, IWindowService windows, SpotlightResolver spotlightResolver, ILogger logger)
+        : base(layout, model, deviceMonitor, devices, client, settings, spotlightResolver, logger)
     {
         _client = client;
         _devices = devices;
@@ -431,7 +611,9 @@ public sealed class EventLogWidgetViewModel : LogFeedWidgetViewModel
 
     public override string SearchHint => "Search events";
 
-    public override string EmptyText => string.IsNullOrWhiteSpace(LogType) && !HasSearch ? "No events yet." : "No events match.";
+    public override string EmptyText => !string.IsNullOrWhiteSpace(LogType) || HasSearch
+        ? "No events match."
+        : HasSpotlight ? "No events for " + SpotlightSummary + "." : "No events yet.";
 
     /// <summary>"All types", then every type seen so far.</summary>
     public ObservableCollection<LogFeedChoice> TypeChoices { get; }
@@ -456,8 +638,7 @@ public sealed class EventLogWidgetViewModel : LogFeedWidgetViewModel
 
     protected override async Task<IReadOnlyList<LogFeedRowViewModel>> FetchAsync()
     {
-        var limit = EventLogFeed.FetchLimit(Count, LogType, SearchText);
-        var entries = await _client.Logs.ListEventLogAsync(null, limit).ConfigureAwait(true);
+        var entries = await EventLogFeed.FetchAsync(_client.Logs, Count, LogType, SearchText, Scope).ConfigureAwait(true);
         AddTypes(EventLogFeed.Types(entries));
 
         var utc = _settings.Current.ServerTimestampsAreUtc;
@@ -544,8 +725,8 @@ public sealed class GraylogWidgetViewModel : LogFeedWidgetViewModel
     private LogFeedChoice _selectedRange;
     private bool _streamsLoaded;
 
-    public GraylogWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model, IGraylogApi graylog, IDeviceCache devices, ISettingsStore settings, DeviceMonitor deviceMonitor, IWindowService windows, ILogger logger)
-        : base(layout, model, deviceMonitor, logger)
+    public GraylogWidgetViewModel(IDashboardLayoutService layout, DashboardWidget model, IGraylogApi graylog, ILibreNmsClient client, IDeviceCache devices, ISettingsStore settings, DeviceMonitor deviceMonitor, IWindowService windows, SpotlightResolver spotlightResolver, ILogger logger)
+        : base(layout, model, deviceMonitor, devices, client, settings, spotlightResolver, logger)
     {
         _graylog = graylog;
         _devices = devices;
@@ -572,9 +753,11 @@ public sealed class GraylogWidgetViewModel : LogFeedWidgetViewModel
     public override string SearchHint => "Graylog search, e.g. level:<=3";
 
     /// <summary>With Graylog switched off, say how to fix it rather than showing an error (or old messages).</summary>
-    public override string EmptyText => _graylog.IsConfigured
-        ? "No messages in the last " + _selectedRange.Label + "."
-        : "Set up Graylog in Settings first.";
+    public override string EmptyText => !_graylog.IsConfigured
+        ? "Set up Graylog in Settings first."
+        : HasSpotlight
+            ? "No messages from " + SpotlightSummary + " in the last " + _selectedRange.Label + "."
+            : "No messages in the last " + _selectedRange.Label + ".";
 
     /// <summary>"All streams", then each stream the account can read.</summary>
     public ObservableCollection<LogFeedChoice> StreamChoices { get; }
@@ -628,7 +811,20 @@ public sealed class GraylogWidgetViewModel : LogFeedWidgetViewModel
             await LoadStreamsAsync().ConfigureAwait(true);
         }
 
-        var query = string.IsNullOrWhiteSpace(SearchText) ? "*" : SearchText.Trim();
+        // Kept to a Spotlight: only its devices' messages, matched by address
+        // the way a device's own Graylog tab is.
+        var spotlight = GraylogQuery.ForSpotlight(SearchText, _settings.Current.Graylog.QueryField, Scope, Devices.All);
+        if (spotlight.Query is not { } query)
+        {
+            return Array.Empty<LogFeedRowViewModel>();
+        }
+
+        if (spotlight.DevicesLeftOut > 0)
+        {
+            var total = Scope.DeviceIds.Count(id => Devices.Get(id) is not null);
+            SpotlightNote = string.Create(CultureInfo.CurrentCulture, $"Searching {total - spotlight.DevicesLeftOut} of {total} devices: the rest don't fit in one Graylog search.");
+        }
+
         var result = await _graylog.SearchAsync(query, GraylogRangeSeconds, Count, 0, "timestamp:desc", GraylogQuery.StreamFilter(GraylogStreamId)).ConfigureAwait(true);
         var zone = GraylogQuery.FindTimeZone(_settings.Current.Graylog.Timezone);
 
@@ -679,6 +875,7 @@ public sealed class GraylogWidgetViewModel : LogFeedWidgetViewModel
     protected override string? DescribeFailure(Exception exception) => exception switch
     {
         GraylogApiException => "Couldn't reach Graylog.",
+        LibreNmsApiException => "Couldn't reach LibreNMS to work out the Spotlight.",
         _ => null,
     };
 
