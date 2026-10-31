@@ -435,10 +435,9 @@
                 <!-- ==================== Device header ==================== -->
                 <!-- Above every section: what the device is and its state, with Open in, Edit and Show alerts. -->
                 <Grid Grid.Row="0" Margin="24,18,24,4" ColumnDefinitions="Auto,*,Auto">
-                    <Border Width="48" Height="48" CornerRadius="12" Margin="0,0,16,0" VerticalAlignment="Center" Background="{DynamicResource AccentSubtleBrush}">
-                        <fi:SymbolIcon Symbol="{Binding Type, Converter={x:Static views:Converters.DeviceTypeIcon}}" FontSize="24" Foreground="{DynamicResource AccentBrush}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
+                    <!-- The device's own logo once it has loaded (#555); the type symbol until then, or without one. -->
+                    <views:DeviceLogoTile Width="48" Height="48" Margin="0,0,16,0" VerticalAlignment="Center"
+                                          Symbol="{Binding Type, Converter={x:Static views:Converters.DeviceTypeIcon}}" Logo="{Binding HeaderLogo.Logo}" />
 
                     <TextBlock Grid.Column="1" Text="Loading device…" Classes="subtle" VerticalAlignment="Center" IsVisible="{Binding IsLoadingDevice}" />
 

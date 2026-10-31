@@ -1981,6 +1981,22 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>The device's own logo in the device details header, from the LibreNMS server (#555); off fetches nothing.</summary>
+    public bool ShowDeviceLogos
+    {
+        get => _draft.ShowDeviceLogos;
+        set
+        {
+            if (_draft.ShowDeviceLogos == value)
+            {
+                return;
+            }
+
+            _draft.ShowDeviceLogos = value;
+            OnPropertyChanged();
+        }
+    }
+
     public IReadOnlyList<KeyValuePair<string, string>> IntelligenceDetailOptions => ViewModels.IntelligenceDetailOptions.All;
 
     /// <summary>The detail level new chats start with (#329).</summary>
