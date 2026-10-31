@@ -469,6 +469,15 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Classes="card" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Device logos" Classes="section" Margin="0,0,0,6" />
+                                <CheckBox Content="Show device logos" IsChecked="{Binding ShowDeviceLogos}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="Shows the device's logo at the top of its details, in place of the device type symbol. Logos come from your LibreNMS server and are kept on this computer." />
+                            </StackPanel>
+                        </Border>
+
                         <Border Classes="card">
                             <StackPanel>
                                 <TextBlock Text="Accent colour" Classes="section" Margin="0,0,0,14" />

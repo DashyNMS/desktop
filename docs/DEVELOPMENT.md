@@ -791,6 +791,7 @@ Everything lives under `%APPDATA%\DashyNMS`:
 | `notified.json` | Alert ids already announced, so a restart is quiet |
 | `chats\` | Saved Intelligence chats, encrypted for the current Windows user and separated by LibreNMS server and ChatGPT account |
 | `logs\dashynms-<date>.log` | Rolling log, kept for 14 days |
+| `cache\logos\` | The last 20 device logos shown in a device's details header, fetched from the LibreNMS server and refetched after 30 days. Safe to delete |
 
 Delete `token.dat` to force a fresh sign-in. Delete the folder to reset
 completely.

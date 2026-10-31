@@ -197,7 +197,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         IUnimusDeviceResolver unimusResolver,
         IGraylogApi graylog,
         IFleetLinks fleetLinks,
-        ILogger<DeviceDetailViewModel> logger, IAppMetrics? metrics = null)
+        ILogger<DeviceDetailViewModel> logger, IAppMetrics? metrics = null,
+        DesktopNMS.Core.Services.IDeviceLogoCache? logos = null)
     {
         _screenLoad = new ScreenLoadTiming(metrics, MetricArea.DeviceDetails);
         _screenLoad.Begin(false);
@@ -216,6 +217,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         _fleetLinks = fleetLinks;
         _logger = logger;
         _dispatcher = UiThread.Dispatcher;
+        HeaderLogo = new DeviceLogoViewModel(logos, settings, _dispatcher);
 
         Sensors = new ObservableCollection<SensorItemViewModel>();
         SensorGroups = new BatchObservableCollection<SensorGroupViewModel>();
@@ -338,6 +340,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         // Shows whatever is already cached instantly, rather than a blank
         // window until the next shared poll lands.
         _device = deviceCache.Get(deviceId);
+        HeaderLogo.Show(_device?.Icon);
 
         RecordRecentlyViewed();
 
@@ -2050,6 +2053,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>LibreNMS's own type values are lowercase ("network", "wireless", ...) - capitalised here to match how the Devices tab's type filter already displays them.</summary>
     public string Type => TitleCase(_device?.Type);
+
+    /// <summary>The device's own logo for the header, standing in for the type symbol once it's loaded (#555).</summary>
+    public DeviceLogoViewModel HeaderLogo { get; }
 
     public string UptimeText => _device is { State: DeviceState.Up } d ? FormatUptime(d.Uptime) : "-";
 
@@ -4521,6 +4527,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     private void RaiseDeviceChanged()
     {
+        HeaderLogo.Show(_device?.Icon);
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(AlternateName));
         OnPropertyChanged(nameof(HasAlternateName));
@@ -4602,6 +4609,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Routing.PropertyChanged -= OnRoutingPropertyChanged;
         Wireless.PropertyChanged -= OnWirelessPropertyChanged;
         Graylog.Dispose();
+        HeaderLogo.Dispose();
         _loadCts.Cancel();
         _loadCts.Dispose();
         _deviceMonitor.Polled -= OnDevicePolled;

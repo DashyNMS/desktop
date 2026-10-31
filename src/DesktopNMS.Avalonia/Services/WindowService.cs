@@ -354,7 +354,8 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
             services.GetRequiredService<IGraylogApi>(),
             services.GetRequiredService<IFleetLinks>(),
             services.GetRequiredService<ILogger<DeviceDetailViewModel>>(),
-            services.GetRequiredService<DesktopNMS.Diagnostics.IAppMetrics>())
+            services.GetRequiredService<DesktopNMS.Diagnostics.IAppMetrics>(),
+            services.GetService<DesktopNMS.Core.Services.IDeviceLogoCache>())
         {
             History = history,
         };

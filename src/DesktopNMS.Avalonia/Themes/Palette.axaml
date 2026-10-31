@@ -21,6 +21,9 @@
             <SolidColorBrush x:Key="BackgroundBrush" Color="#FF11141A" />
             <SolidColorBrush x:Key="SurfaceBrush" Color="#FF171B23" />
             <SolidColorBrush x:Key="SurfaceAltBrush" Color="#FF1E2430" />
+            <!-- Device logos (#555) are drawn for light pages and many are black or dark grey,
+                 so the dark theme's tile is a soft light grey rather than a surface tone they'd vanish on. -->
+            <SolidColorBrush x:Key="LogoTileBrush" Color="#FFDDE2E9" />
             <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#FF262E3C" />
             <SolidColorBrush x:Key="BorderBrush" Color="#FF2C3442" />
             <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFE6EAF0" />
@@ -124,6 +127,7 @@
             <SolidColorBrush x:Key="BackgroundBrush" Color="#FFF5F6F8" />
             <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="SurfaceAltBrush" Color="#FFEEF1F5" />
+            <SolidColorBrush x:Key="LogoTileBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#FFE3E7ED" />
             <SolidColorBrush x:Key="BorderBrush" Color="#FFD8DDE5" />
             <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FF1A1F29" />
