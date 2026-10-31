@@ -64,9 +64,12 @@ public sealed class DeviceLogoSettingTests
             NullLogger<IntelligenceViewModel>.Instance);
 
         return new SettingsViewModel(settings, Proxy<IStartupRegistration>(), Proxy<IAlertNotificationService>(), Proxy<IUpdateCheckService>(),
-            Proxy<IWindowService>(), Proxy<ISessionService>(), client, Proxy<IUnimusApi>(), Proxy<IUnimusTokenProtector>(),
+            Proxy<IWindowService>(), SignedIn(), client, Proxy<IUnimusApi>(), Proxy<IUnimusTokenProtector>(),
             Proxy<IUnimusDeviceResolver>(), Proxy<IGraylogApi>(), Proxy<IGraylogPasswordProtector>(), Proxy<ICustomMapStore>(), intelligence);
     }
+
+    /// <summary>Signed in with nothing changed under Server, so Apply saves without reconnecting.</summary>
+    private static ISessionService SignedIn() => Proxy<ISessionService>((method, _) => method.Name == "get_IsConnected" ? true : null);
 
     /// <summary>A stand-in whose members do nothing: defaults for values, completed tasks, null otherwise.</summary>
     private static T Proxy<T>(Func<MethodInfo, object?[]?, object?>? handler = null) where T : class
