@@ -1,6 +1,6 @@
 # DashyNMS user guide
 
-![DashyNMS](https://dashynms.pckp.net/assets/img/favicon.svg)
+<img src="https://dashynms.pckp.net/assets/img/favicon.svg" alt="DashyNMS" width="80" height="80">
 
 **Your LibreNMS network, right on your desktop.**
 
