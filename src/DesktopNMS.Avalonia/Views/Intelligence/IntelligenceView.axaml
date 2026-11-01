@@ -77,6 +77,17 @@
                                 IsVisible="{Binding IsSingleChatMode}" Command="{Binding ClearCommand}">
                             <fi:SymbolIcon Symbol="Add" />
                         </Button>
+                        <!-- Saves this chat, saved or temporary, to a file on this computer (#315). -->
+                        <Button Classes="icon" ToolTip.Tip="Export this chat" AutomationProperties.Name="Export this chat"
+                                IsEnabled="{Binding CanExportChat}">
+                            <fi:SymbolIcon Symbol="Share" />
+                            <Button.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuItem Header="Save as PDF…" Command="{Binding ExportPdfCommand}" />
+                                    <MenuItem Header="Save as Markdown…" Command="{Binding ExportMarkdownCommand}" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
                         <Button Classes="icon" ToolTip.Tip="Intelligence settings" Command="{Binding OpenSettingsCommand}">
                             <fi:SymbolIcon Symbol="Settings" />
                         </Button>

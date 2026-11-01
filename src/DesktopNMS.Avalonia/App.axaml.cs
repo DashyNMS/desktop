@@ -912,6 +912,9 @@ public partial class App : Application
         services.AddSingleton<TrayIconService>();
         services.AddSingleton<DeviceListViewModel>();
         services.AddSingleton<HealthViewModel>();
+        // Saving a chat as Markdown or PDF (#315); the PDF is drawn with Avalonia's Skia.
+        services.AddSingleton<IIntelligenceChatPdfWriter, IntelligenceChatPdfWriter>();
+        services.AddSingleton(provider => new IntelligenceChatExporter(provider.GetRequiredService<IIntelligenceChatPdfWriter>()));
         services.AddSingleton<IntelligenceViewModel>();
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<GroupsViewModel>();

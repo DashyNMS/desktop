@@ -30,5 +30,6 @@
     <Compile Include="../../src/DesktopNMS.Avalonia/Views/SpotlightPicker.axaml.cs" Link="Views/SpotlightPicker.axaml.cs" />
     <AvaloniaXaml Include="../../src/DesktopNMS.Avalonia/Views/SpotlightPicker.axaml" Link="Views/SpotlightPicker.axaml" />
     <Compile Include="../../src/DesktopNMS.Avalonia/Views/DeviceLogoTile.cs" Link="Views/DeviceLogoTile.cs" />
+    <Compile Include="../../src/DesktopNMS.Avalonia/Services/IntelligenceChatPdfWriter.cs" Link="Services/IntelligenceChatPdfWriter.cs" />
   </ItemGroup>
 </Project>
