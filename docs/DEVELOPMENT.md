@@ -56,6 +56,20 @@ WPF project has been retired; its history remains in Git.
 dotnet run --project src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj
 ```
 
+The same commands build and run the app on macOS and Linux. Install the
+.NET 9 SDK from Microsoft's packages or your distribution, and set
+`DASHYNMS_PACKAGES_TOKEN` (see [Core](#core)) in the shell first. On Linux, the
+app needs a desktop session, and these packages for everything to work:
+
+- `libgtk-3-0`, `libwebkit2gtk-4.1-0` and `libsoup-3.0-0` for web sign-in.
+- `libsecret-tools` and a running Secret Service (GNOME Keyring or KWallet)
+  to keep secrets.
+- `libnotify-bin` for desktop notifications.
+
+On macOS, `dotnet run` starts the app outside a bundle, so native
+notifications and the login item aren't available. Build a `.dmg` with
+[Native packages](#native-packages) to try them.
+
 ### Development builds
 
 After a pull request successfully merges into `master`, the **Development build**
@@ -796,10 +810,12 @@ Everything lives under `%APPDATA%\DashyNMS`:
 Delete `token.dat` to force a fresh sign-in. Delete the folder to reset
 completely.
 
-Development builds keep their own data in `avalonia\` inside that folder
-(`~/.config/DashyNMS/avalonia` on Linux, `~/Library/Application
-Support/DashyNMS/avalonia` on macOS). Windows release and preview builds reuse
-the existing 1.x profile; macOS and Linux retain their Avalonia profile.
+Development builds on Windows keep their own data in `avalonia\` inside that
+folder. Windows release and preview builds reuse the existing 1.x profile.
+Every macOS and Linux build uses `~/Library/Application Support/DashyNMS/avalonia`
+on macOS and `~/.config/DashyNMS/avalonia` on Linux (or under
+`$XDG_CONFIG_HOME`). The user guide's
+[Where DashyNMS keeps your data](guide/your-data.md) covers this for users.
 
 Single chat mode under **Settings > Intelligence** keeps one conversation in memory. Its messages,
 draft, tool history, Spotlight and companion state are never written to the chat archive.
@@ -872,6 +888,33 @@ off — without one, Windows will still display a toast on some builds but never
 lists the app in Settings > Notifications. That is how an unpackaged desktop
 app is allowed to raise toasts and receive clicks on them, and it is why toast
 buttons still work when the app is sitting in the tray.
+
+## User guide and wiki
+
+The user guide is in [`docs/guide`](guide/README.md): getting started,
+installing on each OS, where data is kept, and platform differences. Write it
+for people who aren't developers, and update it in the same PR as the
+behaviour it describes.
+
+The **User guide wiki** workflow copies it to the
+[repository wiki](https://github.com/DashyNMS/desktop/wiki) whenever the
+guide changes on `master`. `tools/Publish-WikiGuide.py` names each page after
+its first heading, turns `README.md` into Home, rewrites links between guide
+files as wiki links and other repository links as GitHub links, and builds the
+sidebar from the order of `README.md`'s links. Every guide page must be linked
+from `README.md`. Pull requests that touch the guide run the same conversion as
+a link check. The wiki is generated, so edits made there are replaced the next
+time it's published.
+
+The wiki has to be turned on under **Settings → Features → Wikis** and given
+a first page before the workflow can push to it. Until then the publish job
+stops with a notice.
+
+To preview the pages locally:
+
+```bash
+python3 tools/Publish-WikiGuide.py docs/guide /tmp/wiki --repository DashyNMS/desktop
+```
 
 ## Commits, pull requests and issues
 
