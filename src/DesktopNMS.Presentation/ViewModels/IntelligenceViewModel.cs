@@ -66,9 +66,11 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         ISettingsStore settings,
         AlertMonitor alerts,
         IIntelligenceChatStore chats,
-        ILogger<IntelligenceViewModel> logger, IAppMetrics? metrics = null)
+        ILogger<IntelligenceViewModel> logger, IAppMetrics? metrics = null,
+        IntelligenceChatExporter? exporter = null)
     {
         _metrics = metrics;
+        _exporter = exporter;
         _store = store;
         _devices = devices;
         _tools = tools;
@@ -134,6 +136,9 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
             if (p is IntelligenceMessageViewModel message && RestoreQuestion(message)) await SendAsync().ConfigureAwait(true);
         }, p => CanRecoverQuestion(p) && Composer.SelectedModel is not null);
         ClearCommand = new RelayCommand(Clear, () => !_isBusy && ShowConversation);
+        ExportMarkdownCommand = new RelayCommand(() => ExportChat(pdf: false), () => CanExportChat);
+        ExportPdfCommand = new RelayCommand(() => ExportChat(pdf: true), () => CanExportChat && _exporter?.CanWritePdf == true);
+        Messages.CollectionChanged += (_, _) => RaiseExportCommands();
         ManageUsageCommand = new RelayCommand(() => _windows.OpenUrl(ManageUsageUrl));
         AcceptConsentCommand = new RelayCommand(() =>
         {
@@ -576,6 +581,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         Composer.StopCommand.RaiseCanExecuteChanged();
         ClearCommand.RaiseCanExecuteChanged();
         AskSuggestionCommand.RaiseCanExecuteChanged();
+        RaiseExportCommands();
 
         // The chat list is made after the commands, and raises its own once it exists.
         if (Chats is null) return;
