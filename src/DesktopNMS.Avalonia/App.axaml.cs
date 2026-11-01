@@ -47,6 +47,7 @@ public partial class App : Application
     internal bool StartupMetricsAllowed => _startupMetricsAllowed;
     private MainViewModel? _mainViewModel;
     private bool _restartFresh;
+    private int _exitStarted;
     private TrayIconService? _tray;
     private bool _trayUpdatePending;
     private DemoMode _demo = new(isActive: false);
@@ -701,6 +702,14 @@ public partial class App : Application
 
     private void OnExit()
     {
+        // Quit can reach the lifetime by more than one route (the app menu,
+        // the tray, closing the main window). A second Exit would dispose the
+        // service provider again, or start a second copy after Sign out (#492).
+        if (Interlocked.Exchange(ref _exitStarted, 1) != 0)
+        {
+            return;
+        }
+
         _logger?.LogInformation("Application shutdown started for process {ProcessId}", Environment.ProcessId);
         _uiStalls?.Dispose();
         _memory?.Dispose();
@@ -903,6 +912,9 @@ public partial class App : Application
         services.AddSingleton<TrayIconService>();
         services.AddSingleton<DeviceListViewModel>();
         services.AddSingleton<HealthViewModel>();
+        // Saving a chat as Markdown or PDF (#315); the PDF is drawn with Avalonia's Skia.
+        services.AddSingleton<IIntelligenceChatPdfWriter, IntelligenceChatPdfWriter>();
+        services.AddSingleton(provider => new IntelligenceChatExporter(provider.GetRequiredService<IIntelligenceChatPdfWriter>()));
         services.AddSingleton<IntelligenceViewModel>();
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<GroupsViewModel>();

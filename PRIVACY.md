@@ -2,21 +2,27 @@
 
 DashyNMS does not require a DashyNMS account. Error reports and usage/performance sharing are optional and off until you explicitly allow them.
 
-This document describes the current application. The [website privacy page](https://dashynms.pckp.net/desktop/privacy/) may describe an earlier release.
+This document describes DashyNMS 2.0 on Windows, macOS and Linux, and is the source for the [website privacy page](https://dashynms.pckp.net/desktop/privacy/), which says the same in shorter form. Version 1.x shares no error reports or usage measurements.
 
 ## Who it talks to
 
 - **Your LibreNMS server**, the one you sign in to. This is where everything you see comes from.
 - **Your Graylog and Unimus servers**, only if you set them up in Settings → Integrations.
-- **GitHub**, to check for and download new versions of DashyNMS from this repository's [Releases](https://github.com/DashyNMS/desktop/releases). It sends nothing about you or your network, only the ordinary request any download makes.
+- **GitHub**, to check for and download new versions of DashyNMS from this repository's [Releases](https://github.com/DashyNMS/desktop/releases), at start-up and every 6 hours. It sends nothing about you or your network, only the ordinary request any download makes.
+- **GitHub, for sensor definitions**, which give state readings names and colours. They're on by default and come from the [official repository](https://github.com/DashyNMS/sensor-definitions), or another public GitHub repository you choose, checked at most once a day. The request carries nothing about you or your network. Turn them off in **Settings → Sensor definitions**; applying that removes the downloaded definitions.
+- **OpenAI**, only if you sign in to Intelligence with your ChatGPT account. Your questions, and what DashyNMS looks up to answer them (such as device names, addresses, alerts, ports and log lines), are sent to OpenAI under your ChatGPT plan. Passwords, tokens and SNMP communities are never sent. Configuration backups are summarised unless you choose otherwise in **Settings → Intelligence**. If web search is on, OpenAI's search may send search terms to search providers; it can be turned off in Settings. You sign in to ChatGPT in your browser, so DashyNMS never sees your ChatGPT password. Intelligence asks before the first question and again whenever what's sent changes. [OpenAI's privacy policy](https://openai.com/policies/privacy-policy/) covers what it does with them.
 - **Sentry**, only for the error reports or usage/performance metrics you choose to share, as described below.
 - **OpenStreetMap's tile servers**, for the map backgrounds on the Geographical map, unless your LibreNMS server or Settings names a different tile server. Like any map website, the tile server sees which areas of the map are loaded.
 
 Error and usage reports exclude monitored network data.
 
+**Sign in with LibreNMS** opens your server's own sign-in page inside DashyNMS, using the system's browser engine (Microsoft Edge WebView2, WebKit on macOS, WebKitGTK on Linux). If your server sends you to a single sign-on provider, that provider sees the sign-in as it would in a browser. DashyNMS doesn't read or keep your password; it creates an API token on your server and keeps only that. Each attempt uses a private browser session, so no cookies are left behind.
+
+Alert notifications are created on your computer from DashyNMS's own alert checks and don't pass through any push service. **Report a bug** in **Settings → Diagnostics** opens a GitHub issue in your browser with version details filled in; nothing is sent until you submit it. Showing the **Sign in DashyNMS Mobile** code in **Settings → Server** sends nothing. The code is only drawn on screen for your phone's camera to read.
+
 ## Optional error and usage sharing
 
-The first normal launch after this feature becomes available asks for your choice. Both boxes start unchecked. You can allow either category, both categories, or choose **Don't share**. Closing the window leaves sharing off and asks again on the next launch. An explicit choice is remembered. Existing launch-only consent continues to cover launch counts, but never enables broader metrics. Existing broader-metrics consent continues to cover its previous measurements, but does not enable session health. Those users and launch-only users receive an updated prompt with usage unchecked and their error choice preserved. Closing that updated prompt keeps the existing choice and asks again next launch. Existing explicit declines remain declined. Change it in **Settings → About**, then apply the change.
+The first normal launch after this feature becomes available asks for your choice. Both boxes start unchecked. You can allow either category, both categories, or choose **Don't share**. Closing the window leaves sharing off and asks again on the next launch. An explicit choice is remembered. Existing launch-only consent continues to cover launch counts, but never enables broader metrics. Existing broader-metrics consent continues to cover its previous measurements, but does not enable session health. Those users and launch-only users receive an updated prompt with usage unchecked and their error choice preserved. Closing that updated prompt keeps the existing choice and asks again next launch. Existing explicit declines remain declined. Change it in **Settings → Diagnostics**, then apply the change.
 
 - Error reports contain the app version, operating system, processor architecture, time, exception types, and method names from approved application assemblies. Where build symbols are available, they also include repository-relative source file names, line numbers and numeric IL offsets to locate the failing code; async frames use the original method name. They exclude exception messages, absolute/local filesystem paths, log files, network addresses, credentials and Intelligence content.
 - Usage sharing sends one `dashynms.app_start` counter measurement per application process after you enable it. It contains the version, operating system, architecture and time. There is no user or installation identifier, so these measurements count launches rather than unique users.
@@ -41,12 +47,17 @@ Fatal managed errors are saved for delivery on a later launch. Native crashes an
 
 ## What's kept on your computer
 
-Everything DashyNMS saves stays on your computer, under your Windows account:
+Everything DashyNMS saves stays on your computer, in your user account: your server address and settings, dashboards and map layouts, any certificate you've chosen to trust, saved Intelligence chats, downloaded updates, queued reports waiting to be sent, and log files kept for 14 days. Map tiles are cached for a week.
 
-- **`%APPDATA%\DashyNMS`:** your server address and settings, dashboards and map layouts, downloaded updates, and log files kept for 14 days. Your LibreNMS API token, Graylog password and Unimus token are encrypted with Windows (DPAPI), so only your Windows account on this computer can read them. You can turn off saving the LibreNMS token entirely.
-- **`%LOCALAPPDATA%\DashyNMS`:** cached map tiles.
+| | Settings, chats, logs and updates | Map tiles |
+| --- | --- | --- |
+| Windows | `%APPDATA%\DashyNMS` | `%LOCALAPPDATA%\DashyNMS` |
+| macOS | `~/Library/Application Support/DashyNMS/avalonia` | `~/Library/Application Support/DashyNMS/tiles` |
+| Linux | `~/.config/DashyNMS/avalonia` | `~/.local/share/DashyNMS/tiles` |
 
-**Signing out removes all of it** apart from the logs and downloaded updates, and DashyNMS restarts ready to sign in again. Uninstalling asks whether to remove these folders too. Keep them and a reinstall picks up where you left off; a silent uninstall always keeps them.
+Your LibreNMS API token, Graylog password, Unimus token and Intelligence chats are encrypted for you. On Windows, Windows does this (DPAPI) for your Windows account. On macOS and Linux, DashyNMS uses a key kept in your login Keychain or your keyring (the Secret Service, such as GNOME Keyring or KWallet). You can turn off saving the LibreNMS token entirely. Sensor definitions are kept with the installation.
+
+**Signing out removes all of it** apart from the logs and downloaded updates, and DashyNMS restarts ready to sign in again. On Windows, uninstalling asks whether to remove these folders too. Keep them and a reinstall picks up where you left off; a silent uninstall always keeps them. On macOS and Linux, removing the app leaves them in place; the [user guide](docs/guide/your-data.md) explains how to remove them.
 
 ## Questions
 

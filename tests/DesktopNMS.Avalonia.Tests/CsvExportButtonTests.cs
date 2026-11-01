@@ -1,3 +1,4 @@
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
@@ -24,6 +25,8 @@ public sealed class CsvExportButtonTests
             var button = Assert.Single(control.GetVisualDescendants().OfType<Button>());
             Assert.Equal(control.ScopeHint, ToolTip.GetTip(button));
             Assert.True(button.IsEnabled);
+            // An icon-only button still needs a name for screen readers (#557).
+            Assert.Equal("Export", AutomationProperties.GetName(button));
             control.ScopeHint = "Export loaded events matching the search";
             Assert.Equal(control.ScopeHint, ToolTip.GetTip(button));
         }

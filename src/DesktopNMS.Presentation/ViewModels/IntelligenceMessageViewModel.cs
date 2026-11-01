@@ -216,6 +216,9 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
 
     public bool HasImages => Images.Count > 0;
 
+    /// <summary>The graphs with their image types, for exporting the chat (#315).</summary>
+    public IReadOnlyList<IntelligenceImage> ImageFiles => _savedImages;
+
     public void AddImage(IntelligenceImage image)
     {
         Images.Add(image.Data);

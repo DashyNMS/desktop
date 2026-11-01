@@ -82,13 +82,13 @@ DashyNMS talks to your own LibreNMS server, and to Graylog and Unimus only if yo
 
 ## Get the app
 
-The current published release is for Windows. Version 2.0 uses Avalonia on Windows, macOS and Linux; cross-platform packages are in development.
+The current release, 1.1, is for Windows. Download the installer from the [latest release](https://github.com/DashyNMS/desktop/releases/latest) and run it. It installs just for your Windows account, so you don't need admin rights.
 
-Download the installer from the [latest release](https://github.com/DashyNMS/desktop/releases/latest) and run it. It installs just for your Windows account, so you don't need admin rights.
+Version 2.0 runs on Windows, macOS and Linux, and you can try it now from the [preview releases](https://github.com/DashyNMS/desktop/releases). The [user guide](docs/guide/README.md) explains how to install, update and remove it on each system.
 
 ## What you need
 
-- Windows 10 (version 1809 or later) or Windows 11.
+- Windows 10 (version 1809 or later) or Windows 11, macOS 13 or later, or Linux with a desktop. macOS and Linux need version 2.0.
 - A LibreNMS server you can reach from your computer, with its API turned on, and an account on it with API access.
 
 Open DashyNMS, enter your server's address and choose **Sign in with LibreNMS**. You sign in on your server's own page, however it signs people in, and DashyNMS creates its API token for you. That's it. This needs LibreNMS 26.4 or later and an https address.
@@ -97,7 +97,7 @@ You can paste an API token instead: in LibreNMS, open the settings menu, then **
 
 To sign DashyNMS Mobile in to the same server, open **Settings → Server**, choose **Show** under **Sign in DashyNMS Mobile** and scan the code with your phone's camera. The phone asks before it signs in. It shares this computer's token, so a separate token for the phone is the better choice if you'd rather revoke them separately.
 
-Closing the window keeps DashyNMS running in the notification area, so it can still tell you when something needs attention.
+On Windows and macOS, closing the window keeps DashyNMS running in the notification area or menu bar, so it can still tell you when something needs attention. [Getting started](docs/guide/getting-started.md) walks through the first sign-in.
 
 ## Help and feedback
 
