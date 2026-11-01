@@ -87,10 +87,14 @@
         <!-- ==================== Event log ==================== -->
         <!-- Scrolling near the end loads the next page; Load more is there for anyone who doesn't. -->
         <Grid Margin="24" RowDefinitions="Auto,*,Auto" IsVisible="{Binding IsEventLogSelected}">
-            <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
-                <TextBox Classes="search" PlaceholderText="Search the event log" Text="{Binding EventLogSearchText, Delay=200}" ToolTip.Tip="Search by message, type or user" Width="320" />
-                <views:CsvExportButton Export="{Binding EventLogCsv}" ScopeHint="Export loaded events matching the search; load more to include older events" />
-            </StackPanel>
+            <!-- The export sits at the end of the row, as on Alerts history, so it
+                 stays in view beside the search at any window width (#557). -->
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                <TextBox Classes="search" PlaceholderText="Search the event log" Text="{Binding EventLogSearchText, Delay=200}" ToolTip.Tip="Search by message, type or user"
+                         HorizontalAlignment="Left" Width="320" VerticalAlignment="Center" />
+                <views:CsvExportButton Grid.Column="1" Export="{Binding EventLogCsv}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                       ScopeHint="Export loaded events matching the search; load more to include older events" />
+            </Grid>
 
             <Panel Grid.Row="1">
                 <DataGrid infra:GridLayoutMemory.Key="DeviceDetail.EventLog" Name="EventLogGrid" ItemsSource="{Binding EventLogView}" SelectedItem="{Binding SelectedEventLogEntry}" IsVisible="{Binding HasVisibleEventLog}">
