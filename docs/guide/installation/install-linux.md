@@ -49,4 +49,4 @@ You can also download the new AppImage yourself, make it executable, and delete 
 
 If you turned on **Start DashyNMS when I sign in**, turn it off before you delete the file, or remove `~/.config/autostart/net.dashynms.desktop.desktop` afterwards.
 
-Your settings and saved sign-in stay behind, in case you install it again. [Where DashyNMS keeps your data](your-data.md#linux) explains how to remove them too.
+Your settings and saved sign-in stay behind, in case you install it again. [Where DashyNMS keeps your data](../reference/your-data.md#linux) explains how to remove them too.

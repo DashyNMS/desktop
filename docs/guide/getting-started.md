@@ -13,9 +13,9 @@
 
 Follow the guide for your system:
 
-- [Windows](install-windows.md)
-- [macOS](install-macos.md)
-- [Linux](install-linux.md)
+- [Windows](installation/install-windows.md)
+- [macOS](installation/install-macos.md)
+- [Linux](installation/install-linux.md)
 
 ## Sign in
 
@@ -49,10 +49,19 @@ DashyNMS opens on your dashboard. From here:
 - **Logs** brings the event log, the alert log and Graylog together.
 - **Settings** (the gear icon) is where you choose which alerts notify you, the theme, and whether DashyNMS starts when you sign in to your computer.
 
-On Windows and macOS, closing the window leaves DashyNMS running in the notification area or the menu bar, so it can still tell you about new alerts. To quit completely, use the icon there and choose **Exit**, or **Quit DashyNMS** on a Mac. On Linux, closing the window quits DashyNMS. [Differences between Windows, macOS and Linux](platform-differences.md) explains why.
+On Windows and macOS, closing the window leaves DashyNMS running in the notification area or the menu bar, so it can still tell you about new alerts. To quit completely, use the icon there and choose **Exit**, or **Quit DashyNMS** on a Mac. On Linux, closing the window quits DashyNMS. [Differences between Windows, macOS and Linux](reference/platform-differences.md) explains why.
 
 ## Sign your phone in too
 
 If you use DashyNMS Mobile, open **Settings → Server**, choose **Show** under **Sign in DashyNMS Mobile**, and scan the code with your phone's camera. Your phone asks before it signs in.
 
 The phone uses the same API token as this computer. If you'd like to be able to cancel them separately, create a second token for the phone instead.
+
+## Try your first everyday tasks
+
+1. [Investigate an alert](how-to/alerts.md) and leave an acknowledgement note.
+2. [Pin a device](how-to/devices.md#find-and-pin-a-device) you check often.
+3. [Build your dashboard](how-to/dashboard.md) with its graphs or sensors.
+4. [Choose your notifications](how-to/notifications.md) before leaving the app running.
+
+If something does not work, start with [Troubleshooting](reference/troubleshooting.md).

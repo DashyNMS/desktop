@@ -27,4 +27,4 @@ If you used DashyNMS 1.x, 2.0 picks up your existing settings, dashboards and sa
 2. Open **Settings → Apps → Installed apps**, find **DashyNMS**, and choose **Uninstall**.
 3. The uninstaller asks whether to remove your settings, dashboards, maps and saved sign-in as well. Keep them if you might install DashyNMS again, and it'll pick up where you left off.
 
-[Where DashyNMS keeps your data](your-data.md#windows) lists the folders, if you'd rather remove them yourself.
+[Where DashyNMS keeps your data](../reference/your-data.md#windows) lists the folders, if you'd rather remove them yourself.

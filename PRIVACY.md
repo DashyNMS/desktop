@@ -57,7 +57,7 @@ Everything DashyNMS saves stays on your computer, in your user account: your ser
 
 Your LibreNMS API token, Graylog password, Unimus token and Intelligence chats are encrypted for you. On Windows, Windows does this (DPAPI) for your Windows account. On macOS and Linux, DashyNMS uses a key kept in your login Keychain or your keyring (the Secret Service, such as GNOME Keyring or KWallet). You can turn off saving the LibreNMS token entirely. Sensor definitions are kept with the installation.
 
-**Signing out removes all of it** apart from the logs and downloaded updates, and DashyNMS restarts ready to sign in again. On Windows, uninstalling asks whether to remove these folders too. Keep them and a reinstall picks up where you left off; a silent uninstall always keeps them. On macOS and Linux, removing the app leaves them in place; the [user guide](docs/guide/your-data.md) explains how to remove them.
+**Signing out removes all of it** apart from the logs and downloaded updates, and DashyNMS restarts ready to sign in again. On Windows, uninstalling asks whether to remove these folders too. Keep them and a reinstall picks up where you left off; a silent uninstall always keeps them. On macOS and Linux, removing the app leaves them in place; the [user guide](docs/guide/reference/your-data.md) explains how to remove them.
 
 ## Questions
 

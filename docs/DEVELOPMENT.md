@@ -815,7 +815,7 @@ folder. Windows release and preview builds reuse the existing 1.x profile.
 Every macOS and Linux build uses `~/Library/Application Support/DashyNMS/avalonia`
 on macOS and `~/.config/DashyNMS/avalonia` on Linux (or under
 `$XDG_CONFIG_HOME`). The user guide's
-[Where DashyNMS keeps your data](guide/your-data.md) covers this for users.
+[Where DashyNMS keeps your data](guide/reference/your-data.md) covers this for users.
 
 Single chat mode under **Settings > Intelligence** keeps one conversation in memory. Its messages,
 draft, tool history, Spotlight and companion state are never written to the chat archive.
@@ -892,7 +892,9 @@ buttons still work when the app is sitting in the tray.
 ## User guide and wiki
 
 The user guide is in [`docs/guide`](guide/README.md): getting started,
-installing on each OS, where data is kept, and platform differences. Write it
+installation, task-based how-to pages, troubleshooting and reference. Keep
+installation pages in `installation/`, user tasks in `how-to/` and reference
+pages in `reference/`. Use relative Markdown links between pages. Write it
 for people who aren't developers, and update it in the same PR as the
 behaviour it describes.
 
@@ -901,7 +903,9 @@ The **User guide wiki** workflow copies it to the
 guide changes on `master`. `tools/Publish-WikiGuide.py` names each page after
 its first heading, turns `README.md` into Home, rewrites links between guide
 files as wiki links and other repository links as GitHub links, and builds the
-sidebar from the order of `README.md`'s links. Every guide page must be linked
+sidebar from the order of `README.md`'s links, grouped under its level-two
+headings. The publisher reads nested folders; GitHub wiki pages remain flat,
+so each page needs a unique title even across folders. Every guide page must be linked
 from `README.md`. Pull requests that touch the guide run the same conversion as
 a link check. The wiki is generated, so edits made there are replaced the next
 time it's published.

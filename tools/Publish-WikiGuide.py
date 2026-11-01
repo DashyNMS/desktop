@@ -10,12 +10,14 @@ GitHub links, and a sidebar lists the pages in the order README.md links them.
     Publish-WikiGuide.py <guide folder> <output folder> --repository OWNER/NAME [--branch master]
 
 The output folder's Markdown pages are replaced, so pass a wiki clone or an
-empty folder. Every link to another guide page, heading or repository file is
+empty folder. Nested guide folders are supported; Home headings group the sidebar.
+Every link to another guide page, heading or repository file is
 checked; any that doesn't resolve fails the run before anything is written.
 """
 
 import argparse
 import pathlib
+import posixpath
 import re
 import sys
 
@@ -53,7 +55,7 @@ class Page:
 
 
 def convert(guide, repository, branch):
-    pages = {path.name: Page(path) for path in sorted(guide.glob("*.md"))}
+    pages = {path.relative_to(guide).as_posix(): Page(path) for path in sorted(guide.rglob("*.md"))}
     if "README.md" not in pages:
         raise SystemExit(f"{guide}: README.md is the guide's front page and becomes the wiki's Home.")
     names = [page.name for page in pages.values()]
@@ -76,11 +78,9 @@ def convert(guide, repository, branch):
                 if fragment and fragment not in page.anchors:
                     errors.append(f"{page.path.name}: no heading for #{fragment}")
                 return match.group(0)
-            if path.endswith(".md") and "/" not in path:
-                linked = pages.get(path)
-                if linked is None:
-                    errors.append(f"{page.path.name}: {path} isn't a guide page")
-                    return match.group(0)
+            guide_target = posixpath.normpath(posixpath.join(page.path.parent.relative_to(guide).as_posix(), path))
+            if path.endswith(".md") and guide_target in pages:
+                linked = pages[guide_target]
                 if fragment and fragment not in linked.anchors:
                     errors.append(f"{page.path.name}: {path} has no heading for #{fragment}")
                 return f"{image}[{text}]({linked.name}{'#' + fragment if fragment else ''})"
@@ -106,12 +106,20 @@ def convert(guide, repository, branch):
 
     # The sidebar follows the front page's own list.
     home = pages["README.md"]
-    order = [m.group(3).partition("#")[0] for _, line in outside_code(home.lines) for m in LINK.finditer(line)]
+    order = []
     sidebar = ["**[User guide](Home)**", ""]
-    for name in dict.fromkeys(order):
-        if name in pages and name != "README.md":
-            sidebar.append(f"- [{pages[name].title}]({pages[name].name})")
-    for name, page in pages.items():
+    for _, line in outside_code(home.lines):
+        heading = HEADING.match(line)
+        if heading and len(heading.group(1)) == 2:
+            sidebar.extend(["", f"**{heading.group(2)}**", ""])
+        for match in LINK.finditer(line):
+            if match.group(1):
+                continue
+            name = posixpath.normpath(match.group(3).partition("#")[0])
+            if name in pages and name != "README.md" and name not in order:
+                order.append(name)
+                sidebar.append(f"- [{pages[name].title}]({pages[name].name})")
+    for name in pages:
         if name != "README.md" and name not in order:
             errors.append(f"README.md doesn't link to {name}, so it would be missing from the sidebar")
     output["_Sidebar.md"] = "\n".join(sidebar) + "\n"
