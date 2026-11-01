@@ -34,4 +34,4 @@ This works when DashyNMS is in **Applications** or in **Applications** inside yo
 1. Quit DashyNMS. Click its icon in the menu bar and choose **Quit DashyNMS**.
 2. Drag **DashyNMS** from Applications to the Bin.
 
-That leaves your settings and saved sign-in behind, in case you install it again. [Where DashyNMS keeps your data](your-data.md#macos) explains how to remove them too.
+That leaves your settings and saved sign-in behind, in case you install it again. [Where DashyNMS keeps your data](../reference/your-data.md#macos) explains how to remove them too.
