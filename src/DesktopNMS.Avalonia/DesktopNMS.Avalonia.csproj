@@ -36,7 +36,7 @@
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
-    <PackageReference Include="FluentIcons.Avalonia" Version="2.1.344" />
+    <PackageReference Include="FluentIcons.Avalonia" Version="2.1.345" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.14" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.14" />
