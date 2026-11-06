@@ -51,6 +51,12 @@ public sealed class StartupTabOption
     public override string ToString() => Label;
 }
 
+/// <summary>A choice in Settings → Devices → Ports layout (#569): <see cref="AppSettings.PortsLayoutTable"/> or <see cref="AppSettings.PortsLayoutCards"/>.</summary>
+public sealed record PortsLayoutOption(string Value, string Label)
+{
+    public override string ToString() => Label;
+}
+
 /// <summary>A choice in Settings → Window and start-up → Default map.</summary>
 public sealed record DefaultMapOption(string Value, string Label)
 {
@@ -1993,6 +1999,29 @@ public sealed partial class SettingsViewModel : ObservableObject
             }
 
             _draft.ShowDeviceLogos = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Settings, Devices, Ports layout (#569): how Device Details' Ports tab shows its ports.</summary>
+    public IReadOnlyList<PortsLayoutOption> PortsLayoutOptions { get; } = new[]
+    {
+        new PortsLayoutOption(AppSettings.PortsLayoutTable, "Table"),
+        new PortsLayoutOption(AppSettings.PortsLayoutCards, "Cards"),
+    };
+
+    /// <summary>The table unless the draft says cards - an unknown value reads as the table, as Core loads it.</summary>
+    public PortsLayoutOption SelectedPortsLayout
+    {
+        get => PortsLayoutOptions.FirstOrDefault(o => o.Value == _draft.PortsLayout) ?? PortsLayoutOptions[0];
+        set
+        {
+            if (value is null || _draft.PortsLayout == value.Value)
+            {
+                return;
+            }
+
+            _draft.PortsLayout = value.Value;
             OnPropertyChanged();
         }
     }

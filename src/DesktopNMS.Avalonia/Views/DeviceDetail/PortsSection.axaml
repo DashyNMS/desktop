@@ -7,7 +7,43 @@
              x:Class="DesktopNMS.Views.DeviceDetail.PortsSection"
              x:DataType="vm:DeviceDetailViewModel">
 
-    <!-- The device's ports, grouped if chosen (#272), and the picked port's graphs (#8). -->
+    <UserControl.Styles>
+        <!-- #569: a port card is one button - click, Enter or Space picks the
+             port - drawn as a card, with hover, picked and keyboard-focus states. -->
+        <Style Selector="Button.portCard">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style Selector="Button.portCard:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style Selector="Button.portCard:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+        </Style>
+        <Style Selector="Button.portCard.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <!-- A focus ring as well as Fluent's own adorner, so keyboard focus is plain on either theme. -->
+        <Style Selector="Button.portCard:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+        <Style Selector="Button.portCard TextBlock.critical">
+            <Setter Property="Foreground" Value="{DynamicResource CriticalBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- The device's ports as a table or cards (#569), grouped if chosen (#272), and the picked port's graphs (#8). -->
     <Grid RowDefinitions="Auto,*,Auto">
         <Grid Grid.Row="0" Margin="24,24,24,10" ColumnDefinitions="Auto,Auto,*,Auto">
             <TextBox Classes="search" PlaceholderText="Search ports" Text="{Binding PortSearchText, Delay=200}"
@@ -22,14 +58,22 @@
         </Grid>
 
         <Panel Grid.Row="1" Margin="24,0">
-            <DataGrid infra:GridLayoutMemory.Key="DeviceDetail.Ports" Name="PortsGrid" ItemsSource="{Binding PortsView}" SelectedItem="{Binding SelectedPort}" IsVisible="{Binding HasVisiblePorts}">
+            <DataGrid infra:GridLayoutMemory.Key="DeviceDetail.Ports" Name="PortsGrid" ItemsSource="{Binding PortsView}" SelectedItem="{Binding SelectedPort}">
+                <DataGrid.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="HasVisiblePorts" />
+                        <Binding Path="IsPortTableLayout" />
+                    </MultiBinding>
+                </DataGrid.IsVisible>
                 <DataGrid.Columns>
-                    <DataGridTemplateColumn Header="Status" Width="90" SortMemberPath="IsUp">
+                    <!-- The same status wording, colour and order as the cards (#569, PortStatus):
+                         sorting puts errored, then down, then up, then disabled, not monitored and unknown. -->
+                    <DataGridTemplateColumn Header="Status" Width="120" SortMemberPath="StatusRank">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="vm:PortItemViewModel">
-                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="8,0">
-                                    <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding StatusSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
-                                    <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="8,0" ToolTip.Tip="{Binding StatusLabel}">
+                                    <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding StatusTone, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                    <TextBlock Text="{Binding StatusLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
@@ -117,6 +161,72 @@
                     </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
+
+            <!-- #569: the cards, in the table's groups; Header is null when not grouped. -->
+            <ScrollViewer Name="PortCardsScroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="HasVisiblePorts" />
+                        <Binding Path="IsPortCardLayout" />
+                    </MultiBinding>
+                </ScrollViewer.IsVisible>
+                <ItemsControl ItemsSource="{Binding PortCardGroups}" Margin="0,0,0,4">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PortCardGroup">
+                            <StackPanel Margin="0,0,0,16">
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8" IsVisible="{Binding HasHeader}">
+                                    <TextBlock Text="{Binding Header}" Classes="section" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding CountText}" Classes="subtle" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <ItemsControl ItemsSource="{Binding Cards}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <dd:PortCardPanel MinItemWidth="320" Spacing="12" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:PortCard">
+                                            <!-- Only what people compare between ports: the rest stays in the table (#569). -->
+                                            <Button Classes="portCard" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
+                                                    AutomationProperties.Name="{Binding Port.CardAutomationName}">
+                                                <Grid ColumnDefinitions="4,*">
+                                                    <Border CornerRadius="5,0,0,5" Background="{Binding Port.StatusTone, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                    <StackPanel Grid.Column="1" Margin="12,10,12,10" Spacing="6">
+                                                        <TextBlock Text="{Binding Port.DisplayName}" FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap" />
+                                                        <TextBlock Text="{Binding Port.SecondaryName}" Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding Port.HasSecondaryName}" />
+                                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                                            <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding Port.StatusTone, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding Port.StatusLabel}" Margin="6,0,8,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                            <TextBlock Grid.Column="2" Text="{Binding Port.CardSpeedText}" Classes="subtle" VerticalAlignment="Center" />
+                                                        </Grid>
+                                                        <Border Height="1" Background="{DynamicResource BorderBrush}" />
+                                                        <Grid ColumnDefinitions="Auto,*,*" RowDefinitions="Auto,Auto,Auto">
+                                                            <TextBlock Grid.Column="1" Text="IN ↓" Classes="subtle" FontSize="11" Margin="12,0,0,2" />
+                                                            <TextBlock Grid.Column="2" Text="OUT ↑" Classes="subtle" FontSize="11" Margin="12,0,0,2" />
+                                                            <TextBlock Grid.Row="1" Text="Traffic" Classes="subtle" />
+                                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Port.TrafficInText}" FontWeight="SemiBold" Margin="12,0,0,0" TextWrapping="Wrap" />
+                                                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Port.TrafficOutText}" FontWeight="SemiBold" Margin="12,0,0,0" TextWrapping="Wrap" />
+                                                            <TextBlock Grid.Row="2" Text="Errors" Classes="subtle" Margin="0,2,0,0" />
+                                                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Port.ErrorsInText}" Classes.critical="{Binding Port.HasErrorsIn}"
+                                                                       FontWeight="SemiBold" Margin="12,2,0,0" TextWrapping="Wrap" />
+                                                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Port.ErrorsOutText}" Classes.critical="{Binding Port.HasErrorsOut}"
+                                                                       FontWeight="SemiBold" Margin="12,2,0,0" TextWrapping="Wrap" />
+                                                        </Grid>
+                                                        <Border Height="1" Background="{DynamicResource BorderBrush}" />
+                                                        <TextBlock TextWrapping="Wrap">
+                                                            <Run Text="VLANs" Foreground="{DynamicResource TextSecondaryBrush}" /><Run Text="  " /><Run Text="{Binding Port.VlansText}" />
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
 
             <views:LoadingOverlay Text="Loading ports…" IsVisible="{Binding IsLoadingPorts}" />
             <views:EmptyState Icon="PlugConnected" Title="No ports" Hint="LibreNMS reports none for this device." IsVisible="{Binding ShowPortsEmptyMessage}" />

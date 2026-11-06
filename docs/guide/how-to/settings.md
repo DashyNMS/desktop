@@ -27,6 +27,7 @@ A shorter interval asks LibreNMS for data more often. It does not make LibreNMS 
 
 - In **Settings → Theme**, choose Dark, Light or Match the system and adjust the accent colour.
 - In **Settings → Window and start-up**, choose the opening tab, default log and default map.
+- In **Settings → Devices**, choose whether a device's Ports view shows a table or cards. See [ports as a table or cards](devices.md#see-ports-as-a-table-or-cards).
 - On supported systems, choose whether to start at sign-in and whether closing the window leaves DashyNMS running in the tray.
 
 See [platform differences](../reference/platform-differences.md) for the behaviour on your operating system.

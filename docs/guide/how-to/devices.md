@@ -23,6 +23,21 @@ Pinned devices appear at the top of the list and can appear in a [dashboard widg
 
 ![Device ports and traffic](../../screenshots/device-ports.png)
 
+### See ports as a table or cards
+
+The Ports view shows a table by default, with every detail in columns you can sort. To scan a long list of ports at a glance, open **Settings → Devices** and set **Ports layout** to **Cards**. An open device switches straight away.
+
+Each card shows the port's name and description, its status and speed, traffic and errors in and out, and its VLANs. The coloured edge and dot match the table's Status column, which sorts and groups by the same status:
+
+- **Up · errors**, **Down · errors** or **Errors** in red: errors were counted in either direction, on a port that is up, down, or in another state such as testing. The side with errors is red too.
+- **Down** in amber: the port is enabled, its link is down and no errors were counted.
+- **Up** in green: the link is up with no errors.
+- **Disabled**, **Not monitored** or **Unknown** in grey: someone shut the port down, LibreNMS doesn't poll it or ignores it, or its state isn't known. **Up · readings unavailable** is also grey, because without error readings the port can't be called healthy.
+
+A reading LibreNMS hasn't sent says **Unavailable** rather than zero, and traffic is not shown while a port is not up. VLANs come from the memberships LibreNMS reports for the device. If it reports none, a port's own VLAN is shown as its access/native VLAN. If it reports them but not for this port, the card says **Not reported**.
+
+Search, **Group by**, export and the graphs under the list work the same with cards. Select a card, or move to it with Tab and press Enter or Space, to show that port's graphs.
+
 A graph shows the history collected by LibreNMS. An empty graph can mean the device or measurement is new, or that LibreNMS has no samples for the selected period.
 
 ## Compare sensor history

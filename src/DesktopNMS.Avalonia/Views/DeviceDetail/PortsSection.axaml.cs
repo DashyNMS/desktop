@@ -3,6 +3,8 @@ using System.ComponentModel;
 using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.ViewModels;
 
@@ -11,7 +13,9 @@ namespace DesktopNMS.Views.DeviceDetail;
 /// <summary>
 /// Device Details' Ports: grouped by the chosen key (#272) - a view concern,
 /// on the grid's own view of the ports, so search and column sorting still
-/// work inside each group - and a port picked from elsewhere scrolled to.
+/// work inside each group - and a port picked from elsewhere scrolled to, in
+/// the table or among the cards (#569). The cards' groups come ready-made
+/// from <see cref="DeviceDetailViewModel.PortCardGroups"/>.
 /// </summary>
 public partial class PortsSection : UserControl
 {
@@ -53,9 +57,33 @@ public partial class PortsSection : UserControl
         }
         else if (e.PropertyName == nameof(DeviceDetailViewModel.SelectedPort) && _viewModel?.SelectedPort is { } port)
         {
-            PortsGrid.ScrollIntoView(port, null);
+            if (_viewModel.IsPortCardLayout)
+            {
+                BringCardIntoView(port);
+            }
+            else
+            {
+                PortsGrid.ScrollIntoView(port, null);
+            }
+        }
+        else if (e.PropertyName == nameof(DeviceDetailViewModel.PortCardGroups) && _viewModel?.SelectedPort is { } picked)
+        {
+            // Switching to cards, or a reload, keeps the picked port in sight.
+            BringCardIntoView(picked);
         }
     }
+
+    /// <summary>
+    /// Scrolls the picked port's card into view - after layout, since a port
+    /// picked from a Top widget or a fresh card list has no card on screen yet.
+    /// </summary>
+    private void BringCardIntoView(PortItemViewModel port) => Dispatcher.UIThread.Post(() =>
+    {
+        var card = PortCardsScroller.GetVisualDescendants()
+            .OfType<Button>()
+            .FirstOrDefault(b => b.DataContext is PortCard c && ReferenceEquals(c.Port, port));
+        card?.BringIntoView();
+    }, DispatcherPriority.Loaded);
 
     /// <summary>Groups by the chosen key, the groups in their natural order - Up before Down, VLANs and speeds by number.</summary>
     private void ApplyGrouping()
