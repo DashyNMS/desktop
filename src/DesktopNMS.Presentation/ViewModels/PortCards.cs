@@ -194,6 +194,184 @@ public static class PortCardGrouping
     };
 }
 
+/// <summary>One line of the virtualised card list (#572): a group's heading or a row of its cards.</summary>
+public abstract class PortCardRow
+{
+}
+
+/// <summary>A group's heading, its name and how many ports are in it.</summary>
+public sealed class PortCardHeaderRow : PortCardRow
+{
+    public PortCardHeaderRow(PortCardGroup group)
+    {
+        Group = group;
+    }
+
+    public PortCardGroup Group { get; }
+
+    public string? Header => Group.Header;
+
+    public string CountText => Group.CountText;
+}
+
+/// <summary>
+/// One row of cards from a single group. <see cref="Columns"/> is the row's
+/// width in cards, not how many it holds, so a group's short last row keeps
+/// its cards the same width as the full rows above it.
+/// </summary>
+public sealed class PortCardItemsRow : PortCardRow
+{
+    public PortCardItemsRow(IReadOnlyList<PortCard> cards, int columns, bool endsGroup)
+    {
+        Cards = cards;
+        Columns = columns;
+        EndsGroup = endsGroup;
+    }
+
+    public IReadOnlyList<PortCard> Cards { get; }
+
+    public int Columns { get; }
+
+    /// <summary>The group's last row, which leaves the wider gap before the next heading.</summary>
+    public bool EndsGroup { get; }
+}
+
+/// <summary>A card and the row it sits in, for scrolling to it and moving keyboard focus.</summary>
+public readonly record struct PortCardPosition(int Row, PortCard Card);
+
+/// <summary>
+/// Lays the grouped cards out as a flat list of headings and rows of cards
+/// (#572), so the view can host them in a virtualising list and build only the
+/// rows on screen rather than every card on a device with hundreds of ports.
+/// The view says how many cards fit across; everything else is here, free of
+/// any UI framework, so it can be tested.
+/// </summary>
+public static class PortCardRowLayout
+{
+    /// <summary>
+    /// How many cards fit across <paramref name="width"/> at no less than
+    /// <paramref name="minCardWidth"/> each with <paramref name="spacing"/>
+    /// between them - at least one, so a narrow window still shows a column.
+    /// </summary>
+    public static int ColumnsFor(double width, double minCardWidth, double spacing)
+    {
+        spacing = double.IsFinite(spacing) && spacing > 0 ? spacing : 0;
+        var cardWidth = double.IsFinite(minCardWidth) && minCardWidth > 1 ? minCardWidth : 1;
+        return double.IsFinite(width) && width > 0
+            ? Math.Max(1, (int)((width + spacing) / (cardWidth + spacing)))
+            : 1;
+    }
+
+    /// <summary>
+    /// Each group's heading (when it has one) followed by its cards in rows of
+    /// <paramref name="columns"/>, groups and cards in their given order. Fewer
+    /// than one column is taken as one.
+    /// </summary>
+    public static IReadOnlyList<PortCardRow> Build(IReadOnlyList<PortCardGroup> groups, int columns)
+    {
+        ArgumentNullException.ThrowIfNull(groups);
+
+        columns = Math.Max(1, columns);
+        var rows = new List<PortCardRow>();
+        foreach (var group in groups)
+        {
+            if (group.HasHeader)
+            {
+                rows.Add(new PortCardHeaderRow(group));
+            }
+
+            var cards = group.Cards;
+            for (var start = 0; start < cards.Count; start += columns)
+            {
+                var count = Math.Min(columns, cards.Count - start);
+                var row = new PortCard[count];
+                for (var i = 0; i < count; i++)
+                {
+                    row[i] = cards[start + i];
+                }
+
+                rows.Add(new PortCardItemsRow(row, columns, start + count >= cards.Count));
+            }
+        }
+
+        return rows;
+    }
+
+    /// <summary>The row holding <paramref name="port"/>'s card, or -1 when it has none (filtered out, or the table is showing).</summary>
+    public static int RowOf(IReadOnlyList<PortCardRow> rows, PortItemViewModel port)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+
+        for (var r = 0; r < rows.Count; r++)
+        {
+            if (rows[r] is PortCardItemsRow items && IndexIn(items, port) >= 0)
+            {
+                return r;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>The first card in the list, where Tab lands coming into it.</summary>
+    public static PortCardPosition? First(IReadOnlyList<PortCardRow> rows) => Scan(rows, 0, forward: true);
+
+    /// <summary>The last card in the list, where Shift+Tab lands coming into it.</summary>
+    public static PortCardPosition? Last(IReadOnlyList<PortCardRow> rows) => Scan(rows, rows.Count - 1, forward: false);
+
+    /// <summary>
+    /// The card after (or before) <paramref name="port"/>'s in reading order,
+    /// across rows and groups, for Tab and Shift+Tab. Null at either end, or
+    /// when the port has no card, so focus can leave the list.
+    /// </summary>
+    public static PortCardPosition? Next(IReadOnlyList<PortCardRow> rows, PortItemViewModel port, bool forward)
+    {
+        var row = RowOf(rows, port);
+        if (row < 0)
+        {
+            return null;
+        }
+
+        var items = (PortCardItemsRow)rows[row];
+        var index = IndexIn(items, port) + (forward ? 1 : -1);
+        if (index >= 0 && index < items.Cards.Count)
+        {
+            return new PortCardPosition(row, items.Cards[index]);
+        }
+
+        return Scan(rows, forward ? row + 1 : row - 1, forward);
+    }
+
+    /// <summary>The first card met going from <paramref name="start"/> in the given direction, skipping headings.</summary>
+    private static PortCardPosition? Scan(IReadOnlyList<PortCardRow> rows, int start, bool forward)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+
+        for (var r = start; r >= 0 && r < rows.Count; r += forward ? 1 : -1)
+        {
+            if (rows[r] is PortCardItemsRow { Cards.Count: > 0 } items)
+            {
+                return new PortCardPosition(r, forward ? items.Cards[0] : items.Cards[^1]);
+            }
+        }
+
+        return null;
+    }
+
+    private static int IndexIn(PortCardItemsRow row, PortItemViewModel port)
+    {
+        for (var i = 0; i < row.Cards.Count; i++)
+        {
+            if (ReferenceEquals(row.Cards[i].Port, port))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+}
+
 /// <summary>
 /// The Ports tab's cards (#569): which layout is showing, the cards in their
 /// groups and which one is picked. Kept apart from DeviceDetailViewModel so it
@@ -208,6 +386,9 @@ public sealed class PortCardList : ObservableObject, IDisposable
     private readonly Action<PortItemViewModel> _select;
     private readonly IUiDispatcher _dispatcher;
     private PortItemViewModel? _selected;
+    private List<PortItemViewModel>? _builtFrom;
+    private PortGrouping _builtGrouping;
+    private int _columns = 1;
 
     public PortCardList(ISettingsStore settings, Func<IEnumerable<PortItemViewModel>> visiblePorts, Func<PortGrouping> grouping,
         Action<PortItemViewModel> select, IUiDispatcher dispatcher)
@@ -232,12 +413,74 @@ public sealed class PortCardList : ObservableObject, IDisposable
     /// </summary>
     public IReadOnlyList<PortCardGroup> Groups { get; private set; } = Array.Empty<PortCardGroup>();
 
+    /// <summary>
+    /// <see cref="Groups"/> as headings and rows of <see cref="Columns"/>
+    /// cards (#572), which the view shows in a virtualising list so only the
+    /// rows on screen are built.
+    /// </summary>
+    public IReadOnlyList<PortCardRow> Rows { get; private set; } = Array.Empty<PortCardRow>();
+
+    /// <summary>
+    /// How many cards fit across the view, which it sets as its width changes.
+    /// A change only regroups the existing cards into rows, so the picked
+    /// mark stays and no card is rebuilt.
+    /// </summary>
+    public int Columns
+    {
+        get => _columns;
+        set
+        {
+            value = Math.Max(1, value);
+            if (value == _columns)
+            {
+                return;
+            }
+
+            _columns = value;
+            OnPropertyChanged();
+            if (Groups.Count > 0)
+            {
+                Rows = PortCardRowLayout.Build(Groups, _columns);
+                OnPropertyChanged(nameof(Rows));
+            }
+        }
+    }
+
     public void Rebuild()
     {
-        Groups = IsCardLayout
-            ? PortCardGrouping.Build(_visiblePorts(), _grouping(), _select)
-            : Array.Empty<PortCardGroup>();
+        if (!IsCardLayout)
+        {
+            // Nothing to drop while the table has been showing all along.
+            _builtFrom = null;
+            if (Groups.Count == 0)
+            {
+                return;
+            }
+
+            Groups = Array.Empty<PortCardGroup>();
+            Rows = Array.Empty<PortCardRow>();
+            OnPropertyChanged(nameof(Rows));
+            OnPropertyChanged(nameof(Groups));
+            return;
+        }
+
+        // The view announces every refresh as a reset, including a search
+        // keystroke that leaves the same ports showing. Port rows are made
+        // afresh on each reload and never change in place, so the same rows
+        // in the same order under the same Group by would build the same cards.
+        var ports = _visiblePorts().ToList();
+        var grouping = _grouping();
+        if (_builtFrom is not null && grouping == _builtGrouping && ports.SequenceEqual(_builtFrom, ReferenceEqualityComparer.Instance))
+        {
+            return;
+        }
+
+        _builtFrom = ports;
+        _builtGrouping = grouping;
+        Groups = PortCardGrouping.Build(ports, grouping, _select);
+        Rows = PortCardRowLayout.Build(Groups, _columns);
         MarkSelected(_selected);
+        OnPropertyChanged(nameof(Rows));
         OnPropertyChanged(nameof(Groups));
     }
 
