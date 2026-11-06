@@ -132,7 +132,9 @@ public partial class App : Application
                 WaitForExit(oldProcessId);
             }
 
-            LocalDataReset.Wipe(AppPaths.DataDirectory, cacheDirectory: null);
+            // The sensor definitions preference belongs to the installation, so it survives.
+            SensorDefinitionLocation.ResetKeepingPreference(SensorDefinitionLocation.InDataDirectory(AppPaths.DataDirectory),
+                () => LocalDataReset.Wipe(AppPaths.DataDirectory, cacheDirectory: null));
         }
 
         // Before any view model: they capture the UI thread on construction.
@@ -155,6 +157,13 @@ public partial class App : Application
         ApplyDiagnosticsSharing(settings.Current);
         settings.Changed += (_, current) => ApplyDiagnosticsSharing(current);
         // Installation definitions are independent of the account profile wiped at sign-out.
+        // Older builds kept the preference beside the app (in /Applications on macOS); bring it
+        // into the data folder first. Demo mode has its own folder and leaves the real one alone.
+        if (!_demo.IsActive && SensorDefinitionLocation.MigrateLegacy(SensorDefinitionLocation.InDataDirectory(AppPaths.DataDirectory), LegacySensorDefinitionPaths))
+        {
+            _logger.LogInformation("Moved the sensor definitions preference into the data folder");
+        }
+
         var sensorDefinitions = _services.GetRequiredService<SensorDefinitionStore>();
         DesktopSensorDefinitions.InitialiseAsync(sensorDefinitions, _logger, enableByDefault: !_demo.IsActive).GetAwaiter().GetResult();
         _ = sensorDefinitions.SynchroniseAsync(Array.Empty<string>());
@@ -833,6 +842,10 @@ public partial class App : Application
         services.GetRequiredService<IUnimusApi>().Configure(new UnimusConnection(webRoot, token, settings.AllowUntrustedCertificate, trustedCertificates: settings.TrustedCertificates));
     }
 
+    /// <summary>Where builds up to 2.0.0-preview.14 kept sensor definitions: beside the .app, AppImage or executable.</summary>
+    private static SensorDefinitionPaths LegacySensorDefinitionPaths() => SensorDefinitionPaths.ForInstallation(AppContext.BaseDirectory,
+        OperatingSystem.IsMacOS(), OperatingSystem.IsLinux() ? Environment.GetEnvironmentVariable("APPIMAGE") : null);
+
     /// <summary>
     /// Everything the shared view models need, registered as the WPF app's
     /// App.BuildServices does - with this app's own window service, and
@@ -854,8 +867,7 @@ public partial class App : Application
 
         services.AddDesktopNmsCore();
         services.AddSingleton<DesktopNMS.Core.SignIn.IWebSignIn, AvaloniaWebSignIn>();
-        services.AddSingleton(_ => new SensorDefinitionStore(SensorDefinitionPaths.ForInstallation(AppContext.BaseDirectory,
-            OperatingSystem.IsMacOS(), OperatingSystem.IsLinux() ? Environment.GetEnvironmentVariable("APPIMAGE") : null)));
+        services.AddSingleton(_ => new SensorDefinitionStore(SensorDefinitionLocation.InDataDirectory(AppPaths.DataDirectory)));
 
         // Secrets are encrypted per OS (#154): DPAPI on Windows, a key in the
         // macOS Keychain or the Linux Secret Service elsewhere.
