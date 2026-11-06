@@ -383,6 +383,16 @@
                                            Text="Off hides the pin column and pin actions, stops pinned devices sorting first and removes the Pinned devices Dashboard widget from the add menu. Your pins are kept, so turning this back on restores them." />
                             </StackPanel>
                         </Border>
+                        <!-- #569: the Ports tab in Device Details as a table or as cards. -->
+                        <Border Classes="card" Margin="0,12,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Ports layout" Classes="section" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding PortsLayoutOptions}" SelectedItem="{Binding SelectedPortsLayout}"
+                                          DisplayMemberBinding="{ReflectionBinding Label}" MinWidth="140" AutomationProperties.Name="Ports layout" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="How the Ports tab in device details shows a device's ports. Table shows every detail in columns you can sort. Cards show each port's status, speed, traffic, errors and VLANs at a glance, several to a row. Search, Group by, export and port graphs work the same in both." />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- ==================== Maps ==================== -->

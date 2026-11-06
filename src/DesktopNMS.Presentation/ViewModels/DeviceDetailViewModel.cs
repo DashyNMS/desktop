@@ -271,6 +271,12 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         PortsView = new FilteredView(Ports);
         PortsView.Filter = FilterPortEntry;
 
+        // Cards follow the same filtered view as the table (#569), so search,
+        // a reload and Group by all reach them; rebuilt only while shown.
+        PortsLayout = new PortsLayoutPreference(settings);
+        PortsLayout.PropertyChanged += OnPortsLayoutChanged;
+        PortsView.CollectionChanged += (_, _) => RebuildPortCards();
+
         VlansView = new FilteredView(VlanEntries);
         VlansView.Filter = FilterVlanEntry;
 
@@ -636,6 +642,57 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             _settings.SaveQuietly();
             OnPropertyChanged();
             OnPropertyChanged(nameof(PortGroupProperty));
+            RebuildPortCards();
+        }
+    }
+
+    // ------------------------------------------------------------------ port cards (#569)
+
+    /// <summary>Settings, Devices, Ports layout: the table or cards, followed live as Settings are applied.</summary>
+    public PortsLayoutPreference PortsLayout { get; }
+
+    /// <summary>The Ports tab shows cards rather than the table.</summary>
+    public bool IsPortCardLayout => PortsLayout.ShowCards;
+
+    public bool IsPortTableLayout => PortsLayout.ShowTable;
+
+    /// <summary>
+    /// The visible ports as cards, in the table's groups (see
+    /// <see cref="PortCardGrouping"/>). Empty while the table is showing, so a
+    /// hidden card list doesn't build a card for every port.
+    /// </summary>
+    public IReadOnlyList<PortCardGroup> PortCardGroups { get; private set; } = Array.Empty<PortCardGroup>();
+
+    private void OnPortsLayoutChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(PortsLayoutPreference.ShowCards))
+        {
+            return;
+        }
+
+        // Settings can be saved from any thread; the bindings need the UI one.
+        _dispatcher.Post(() =>
+        {
+            OnPropertyChanged(nameof(IsPortCardLayout));
+            OnPropertyChanged(nameof(IsPortTableLayout));
+            RebuildPortCards();
+        });
+    }
+
+    private void RebuildPortCards()
+    {
+        PortCardGroups = IsPortCardLayout
+            ? PortCardGrouping.Build(PortsView.OfItems<PortItemViewModel>(), CurrentPortGrouping, port => SelectedPort = port)
+            : Array.Empty<PortCardGroup>();
+        MarkSelectedPortCard();
+        OnPropertyChanged(nameof(PortCardGroups));
+    }
+
+    private void MarkSelectedPortCard()
+    {
+        foreach (var card in PortCardGroups.SelectMany(g => g.Cards))
+        {
+            card.IsSelected = ReferenceEquals(card.Port, _selectedPort);
         }
     }
 
@@ -1903,6 +1960,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             {
                 return;
             }
+
+            MarkSelectedPortCard();
 
             if (value is null)
             {
@@ -3175,13 +3234,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 .ToDictionary(kv => kv.Key, kv => linkMatches[kv.Value.Id]);
 
             _portNamesByPortId.Clear();
+            var reportsVlanMemberships = VlanMembership.HasMembershipData(ports);
             var portItems = new List<PortItemViewModel>();
             foreach (var port in ports.OrderBy(p => p.IfIndex ?? int.MaxValue))
             {
                 linksByPort.TryGetValue(port.PortId, out var link);
                 addressesByPort.TryGetValue(port.PortId, out var addresses);
                 neighbourMatches.TryGetValue(port.PortId, out var match);
-                portItems.Add(new PortItemViewModel(port, link, addresses ?? Array.Empty<DeviceIpAddress>(), OpenRelatedDevice, match));
+                portItems.Add(new PortItemViewModel(port, link, addresses ?? Array.Empty<DeviceIpAddress>(), OpenRelatedDevice, match, reportsVlanMemberships));
                 _portNamesByPortId[port.PortId] = port.DisplayName;
             }
 
@@ -4610,6 +4670,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Wireless.PropertyChanged -= OnWirelessPropertyChanged;
         Graylog.Dispose();
         HeaderLogo.Dispose();
+        PortsLayout.PropertyChanged -= OnPortsLayoutChanged;
+        PortsLayout.Dispose();
         _loadCts.Cancel();
         _loadCts.Dispose();
         _deviceMonitor.Polled -= OnDevicePolled;
@@ -4795,14 +4857,25 @@ public sealed class PortItemViewModel
 
     private readonly NeighbourMatch? _match;
 
+    private readonly bool _deviceReportsVlanMemberships;
+
     /// <param name="openDevice">Opens a neighbour's Device Details - in this window, with the way back (#58); see DeviceDetailViewModel.OpenRelatedDevice.</param>
-    public PortItemViewModel(Port port, NetworkLink? link, IReadOnlyList<DeviceIpAddress> addresses, Action<int> openDevice, NeighbourMatch? match = null)
+    /// <param name="deviceReportsVlanMemberships">
+    /// Whether any of the device's ports report VLAN memberships
+    /// (<see cref="VlanMembership.HasMembershipData"/>) - a device-wide fact
+    /// that decides whether this port's own ifVlan can be trusted for
+    /// <see cref="VlansText"/>.
+    /// </param>
+    public PortItemViewModel(Port port, NetworkLink? link, IReadOnlyList<DeviceIpAddress> addresses, Action<int> openDevice, NeighbourMatch? match = null,
+        bool deviceReportsVlanMemberships = false)
     {
         _port = port;
         _link = link;
         _addresses = addresses;
         _openDevice = openDevice;
         _match = match;
+        _deviceReportsVlanMemberships = deviceReportsVlanMemberships;
+        Status = PortStatus.Of(port);
 
         OpenNeighborCommand = new RelayCommand(
             () => _openDevice(NeighborDeviceId!.Value),
@@ -4851,6 +4924,112 @@ public sealed class PortItemViewModel
     public string StatusText => HasKnownStatus ? Capitalise(_port.IfOperStatus!) : "Unknown";
 
     public string SpeedText => FormatBitsPerSecond(_port.IfSpeed);
+
+    // ------------------------------------------------------- status and card facts (#569)
+
+    /// <summary>The status rule the table's Status column and the port cards share - see <see cref="PortStatus"/>.</summary>
+    public PortStatus Status { get; }
+
+    /// <summary>e.g. "Up", "Up · errors", "Disabled" - the words beside the status dot.</summary>
+    public string StatusLabel => Status.Label;
+
+    /// <summary>The status dot's, and the card edge's, colour.</summary>
+    public AlertSeverity StatusTone => Status.Tone;
+
+    /// <summary>The card's speed: says so when it is missing rather than showing a dash or zero.</summary>
+    public string CardSpeedText => _port.IfSpeed is > 0 ? SpeedText : "Speed unavailable";
+
+    /// <summary>Inbound traffic on the card: not shown while the port isn't up, since it would only be stale.</summary>
+    public string TrafficInText => TrafficText(_port.IfInOctetsRate);
+
+    public string TrafficOutText => TrafficText(_port.IfOutOctetsRate);
+
+    /// <summary>Inbound errors on the card; Unavailable, never zero, without a reading.</summary>
+    public string ErrorsInText => ErrorText(_port.IfInErrorsRate, Status.ErrorsIn);
+
+    public string ErrorsOutText => ErrorText(_port.IfOutErrorsRate, Status.ErrorsOut);
+
+    /// <summary>A positive error reading inbound, shown in red on its own side.</summary>
+    public bool HasErrorsIn => Status.ErrorsIn > 0;
+
+    public bool HasErrorsOut => Status.ErrorsOut > 0;
+
+    /// <summary>
+    /// The VLANs this port carries, following Core's <see cref="VlanMembership"/>:
+    /// its typed memberships, unique and in number order, when it has any. A
+    /// device reporting no memberships at all falls back to the port's ifVlan,
+    /// labelled as its access/native VLAN. On a device that does report them,
+    /// a port without any says Not reported rather than its ifVlan, because
+    /// switches report an ifVlan for trunks too (a trunk saying VLAN 1).
+    /// </summary>
+    public string VlansText
+    {
+        get
+        {
+            var numbers = _port.Vlans.Select(v => v.Vlan).Where(v => v > 0).Distinct().Order().ToList();
+            if (numbers.Count > 0)
+            {
+                return string.Join(", ", numbers.Select(n => n.ToString(CultureInfo.InvariantCulture)));
+            }
+
+            return !_deviceReportsVlanMemberships && _port.IfVlan is > 0 and var vlan
+                ? vlan.ToString(CultureInfo.InvariantCulture) + " (access/native VLAN)"
+                : "Not reported";
+        }
+    }
+
+    /// <summary>What a screen reader says for the card: the visible facts, in reading order.</summary>
+    public string CardAutomationName
+    {
+        get
+        {
+            var parts = new List<string> { DisplayName };
+            if (SecondaryName is { } description)
+            {
+                parts.Add(description);
+            }
+
+            parts.Add(StatusLabel);
+            parts.Add(CardSpeedText);
+            parts.Add($"traffic in {TrafficInText}, out {TrafficOutText}");
+            parts.Add($"errors in {ErrorsInText}, out {ErrorsOutText}");
+            parts.Add($"VLANs {VlansText}");
+            return string.Join(", ", parts);
+        }
+    }
+
+    private string TrafficText(double? octetsPerSecond)
+    {
+        if (!IsUp)
+        {
+            return "Not shown";
+        }
+
+        if (octetsPerSecond is not { } rate || !double.IsFinite(rate) || rate < 0)
+        {
+            return "Unavailable";
+        }
+
+        // A genuinely idle link is 0 bps, not the dash FormatBitsPerSecond uses for "nothing known".
+        return rate * 8 < 1 ? "0 bps" : FormatBitsPerSecond((long)Math.Min(rate * 8, long.MaxValue));
+    }
+
+    /// <summary>
+    /// A rate per second when LibreNMS sent one, in full precision so a tiny
+    /// positive rate never reads as 0/s; otherwise the count since the last
+    /// poll, which is what the device's ports request actually asks for.
+    /// </summary>
+    private static string ErrorText(double? rate, double? reading)
+    {
+        if (reading is not { } value)
+        {
+            return "Unavailable";
+        }
+
+        return rate is { } r && double.IsFinite(r) && r >= 0
+            ? r.ToString("0.############", CultureInfo.InvariantCulture) + "/s"
+            : value.ToString("0", CultureInfo.InvariantCulture);
+    }
 
     // Group headers for the Ports table's Group by (#272).
 
