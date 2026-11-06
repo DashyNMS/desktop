@@ -805,6 +805,8 @@ Everything lives under `%APPDATA%\DashyNMS`:
 | `notified.json` | Alert ids already announced, so a restart is quiet |
 | `chats\` | Saved Intelligence chats, encrypted for the current Windows user and separated by LibreNMS server and ChatGPT account |
 | `logs\dashynms-<date>.log` | Rolling log, kept for 14 days |
+| `sensor-definitions.json` | Whether sensor definitions are on and which repository they come from. Signing out keeps it. Builds up to 2.0.0-preview.14 kept it beside the app (`DashyNMS.installation-settings.json` next to `DashyNMS.app` on macOS or the AppImage on Linux, `installation-settings.json` beside the executable elsewhere); the app moves it here on first start and removes the old file and folder where it can |
+| `sensor-definitions\` | Downloaded sensor definitions. Signing out removes them, and they download again. Safe to delete |
 | `cache\logos\` | The last 20 device logos shown in a device's details header, fetched from the LibreNMS server and refetched after 30 days. Safe to delete |
 
 Delete `token.dat` to force a fresh sign-in. Delete the folder to reset
