@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views.DeviceDetail;
 
@@ -10,6 +11,11 @@ namespace DesktopNMS.Views.DeviceDetail;
 /// WrapPanel's fixed item width would leave. Each row is as tall as its
 /// tallest card, so the cards in a row line up.
 /// </summary>
+/// <remarks>
+/// The card list is virtualised by rows (#572), so each panel now holds one
+/// row and is told its <see cref="Columns"/>: a group's short last row has to
+/// keep the full rows' card width rather than spread its few cards across.
+/// </remarks>
 public sealed class PortCardPanel : Panel
 {
     public static readonly StyledProperty<double> MinItemWidthProperty =
@@ -18,9 +24,19 @@ public sealed class PortCardPanel : Panel
     public static readonly StyledProperty<double> SpacingProperty =
         AvaloniaProperty.Register<PortCardPanel, double>(nameof(Spacing), 12);
 
+    public static readonly StyledProperty<int> ColumnsProperty =
+        AvaloniaProperty.Register<PortCardPanel, int>(nameof(Columns));
+
     static PortCardPanel()
     {
-        AffectsMeasure<PortCardPanel>(MinItemWidthProperty, SpacingProperty);
+        AffectsMeasure<PortCardPanel>(MinItemWidthProperty, SpacingProperty, ColumnsProperty);
+    }
+
+    /// <summary>Cards across; zero or less fits as many as <see cref="MinItemWidth"/> allows.</summary>
+    public int Columns
+    {
+        get => GetValue(ColumnsProperty);
+        set => SetValue(ColumnsProperty, value);
     }
 
     public double MinItemWidth
@@ -35,10 +51,8 @@ public sealed class PortCardPanel : Panel
         set => SetValue(SpacingProperty, value);
     }
 
-    private int Columns(double width) =>
-        double.IsFinite(width) && width > 0
-            ? Math.Max(1, (int)((width + Spacing) / (Math.Max(1, MinItemWidth) + Spacing)))
-            : 1;
+    private int ColumnsFor(double width) =>
+        Columns > 0 ? Columns : PortCardRowLayout.ColumnsFor(width, MinItemWidth, Spacing);
 
     private double ItemWidth(double width, int columns) =>
         double.IsFinite(width) && width > 0
@@ -47,7 +61,7 @@ public sealed class PortCardPanel : Panel
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        var columns = Columns(availableSize.Width);
+        var columns = ColumnsFor(availableSize.Width);
         var itemWidth = ItemWidth(availableSize.Width, columns);
         var height = 0.0;
         var rowHeight = 0.0;
@@ -71,7 +85,7 @@ public sealed class PortCardPanel : Panel
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        var columns = Columns(finalSize.Width);
+        var columns = ColumnsFor(finalSize.Width);
         var itemWidth = ItemWidth(finalSize.Width, columns);
         var y = 0.0;
 

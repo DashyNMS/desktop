@@ -175,6 +175,96 @@ public sealed class PortsLayoutSettingTests
         Assert.All(cards.Groups[0].Cards, c => Assert.False(c.IsSelected));
     }
 
+    [Fact]
+    public void A_new_column_count_regroups_the_same_cards_into_rows_and_keeps_the_mark()
+    {
+        var settings = new Settings();
+        settings.Current.PortsLayout = AppSettings.PortsLayoutCards;
+        var ports = new[] { PortRow(1, "up"), PortRow(2, "up"), PortRow(3, "up") };
+        using var cards = Cards(settings, () => ports, () => PortGrouping.None, out var raised);
+        cards.Rebuild();
+        cards.MarkSelected(ports[2]);
+        var built = cards.Groups;
+
+        Assert.Equal(3, cards.Rows.Count);
+
+        raised.Clear();
+        cards.Columns = 2;
+
+        Assert.Same(built, cards.Groups);
+        Assert.Equal(new[] { 2, 1 }, cards.Rows.Cast<PortCardItemsRow>().Select(r => r.Cards.Count));
+        Assert.True(cards.Rows.Cast<PortCardItemsRow>().Last().Cards[0].IsSelected);
+        Assert.Contains(nameof(PortCardList.Rows), raised);
+        Assert.DoesNotContain(nameof(PortCardList.Groups), raised);
+
+        raised.Clear();
+        cards.Columns = 2;
+        cards.Columns = 0;
+
+        Assert.Equal(1, cards.Columns);
+        Assert.Equal(3, cards.Rows.Count);
+        Assert.Equal(new[] { nameof(PortCardList.Columns), nameof(PortCardList.Rows) }, raised);
+    }
+
+    [Fact]
+    public void A_refresh_showing_the_same_ports_keeps_the_cards_it_built()
+    {
+        var settings = new Settings();
+        settings.Current.PortsLayout = AppSettings.PortsLayoutCards;
+        var first = PortRow(1, "up");
+        var second = PortRow(2, "down");
+        IEnumerable<PortItemViewModel> showing = new[] { first, second };
+        var grouping = PortGrouping.None;
+        using var cards = Cards(settings, () => showing, () => grouping, out var raised);
+        cards.Rebuild();
+        var built = cards.Groups;
+
+        // A search keystroke that leaves the same ports showing.
+        showing = new List<PortItemViewModel> { first, second };
+        raised.Clear();
+        cards.Rebuild();
+
+        Assert.Same(built, cards.Groups);
+        Assert.Empty(raised);
+
+        // A reload makes new port rows, even for the same ports.
+        showing = new[] { PortRow(1, "up"), PortRow(2, "down") };
+        cards.Rebuild();
+        Assert.NotSame(built, cards.Groups);
+        built = cards.Groups;
+
+        grouping = PortGrouping.Status;
+        cards.Rebuild();
+        Assert.NotSame(built, cards.Groups);
+        Assert.Equal(new[] { "Down", "Up" }, cards.Rows.OfType<PortCardHeaderRow>().Select(h => h.Header));
+    }
+
+    [Fact]
+    public void The_rows_empty_with_the_cards_while_the_table_shows()
+    {
+        var settings = new Settings();
+        settings.Current.PortsLayout = AppSettings.PortsLayoutCards;
+        var ports = new[] { PortRow(1, "up") };
+        using var cards = Cards(settings, () => ports, () => PortGrouping.None, out var raised);
+        cards.Rebuild();
+        Assert.Single(cards.Rows);
+
+        settings.Replace(new AppSettings { PortsLayout = AppSettings.PortsLayoutTable });
+
+        Assert.Empty(cards.Rows);
+        Assert.Empty(cards.Groups);
+
+        // Refreshes while the table shows build nothing and announce nothing.
+        raised.Clear();
+        cards.Rebuild();
+        Assert.DoesNotContain(nameof(PortCardList.Rows), raised);
+        Assert.DoesNotContain(nameof(PortCardList.Groups), raised);
+
+        settings.Replace(new AppSettings { PortsLayout = AppSettings.PortsLayoutCards });
+
+        Assert.Single(cards.Rows);
+    }
+
     private static PortCardList Cards(Settings settings, Func<IEnumerable<PortItemViewModel>> ports, Func<PortGrouping> grouping, out List<string?> raised)
     {
         var cards = new PortCardList(settings, ports, grouping, _ => { }, UiThread.Dispatcher);
