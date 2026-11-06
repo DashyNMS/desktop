@@ -38,6 +38,12 @@
             <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="BorderThickness" Value="2" />
         </Style>
+        <Style Selector="ItemsControl.cardRow">
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+        <Style Selector="ItemsControl.cardRow.endsGroup">
+            <Setter Property="Margin" Value="0,0,0,16" />
+        </Style>
         <Style Selector="Button.portCard TextBlock.critical">
             <Setter Property="Foreground" Value="{DynamicResource CriticalBrush}" />
         </Style>
@@ -162,7 +168,11 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <!-- #569: the cards, in the table's groups; Header is null when not grouped. -->
+            <!-- #569: the cards, in the table's groups. #572: flattened into headings and
+                 rows of cards (PortCardRows) in a virtualising list, so only the rows on
+                 screen are built; the code-behind sets how many cards fit across and keeps
+                 Tab moving card by card, since recycled rows leave the panel's children
+                 out of order. TabNavigation Once makes focus leave the list cleanly. -->
             <ScrollViewer Name="PortCardsScroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                 <ScrollViewer.IsVisible>
                     <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -170,61 +180,71 @@
                         <Binding Path="IsPortCardLayout" />
                     </MultiBinding>
                 </ScrollViewer.IsVisible>
-                <ItemsControl ItemsSource="{Binding PortCardGroups}" Margin="0,0,0,4">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:PortCardGroup">
-                            <StackPanel Margin="0,0,0,16">
-                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8" IsVisible="{Binding HasHeader}">
-                                    <TextBlock Text="{Binding Header}" Classes="section" VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding CountText}" Classes="subtle" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <ItemsControl ItemsSource="{Binding Cards}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <dd:PortCardPanel MinItemWidth="320" Spacing="12" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:PortCard">
-                                            <!-- Only what people compare between ports: the rest stays in the table (#569). -->
-                                            <Button Classes="portCard" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
-                                                    AutomationProperties.Name="{Binding Port.CardAutomationName}">
-                                                <Grid ColumnDefinitions="4,*">
-                                                    <Border CornerRadius="5,0,0,5" Background="{Binding Port.StatusTone, Converter={x:Static views:Converters.SeverityToBrush}}" />
-                                                    <StackPanel Grid.Column="1" Margin="12,10,12,10" Spacing="6">
-                                                        <TextBlock Text="{Binding Port.DisplayName}" FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap" />
-                                                        <TextBlock Text="{Binding Port.SecondaryName}" Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding Port.HasSecondaryName}" />
-                                                        <Grid ColumnDefinitions="Auto,*,Auto">
-                                                            <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding Port.StatusTone, Converter={x:Static views:Converters.SeverityToBrush}}" />
-                                                            <TextBlock Grid.Column="1" Text="{Binding Port.StatusLabel}" Margin="6,0,8,0" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                            <TextBlock Grid.Column="2" Text="{Binding Port.CardSpeedText}" Classes="subtle" VerticalAlignment="Center" />
-                                                        </Grid>
-                                                        <Border Height="1" Background="{DynamicResource BorderBrush}" />
-                                                        <Grid ColumnDefinitions="Auto,*,*" RowDefinitions="Auto,Auto,Auto">
-                                                            <TextBlock Grid.Column="1" Text="IN ↓" Classes="subtle" FontSize="11" Margin="12,0,0,2" />
-                                                            <TextBlock Grid.Column="2" Text="OUT ↑" Classes="subtle" FontSize="11" Margin="12,0,0,2" />
-                                                            <TextBlock Grid.Row="1" Text="Traffic" Classes="subtle" />
-                                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Port.TrafficInText}" FontWeight="SemiBold" Margin="12,0,0,0" TextWrapping="Wrap" />
-                                                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Port.TrafficOutText}" FontWeight="SemiBold" Margin="12,0,0,0" TextWrapping="Wrap" />
-                                                            <TextBlock Grid.Row="2" Text="Errors" Classes="subtle" Margin="0,2,0,0" />
-                                                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Port.ErrorsInText}" Classes.critical="{Binding Port.HasErrorsIn}"
-                                                                       FontWeight="SemiBold" Margin="12,2,0,0" TextWrapping="Wrap" />
-                                                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Port.ErrorsOutText}" Classes.critical="{Binding Port.HasErrorsOut}"
-                                                                       FontWeight="SemiBold" Margin="12,2,0,0" TextWrapping="Wrap" />
-                                                        </Grid>
-                                                        <Border Height="1" Background="{DynamicResource BorderBrush}" />
-                                                        <TextBlock TextWrapping="Wrap">
-                                                            <Run Text="VLANs" Foreground="{DynamicResource TextSecondaryBrush}" /><Run Text="  " /><Run Text="{Binding Port.VlansText}" />
-                                                        </TextBlock>
-                                                    </StackPanel>
-                                                </Grid>
-                                            </Button>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                <ItemsControl Name="PortCardsList" ItemsSource="{Binding PortCardRows}" Margin="0,0,0,4" KeyboardNavigation.TabNavigation="Once">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <!-- A viewport's worth of rows either side, so a Tab or Shift+Tab
+                                 to the next card usually finds its row already built. -->
+                            <VirtualizingStackPanel CacheLength="1" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.DataTemplates>
+                        <DataTemplate DataType="vm:PortCardHeaderRow">
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                                <TextBlock Text="{Binding Header}" Classes="section" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding CountText}" Classes="subtle" VerticalAlignment="Center" />
                             </StackPanel>
                         </DataTemplate>
-                    </ItemsControl.ItemTemplate>
+                        <!-- The same gaps as before: 12 between rows, 16 after a group's last row. -->
+                        <DataTemplate DataType="vm:PortCardItemsRow">
+                            <ItemsControl ItemsSource="{Binding Cards}" Classes="cardRow" Classes.endsGroup="{Binding EndsGroup}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <!-- Inherits the row as its DataContext, so it knows the full row's width in cards. -->
+                                        <dd:PortCardPanel x:DataType="vm:PortCardItemsRow" Columns="{Binding Columns}"
+                                                          MinItemWidth="{x:Static dd:PortsSection.CardMinWidth}" Spacing="{x:Static dd:PortsSection.CardSpacing}" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PortCard">
+                                        <!-- Only what people compare between ports: the rest stays in the table (#569). -->
+                                        <Button Classes="portCard" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
+                                                AutomationProperties.Name="{Binding Port.CardAutomationName}">
+                                            <Grid ColumnDefinitions="4,*">
+                                                <Border CornerRadius="5,0,0,5" Background="{Binding Port.StatusTone, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                <StackPanel Grid.Column="1" Margin="12,10,12,10" Spacing="6">
+                                                    <TextBlock Text="{Binding Port.DisplayName}" FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Port.SecondaryName}" Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding Port.HasSecondaryName}" />
+                                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding Port.StatusTone, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding Port.StatusLabel}" Margin="6,0,8,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                        <TextBlock Grid.Column="2" Text="{Binding Port.CardSpeedText}" Classes="subtle" VerticalAlignment="Center" />
+                                                    </Grid>
+                                                    <Border Height="1" Background="{DynamicResource BorderBrush}" />
+                                                    <Grid ColumnDefinitions="Auto,*,*" RowDefinitions="Auto,Auto,Auto">
+                                                        <TextBlock Grid.Column="1" Text="IN ↓" Classes="subtle" FontSize="11" Margin="12,0,0,2" />
+                                                        <TextBlock Grid.Column="2" Text="OUT ↑" Classes="subtle" FontSize="11" Margin="12,0,0,2" />
+                                                        <TextBlock Grid.Row="1" Text="Traffic" Classes="subtle" />
+                                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Port.TrafficInText}" FontWeight="SemiBold" Margin="12,0,0,0" TextWrapping="Wrap" />
+                                                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Port.TrafficOutText}" FontWeight="SemiBold" Margin="12,0,0,0" TextWrapping="Wrap" />
+                                                        <TextBlock Grid.Row="2" Text="Errors" Classes="subtle" Margin="0,2,0,0" />
+                                                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Port.ErrorsInText}" Classes.critical="{Binding Port.HasErrorsIn}"
+                                                                   FontWeight="SemiBold" Margin="12,2,0,0" TextWrapping="Wrap" />
+                                                        <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Port.ErrorsOutText}" Classes.critical="{Binding Port.HasErrorsOut}"
+                                                                   FontWeight="SemiBold" Margin="12,2,0,0" TextWrapping="Wrap" />
+                                                    </Grid>
+                                                    <Border Height="1" Background="{DynamicResource BorderBrush}" />
+                                                    <TextBlock TextWrapping="Wrap">
+                                                        <Run Text="VLANs" Foreground="{DynamicResource TextSecondaryBrush}" /><Run Text="  " /><Run Text="{Binding Port.VlansText}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </DataTemplate>
+                    </ItemsControl.DataTemplates>
                 </ItemsControl>
             </ScrollViewer>
 

@@ -36,7 +36,7 @@ Each card shows the port's name and description, its status and speed, traffic a
 
 A reading LibreNMS hasn't sent says **Unavailable** rather than zero, and traffic is not shown while a port is not up. VLANs come from the memberships LibreNMS reports for the device. If it reports none, a port's own VLAN is shown as its access/native VLAN. If it reports them but not for this port, the card says **Not reported**.
 
-Search, **Group by**, export and the graphs under the list work the same with cards. Select a card, or move to it with Tab and press Enter or Space, to show that port's graphs.
+Search, **Group by**, export and the graphs under the list work the same with cards. Group by **VLAN** follows the VLANs each card shows: a **Trunk** group first for ports carrying more than one VLAN, then one group per VLAN in number order for ports carrying only that VLAN, and **No VLAN** last for ports with none to show. Select a card, or move to it with Tab and press Enter or Space, to show that port's graphs.
 
 A graph shows the history collected by LibreNMS. An empty graph can mean the device or measurement is new, or that LibreNMS has no samples for the selected period.
 
