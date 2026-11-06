@@ -4973,16 +4973,33 @@ public sealed class PortItemViewModel
     {
         get
         {
-            var numbers = _port.Vlans.Select(v => v.Vlan).Where(v => v > 0).Distinct().Order().ToList();
-            if (numbers.Count > 0)
+            var (numbers, fromMemberships) = CarriedVlans();
+            if (numbers.Count == 0)
             {
-                return string.Join(", ", numbers.Select(n => n.ToString(CultureInfo.InvariantCulture)));
+                return "Not reported";
             }
 
-            return !_deviceReportsVlanMemberships && _port.IfVlan is > 0 and var vlan
-                ? vlan.ToString(CultureInfo.InvariantCulture) + " (access/native VLAN)"
-                : "Not reported";
+            var text = string.Join(", ", numbers.Select(n => n.ToString(CultureInfo.InvariantCulture)));
+            return fromMemberships ? text : text + " (access/native VLAN)";
         }
+    }
+
+    /// <summary>
+    /// The VLAN numbers <see cref="VlansText"/> shows, and whether they came
+    /// from typed memberships. The one place the rule lives, so Group by VLAN
+    /// (#571) can't put a port under a VLAN its card doesn't list.
+    /// </summary>
+    private (IReadOnlyList<int> Numbers, bool FromMemberships) CarriedVlans()
+    {
+        var numbers = _port.Vlans.Select(v => v.Vlan).Where(v => v > 0).Distinct().Order().ToList();
+        if (numbers.Count > 0)
+        {
+            return (numbers, true);
+        }
+
+        return !_deviceReportsVlanMemberships && _port.IfVlan is > 0 and var vlan
+            ? (new[] { vlan }, false)
+            : (Array.Empty<int>(), false);
     }
 
     /// <summary>What a screen reader says for the card: the visible facts, in reading order.</summary>
@@ -5043,17 +5060,37 @@ public sealed class PortItemViewModel
     /// <summary>Group by Status follows the same rule as the Status column and the cards (#569): one group per <see cref="PortCondition"/>.</summary>
     public string StatusGroup => Status.GroupName;
 
-    public string VlanGroup => _port.IfVlan is > 0 and var vlan ? $"VLAN {vlan}" : "No VLAN";
+    /// <summary>
+    /// Group by VLAN (#571) follows the VLANs the card shows: "Trunk" for a
+    /// port carrying more than one, "VLAN n" for a port carrying just one, so
+    /// access and single-VLAN ports sit with the others on that VLAN, and
+    /// "No VLAN" when the card has none to show.
+    /// </summary>
+    public string VlanGroup => CarriedVlans().Numbers switch
+    {
+        { Count: > 1 } => "Trunk",
+        [var vlan] => string.Create(CultureInfo.InvariantCulture, $"VLAN {vlan}"),
+        _ => "No VLAN",
+    };
 
     public string TypeGroup => string.IsNullOrWhiteSpace(MediaText) ? "Unknown type" : MediaText;
 
     public string SpeedGroup => _port.IfSpeed is > 0 ? SpeedText : "Unknown speed";
 
-    /// <summary>Orders groups sensibly: Up before Down, VLANs and speeds by number.</summary>
+    /// <summary>
+    /// Orders groups sensibly: Up before Down, speeds by number, and Trunk
+    /// before the VLANs, which go by number (2, 10, 100, not as text), with
+    /// No VLAN last.
+    /// </summary>
     public long GroupSortKey(PortGrouping grouping) => grouping switch
     {
         PortGrouping.Status => StatusRank,
-        PortGrouping.Vlan => _port.IfVlan is > 0 and var vlan ? vlan : long.MaxValue,
+        PortGrouping.Vlan => CarriedVlans().Numbers switch
+        {
+            { Count: > 1 } => long.MinValue,
+            [var vlan] => vlan,
+            _ => long.MaxValue,
+        },
         PortGrouping.Speed => _port.IfSpeed is > 0 and var speed ? -speed : long.MaxValue,
         _ => 0,
     };

@@ -245,6 +245,98 @@ public sealed class PortCardsTests
     }
 
     [Fact]
+    public void Without_memberships_on_the_device_a_port_groups_by_its_own_vlan()
+    {
+        // ifVlan 1 on a trunk-looking uplink is all there is to go on, so it is just VLAN 1.
+        var uplink = Up(1);
+        uplink.IfVlan = 1;
+        var access = Up(2);
+        access.IfVlan = 30;
+
+        var items = PortItemViewModel.ForDevice(new[] { uplink, access }, Empty<NetworkLink>(), Empty<IReadOnlyList<DeviceIpAddress>>(), Empty<NeighbourMatch>(), _ => { });
+
+        Assert.Equal(new[] { "VLAN 1", "VLAN 30" }, items.Select(i => i.VlanGroup));
+    }
+
+    [Fact]
+    public void A_port_carrying_several_vlans_is_a_trunk_whatever_its_ifvlan()
+    {
+        var raw = Up();
+        raw.IfVlan = 1;
+        raw.Vlans = [Member(10, untagged: true), Member(20)];
+        var port = Item(raw, deviceReportsVlanMemberships: true);
+
+        Assert.Equal("Trunk", port.VlanGroup);
+        Assert.Equal("10, 20", port.VlansText);
+    }
+
+    [Fact]
+    public void A_port_with_one_membership_groups_under_that_vlan_not_its_ifvlan()
+    {
+        var raw = Up();
+        raw.IfVlan = 1;
+        raw.Vlans = [Member(10, untagged: true)];
+
+        Assert.Equal("VLAN 10", Item(raw, deviceReportsVlanMemberships: true).VlanGroup);
+    }
+
+    [Fact]
+    public void Duplicate_memberships_count_once_so_the_port_is_not_a_trunk()
+    {
+        var raw = Up();
+        raw.Vlans = [Member(10), Member(10, untagged: true), Member(0)];
+
+        Assert.Equal("VLAN 10", Item(raw, deviceReportsVlanMemberships: true).VlanGroup);
+    }
+
+    [Fact]
+    public void A_port_without_memberships_on_a_device_with_them_has_no_vlan_group()
+    {
+        var raw = Up();
+        raw.IfVlan = 30;
+
+        var port = Item(raw, deviceReportsVlanMemberships: true);
+
+        Assert.Equal("No VLAN", port.VlanGroup);
+        Assert.Equal(long.MaxValue, port.GroupSortKey(PortGrouping.Vlan));
+    }
+
+    [Fact]
+    public void Vlan_groups_put_trunks_first_then_vlans_by_number_then_no_vlan()
+    {
+        var trunk = Up(1);
+        trunk.IfVlan = 1;
+        trunk.Vlans = [Member(10), Member(20)];
+        var none = Up(2);
+        none.IfVlan = 5;
+        var v100 = Up(3);
+        v100.Vlans = [Member(100)];
+        var v1 = Up(4);
+        v1.Vlans = [Member(1)];
+        var v10 = Up(5);
+        v10.IfVlan = 1;
+        v10.Vlans = [Member(10)];
+        var v2 = Up(6);
+        v2.Vlans = [Member(2)];
+        var secondTrunk = Up(7);
+        secondTrunk.Vlans = [Member(2), Member(100)];
+        var secondV10 = Up(8);
+        secondV10.Vlans = [Member(10)];
+
+        var items = PortItemViewModel.ForDevice(new[] { trunk, none, v100, v1, v10, v2, secondTrunk, secondV10 },
+            Empty<NetworkLink>(), Empty<IReadOnlyList<DeviceIpAddress>>(), Empty<NeighbourMatch>(), _ => { });
+        var groups = PortCardGrouping.Build(items, PortGrouping.Vlan, _ => { });
+
+        Assert.Equal(new[] { "Trunk", "VLAN 1", "VLAN 2", "VLAN 10", "VLAN 100", "No VLAN" }, groups.Select(g => g.Header));
+        Assert.Equal(new[] { 1, 7 }, groups[0].Cards.Select(c => c.Port.Model.PortId));
+        Assert.Equal(new[] { 5, 8 }, groups[3].Cards.Select(c => c.Port.Model.PortId));
+
+        // The table orders its groups by the same key, so it gets the same order.
+        var tableOrder = items.OrderBy(i => i.GroupSortKey(PortGrouping.Vlan)).Select(i => i.VlanGroup).Distinct();
+        Assert.Equal(groups.Select(g => g.Header), tableOrder);
+    }
+
+    [Fact]
     public void No_ports_make_no_groups()
     {
         Assert.Empty(PortCardGrouping.Build(Array.Empty<PortItemViewModel>(), PortGrouping.Status, _ => { }));
