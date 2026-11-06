@@ -8,7 +8,13 @@ using DesktopNMS.Infrastructure;
 
 namespace DesktopNMS.ViewModels;
 
-/// <summary>A port's status class, which decides its label and colour on the Ports tab (#569).</summary>
+/// <summary>
+/// A port's status class, which decides its label and colour on the Ports tab
+/// (#569). Declared in the order the Status column sorts and Group by Status
+/// orders its groups, the same as DashyNMS Mobile: what needs looking at
+/// (errored, then down) first, then healthy, then the ports nobody can or
+/// should act on (switched off, not monitored, unknown).
+/// </summary>
 public enum PortCondition
 {
     Errored,
@@ -65,6 +71,23 @@ public sealed record PortStatus(PortCondition Condition, bool IsUp, bool IsOperD
         rate is { } value && double.IsFinite(value) && value >= 0 ? value
         : delta is >= 0 ? delta.Value
         : null;
+
+    /// <summary>The place in the Status sort and in Group by Status: <see cref="PortCondition"/>'s declared order.</summary>
+    public int Rank => (int)Condition;
+
+    /// <summary>
+    /// The Group by Status heading: one per condition, so Disabled and
+    /// "Down · errors" don't sit under plain Down.
+    /// </summary>
+    public string GroupName => Condition switch
+    {
+        PortCondition.Errored => "Errors",
+        PortCondition.Down => "Down",
+        PortCondition.Up => "Up",
+        PortCondition.ShutDown => "Disabled",
+        PortCondition.NotMonitored => "Not monitored",
+        _ => "Unknown status",
+    };
 
     /// <summary>Both sides have a reading, so zero errors can be claimed.</summary>
     public bool ErrorsKnown => ErrorsIn is not null && ErrorsOut is not null;
@@ -169,6 +192,86 @@ public static class PortCardGrouping
         PortGrouping.Type => port.TypeGroup,
         _ => port.SpeedGroup,
     };
+}
+
+/// <summary>
+/// The Ports tab's cards (#569): which layout is showing, the cards in their
+/// groups and which one is picked. Kept apart from DeviceDetailViewModel so it
+/// can be tested without a whole Device Details window; that view model hands
+/// it the ports showing (after search), the Group by in force and how to pick
+/// a port, and calls <see cref="Rebuild"/> when either changes.
+/// </summary>
+public sealed class PortCardList : ObservableObject, IDisposable
+{
+    private readonly Func<IEnumerable<PortItemViewModel>> _visiblePorts;
+    private readonly Func<PortGrouping> _grouping;
+    private readonly Action<PortItemViewModel> _select;
+    private readonly IUiDispatcher _dispatcher;
+    private PortItemViewModel? _selected;
+
+    public PortCardList(ISettingsStore settings, Func<IEnumerable<PortItemViewModel>> visiblePorts, Func<PortGrouping> grouping,
+        Action<PortItemViewModel> select, IUiDispatcher dispatcher)
+    {
+        _visiblePorts = visiblePorts;
+        _grouping = grouping;
+        _select = select;
+        _dispatcher = dispatcher;
+        Layout = new PortsLayoutPreference(settings);
+        Layout.PropertyChanged += OnLayoutChanged;
+    }
+
+    public PortsLayoutPreference Layout { get; }
+
+    public bool IsCardLayout => Layout.ShowCards;
+
+    public bool IsTableLayout => Layout.ShowTable;
+
+    /// <summary>
+    /// The showing ports as cards, in the table's groups. Empty while the
+    /// table is showing, so a hidden card list doesn't build a card for every port.
+    /// </summary>
+    public IReadOnlyList<PortCardGroup> Groups { get; private set; } = Array.Empty<PortCardGroup>();
+
+    public void Rebuild()
+    {
+        Groups = IsCardLayout
+            ? PortCardGrouping.Build(_visiblePorts(), _grouping(), _select)
+            : Array.Empty<PortCardGroup>();
+        MarkSelected(_selected);
+        OnPropertyChanged(nameof(Groups));
+    }
+
+    /// <summary>Marks the picked port's card, and only that one.</summary>
+    public void MarkSelected(PortItemViewModel? port)
+    {
+        _selected = port;
+        foreach (var card in Groups.SelectMany(g => g.Cards))
+        {
+            card.IsSelected = ReferenceEquals(card.Port, port);
+        }
+    }
+
+    private void OnLayoutChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(PortsLayoutPreference.ShowCards))
+        {
+            return;
+        }
+
+        // Settings can be saved from any thread; the bindings need the UI one.
+        _dispatcher.Post(() =>
+        {
+            OnPropertyChanged(nameof(IsCardLayout));
+            OnPropertyChanged(nameof(IsTableLayout));
+            Rebuild();
+        });
+    }
+
+    public void Dispose()
+    {
+        Layout.PropertyChanged -= OnLayoutChanged;
+        Layout.Dispose();
+    }
 }
 
 /// <summary>

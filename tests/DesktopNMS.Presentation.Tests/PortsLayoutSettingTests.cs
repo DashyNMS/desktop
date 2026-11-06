@@ -103,6 +103,91 @@ public sealed class PortsLayoutSettingTests
         Assert.False(preference.ShowCards);
     }
 
+    [Fact]
+    public void The_card_list_is_empty_while_the_table_shows_and_fills_on_switching()
+    {
+        var settings = new Settings();
+        var ports = new[] { PortRow(1, "up"), PortRow(2, "down") };
+        using var cards = Cards(settings, () => ports, () => PortGrouping.None, out var raised);
+        cards.Rebuild();
+
+        Assert.True(cards.IsTableLayout);
+        Assert.Empty(cards.Groups);
+
+        settings.Replace(new AppSettings { PortsLayout = AppSettings.PortsLayoutCards });
+
+        Assert.True(cards.IsCardLayout);
+        Assert.False(cards.IsTableLayout);
+        Assert.Equal(new[] { 1, 2 }, Assert.Single(cards.Groups).Cards.Select(c => c.Port.Model.PortId));
+        Assert.Contains(nameof(PortCardList.IsCardLayout), raised);
+        Assert.Contains(nameof(PortCardList.IsTableLayout), raised);
+        Assert.Contains(nameof(PortCardList.Groups), raised);
+
+        settings.Replace(new AppSettings { PortsLayout = AppSettings.PortsLayoutTable });
+
+        Assert.Empty(cards.Groups);
+    }
+
+    [Fact]
+    public void The_card_list_follows_group_by_and_search_when_rebuilt()
+    {
+        var settings = new Settings();
+        settings.Current.PortsLayout = AppSettings.PortsLayoutCards;
+        IEnumerable<PortItemViewModel> showing = new[] { PortRow(1, "up"), PortRow(2, "down"), PortRow(3, "up") };
+        var grouping = PortGrouping.None;
+        using var cards = Cards(settings, () => showing, () => grouping, out _);
+        cards.Rebuild();
+
+        grouping = PortGrouping.Status;
+        cards.Rebuild();
+
+        Assert.Equal(new[] { "Down", "Up" }, cards.Groups.Select(g => g.Header));
+
+        showing = showing.Where(p => p.Model.PortId == 3).ToList();
+        cards.Rebuild();
+
+        Assert.Equal(3, Assert.Single(Assert.Single(cards.Groups).Cards).Port.Model.PortId);
+    }
+
+    [Fact]
+    public void Only_the_picked_ports_card_is_marked_and_the_mark_survives_a_rebuild()
+    {
+        var settings = new Settings();
+        settings.Current.PortsLayout = AppSettings.PortsLayoutCards;
+        var ports = new[] { PortRow(1, "up"), PortRow(2, "up") };
+        PortItemViewModel? picked = null;
+        using var cards = new PortCardList(settings, () => ports, () => PortGrouping.None, p => picked = p, UiThread.Dispatcher);
+        cards.Rebuild();
+
+        var second = cards.Groups[0].Cards[1];
+        second.SelectCommand.Execute(null);
+        Assert.Same(ports[1], picked);
+        cards.MarkSelected(picked);
+
+        Assert.Equal(new[] { false, true }, cards.Groups[0].Cards.Select(c => c.IsSelected));
+
+        cards.Rebuild();
+
+        Assert.Equal(new[] { false, true }, cards.Groups[0].Cards.Select(c => c.IsSelected));
+
+        cards.MarkSelected(null);
+
+        Assert.All(cards.Groups[0].Cards, c => Assert.False(c.IsSelected));
+    }
+
+    private static PortCardList Cards(Settings settings, Func<IEnumerable<PortItemViewModel>> ports, Func<PortGrouping> grouping, out List<string?> raised)
+    {
+        var cards = new PortCardList(settings, ports, grouping, _ => { }, UiThread.Dispatcher);
+        var names = new List<string?>();
+        cards.PropertyChanged += (_, e) => names.Add(e.PropertyName);
+        raised = names;
+        return cards;
+    }
+
+    private static PortItemViewModel PortRow(int id, string operStatus) => new(
+        new Port { PortId = id, DeviceId = 7, IfIndex = id, IfName = "eth" + id, IfOperStatus = operStatus, IfAdminStatus = "up", IfInErrorsDelta = 0, IfOutErrorsDelta = 0 },
+        null, Array.Empty<DeviceIpAddress>(), _ => { });
+
     private static SettingsViewModel Dialog(Settings settings)
     {
         var devices = Proxy<IDeviceCache>((method, _) => method.Name == "get_All" ? Array.Empty<Device>() : null);

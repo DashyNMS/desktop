@@ -273,9 +273,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
         // Cards follow the same filtered view as the table (#569), so search,
         // a reload and Group by all reach them; rebuilt only while shown.
-        PortsLayout = new PortsLayoutPreference(settings);
-        PortsLayout.PropertyChanged += OnPortsLayoutChanged;
-        PortsView.CollectionChanged += (_, _) => RebuildPortCards();
+        PortCards = new PortCardList(settings, () => PortsView.OfItems<PortItemViewModel>(), () => CurrentPortGrouping, port => SelectedPort = port, _dispatcher);
+        PortCards.PropertyChanged += OnPortCardsChanged;
+        PortsView.CollectionChanged += (_, _) => PortCards.Rebuild();
 
         VlansView = new FilteredView(VlanEntries);
         VlansView.Filter = FilterVlanEntry;
@@ -642,57 +642,36 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
             _settings.SaveQuietly();
             OnPropertyChanged();
             OnPropertyChanged(nameof(PortGroupProperty));
-            RebuildPortCards();
+            PortCards.Rebuild();
         }
     }
 
     // ------------------------------------------------------------------ port cards (#569)
 
-    /// <summary>Settings, Devices, Ports layout: the table or cards, followed live as Settings are applied.</summary>
-    public PortsLayoutPreference PortsLayout { get; }
+    /// <summary>The Ports tab's cards: the layout setting, followed live, and the cards in their groups - see <see cref="PortCardList"/>.</summary>
+    public PortCardList PortCards { get; }
 
     /// <summary>The Ports tab shows cards rather than the table.</summary>
-    public bool IsPortCardLayout => PortsLayout.ShowCards;
+    public bool IsPortCardLayout => PortCards.IsCardLayout;
 
-    public bool IsPortTableLayout => PortsLayout.ShowTable;
+    public bool IsPortTableLayout => PortCards.IsTableLayout;
 
-    /// <summary>
-    /// The visible ports as cards, in the table's groups (see
-    /// <see cref="PortCardGrouping"/>). Empty while the table is showing, so a
-    /// hidden card list doesn't build a card for every port.
-    /// </summary>
-    public IReadOnlyList<PortCardGroup> PortCardGroups { get; private set; } = Array.Empty<PortCardGroup>();
+    /// <summary>The showing ports as cards in the table's groups; empty while the table is showing.</summary>
+    public IReadOnlyList<PortCardGroup> PortCardGroups => PortCards.Groups;
 
-    private void OnPortsLayoutChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnPortCardsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(PortsLayoutPreference.ShowCards))
+        switch (e.PropertyName)
         {
-            return;
-        }
-
-        // Settings can be saved from any thread; the bindings need the UI one.
-        _dispatcher.Post(() =>
-        {
-            OnPropertyChanged(nameof(IsPortCardLayout));
-            OnPropertyChanged(nameof(IsPortTableLayout));
-            RebuildPortCards();
-        });
-    }
-
-    private void RebuildPortCards()
-    {
-        PortCardGroups = IsPortCardLayout
-            ? PortCardGrouping.Build(PortsView.OfItems<PortItemViewModel>(), CurrentPortGrouping, port => SelectedPort = port)
-            : Array.Empty<PortCardGroup>();
-        MarkSelectedPortCard();
-        OnPropertyChanged(nameof(PortCardGroups));
-    }
-
-    private void MarkSelectedPortCard()
-    {
-        foreach (var card in PortCardGroups.SelectMany(g => g.Cards))
-        {
-            card.IsSelected = ReferenceEquals(card.Port, _selectedPort);
+            case nameof(PortCardList.IsCardLayout):
+                OnPropertyChanged(nameof(IsPortCardLayout));
+                break;
+            case nameof(PortCardList.IsTableLayout):
+                OnPropertyChanged(nameof(IsPortTableLayout));
+                break;
+            case nameof(PortCardList.Groups):
+                OnPropertyChanged(nameof(PortCardGroups));
+                break;
         }
     }
 
@@ -1961,7 +1940,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            MarkSelectedPortCard();
+            PortCards.MarkSelected(value);
 
             if (value is null)
             {
@@ -3234,15 +3213,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 .ToDictionary(kv => kv.Key, kv => linkMatches[kv.Value.Id]);
 
             _portNamesByPortId.Clear();
-            var reportsVlanMemberships = VlanMembership.HasMembershipData(ports);
-            var portItems = new List<PortItemViewModel>();
-            foreach (var port in ports.OrderBy(p => p.IfIndex ?? int.MaxValue))
+            var portItems = PortItemViewModel.ForDevice(ports, linksByPort, addressesByPort, neighbourMatches, OpenRelatedDevice);
+            foreach (var item in portItems)
             {
-                linksByPort.TryGetValue(port.PortId, out var link);
-                addressesByPort.TryGetValue(port.PortId, out var addresses);
-                neighbourMatches.TryGetValue(port.PortId, out var match);
-                portItems.Add(new PortItemViewModel(port, link, addresses ?? Array.Empty<DeviceIpAddress>(), OpenRelatedDevice, match, reportsVlanMemberships));
-                _portNamesByPortId[port.PortId] = port.DisplayName;
+                _portNamesByPortId[item.Model.PortId] = item.Model.DisplayName;
             }
 
             var selectedPortId = _portToSelect ?? _selectedPort?.Model.PortId;
@@ -3396,10 +3370,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     public CsvExport PortsCsv => _portsCsv ??= new CsvExport(
         () => $"{Name}-ports",
-        new[] { "Port", "Description", "Status", "Speed", "In", "Out", "Errors", "Media", "Duplex", "MTU", "MAC", "IP addresses", "Neighbour" },
-        () => PortsView.Cast<PortItemViewModel>().Select(p => CsvExport.Row(
-            p.DisplayName, p.SecondaryName, p.StatusText, p.SpeedText, p.InRateText, p.OutRateText, p.ErrorCount,
-            p.MediaText, p.DuplexText, p.MtuText, p.MacAddressText, p.IpAddressesText, p.NeighborText)));
+        PortItemViewModel.CsvHeaders,
+        () => PortsView.Cast<PortItemViewModel>().Select(p => p.CsvRow()));
 
     public CsvExport VlansCsv => _vlansCsv ??= new CsvExport(
         () => $"{Name}-vlans",
@@ -4670,8 +4642,8 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
         Wireless.PropertyChanged -= OnWirelessPropertyChanged;
         Graylog.Dispose();
         HeaderLogo.Dispose();
-        PortsLayout.PropertyChanged -= OnPortsLayoutChanged;
-        PortsLayout.Dispose();
+        PortCards.PropertyChanged -= OnPortCardsChanged;
+        PortCards.Dispose();
         _loadCts.Cancel();
         _loadCts.Dispose();
         _deviceMonitor.Polled -= OnDevicePolled;
@@ -4882,6 +4854,38 @@ public sealed class PortItemViewModel
             () => NeighborDeviceId is > 0);
     }
 
+    /// <summary>
+    /// A device's ports as rows, in ifIndex order, each with its neighbour,
+    /// addresses and app-made match. Whether the device reports VLAN
+    /// memberships is worked out once for all of them, because it decides
+    /// whether any one port's ifVlan can be trusted (see <see cref="VlansText"/>).
+    /// </summary>
+    internal static List<PortItemViewModel> ForDevice(IEnumerable<Port> ports, IReadOnlyDictionary<int, NetworkLink> links,
+        IReadOnlyDictionary<int, IReadOnlyList<DeviceIpAddress>> addresses, IReadOnlyDictionary<int, NeighbourMatch> matches, Action<int> openDevice)
+    {
+        var all = ports.ToList();
+        var reportsVlanMemberships = VlanMembership.HasMembershipData(all);
+        return all
+            .OrderBy(p => p.IfIndex ?? int.MaxValue)
+            .Select(port => new PortItemViewModel(
+                port,
+                links.TryGetValue(port.PortId, out var link) ? link : null,
+                addresses.TryGetValue(port.PortId, out var bound) ? bound : Array.Empty<DeviceIpAddress>(),
+                openDevice,
+                matches.TryGetValue(port.PortId, out var match) ? match : null,
+                reportsVlanMemberships))
+            .ToList();
+    }
+
+    /// <summary>The Ports CSV export's columns; see <see cref="CsvRow"/>.</summary>
+    internal static readonly IReadOnlyList<string> CsvHeaders =
+        new[] { "Port", "Description", "Status", "Speed", "In", "Out", "Errors", "Media", "Duplex", "MTU", "MAC", "IP addresses", "Neighbour" };
+
+    /// <summary>This port's CSV row; its Status is the label on screen (#569), not the raw ifOperStatus.</summary>
+    internal IReadOnlyList<string> CsvRow() => CsvExport.Row(
+        DisplayName, SecondaryName, StatusLabel, SpeedText, InRateText, OutRateText, ErrorCount,
+        MediaText, DuplexText, MtuText, MacAddressText, IpAddressesText, NeighborText);
+
     /// <summary>The monitored device the neighbour is - LibreNMS's own match, or failing that one this app made (see DeviceDetailViewModel.MatchUnlinkedNeighboursAsync).</summary>
     private int? NeighborDeviceId => _link?.RemoteDeviceId is > 0 ? _link.RemoteDeviceId : _match?.DeviceId;
 
@@ -4929,6 +4933,9 @@ public sealed class PortItemViewModel
 
     /// <summary>The status rule the table's Status column and the port cards share - see <see cref="PortStatus"/>.</summary>
     public PortStatus Status { get; }
+
+    /// <summary>What the Status column sorts by: errored, down, up, disabled, not monitored, unknown (<see cref="PortStatus.Rank"/>).</summary>
+    public int StatusRank => Status.Rank;
 
     /// <summary>e.g. "Up", "Up · errors", "Disabled" - the words beside the status dot.</summary>
     public string StatusLabel => Status.Label;
@@ -5015,8 +5022,8 @@ public sealed class PortItemViewModel
     }
 
     /// <summary>
-    /// A rate per second when LibreNMS sent one, in full precision so a tiny
-    /// positive rate never reads as 0/s; otherwise the count since the last
+    /// A rate per second when LibreNMS sent one, in "G" format so a tiny
+    /// positive rate never reads as 0/s (1E-13/s, not 0/s); otherwise the count since the last
     /// poll, which is what the device's ports request actually asks for.
     /// </summary>
     private static string ErrorText(double? rate, double? reading)
@@ -5027,13 +5034,14 @@ public sealed class PortItemViewModel
         }
 
         return rate is { } r && double.IsFinite(r) && r >= 0
-            ? r.ToString("0.############", CultureInfo.InvariantCulture) + "/s"
+            ? r.ToString("G", CultureInfo.InvariantCulture) + "/s"
             : value.ToString("0", CultureInfo.InvariantCulture);
     }
 
     // Group headers for the Ports table's Group by (#272).
 
-    public string StatusGroup => !HasKnownStatus ? "Unknown status" : IsUp ? "Up" : "Down";
+    /// <summary>Group by Status follows the same rule as the Status column and the cards (#569): one group per <see cref="PortCondition"/>.</summary>
+    public string StatusGroup => Status.GroupName;
 
     public string VlanGroup => _port.IfVlan is > 0 and var vlan ? $"VLAN {vlan}" : "No VLAN";
 
@@ -5044,7 +5052,7 @@ public sealed class PortItemViewModel
     /// <summary>Orders groups sensibly: Up before Down, VLANs and speeds by number.</summary>
     public long GroupSortKey(PortGrouping grouping) => grouping switch
     {
-        PortGrouping.Status => !HasKnownStatus ? 2 : IsUp ? 0 : 1,
+        PortGrouping.Status => StatusRank,
         PortGrouping.Vlan => _port.IfVlan is > 0 and var vlan ? vlan : long.MaxValue,
         PortGrouping.Speed => _port.IfSpeed is > 0 and var speed ? -speed : long.MaxValue,
         _ => 0,

@@ -66,8 +66,9 @@
                     </MultiBinding>
                 </DataGrid.IsVisible>
                 <DataGrid.Columns>
-                    <!-- The same status wording and colour as the cards (#569, PortStatus). -->
-                    <DataGridTemplateColumn Header="Status" Width="120" SortMemberPath="IsUp">
+                    <!-- The same status wording, colour and order as the cards (#569, PortStatus):
+                         sorting puts errored, then down, then up, then disabled, not monitored and unknown. -->
+                    <DataGridTemplateColumn Header="Status" Width="120" SortMemberPath="StatusRank">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="vm:PortItemViewModel">
                                 <StackPanel Orientation="Horizontal" Spacing="6" Margin="8,0" ToolTip.Tip="{Binding StatusLabel}">

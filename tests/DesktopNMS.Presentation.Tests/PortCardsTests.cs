@@ -224,10 +224,10 @@ public sealed class PortCardsTests
 
         var groups = PortCardGrouping.Build(ports, PortGrouping.Status, _ => { });
 
-        Assert.Equal(new[] { "Up", "Down", "Unknown status" }, groups.Select(g => g.Header));
-        Assert.Equal(new[] { 5, 1 }, groups[0].Cards.Select(c => c.Port.Model.PortId));
-        Assert.Equal("2 ports", groups[0].CountText);
-        Assert.Equal("1 port", groups[1].CountText);
+        Assert.Equal(new[] { "Down", "Up", "Unknown status" }, groups.Select(g => g.Header));
+        Assert.Equal(new[] { 5, 1 }, groups[1].Cards.Select(c => c.Port.Model.PortId));
+        Assert.Equal("1 port", groups[0].CountText);
+        Assert.Equal("2 ports", groups[1].CountText);
     }
 
     [Fact]
@@ -261,6 +261,158 @@ public sealed class PortCardsTests
 
         Assert.Same(port, picked);
     }
+
+    [Fact]
+    public void A_down_port_with_errors_is_red_down_errors()
+    {
+        var raw = Up();
+        raw.IfOperStatus = "down";
+        raw.IfInErrorsDelta = 4;
+        var port = Item(raw);
+
+        Assert.Equal("Down · errors", port.StatusLabel);
+        Assert.Equal(AlertSeverity.Critical, port.StatusTone);
+        Assert.True(port.HasErrorsIn);
+        Assert.Equal("Errors", port.StatusGroup);
+    }
+
+    [Fact]
+    public void Errors_on_a_port_neither_up_nor_down_say_errors()
+    {
+        var raw = Up();
+        raw.IfOperStatus = "testing";
+        raw.IfOutErrorsDelta = 1;
+        var port = Item(raw);
+
+        Assert.Equal("Errors", port.StatusLabel);
+        Assert.Equal(AlertSeverity.Critical, port.StatusTone);
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(-1.0)]
+    [InlineData(double.PositiveInfinity)]
+    public void An_invalid_error_rate_falls_back_to_the_count_since_the_last_poll(double rate)
+    {
+        var raw = Up();
+        raw.IfInErrorsRate = rate;
+        raw.IfInErrorsDelta = 6;
+        var port = Item(raw);
+
+        Assert.Equal("6", port.ErrorsInText);
+        Assert.Equal("Up · errors", port.StatusLabel);
+    }
+
+    [Fact]
+    public void A_vanishingly_small_error_rate_never_reads_as_zero()
+    {
+        var raw = Up();
+        raw.IfInErrorsRate = 1e-13;
+        var port = Item(raw);
+
+        Assert.NotEqual("0/s", port.ErrorsInText);
+        Assert.Equal("1E-13/s", port.ErrorsInText);
+    }
+
+    [Fact]
+    public void A_shut_down_port_that_is_still_up_is_grey_disabled()
+    {
+        var raw = Up();
+        raw.IfAdminStatus = "down";
+        var port = Item(raw);
+
+        Assert.Equal("Disabled", port.StatusLabel);
+        Assert.Equal(AlertSeverity.Unknown, port.StatusTone);
+        Assert.Equal("Disabled", port.StatusGroup);
+    }
+
+    [Fact]
+    public void The_status_column_sorts_what_needs_looking_at_first()
+    {
+        var errored = Up(1);
+        errored.IfInErrorsDelta = 2;
+        var down = Up(2);
+        down.IfOperStatus = "down";
+        var disabled = Up(3);
+        disabled.IfAdminStatus = "down";
+        var ignored = Up(4);
+        ignored.Ignore = true;
+        var unknown = Up(5);
+        unknown.IfOperStatus = null;
+        var ports = new[] { Item(unknown), Item(ignored), Item(disabled), Item(Up(6)), Item(down), Item(errored) };
+
+        var sorted = ports.OrderBy(p => p.StatusRank).Select(p => p.StatusLabel);
+
+        Assert.Equal(new[] { "Up · errors", "Down", "Up", "Disabled", "Not monitored", "Unknown" }, sorted);
+        Assert.All(ports, p => Assert.Equal(p.StatusRank, p.GroupSortKey(PortGrouping.Status)));
+    }
+
+    [Fact]
+    public void Group_by_status_keeps_disabled_and_errored_ports_out_of_down()
+    {
+        var downErrors = Up(1);
+        downErrors.IfOperStatus = "down";
+        downErrors.IfOutErrorsDelta = 1;
+        var disabled = Up(2);
+        disabled.IfAdminStatus = "down";
+        disabled.IfOperStatus = "down";
+        var down = Up(3);
+        down.IfOperStatus = "down";
+
+        var groups = PortCardGrouping.Build(new[] { Item(disabled), Item(down), Item(downErrors) }, PortGrouping.Status, _ => { });
+
+        Assert.Equal(new[] { "Errors", "Down", "Disabled" }, groups.Select(g => g.Header));
+        Assert.All(groups, g => Assert.Single(g.Cards));
+    }
+
+    [Fact]
+    public void A_device_with_memberships_on_any_port_reports_the_rest_as_not_reported()
+    {
+        var trunk = Up(1);
+        trunk.IfIndex = 2;
+        trunk.IfVlan = 1;
+        trunk.Vlans = [Member(10), Member(20)];
+        var access = Up(2);
+        access.IfIndex = 1;
+        access.IfVlan = 30;
+
+        var items = PortItemViewModel.ForDevice(new[] { trunk, access }, Empty<NetworkLink>(), Empty<IReadOnlyList<DeviceIpAddress>>(), Empty<NeighbourMatch>(), _ => { });
+
+        Assert.Equal(new[] { 2, 1 }, items.Select(i => i.Model.PortId));
+        Assert.Equal("Not reported", items[0].VlansText);
+        Assert.Equal("10, 20", items[1].VlansText);
+    }
+
+    [Fact]
+    public void A_device_without_memberships_shows_each_ports_own_vlan_as_access_or_native()
+    {
+        var a = Up(1);
+        a.IfVlan = 30;
+        var b = Up(2);
+        b.IfVlan = 40;
+
+        var items = PortItemViewModel.ForDevice(new[] { a, b }, Empty<NetworkLink>(), Empty<IReadOnlyList<DeviceIpAddress>>(), Empty<NeighbourMatch>(), _ => { });
+
+        Assert.Equal(new[] { "30 (access/native VLAN)", "40 (access/native VLAN)" }, items.Select(i => i.VlansText));
+    }
+
+    [Fact]
+    public void The_csv_export_writes_the_status_shown_on_screen()
+    {
+        var raw = Up();
+        raw.IfAdminStatus = "down";
+        raw.IfOperStatus = "down";
+        var port = Item(raw);
+
+        var row = port.CsvRow();
+
+        Assert.Equal(PortItemViewModel.CsvHeaders.Count, row.Count);
+        Assert.Equal("Status", PortItemViewModel.CsvHeaders[2]);
+        Assert.Equal("Disabled", row[2]);
+        Assert.Equal(port.StatusLabel, row[2]);
+    }
+
+    private static IReadOnlyDictionary<int, T> Empty<T>() => new Dictionary<int, T>();
 
     private static Port Up(int id = 1) => new()
     {
