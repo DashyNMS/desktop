@@ -659,6 +659,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     /// <summary>The showing ports as cards in the table's groups; empty while the table is showing.</summary>
     public IReadOnlyList<PortCardGroup> PortCardGroups => PortCards.Groups;
 
+    /// <summary>The same cards as headings and rows, for the view's virtualising list (#572).</summary>
+    public IReadOnlyList<PortCardRow> PortCardRows => PortCards.Rows;
+
     private void OnPortCardsChanged(object? sender, PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)
@@ -671,6 +674,9 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 break;
             case nameof(PortCardList.Groups):
                 OnPropertyChanged(nameof(PortCardGroups));
+                break;
+            case nameof(PortCardList.Rows):
+                OnPropertyChanged(nameof(PortCardRows));
                 break;
         }
     }
