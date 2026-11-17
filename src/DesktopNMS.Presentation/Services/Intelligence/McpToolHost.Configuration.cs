@@ -122,7 +122,7 @@ public sealed partial class McpToolHost
             if (!bounds.All(double.IsFinite) || !ordered)
             {
                 throw new IntelligenceException(
-                    $"Intelligence can't judge sensors until the {section} thresholds in Settings › Health thresholds are numbers in order. Correct them, then ask again.",
+                    $"Intelligence can't judge sensors until the {section} thresholds in Settings › Health thresholds are valid numbers in the right order. Correct them, then ask again.",
                     IntelligenceFailure.Tools);
             }
         }

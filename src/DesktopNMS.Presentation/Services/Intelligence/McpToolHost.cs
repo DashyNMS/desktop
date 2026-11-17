@@ -33,9 +33,9 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
 {
     public static string ExecutableName => OperatingSystem.IsWindows() ? "dashynms-mcp.exe" : "dashynms-mcp";
 
-    internal const string Discarded = "The LibreNMS connection or Intelligence settings changed during this lookup, so its result was discarded.";
+    internal const string Discarded = "The LibreNMS connection or Intelligence settings changed while this lookup ran, so its result was dropped.";
 
-    internal const string Interrupted = "The network tools stopped during this lookup, so its result was discarded. They'll start again on the next lookup.";
+    internal const string Interrupted = "The network tools stopped while this lookup ran, so its result was dropped. They restart on the next question.";
 
     private readonly TimeSpan _callTimeout;
 
@@ -251,7 +251,7 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
     }
 
     private static IntelligenceException StoppedWhileStarting()
-        => new("The network tools were stopped while they started. Ask again to start them.", IntelligenceFailure.Tools);
+        => new("The network tools were stopped during startup. Ask again to restart them.", IntelligenceFailure.Tools);
 
     /// <summary>The server's settings now, or null when signed out.</summary>
     private List<KeyValuePair<string, string>>? CurrentSettings()
