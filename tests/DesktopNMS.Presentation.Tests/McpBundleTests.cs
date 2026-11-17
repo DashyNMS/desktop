@@ -163,6 +163,23 @@ public sealed class McpBundleTests
     }
 
     [McpBundleFact]
+    public async Task Sources_that_aren_t_set_up_reach_the_model_as_unknown_not_as_nothing_changed()
+    {
+        await using var demo = await BundledServer.StartAsync();
+        await using var process = await StdioMcpToolProcess.StartAsync(Executable,
+            McpToolHost.ToolSettings(new DesktopNMS.Core.Api.LibreNmsConnection(new Uri(demo.Address), "example-token"), new(), () => null, () => null),
+            NullLogger.Instance, demo.Token);
+
+        var result = await process.CallAsync("what_changed", new Dictionary<string, object?> { ["device"] = "core-sw-02" }, demo.Token);
+
+        using var json = JsonDocument.Parse(result.Output);
+        var data = json.RootElement.GetProperty("data");
+        Assert.False(data.GetProperty("unimus").GetProperty("configured").GetBoolean());
+        Assert.False(data.GetProperty("graylog").GetProperty("configured").GetBoolean());
+        Assert.Contains("Unimus isn't configured", json.RootElement.GetProperty("summary").GetString(), StringComparison.Ordinal);
+    }
+
+    [McpBundleFact]
     public async Task A_refused_start_gives_a_fixed_reason_and_none_of_the_server_s_output()
     {
         using var server = new DemoServer(new DemoFleet(), NullLogger.Instance);
