@@ -225,6 +225,24 @@ public sealed class McpToolHostGenerationTests
     }
 
     [Fact]
+    public async Task A_stop_on_exit_waits_for_a_retirement_already_under_way()
+    {
+        var harness = new Harness(Network("token-a"));
+        await harness.Host.GetToolsAsync(CancellationToken.None);
+        harness.SlowStop = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // A saved change starts retiring the server, which is slow to stop.
+        harness.Settings.Current.TemperatureThresholds.HighWarning = 40;
+        harness.Settings.Save();
+        var stop = harness.Host.StopAsync();
+
+        Assert.False(stop.IsCompleted);
+        harness.SlowStop.SetResult();
+        await stop;
+        Assert.True(harness.Started.Single().Disposed);
+    }
+
+    [Fact]
     public async Task Cancelling_a_question_ends_its_lookup_without_retiring_the_server()
     {
         var harness = new Harness(Network("token-a"));
@@ -270,6 +288,9 @@ public sealed class McpToolHostGenerationTests
         public TestSettings Settings { get; } = new();
         public McpToolHost Host { get; }
         public List<FakeProcess> Started { get; } = new();
+
+        /// <summary>When set, a server takes until this completes to stop.</summary>
+        public TaskCompletionSource? SlowStop { get; set; }
         public Task CallStarted => _callStarted.Task;
         public Task StartRequested => _startRequested.Task;
 
@@ -339,11 +360,11 @@ public sealed class McpToolHostGenerationTests
         public Task<IntelligenceToolResult> CallAsync(string name, IReadOnlyDictionary<string, object?> arguments, CancellationToken cancellationToken)
             => harness.CallAsync(cancellationToken);
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
+            if (harness.SlowStop is { } slow) await slow.Task;
             Disposed = true;
             Exit();
-            return ValueTask.CompletedTask;
         }
     }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -49,6 +50,7 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
     private readonly McpToolProcessStart _start;
 
     private Generation? _current;
+    private readonly ConcurrentDictionary<Generation, Task> _retiring = new();
     private CancellationTokenSource? _starting;
 
     // Counted, so a start that finishes after a stop is thrown away rather than kept.
@@ -156,6 +158,8 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
         {
             await RetireAsync(current, Discarded).ConfigureAwait(false);
         }
+
+        await Task.WhenAll(_retiring.Values).ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
@@ -305,7 +309,19 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
     private async Task RetireAsync(Generation generation, string reason)
     {
         var wasCurrent = ReferenceEquals(Interlocked.CompareExchange(ref _current, null, generation), generation);
-        await generation.RetireAsync(reason, StopProcessAsync).ConfigureAwait(false);
+        var stopping = generation.RetireAsync(reason, StopProcessAsync);
+
+        // Kept until it finishes, so a stop on exit waits for a retirement already under way.
+        _retiring.TryAdd(generation, stopping);
+        try
+        {
+            await stopping.ConfigureAwait(false);
+        }
+        finally
+        {
+            _retiring.TryRemove(generation, out _);
+        }
+
         if (wasCurrent) NotifyVersionChanged();
 
         async Task StopProcessAsync()
