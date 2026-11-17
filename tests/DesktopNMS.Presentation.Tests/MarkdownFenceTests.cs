@@ -64,6 +64,22 @@ public sealed class MarkdownFenceTests
         => Assert.Null(MarkdownFence.Unclosed("```\ncode\n```\n~~~\nmore\n~~~"));
 
     [Fact]
+    public void An_answer_interrupted_by_closing_the_app_shows_its_note_outside_the_code_it_stopped_in()
+    {
+        var restored = DesktopNMS.ViewModels.IntelligenceMessageViewModel.Restore(new DesktopNMS.Core.Intelligence.SavedIntelligenceMessage
+        {
+            Text = "Config:\n~~~\ninterface Gi0/1\n```",
+            IsIncomplete = true,
+        });
+
+        var blocks = ChatMarkdownBlocks.Parse(restored.Text);
+
+        Assert.Equal("interface Gi0/1\n```", Assert.IsType<ChatCodeBlock>(blocks[1]).Text);
+        Assert.IsNotType<ChatCodeBlock>(blocks[^1]);
+        Assert.EndsWith("(Interrupted when DashyNMS closed.)", restored.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void In_an_export_a_later_question_stays_outside_an_earlier_answer_s_unfinished_code()
     {
         var chat = new ExportedChat("Chat", DateTimeOffset.UnixEpoch,
