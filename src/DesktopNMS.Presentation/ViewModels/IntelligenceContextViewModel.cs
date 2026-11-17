@@ -161,19 +161,13 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
 
     public string SpotlightSummary => Spotlight.Count == 0 ? "Whole network" : string.Join(", ", Spotlight.Select(s => s.Name));
 
-    /// <summary>The scope as the agent is told it - null for the whole network.</summary>
-    public string? SpotlightForAgent
-    {
-        get
-        {
-            if (Spotlight.Count == 0)
-            {
-                return null;
-            }
-
-            return string.Join("; ", Spotlight.Select(s => s.AgentDescription));
-        }
-    }
+    /// <summary>
+    /// The scope as the agent is told it - checked identities only, or null for
+    /// the whole network. Names stay in the app: Core states only kinds and IDs
+    /// in the model's instructions, since anyone who can name a device writes them.
+    /// </summary>
+    public IReadOnlyList<IntelligenceObjectReference>? SpotlightForAgent
+        => Spotlight.Count == 0 ? null : Spotlight.Select(s => s.Identity).ToList();
 
     /// <summary>The model ran a tool: note the devices its arguments name, and what it looked at.</summary>
     public void OnToolStarted(string arguments)
@@ -379,9 +373,6 @@ public sealed record SpotlightOption(SpotlightKind Kind, int Id, string Name)
 {
     public IntelligenceObjectReference? Object { get; init; }
     public IntelligenceObjectReference Identity => Object ?? new(Kind.ToString().ToLowerInvariant(), Id);
-    public string AgentDescription => $"{KindText} \"{Name}\" ({Identity.Kind}_id={Id}"
-        + (Identity.DeviceId is { } device ? $", device_id={device}" : "")
-        + (Identity.RuleId is { } rule ? $", rule_id={rule}" : "") + ")";
     public string KindText => Kind switch
     {
         SpotlightKind.Group => "Group",
