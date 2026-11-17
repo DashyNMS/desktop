@@ -118,11 +118,11 @@ public sealed partial class MarkdownView : Decorator
             }
 
             // ``` or ~~~ fenced code, closed only by a matching fence
-            if (MarkdownFence.TryOpen(trimmed, out var fence))
+            if (MarkdownFence.TryOpen(line, out var fence, nested: true))
             {
                 var code = new StringBuilder();
                 i++;
-                while (i < lines.Length && !fence.IsClosedBy(lines[i]))
+                while (i < lines.Length && !fence.IsClosedBy(lines[i], nested: true))
                 {
                     if (code.Length > 0)
                     {
@@ -290,7 +290,7 @@ public sealed partial class MarkdownView : Decorator
     private bool StartsBlock(string[] lines, int i)
     {
         var t = lines[i].Trim();
-        return MarkdownFence.TryOpen(t, out _)
+        return MarkdownFence.TryOpen(lines[i], out _, nested: true)
                || Heading().IsMatch(t)
                || RuleLine().IsMatch(t)
                || t.StartsWith('>')

@@ -60,6 +60,20 @@ public sealed class MarkdownFenceTests
         => Assert.Equal(new MarkdownFence(marker, length), MarkdownFence.Unclosed(markdown));
 
     [Fact]
+    public void Code_indented_four_spaces_is_not_a_fence_for_the_export_but_still_code_on_screen()
+    {
+        Assert.True(MarkdownFence.TryOpen("   ```", out _));
+        Assert.False(MarkdownFence.TryOpen("    ```", out _));
+        Assert.False(MarkdownFence.TryOpen("\t```", out _));
+        Assert.False(new MarkdownFence('`', 3).IsClosedBy("    ```"));
+        Assert.Null(MarkdownFence.Unclosed("- step\n    ```\n    show run"));
+
+        // On screen there are no nested blocks, so code under a list item still renders as code.
+        Assert.True(MarkdownFence.TryOpen("    ```", out _, nested: true));
+        Assert.Contains(ChatMarkdownBlocks.Parse("- step\n    ```\n    show run\n    ```"), block => block is ChatCodeBlock);
+    }
+
+    [Fact]
     public void A_finished_answer_has_no_open_fence()
         => Assert.Null(MarkdownFence.Unclosed("```\ncode\n```\n~~~\nmore\n~~~"));
 

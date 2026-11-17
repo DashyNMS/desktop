@@ -69,11 +69,11 @@ public static partial class ChatMarkdownBlocks
                 continue;
             }
 
-            if (MarkdownFence.TryOpen(trimmed, out var fence))
+            if (MarkdownFence.TryOpen(line, out var fence, nested: true))
             {
                 var code = new List<string>();
                 i++;
-                while (i < lines.Length && !fence.IsClosedBy(lines[i]))
+                while (i < lines.Length && !fence.IsClosedBy(lines[i], nested: true))
                     code.Add(lines[i++]);
                 i++;
                 blocks.Add(new ChatCodeBlock(string.Join('\n', code)));
@@ -221,7 +221,7 @@ public static partial class ChatMarkdownBlocks
     private static bool StartsBlock(string[] lines, int i)
     {
         var t = lines[i].Trim();
-        return MarkdownFence.TryOpen(t, out _) || Heading().IsMatch(t) || RuleLine().IsMatch(t)
+        return MarkdownFence.TryOpen(lines[i], out _, nested: true) || Heading().IsMatch(t) || RuleLine().IsMatch(t)
             || t.StartsWith('>') || ListItem().IsMatch(lines[i]) || IsTableStart(lines, i);
     }
 
