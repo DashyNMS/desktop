@@ -568,6 +568,9 @@ public sealed partial class MarkdownView : Decorator
             Foreground = ToneBrush(reference.Tone),
             FontWeight = FontWeight.SemiBold,
             Padding = new Thickness(4, 0),
+
+            // No taller than the paragraph's own lines, so the text beside it keeps its baseline and descenders.
+            LineHeight = 17,
             Inlines = new InlineCollection { new Run(reference.Name) },
         };
         if (!string.IsNullOrEmpty(reference.Status))

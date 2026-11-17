@@ -27,9 +27,13 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
         </Style>
+        <!-- The frame the TextBox gives up: the whole card shows keyboard focus instead. -->
+        <Style Selector="Border#ComposerCard:focus-within">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
     </UserControl.Styles>
 
-    <Border Padding="12,8,8,8" CornerRadius="12" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+    <Border Name="ComposerCard" Padding="12,8,8,8" CornerRadius="12" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
         <Grid RowDefinitions="Auto,Auto">
             <TextBox Name="QuestionBox" Text="{Binding Question}" PlaceholderText="Ask about your network…"
                      AcceptsReturn="False" TextWrapping="Wrap" MinHeight="48" MaxHeight="140" FontSize="14" Padding="2,4"
