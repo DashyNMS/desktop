@@ -20,7 +20,7 @@ try {
     if ($Version -notmatch '^\d+\.\d+\.\d+-dev\.[0-9A-Za-z.-]+$') {
         throw 'Use a development version such as 2.0.0-dev.42.'
     }
-    foreach ($file in @('dashynms-mcp.exe', 'LICENSE', 'BUILD.txt')) {
+    foreach ($file in @('dashynms-mcp.exe', 'LICENSE', 'NOTICES.md', 'BUILD.txt', 'third-party/inventory.json')) {
         if (-not (Test-Path "artifacts/mcp/win-x64/$file" -PathType Leaf)) {
             throw "Missing artifacts/mcp/win-x64/$file. Run tools/Publish-Mcp.ps1 -Runtime win-x64 first."
         }
@@ -36,7 +36,7 @@ try {
         -m:1 -p:Version=$Version -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:EnableCompressionInSingleFile=true -p:DebugType=embedded -o $output --nologo
     if ($LASTEXITCODE -ne 0) { throw 'Publishing the development build failed.' }
-    foreach ($file in @('DashyNMS.exe', 'mcp/dashynms-mcp.exe', 'mcp/LICENSE', 'mcp/BUILD.txt')) {
+    foreach ($file in @('DashyNMS.exe', 'mcp/dashynms-mcp.exe', 'mcp/LICENSE', 'mcp/NOTICES.md', 'mcp/BUILD.txt', 'mcp/third-party/inventory.json')) {
         if (-not (Test-Path (Join-Path $output $file) -PathType Leaf)) { throw "Build is missing $file." }
     }
     $dirty = [bool](git status --porcelain --untracked-files=no)

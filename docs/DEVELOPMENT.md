@@ -582,7 +582,8 @@ then pin this app to the development build it produces.
 To produce a single self-contained `.exe`:
 
 For an installable build with Intelligence's network tools, first publish
-the MCP server (requires the .NET 10 SDK alongside .NET 9):
+the MCP server (requires the .NET 10 SDK alongside .NET 9, and Python 3 for
+its dependency notices):
 
 ```powershell
 ./tools/Publish-Mcp.ps1 -Source ../mcp
@@ -591,9 +592,15 @@ the MCP server (requires the .NET 10 SDK alongside .NET 9):
 The tools are published under `artifacts/mcp/<runtime>`. `-Runtime` accepts
 `win-x64`, `osx-x64`, `osx-arm64`, `linux-x64` and `linux-arm64`, defaulting to
 the current host. Publish the same runtime as the app; the app build copies
-only that runtime's executable, licence and revision into `mcp/`. Each output
-folder must be fresh. The **Native network tools** CI workflow runs a real
-stdio handshake, tool discovery and a demo-device query on every target.
+only that runtime's files into `mcp/`. Each output folder must be fresh.
+Beside the executable go the MCP licence and `NOTICES.md`, the source commit
+in `BUILD.txt`, `version.json` and `third-party/`. That folder holds the
+licence and notice files of every package the executable carries, collected
+by the MCP repo's own `collect-dependency-notices.py` with an `inventory.json`
+of package hashes, and the .NET runtime pack's licence and third-party notices.
+Build-only packages ship nothing and are left out. The **Native network tools**
+CI workflow runs a real stdio handshake, then offers and calls each of the 24
+allowlisted tools against the demo on every target, and checks those files.
 
 Then publish the desktop app:
 
@@ -607,8 +614,9 @@ The accompanying `publish/mcp` folder contains the self-contained network
 tools, their licence and the source commit in `BUILD.txt`. Keep it beside the
 app. The installer requires the MCP executable; preview and release workflows
 fetch an exact MCP commit, build it first and verify the bundled files before
-packaging. When updating the pinned commit in both workflows, use a commit
-containing the licence's permission to bundle it with DashyNMS.
+packaging. The pin is in `dev-build.yml`, `mcp-bundle.yml` and both jobs of
+`package-build.yml`; update them together, to a commit whose dependency
+licences the collector accepts.
 
 ### Building the installer
 
