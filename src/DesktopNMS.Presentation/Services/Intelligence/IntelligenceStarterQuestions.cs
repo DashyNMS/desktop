@@ -17,13 +17,16 @@ public sealed class IntelligenceStarterQuestions(int startingIndex = 0)
         new("What's alerting right now?", Context.Alerts),
         new("Which ports are counting the most errors?", Context.Network),
         new("Which interfaces are busiest?", Context.Network),
-        new("Which devices have been up the longest?", Context.Devices),
+        new("Which devices carry the most traffic?", Context.Devices),
         new("Which alerts affect the most devices?", Context.Alerts),
         new("Are any links close to capacity?", Context.Network),
         new("Are there any temperature or fan problems?", Context.Network),
         new("Which devices are currently unreachable?", Context.Devices),
         new("Summarise the highest-priority open alerts.", Context.Alerts),
     ];
+
+    /// <summary>Every question offered. Each must be answerable with the network tools in a few lookups (#596).</summary>
+    internal static IReadOnlyList<string> All => Catalogue.Select(question => question.Text).ToArray();
 
     private int _next = startingIndex;
 
