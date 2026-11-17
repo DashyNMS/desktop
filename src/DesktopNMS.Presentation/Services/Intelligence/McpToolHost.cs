@@ -31,7 +31,7 @@ namespace DesktopNMS.Services.Intelligence;
 /// started again on the next call, and a change of LibreNMS connection
 /// restarts it so it never answers for the previous network.
 /// </remarks>
-public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
+public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
 {
     public static string ExecutableName => OperatingSystem.IsWindows() ? "dashynms-mcp.exe" : "dashynms-mcp";
 
@@ -169,11 +169,11 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
         var connection = _session.Connection
                          ?? throw new IntelligenceException("Connect DashyNMS to LibreNMS first.", IntelligenceFailure.Network);
 
-        // Another LibreNMS (or a new token) means a new server, so answers
-        // can't come from the previous network.
-        // A changed config-text choice restarts it too: it's set at startup.
-        var identity = connection.WebRoot + "|" + connection.ApiToken.GetHashCode(StringComparison.Ordinal).ToString(CultureInfo.InvariantCulture)
-                       + "|" + ConfigText(_settings.Current);
+        // Every setting is read at startup, so any change - another LibreNMS,
+        // a new token, a saved threshold - means a new server, and answers
+        // never come from the previous network or settings.
+        var settings = ToolSettings(connection, _settings.Current, _unimusToken.Load, _graylogPassword.Load);
+        var identity = Identity(settings);
         if (_client is not null && !_client.Completion.IsCompleted && _startedFor == identity)
         {
             return;
@@ -192,7 +192,7 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
             environment["DASHYNMS_SENSOR_DEFINITIONS_DIRECTORY"] = _sensorDefinitions.Paths.DefinitionsDirectory;
             environment["DASHYNMS_SENSOR_DEFINITIONS_SETTINGS"] = _sensorDefinitions.Paths.SettingsFile;
         }
-        foreach (var (key, value) in Configuration(connection))
+        foreach (var (key, value) in settings)
         {
             environment[key] = value;
         }
@@ -281,63 +281,6 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
         await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
         return Classify();
     }
-
-    /// <summary>The MCP server's settings (see the MCP README's table), from this app's own connection and settings.</summary>
-    private IEnumerable<KeyValuePair<string, string>> Configuration(LibreNmsConnection connection)
-    {
-        var settings = _settings.Current;
-
-        yield return new("LIBRENMS_URL", connection.WebRoot.ToString());
-        yield return new("LIBRENMS_TOKEN", connection.ApiToken);
-        yield return new("LIBRENMS_TIMEOUT", Math.Max(5, connection.TimeoutSeconds).ToString(CultureInfo.InvariantCulture));
-        yield return new("LIBRENMS_TIMESTAMPS_UTC", settings.ServerTimestampsAreUtc ? "true" : "false");
-        if (connection.BackupWebRoot is { } backup)
-        {
-            yield return new("LIBRENMS_BACKUP_URL", backup.ToString());
-        }
-
-        if (connection.TrustedCertificates.Count > 0)
-        {
-            yield return new("LIBRENMS_TRUSTED_CERTS", string.Join(",", connection.TrustedCertificates));
-        }
-
-        // Settings › Intelligence: full (redacted) config text, a summary
-        // ("did it change, when and by how much"), or nothing from Unimus.
-        yield return new("MCP_CONFIG_TEXT", ConfigText(settings));
-
-        if (settings.Unimus is { Enabled: true, Url: { Length: > 0 } unimusUrl } unimus && _unimusToken.Load() is { Length: > 0 } unimusToken)
-        {
-            yield return new("UNIMUS_URL", unimusUrl);
-            yield return new("UNIMUS_TOKEN", unimusToken);
-            if (unimus.TrustedCertificates.Count > 0)
-            {
-                yield return new("UNIMUS_TRUSTED_CERTS", string.Join(",", unimus.TrustedCertificates));
-            }
-        }
-
-        if (settings.Graylog is { Enabled: true } graylog
-            && GraylogConnection.FromSettings(graylog, _graylogPassword.Load(), out _) is { } graylogConnection)
-        {
-            yield return new("GRAYLOG_URL", graylogConnection.Root.ToString());
-            yield return new("GRAYLOG_USERNAME", graylog.Username ?? string.Empty);
-            yield return new("GRAYLOG_PASSWORD", _graylogPassword.Load() ?? string.Empty);
-            yield return new("GRAYLOG_VERSION", graylog.Version == GraylogSettings.Version20 ? "2.0" : "2.1");
-            yield return new("GRAYLOG_QUERY_FIELD", graylog.QueryField);
-            yield return new("GRAYLOG_MATCH_ANY_ADDRESS", graylog.MatchAnyAddress ? "true" : "false");
-            if (graylog.TrustedCertificates.Count > 0)
-            {
-                yield return new("GRAYLOG_TRUSTED_CERTS", string.Join(",", graylog.TrustedCertificates));
-            }
-        }
-    }
-
-    /// <summary>The MCP server's MCP_CONFIG_TEXT - summary unless set to one of the others.</summary>
-    private static string ConfigText(AppSettings settings) => settings.IntelligenceConfigText switch
-    {
-        AppSettings.IntelligenceConfigTextFull => "full",
-        AppSettings.IntelligenceConfigTextOff => "off",
-        _ => "summary",
-    };
 
     /// <summary>The tool's text content, joined - what the model reads.</summary>
     private static string Text(CallToolResult result)
