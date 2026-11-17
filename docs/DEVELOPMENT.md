@@ -618,6 +618,15 @@ packaging. The pin is in `dev-build.yml`, `mcp-bundle.yml` and both jobs of
 `package-build.yml`; update them together, to a commit whose dependency
 licences the collector accepts.
 
+The app passes the server only documented environment settings: the
+connection, Unimus and Graylog, the config-text policy and Settings › Health
+thresholds. It treats each started server as a generation tied to exactly
+those values. Sign-out, a LibreNMS switch or a saved setting retires it, and
+discards anything it was still looking up. Spotlight reaches the model's
+instructions as checked IDs only. Why the app keeps the process rather than
+adopting `DashyNMS.Agent.Shared`, and what was verified for each MCP update,
+is in [docs/design/intelligence-mcp-handover.md](design/intelligence-mcp-handover.md).
+
 ### Building the installer
 
 Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php)
