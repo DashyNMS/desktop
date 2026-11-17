@@ -17,11 +17,12 @@ $stage = Join-Path $root "artifacts/package-staging/$Version/$Runtime"
 $output = Join-Path $root "artifacts/packages/$Version/$Runtime"
 if ((Test-Path $stage) -or (Test-Path $output)) { throw 'This package version already has output. Use a new version or a fresh checkout.' }
 $publish = Join-Path $stage 'publish'
-New-Item $output -ItemType Directory -Force | Out-Null
 $mcpName = if ($IsWindows) { 'dashynms-mcp.exe' } else { 'dashynms-mcp' }
 foreach ($file in @($mcpName,'LICENSE','NOTICES.md','BUILD.txt','version.json','third-party/inventory.json')) {
     if (-not (Test-Path "$root/artifacts/mcp/$Runtime/$file" -PathType Leaf)) { throw "Build the $Runtime MCP bundle first; missing $file." }
 }
+# Only once the bundle is complete, so a rebuilt bundle can be retried with the same version.
+New-Item $output -ItemType Directory -Force | Out-Null
 function Check-Native([string]$step) { if ($LASTEXITCODE -ne 0) { throw "$step failed with exit code $LASTEXITCODE." } }
 function Download-Verified([string]$url, [string]$path, [string]$sha256) {
     Invoke-WebRequest $url -OutFile $path

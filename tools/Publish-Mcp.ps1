@@ -97,7 +97,8 @@ try {
     }
     $shippedAssets = Join-Path $legal 'project.assets.json'
     $assets | ConvertTo-Json -Depth 64 -Compress | Set-Content -LiteralPath $shippedAssets -Encoding utf8NoBOM
-    & $python -I (Join-Path $legal 'scripts/collect-dependency-notices.py') $shippedAssets (Join-Path $output 'third-party') (Join-Path $legal 'docs/dependency-licences')
+    # UTF-8 mode: -I ignores PYTHONUTF8, and a NuGet cache under a non-ASCII user name must still resolve.
+    & $python -I -X utf8 (Join-Path $legal 'scripts/collect-dependency-notices.py') $shippedAssets (Join-Path $output 'third-party') (Join-Path $legal 'docs/dependency-licences')
     if ($LASTEXITCODE -ne 0) { throw 'The network tools'' dependency notices are incomplete.' }
 
     $framework = $assets.project.frameworks.Values | Select-Object -First 1
