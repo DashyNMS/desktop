@@ -15,7 +15,8 @@ public sealed class MarkdownFenceTests
     public void Backtick_and_tilde_fences_open_code(string line, char marker, int length)
     {
         Assert.True(MarkdownFence.TryOpen(line, out var fence));
-        Assert.Equal(new MarkdownFence(marker, length), fence);
+        Assert.Equal((marker, length), (fence.Marker, fence.Length));
+        Assert.Equal(line[..(line.Length - line.TrimStart().Length)] + new string(marker, length), fence.Closer);
     }
 
     [Theory]
@@ -107,6 +108,13 @@ public sealed class MarkdownFenceTests
         Assert.Equal("    show run", Assert.Single(blocks.OfType<ChatCodeBlock>()).Text);
         Assert.IsNotType<ChatCodeBlock>(blocks[^1]);
         Assert.Null(MarkdownFence.Unclosed("- step\n    ~~~\n    show run"));
+
+        // The closer keeps the opener's indent, so the strict export never reads it as a new fence.
+        Assert.Contains("\n    ~~~\n", restored.Text, StringComparison.Ordinal);
+        var export = IntelligenceChatMarkdown.Write(new ExportedChat("Chat", DateTimeOffset.UnixEpoch,
+            [new(false, null, restored.Text, [], null), new(true, null, "Next question", [], null)]), (_, _, _) => "");
+        Assert.DoesNotContain("~~~\n\n---", export, StringComparison.Ordinal);
+        Assert.Null(MarkdownFence.Unclosed(export));
     }
 
     [Fact]

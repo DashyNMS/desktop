@@ -6,10 +6,10 @@ namespace DesktopNMS.Services.Intelligence;
 /// with nothing after it, closes it, so a shorter fence, the other character or
 /// a fence with a language after it stays inside the code.
 /// </summary>
-public readonly record struct MarkdownFence(char Marker, int Length)
+public readonly record struct MarkdownFence(char Marker, int Length, string Indent = "")
 {
-    /// <summary>The line that closes this block.</summary>
-    public string Closer => new(Marker, Length);
+    /// <summary>The line that closes this block, indented like its opener so no reader takes it for a new fence.</summary>
+    public string Closer => Indent + new string(Marker, Length);
 
     /// <param name="nested">For display, which has no nested blocks: code indented under a list item still counts.</param>
     public static bool TryOpen(string line, out MarkdownFence fence, bool nested = false)
@@ -22,7 +22,7 @@ public readonly record struct MarkdownFence(char Marker, int Length)
 
         // A backtick fence's language can't contain a backtick: that's inline code.
         if (length < 3 || (text[0] == '`' && text.AsSpan(length).Contains('`'))) return false;
-        fence = new MarkdownFence(text[0], length);
+        fence = new MarkdownFence(text[0], length, line[..(line.Length - line.TrimStart().Length)]);
         return true;
     }
 
