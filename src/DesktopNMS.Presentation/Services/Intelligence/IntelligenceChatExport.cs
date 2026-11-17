@@ -174,6 +174,9 @@ public static partial class IntelligenceChatMarkdown
             for (var i = 0; i < message.Images.Count; i++)
                 text.Append("![Graph ").Append(i + 1).Append("](").Append(saveImage(answer, i + 1, message.Images[i])).Append(")\n\n");
             if (message.Markdown.Length > 0) text.Append(DemoteHeadings(message.Markdown)).Append('\n');
+
+            // An answer stopped mid-code would otherwise swallow every later message.
+            if (MarkdownFence.Unclosed(message.Markdown) is { } open) text.Append(open.Closer).Append('\n');
         }
 
         return text.ToString().TrimEnd() + "\n";
@@ -186,16 +189,22 @@ public static partial class IntelligenceChatMarkdown
     internal static string DemoteHeadings(string markdown)
     {
         var lines = markdown.Replace("\r\n", "\n").Split('\n');
-        var inCode = false;
+        MarkdownFence? code = null;
         for (var i = 0; i < lines.Length; i++)
         {
-            if (lines[i].TrimStart().StartsWith("```", StringComparison.Ordinal))
+            if (code is { } open)
             {
-                inCode = !inCode;
+                if (open.IsClosedBy(lines[i])) code = null;
                 continue;
             }
 
-            if (!inCode && HeadingLine().Match(lines[i]) is { Success: true } heading)
+            if (MarkdownFence.TryOpen(lines[i], out var fence))
+            {
+                code = fence;
+                continue;
+            }
+
+            if (HeadingLine().Match(lines[i]) is { Success: true } heading)
                 lines[i] = new string('#', Math.Min(6, heading.Groups[1].Length + 2)) + heading.Groups[2].Value;
         }
 

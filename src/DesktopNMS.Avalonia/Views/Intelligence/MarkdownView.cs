@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using DesktopNMS.Core.Intelligence;
+using DesktopNMS.Services.Intelligence;
 using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views.Intelligence;
@@ -116,12 +117,12 @@ public sealed partial class MarkdownView : Decorator
                 continue;
             }
 
-            // ``` fenced code
-            if (trimmed.StartsWith("```", StringComparison.Ordinal))
+            // ``` or ~~~ fenced code, closed only by a matching fence
+            if (MarkdownFence.TryOpen(trimmed, out var fence))
             {
                 var code = new StringBuilder();
                 i++;
-                while (i < lines.Length && !lines[i].Trim().StartsWith("```", StringComparison.Ordinal))
+                while (i < lines.Length && !fence.IsClosedBy(lines[i]))
                 {
                     if (code.Length > 0)
                     {
@@ -289,7 +290,7 @@ public sealed partial class MarkdownView : Decorator
     private bool StartsBlock(string[] lines, int i)
     {
         var t = lines[i].Trim();
-        return t.StartsWith("```", StringComparison.Ordinal)
+        return MarkdownFence.TryOpen(t, out _)
                || Heading().IsMatch(t)
                || RuleLine().IsMatch(t)
                || t.StartsWith('>')
