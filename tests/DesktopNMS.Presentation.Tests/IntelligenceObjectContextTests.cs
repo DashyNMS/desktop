@@ -105,7 +105,7 @@ public sealed class IntelligenceObjectContextTests
     public async Task Scope_rechecks_parent_device_and_alert_source_before_accepting_an_object()
     {
         var sensors = Proxy<ISensorsApi>((_, _) => Task.FromResult<IReadOnlyList<Sensor>>(new[] { new Sensor { SensorId = 73, DeviceId = 12 } }));
-        var alerts = Proxy<IAlertsApi>((_, _) => Task.FromResult<Alert?>(new Alert { Id = 73, DeviceId = 12, RuleId = 4, Source = AlertSource.Fault }));
+        var alerts = Proxy<IAlertsApi>((_, _) => Task.FromResult<IReadOnlyList<Alert>>(new[] { new Alert { Id = 73, DeviceId = 12, RuleId = 4, Source = AlertSource.Fault } }));
         var client = Proxy<ILibreNmsClient>((method, _) => method.Name == "get_Sensors" ? sensors : alerts);
         var context = Context(client);
         Assert.Null(await context.ResolveObjectAsync(IntelligenceObjectTargets.Create(new("sensor", 73, 99), "Wrong parent")!, default));
@@ -156,7 +156,7 @@ public sealed class IntelligenceObjectContextTests
         Assert.Equal(3, chats.Chats.Count);
     }
 
-    private static IntelligenceContextViewModel Context(ILibreNmsClient client)
+    internal static IntelligenceContextViewModel Context(ILibreNmsClient client)
     {
         var settings = Proxy<ISettingsStore>((_, _) => new AppSettings());
         var devices = Proxy<IDeviceCache>((_, _) => null);
