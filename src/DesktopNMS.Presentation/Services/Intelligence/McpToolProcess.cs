@@ -100,7 +100,7 @@ internal sealed class StdioMcpToolProcess : IMcpToolProcess
                 ClientInfo = new Implementation { Name = "DashyNMS desktop", Version = typeof(McpToolHost).Assembly.GetName().Version?.ToString(3) ?? "0.0.0" },
             }, NullLoggerFactory.Instance, startTimeout.Token).ConfigureAwait(false);
 
-            var listed = await client.ListToolsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+            var listed = await client.ListToolsAsync(cancellationToken: startTimeout.Token).ConfigureAwait(false);
             var tools = listed
                 .Where(t => IntelligenceToolAllowlist.Names.Contains(t.Name))
                 .Select(t => new IntelligenceTool(t.Name, t.Description ?? string.Empty, t.JsonSchema))

@@ -47,7 +47,6 @@
   <ItemGroup>
     <InternalsVisibleTo Include="DashyNMS" />
     <InternalsVisibleTo Include="DesktopNMS.Presentation.Tests" />
-    <InternalsVisibleTo Include="DesktopNMS.Presentation.Tests" />
   </ItemGroup>
 
   <ItemGroup>

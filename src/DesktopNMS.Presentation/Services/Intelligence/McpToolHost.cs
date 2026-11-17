@@ -33,9 +33,11 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
 {
     public static string ExecutableName => OperatingSystem.IsWindows() ? "dashynms-mcp.exe" : "dashynms-mcp";
 
-    private static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(90);
-
     internal const string Discarded = "The LibreNMS connection or Intelligence settings changed during this lookup, so its result was discarded.";
+
+    internal const string Interrupted = "The network tools stopped during this lookup, so its result was discarded. They'll start again on the next lookup.";
+
+    private readonly TimeSpan _callTimeout;
 
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
@@ -63,7 +65,7 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
         IGraylogPasswordProtector graylogPassword,
         ILoggerFactory loggerFactory,
         DesktopNMS.Core.Sensors.SensorDefinitionStore? sensorDefinitions = null)
-        : this(session, settings, unimusToken, graylogPassword, loggerFactory, sensorDefinitions, start: null)
+        : this(session, settings, unimusToken, graylogPassword, loggerFactory, sensorDefinitions, start: null, callTimeout: null)
     {
     }
 
@@ -74,7 +76,8 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
         IGraylogPasswordProtector graylogPassword,
         ILoggerFactory loggerFactory,
         DesktopNMS.Core.Sensors.SensorDefinitionStore? sensorDefinitions,
-        McpToolProcessStart? start)
+        McpToolProcessStart? start,
+        TimeSpan? callTimeout)
     {
         _session = session;
         _sensorDefinitions = sensorDefinitions;
@@ -82,6 +85,7 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
         _unimusToken = unimusToken;
         _graylogPassword = graylogPassword;
         _logger = loggerFactory.CreateLogger<McpToolHost>();
+        _callTimeout = callTimeout ?? TimeSpan.FromSeconds(90);
         _start = start ?? ((values, token) => StdioMcpToolProcess.StartAsync(ExecutablePath, values, _logger, token));
         _session.StateChanged += OnSourcesChanged;
         _settings.Changed += OnSettingsChanged;
@@ -104,7 +108,7 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
 
         var args = arguments.EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value.Clone());
         using var call = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, generation.Retired);
-        call.CancelAfter(CallTimeout);
+        call.CancelAfter(_callTimeout);
 
         IntelligenceToolResult result;
         try
@@ -113,25 +117,26 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            if (generation.Retired.IsCancellationRequested) return new IntelligenceToolResult(Discarded, IsError: true);
+            if (generation.Retired.IsCancellationRequested) return new IntelligenceToolResult(generation.Reason, IsError: true);
 
             // An unresponsive server isn't asked again; the next lookup starts a fresh one.
             _logger.LogWarning("Intelligence: tool {Tool} timed out; the network tools will restart", name);
-            await RetireAsync(generation).ConfigureAwait(false);
-            return new IntelligenceToolResult($"{name} took longer than {CallTimeout.TotalSeconds:0} seconds.", IsError: true);
+            await RetireAsync(generation, Interrupted).ConfigureAwait(false);
+            return new IntelligenceToolResult($"{name} took longer than {_callTimeout.TotalSeconds:0} seconds.", IsError: true);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            if (generation.Retired.IsCancellationRequested) return new IntelligenceToolResult(Discarded, IsError: true);
+            if (generation.Retired.IsCancellationRequested) return new IntelligenceToolResult(generation.Reason, IsError: true);
             _logger.LogWarning("Intelligence: tool {Tool} failed ({ErrorType})", name, ex.GetType().Name);
 
             // This generation only: a newer one may already be answering.
-            await RetireAsync(generation).ConfigureAwait(false);
+            await RetireAsync(generation, Interrupted).ConfigureAwait(false);
             return new IntelligenceToolResult("The network tools stopped unexpectedly. They'll start again on the next question.", IsError: true);
         }
 
         // A result arriving after a sign-out, switch or saved change answers for the old ones.
-        return IsCurrent(generation) ? result : new IntelligenceToolResult(Discarded, IsError: true);
+        if (IsCurrent(generation)) return result;
+        return new IntelligenceToolResult(generation.Retired.IsCancellationRequested ? generation.Reason : Discarded, IsError: true);
     }
 
     /// <summary>Stops the server - on disconnect, sign-out or exit - including one still starting.</summary>
@@ -149,7 +154,7 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
 
         if (Volatile.Read(ref _current) is { } current)
         {
-            await RetireAsync(current).ConfigureAwait(false);
+            await RetireAsync(current, Discarded).ConfigureAwait(false);
         }
     }
 
@@ -166,63 +171,83 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            List<KeyValuePair<string, string>> settings;
-            try
+            // A switch or saved change during a start retires what started; the
+            // next attempt starts for the new settings, or reports the sign-out.
+            for (var attempt = 1; ; attempt++)
             {
-                settings = CurrentSettings()
-                           ?? throw new IntelligenceException("Connect DashyNMS to LibreNMS first.", IntelligenceFailure.Network);
+                if (await AcquireOnceAsync(cancellationToken).ConfigureAwait(false) is { } generation) return generation;
+                if (attempt == 3) throw StoppedWhileStarting();
             }
-            catch (IntelligenceException)
-            {
-                // Signed out, or settings it can't use: nothing keeps the old server running.
-                await StopAsync().ConfigureAwait(false);
-                throw;
-            }
-
-            var identity = Identity(settings);
-            if (Volatile.Read(ref _current) is { } current)
-            {
-                if (current.Identity == identity && !current.Process.Completion.IsCompleted) return current;
-                await RetireAsync(current).ConfigureAwait(false);
-            }
-
-            var stops = Interlocked.Read(ref _stops);
-            IMcpToolProcess process;
-            using (var starting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
-            {
-                Volatile.Write(ref _starting, starting);
-                try
-                {
-                    process = await _start(settings, starting.Token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                {
-                    throw StoppedWhileStarting();
-                }
-                finally
-                {
-                    Volatile.Write(ref _starting, null);
-                }
-            }
-
-            var generation = new Generation(process, identity);
-            Volatile.Write(ref _current, generation);
-
-            // A stop while it started - sign-out, Intelligence turned off - wins.
-            if (Interlocked.Read(ref _stops) != stops)
-            {
-                await RetireAsync(generation).ConfigureAwait(false);
-                throw StoppedWhileStarting();
-            }
-
-            NotifyVersionChanged();
-            _ = ObserveCompletionAsync(generation);
-            return generation;
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>One attempt, under the gate: the generation, or null when it no longer matched once started.</summary>
+    private async Task<Generation?> AcquireOnceAsync(CancellationToken cancellationToken)
+    {
+        List<KeyValuePair<string, string>> settings;
+        try
+        {
+            settings = CurrentSettings()
+                       ?? throw new IntelligenceException("Connect DashyNMS to LibreNMS first.", IntelligenceFailure.Network);
+        }
+        catch (IntelligenceException)
+        {
+            // Signed out, or settings it can't use: nothing keeps the old server running.
+            await StopAsync().ConfigureAwait(false);
+            throw;
+        }
+
+        var identity = Identity(settings);
+        if (Volatile.Read(ref _current) is { } current)
+        {
+            if (current.Identity == identity && !current.Process.Completion.IsCompleted) return current;
+            await RetireAsync(current, Discarded).ConfigureAwait(false);
+        }
+
+        var stops = Interlocked.Read(ref _stops);
+        IMcpToolProcess process;
+        using (var starting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+        {
+            Volatile.Write(ref _starting, starting);
+            try
+            {
+                process = await _start(settings, starting.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw StoppedWhileStarting();
+            }
+            finally
+            {
+                Volatile.Write(ref _starting, null);
+            }
+        }
+
+        var generation = new Generation(process, identity);
+        Volatile.Write(ref _current, generation);
+
+        // A stop while it started - Intelligence turned off, exit - wins.
+        if (Interlocked.Read(ref _stops) != stops)
+        {
+            await RetireAsync(generation, Discarded).ConfigureAwait(false);
+            throw StoppedWhileStarting();
+        }
+
+        // A sign-out, switch or saved change while it started: it holds the old
+        // settings, so it never keeps running, even with nothing else to retire it.
+        if (!IsCurrent(generation))
+        {
+            await RetireAsync(generation, Discarded).ConfigureAwait(false);
+            return null;
+        }
+
+        NotifyVersionChanged();
+        _ = ObserveCompletionAsync(generation);
+        return generation;
     }
 
     private static IntelligenceException StoppedWhileStarting()
@@ -266,7 +291,7 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
         {
             if (Volatile.Read(ref _current) is { } current && !IsCurrent(current))
             {
-                await RetireAsync(current).ConfigureAwait(false);
+                await RetireAsync(current, Discarded).ConfigureAwait(false);
             }
         }
         catch (Exception ex)
@@ -276,25 +301,38 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
     }
 
     /// <summary>Cancels a generation's lookups and stops its server, leaving any newer one alone.</summary>
-    private async Task RetireAsync(Generation generation)
+    /// <remarks>Every caller waits for the same stop, so exit never moves on while a server is still stopping.</remarks>
+    private async Task RetireAsync(Generation generation, string reason)
     {
-        if (ReferenceEquals(Interlocked.CompareExchange(ref _current, null, generation), generation))
-        {
-            NotifyVersionChanged();
-        }
+        var wasCurrent = ReferenceEquals(Interlocked.CompareExchange(ref _current, null, generation), generation);
+        await generation.RetireAsync(reason, StopProcessAsync).ConfigureAwait(false);
+        if (wasCurrent) NotifyVersionChanged();
 
-        if (!generation.Retire()) return;
-        try
+        async Task StopProcessAsync()
         {
-            await generation.Process.DisposeAsync().ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug("Intelligence: stopping the network tools ({ErrorType})", ex.GetType().Name);
+            try
+            {
+                await generation.Process.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug("Intelligence: stopping the network tools ({ErrorType})", ex.GetType().Name);
+            }
         }
     }
 
-    private void NotifyVersionChanged() => VersionChanged?.Invoke(this, EventArgs.Empty);
+    private void NotifyVersionChanged()
+    {
+        try
+        {
+            VersionChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            // A listener's failure never stops a server being retired or kept.
+            _logger.LogDebug("Intelligence: a version listener failed ({ErrorType})", ex.GetType().Name);
+        }
+    }
 
     private async Task ObserveCompletionAsync(Generation generation)
     {
@@ -314,7 +352,8 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
     private sealed class Generation(IMcpToolProcess process, string identity)
     {
         private readonly CancellationTokenSource _retired = new();
-        private int _retiring;
+        private readonly object _sync = new();
+        private Task? _stopped;
 
         public IMcpToolProcess Process { get; } = process;
         public string Identity { get; } = identity;
@@ -322,12 +361,23 @@ public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
         /// <summary>Cancelled when retired, ending its lookups.</summary>
         public CancellationToken Retired => _retired.Token;
 
-        /// <summary>Marks it retired; true only for the first caller, who stops it.</summary>
-        public bool Retire()
+        /// <summary>What its unfinished lookups are told: superseded, or the server itself stopped.</summary>
+        public string Reason { get; private set; } = Discarded;
+
+        /// <summary>Retires it once; later callers wait for that same stop.</summary>
+        public Task RetireAsync(string reason, Func<Task> stop)
         {
-            if (Interlocked.Exchange(ref _retiring, 1) == 1) return false;
-            _retired.Cancel();
-            return true;
+            lock (_sync)
+            {
+                if (_stopped is null)
+                {
+                    Reason = reason;
+                    _retired.Cancel();
+                    _stopped = stop();
+                }
+
+                return _stopped;
+            }
         }
     }
 }

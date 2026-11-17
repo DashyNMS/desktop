@@ -158,6 +158,73 @@ public sealed class McpToolHostGenerationTests
     }
 
     [Fact]
+    public async Task Signing_out_while_the_server_starts_never_leaves_it_running()
+    {
+        var harness = new Harness(Network("token-a"));
+        var release = harness.HoldNextStart(ignoreCancellation: true);
+        var starting = harness.Host.GetToolsAsync(CancellationToken.None);
+        await harness.StartRequested;
+
+        // Nothing is running yet, so the event alone has nothing to retire.
+        harness.Session.Connection = null;
+        harness.Session.Raise();
+        release.SetResult();
+
+        var failure = await Assert.ThrowsAsync<IntelligenceException>(() => starting);
+        Assert.Equal(IntelligenceFailure.Network, failure.Failure);
+        Assert.True(harness.Started.Single().Disposed);
+        Assert.Null(harness.Host.ReportedVersion);
+    }
+
+    [Fact]
+    public async Task A_switch_while_the_server_starts_starts_again_for_the_new_account()
+    {
+        var harness = new Harness(Network("token-a"));
+        var release = harness.HoldNextStart(ignoreCancellation: true);
+        var starting = harness.Host.GetToolsAsync(CancellationToken.None);
+        await harness.StartRequested;
+
+        harness.Session.Connection = Network("token-b");
+        release.SetResult();
+        await starting;
+
+        Assert.Equal(new[] { "token-a", "token-b" }, harness.Started.Select(p => p.Value("LIBRENMS_TOKEN")));
+        Assert.True(harness.Started[0].Disposed);
+        Assert.False(harness.Started[1].Disposed);
+    }
+
+    [Fact]
+    public async Task An_unresponsive_lookup_retires_its_server_and_the_next_lookup_starts_a_fresh_one()
+    {
+        var harness = new Harness(Network("token-a"), callTimeout: TimeSpan.FromMilliseconds(100));
+        harness.HoldNextCall();
+
+        var result = await harness.Host.CallAsync("find_device", NoArguments, CancellationToken.None);
+
+        Assert.True(result.IsError);
+        Assert.Contains("took longer than", result.Output, StringComparison.Ordinal);
+        Assert.True(harness.Started.Single().Disposed);
+        await harness.Host.GetToolsAsync(CancellationToken.None);
+        Assert.Equal(2, harness.Started.Count);
+    }
+
+    [Fact]
+    public async Task Lookups_alongside_a_failed_one_say_the_tools_stopped_not_that_settings_changed()
+    {
+        var harness = new Harness(Network("token-a"));
+        var failing = harness.HoldNextCall();
+        harness.HoldNextCall();
+        var first = harness.Host.CallAsync("find_device", NoArguments, CancellationToken.None);
+        var second = harness.Host.CallAsync("device_sensors", NoArguments, CancellationToken.None);
+        await harness.CallsStartedAsync(2);
+
+        failing.SetException(new IOException("pipe closed"));
+
+        Assert.Contains("stopped unexpectedly", (await first).Output, StringComparison.Ordinal);
+        Assert.Equal(McpToolHost.Interrupted, (await second).Output);
+    }
+
+    [Fact]
     public async Task Cancelling_a_question_ends_its_lookup_without_retiring_the_server()
     {
         var harness = new Harness(Network("token-a"));
@@ -186,16 +253,17 @@ public sealed class McpToolHostGenerationTests
 
     private sealed class Harness
     {
-        private TaskCompletionSource<IntelligenceToolResult>? _heldCall;
+        private readonly Queue<TaskCompletionSource<IntelligenceToolResult>> _heldCalls = new();
+        private readonly SemaphoreSlim _heldCallsStarted = new(0);
         private TaskCompletionSource? _heldStart;
         private bool _startIgnoresCancellation;
         private readonly TaskCompletionSource _callStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _startRequested = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Harness(LibreNmsConnection connection)
+        public Harness(LibreNmsConnection connection, TimeSpan? callTimeout = null)
         {
             Session = new Session { Connection = connection };
-            Host = new McpToolHost(Session, Settings, new NoSecret(), new NoSecret(), NullLoggerFactory.Instance, null, StartAsync);
+            Host = new McpToolHost(Session, Settings, new NoSecret(), new NoSecret(), NullLoggerFactory.Instance, null, StartAsync, callTimeout);
         }
 
         public Session Session { get; }
@@ -206,7 +274,17 @@ public sealed class McpToolHostGenerationTests
         public Task StartRequested => _startRequested.Task;
 
         public TaskCompletionSource<IntelligenceToolResult> HoldNextCall()
-            => _heldCall = new TaskCompletionSource<IntelligenceToolResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        {
+            var held = new TaskCompletionSource<IntelligenceToolResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_heldCalls) _heldCalls.Enqueue(held);
+            return held;
+        }
+
+        /// <summary>Waits until this many held calls have reached the server.</summary>
+        public async Task CallsStartedAsync(int count)
+        {
+            for (var i = 0; i < count; i++) await _heldCallsStarted.WaitAsync(TimeSpan.FromSeconds(10));
+        }
 
         public TaskCompletionSource HoldNextStart(bool ignoreCancellation)
         {
@@ -231,9 +309,11 @@ public sealed class McpToolHostGenerationTests
 
         public async Task<IntelligenceToolResult> CallAsync(CancellationToken cancellationToken)
         {
-            if (_heldCall is not { } held) return new IntelligenceToolResult("{\"status\":\"ok\"}", false);
-            _heldCall = null;
+            TaskCompletionSource<IntelligenceToolResult>? held;
+            lock (_heldCalls) _heldCalls.TryDequeue(out held);
+            if (held is null) return new IntelligenceToolResult("{\"status\":\"ok\"}", false);
             _callStarted.TrySetResult();
+            _heldCallsStarted.Release();
 
             // Like a transport that may ignore cancellation: the result can still arrive later.
             var cancelled = new TaskCompletionSource<IntelligenceToolResult>();

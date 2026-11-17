@@ -158,7 +158,9 @@ public sealed class McpBundleTests
         Assert.Equal(IntelligenceToolAllowlist.Names.Count, process.Tools.Count);
         Assert.False(result.IsError, result.Output);
         using var json = JsonDocument.Parse(result.Output);
-        Assert.All(json.RootElement.GetProperty("data").GetProperty("readings").EnumerateArray(),
+        var readings = json.RootElement.GetProperty("data").GetProperty("readings").EnumerateArray().ToList();
+        Assert.NotEmpty(readings);
+        Assert.All(readings,
             reading => Assert.Equal("critical", reading.GetProperty("state").GetString()));
     }
 
