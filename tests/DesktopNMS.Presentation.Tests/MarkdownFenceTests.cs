@@ -94,6 +94,22 @@ public sealed class MarkdownFenceTests
     }
 
     [Fact]
+    public void An_interrupted_answer_with_code_under_a_list_item_shows_its_note_outside_that_code()
+    {
+        var restored = DesktopNMS.ViewModels.IntelligenceMessageViewModel.Restore(new DesktopNMS.Core.Intelligence.SavedIntelligenceMessage
+        {
+            Text = "- step\n    ~~~\n    show run",
+            IsIncomplete = true,
+        });
+
+        var blocks = ChatMarkdownBlocks.Parse(restored.Text);
+
+        Assert.Equal("    show run", Assert.Single(blocks.OfType<ChatCodeBlock>()).Text);
+        Assert.IsNotType<ChatCodeBlock>(blocks[^1]);
+        Assert.Null(MarkdownFence.Unclosed("- step\n    ~~~\n    show run"));
+    }
+
+    [Fact]
     public void In_an_export_a_later_question_stays_outside_an_earlier_answer_s_unfinished_code()
     {
         var chat = new ExportedChat("Chat", DateTimeOffset.UnixEpoch,

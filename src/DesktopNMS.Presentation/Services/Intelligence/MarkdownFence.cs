@@ -44,16 +44,17 @@ public readonly record struct MarkdownFence(char Marker, int Length)
     }
 
     /// <summary>The fence still open at the end of <paramref name="markdown"/> - an answer stopped mid-code - or null.</summary>
-    public static MarkdownFence? Unclosed(string markdown)
+    /// <param name="nested">Scan as the chat view and PDF do, for text they will show.</param>
+    public static MarkdownFence? Unclosed(string markdown, bool nested = false)
     {
         MarkdownFence? open = null;
         foreach (var line in markdown.Replace("\r\n", "\n").Split('\n'))
         {
             if (open is { } fence)
             {
-                if (fence.IsClosedBy(line)) open = null;
+                if (fence.IsClosedBy(line, nested)) open = null;
             }
-            else if (TryOpen(line, out var opened))
+            else if (TryOpen(line, out var opened, nested))
             {
                 open = opened;
             }
