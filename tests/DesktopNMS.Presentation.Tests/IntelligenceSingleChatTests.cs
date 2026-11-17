@@ -36,6 +36,55 @@ public sealed class IntelligenceSingleChatTests
     }
 
     [Fact]
+    public void A_deleted_chat_s_queued_autosave_never_writes_it_back()
+    {
+        var timer = new TestTimer();
+        var host = new Host();
+        var store = new RecordingStore();
+        var windows = Proxy<IWindowService>((method, _) => method.Name == "Confirm" ? true : null);
+        using var chats = new IntelligenceChatListViewModel(host, store, windows, UiThread.Dispatcher, NullLogger.Instance, timer);
+        chats.EnsureScope();
+        var deleted = chats.SelectedChat!.Data.Id;
+        host.FillTemporary();
+        chats.QueueSave();
+
+        chats.DeleteChatCommand.Execute(chats.SelectedChat);
+        timer.FireQueuedTick();
+        chats.SaveActive();
+        chats.Dispose();
+
+        // One writer, in order: nothing saved after the delete may be the deleted chat.
+        var calls = store.Calls.ToArray();
+        var savedBeforeDelete = calls.TakeWhile(call => call != "delete").Count(call => call == "save");
+        Assert.Contains("delete", calls);
+        Assert.DoesNotContain(store.Saved.Skip(savedBeforeDelete), chat => chat.Id == deleted);
+        Assert.DoesNotContain(store.Saved, chat => chat.Draft == "temporary draft" && chat.Id == deleted);
+    }
+
+    [Fact]
+    public void Leaving_and_rejoining_single_chat_never_saves_the_temporary_conversation()
+    {
+        var timer = new TestTimer();
+        var host = new Host();
+        var store = new RecordingStore();
+        using var chats = new IntelligenceChatListViewModel(host, store, Proxy<IWindowService>(), UiThread.Dispatcher, NullLogger.Instance, timer);
+        chats.EnsureScope();
+        host.SingleChatMode = true;
+        chats.EnsureScope();
+        host.FillTemporary();
+        chats.QueueSave();
+        chats.SaveActive();
+
+        host.SingleChatMode = false;
+        chats.EnsureScope();
+        timer.FireQueuedTick();
+        chats.Dispose();
+
+        Assert.All(store.Saved, chat => Assert.DoesNotContain("temporary", chat.Draft ?? string.Empty));
+        Assert.All(store.Saved, chat => Assert.DoesNotContain(chat.Messages, message => message.Text == "temporary message"));
+    }
+
+    [Fact]
     public void Real_conversation_reset_clears_draft_messages_history_spotlight_and_companion()
     {
         var settings = new TestSettings();
