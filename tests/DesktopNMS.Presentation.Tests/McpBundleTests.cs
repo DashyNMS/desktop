@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Demo;
+using DesktopNMS.Services.Intelligence;
 using Microsoft.Extensions.Logging.Abstractions;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
@@ -138,6 +139,45 @@ public sealed class McpBundleTests
         var runtime = Assert.Single(Directory.GetDirectories(Path.Combine(folder, "third-party"), "microsoft.netcore.app.runtime.*"));
         Assert.True(File.Exists(Path.Combine(runtime, "LICENSE.TXT")));
         Assert.True(File.Exists(Path.Combine(runtime, "THIRD-PARTY-NOTICES.TXT")));
+    }
+
+    [McpBundleFact]
+    public async Task The_app_s_own_start_path_runs_the_bundle_with_its_saved_settings()
+    {
+        using var server = new DemoServer(new DemoFleet(), NullLogger.Instance);
+        server.Start();
+        var settings = new DesktopNMS.Core.Configuration.AppSettings { OverrideSensorLimitsWithAppThresholds = true };
+        settings.TemperatureThresholds.HighWarning = 20;
+        settings.TemperatureThresholds.HighCritical = 25;
+        var values = McpToolHost.ToolSettings(new DesktopNMS.Core.Api.LibreNmsConnection(server.Address, "example-token"), settings, () => null, () => null);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+
+        await using var process = await StdioMcpToolProcess.StartAsync(Executable, values, NullLogger.Instance, timeout.Token);
+        var result = await process.CallAsync("device_sensors", new Dictionary<string, object?> { ["device"] = "core-sw-01", ["type"] = "temperature" }, timeout.Token);
+
+        Assert.Equal(IntelligenceToolAllowlist.Names.Count, process.Tools.Count);
+        Assert.False(result.IsError, result.Output);
+        using var json = JsonDocument.Parse(result.Output);
+        Assert.All(json.RootElement.GetProperty("data").GetProperty("readings").EnumerateArray(),
+            reading => Assert.Equal("critical", reading.GetProperty("state").GetString()));
+    }
+
+    [McpBundleFact]
+    public async Task A_refused_start_gives_a_fixed_reason_and_none_of_the_server_s_output()
+    {
+        using var server = new DemoServer(new DemoFleet(), NullLogger.Instance);
+        server.Start();
+        var values = McpToolHost.ToolSettings(new DesktopNMS.Core.Api.LibreNmsConnection(server.Address, "secret-example-token"), new(), () => null, () => null)
+            .Where(p => p.Key != "MCP_TEMPERATURE_HIGH_WARNING")
+            .Append(new("MCP_TEMPERATURE_HIGH_WARNING", "900"))
+            .ToList();
+
+        var failure = await Assert.ThrowsAsync<IntelligenceException>(() => StdioMcpToolProcess.StartAsync(Executable, values, NullLogger.Instance, CancellationToken.None));
+
+        Assert.Equal(IntelligenceFailure.Tools, failure.Failure);
+        Assert.DoesNotContain("secret-example-token", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("MCP_", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("900", failure.Message, StringComparison.Ordinal);
     }
 
     internal static string Executable => Path.GetFullPath(Environment.GetEnvironmentVariable("DASHYNMS_TEST_MCP")!);
