@@ -928,6 +928,7 @@ public partial class App : Application
         services.AddSingleton<IIntelligenceChatPdfWriter, IntelligenceChatPdfWriter>();
         services.AddSingleton(provider => new IntelligenceChatExporter(provider.GetRequiredService<IIntelligenceChatPdfWriter>()));
         services.AddSingleton<IntelligenceViewModel>();
+        services.AddSingleton<NetworkSearchViewModel>();
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<GroupsViewModel>();
         services.AddSingleton<LocationsViewModel>();

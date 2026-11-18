@@ -73,6 +73,18 @@ public partial class MainWindow : Window
 
     private void OnFindKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
     {
+        // Ctrl+Shift+F (Cmd+Shift+F on macOS): Network Search from anywhere (#57).
+        // Ctrl/Cmd+F alone still filters the page you're on.
+        if (e.Key == Avalonia.Input.Key.F
+            && (e.KeyModifiers == (Avalonia.Input.KeyModifiers.Control | Avalonia.Input.KeyModifiers.Shift)
+                || e.KeyModifiers == (Avalonia.Input.KeyModifiers.Meta | Avalonia.Input.KeyModifiers.Shift))
+            && _viewModel is { ShowNetworkSearchTab: true } searchHost)
+        {
+            searchHost.OpenNetworkSearch();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key != Avalonia.Input.Key.F
             || (e.KeyModifiers != Avalonia.Input.KeyModifiers.Control && e.KeyModifiers != Avalonia.Input.KeyModifiers.Meta)
             || _viewModel is not { } viewModel)
@@ -91,6 +103,7 @@ public partial class MainWindow : Window
             { IsNetworkMapTabSelected: true } => NetworkMapViewControl.FocusSearch,
             { IsGeoMapTabSelected: true } => GeoMapViewControl.FocusSearch,
             { IsGraylogLogsTabSelected: true } => LogsViewControl.FocusSearch,
+            { IsNetworkSearchTabSelected: true } => NetworkSearchViewControl.FocusSearch,
 
             // The Dashboard has no search box yet.
             _ => null,
