@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Text.Json;
 
 namespace DesktopNMS.Demo;
@@ -37,6 +38,7 @@ internal sealed class DemoFleet
         AddRules();
         AddAlerts();
         AddEvents();
+        AddEndpoints();
     }
 
     /// <summary>The device the screenshots open Device Details on.</summary>
@@ -50,6 +52,173 @@ internal sealed class DemoFleet
 
     /// <summary>Pinned sensors for the dashboard: (sensor id, device id, class, device, description).</summary>
     public List<(int SensorId, int DeviceId, string Class, string Device, string Description)> PinnedSensors { get; } = new();
+
+    // ------------------------------------------------------------ Network Search (#57)
+
+    /// <summary>
+    /// Hosts LibreNMS doesn't monitor but routers and switches have seen, so
+    /// Network Search has something to find: a display alone on an access
+    /// port, a desk shared with a phone, and an address answering from two
+    /// MACs. Each is learned on its access port and on the core uplinks it
+    /// passes through, and resolved by the firewall. The forwarding table is
+    /// 26.9-shaped, so VLANs go through internal ids and the VLAN table.
+    /// </summary>
+    private void AddEndpoints()
+    {
+        void Host(string ip, string mac, (string Device, string Port, int Vlan, int Macs)[] seen, string router = "edge-fw-01", string routerPort = "ix1")
+        {
+            _arp.Add(new { id = 7000 + _arp.Count, port_id = PortOf(Device(router), routerPort)!.Id, device_id = Device(router).Id, mac_address = mac, ipv4_address = ip, context_name = string.Empty });
+            var age = 0;
+            foreach (var (device, port, vlan, macs) in seen)
+            {
+                var d = Device(device);
+                var p = PortOf(d, port)!;
+                _macsOnPort[p.Id] = macs;
+                _fdb.Add(new { ports_fdb_id = 8000 + _fdb.Count, port_id = p.Id, mac_address = mac, vlan_id = VlanId(d.Id, vlan), device_id = d.Id, created_at = Stamp(_now.AddDays(-12)), updated_at = Stamp(_now.AddMinutes(-(7 + age))) });
+                age += 2;
+            }
+        }
+
+        Host("192.0.2.117", "00005e005368", [("dist-sw-01", "Gi1/0/19", 20, 1), ("core-sw-01", "Te1/0/1", 20, 140), ("core-sw-02", "Te1/0/1", 20, 138)]);
+        Host("192.0.2.118", "00005e005369", [("dist-sw-02", "Gi1/0/12", 30, 3), ("core-sw-01", "Te1/0/2", 30, 96)]);
+        Host("192.0.2.200", "00005e005301", []);
+        Host("192.0.2.200", "00005e005302", []);
+
+        // The monitored devices on the DC1 network, as the firewall's ARP table has them.
+        foreach (var d in _devices.Where(d => d.Ip.StartsWith("192.0.2.", StringComparison.Ordinal) && d.Name != "edge-fw-01"))
+        {
+            _arp.Add(new { id = 7000 + _arp.Count, port_id = PortOf(Device("edge-fw-01"), "ix1")!.Id, device_id = Device("edge-fw-01").Id, mac_address = "00005e0054" + d.Id.ToString("x2", CultureInfo.InvariantCulture), ipv4_address = d.Ip, context_name = string.Empty });
+        }
+    }
+
+    private readonly List<object> _arp = new();
+    private readonly List<object> _fdb = new();
+    private readonly Dictionary<int, int> _macsOnPort = new();
+    private readonly List<(int Id, int DeviceId, int Number, string Name)> _vlans = new();
+
+    /// <summary>LibreNMS's internal VLAN row id for a device's VLAN - never the number itself.</summary>
+    private int VlanId(int deviceId, int number)
+    {
+        var existing = _vlans.FirstOrDefault(v => v.DeviceId == deviceId && v.Number == number);
+        if (existing.Id != 0)
+        {
+            return existing.Id;
+        }
+
+        var id = 900 + _vlans.Count + 1;
+        _vlans.Add((id, deviceId, number, number switch { 20 => "Displays", 30 => "Voice", _ => "VLAN" + number.ToString(CultureInfo.InvariantCulture) }));
+        return id;
+    }
+
+    private DemoResponse SearchRoute(string[] parts)
+    {
+        string Mac(object o) => (string)o.GetType().GetProperty("mac_address")!.GetValue(o)!;
+        string Ip(object o) => (string)o.GetType().GetProperty("ipv4_address")!.GetValue(o)!;
+        static string Hex(string text) => new string(text.Where(Uri.IsHexDigit).ToArray()).ToLowerInvariant();
+
+        if (parts[1] == "vlans")
+        {
+            return Collection("vlans", _vlans.Select(v => new { vlan_id = v.Id, device_id = v.DeviceId, vlan_vlan = v.Number, vlan_domain = 1, vlan_name = v.Name }));
+        }
+
+        if (parts[1] == "fdb")
+        {
+            var mac = Hex(parts[2]);
+            var rows = _fdb.Where(f => Mac(f) == mac).ToList();
+            if (rows.Count == 0)
+            {
+                return Fail(404, "Fdb entry does not exist");
+            }
+
+            return parts.Length >= 4 && parts[3] == "detail"
+                ? Ok(new Dictionary<string, object?> { ["ports_fdb"] = Array.Empty<object>(), ["count"] = rows.Count, ["mac"] = parts[2], ["mac_oui"] = "ICANN, IANA Department" })
+                : Collection("ports_fdb", rows);
+        }
+
+        // resources/ip/...
+        switch (parts[2])
+        {
+            case "arp" when parts.Length >= 4:
+                var q = parts[3];
+                if (q == "all")
+                {
+                    return Collection("arp", _arp);
+                }
+
+                if (parts.Length >= 5 && int.TryParse(parts[4], out var prefix) && IPAddress.TryParse(q, out var network))
+                {
+                    return Collection("arp", _arp.Where(a => InNetwork(Ip(a), network, prefix)));
+                }
+
+                return q.Contains(':')
+                    ? Collection("arp", _arp.Where(a => Mac(a) == Hex(q)))
+                    : Collection("arp", _arp.Where(a => Ip(a) == q));
+
+            case "networks" when parts.Length == 4 && parts[3] == "ipv4":
+                return Collection("ip_networks", Networks().Select(n => new { ipv4_network_id = n.Id, ipv4_network = n.Cidr, context_name = string.Empty }));
+
+            case "networks" when parts.Length == 4:
+                return Fail(404, "IPv6 Networks do not exist");
+
+            case "networks" when parts.Length == 5 && parts[4] == "ip" && Networks().FirstOrDefault(n => n.Id.ToString(CultureInfo.InvariantCulture) == parts[3]) is { Cidr: not null } net:
+                var (baseText, prefixText) = (net.Cidr.Split('/')[0], net.Cidr.Split('/')[1]);
+                var members = _devices.Where(d => InNetwork(d.Ip, IPAddress.Parse(baseText), int.Parse(prefixText, CultureInfo.InvariantCulture)))
+                    .Select(d => (Device: d, Port: d.Name == "edge-fw-01" ? PortOf(d, "ix1") : _ports.FirstOrDefault(p => p.DeviceId == d.Id)))
+                    .Where(m => m.Port is not null)
+                    .Select(m => new { ipv4_address_id = 6000 + m.Port!.Id, ipv4_address = m.Device.Ip, ipv4_prefixlen = 24, ipv4_network_id = net.Id, port_id = m.Port.Id, context_name = string.Empty });
+                return Ok(new Dictionary<string, object?> { ["addresses"] = members.ToList() });
+
+            default:
+                return Ok(new(), unhandled: true);
+        }
+    }
+
+    private static IEnumerable<(int Id, string Cidr)> Networks() =>
+        [(1, "192.0.2.0/24"), (2, "198.51.100.0/24"), (3, "203.0.113.0/24")];
+
+    private static bool InNetwork(string address, IPAddress network, int prefix)
+    {
+        if (!IPAddress.TryParse(address, out var ip) || ip.AddressFamily != network.AddressFamily)
+        {
+            return false;
+        }
+
+        var a = ip.GetAddressBytes();
+        var n = network.GetAddressBytes();
+        for (var i = 0; i < a.Length; i++)
+        {
+            var bits = Math.Clamp(prefix - (i * 8), 0, 8);
+            var mask = (byte)(0xFF << (8 - bits));
+            if ((a[i] & mask) != (n[i] & mask))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private DemoResponse PortRoute(string[] parts)
+    {
+        if (parts[1] == "mac" && parts.Length >= 3)
+        {
+            var mac = new string(parts[2].Where(Uri.IsHexDigit).ToArray()).ToLowerInvariant();
+            var portIds = _fdb.Where(f => (string)f.GetType().GetProperty("mac_address")!.GetValue(f)! == mac).Select(f => Prop(f, "port_id")).ToHashSet();
+            if (portIds.Count == 0)
+            {
+                return Fail(404, "mac not found");
+            }
+
+            return Collection("ports", _ports.Where(p => portIds.Contains(p.Id))
+                .Select(p => (Port: p, Count: _macsOnPort.GetValueOrDefault(p.Id, 1)))
+                .OrderBy(x => x.Count)
+                .Select(x => new { port_id = x.Port.Id, device_id = x.Port.DeviceId, ifName = x.Port.Name, ifDescr = x.Port.Name, ifAlias = x.Port.Alias, ifType = "ethernetCsmacd", fdb_entries_count = x.Count }));
+        }
+
+        return int.TryParse(parts[1], out var id)
+            ? Ok(new Dictionary<string, object?> { ["port"] = _ports.Where(p => p.Id == id).Select(PortJson).ToList() })
+            : Collection("ports", _ports.Select(PortJson));
+    }
 
     // ------------------------------------------------------------ routing
 
@@ -100,6 +269,13 @@ internal sealed class DemoFleet
                         netsnmp_ver = "NET-SNMP 5.9.4",
                     },
                 });
+
+            case "resources" when parts.Length >= 3 && parts[1] is "ip" or "fdb":
+            case "resources" when parts.Length == 2 && parts[1] == "vlans":
+                return SearchRoute(parts);
+
+            case "ports" when parts.Length >= 2:
+                return PortRoute(parts);
 
             case "devices" when parts.Length == 1:
                 return Collection("devices", _devices.Select(DeviceJson));
@@ -332,7 +508,7 @@ internal sealed class DemoFleet
         var names = d.Os switch
         {
             "iosxe" when d.Hardware.StartsWith("C9500", StringComparison.Ordinal) => new[] { "Te1/0/1", "Te1/0/2", "Te1/0/3", "Te1/0/4", "Te1/1/1", "Te1/1/2", "Gi0/0" },
-            "iosxe" => new[] { "Gi1/0/1", "Gi1/0/2", "Gi1/0/3", "Gi1/0/24", "Gi1/0/40", "Gi1/0/41", "Gi1/0/48", "Te1/1/1", "Te1/1/2" },
+            "iosxe" => new[] { "Gi1/0/1", "Gi1/0/2", "Gi1/0/3", "Gi1/0/12", "Gi1/0/19", "Gi1/0/24", "Gi1/0/40", "Gi1/0/41", "Gi1/0/48", "Te1/1/1", "Te1/1/2" },
             "junos" => new[] { "xe-0/0/0", "xe-0/0/1", "xe-0/0/2", "xe-0/0/3", "et-0/0/0", "fxp0" },
             "pfsense" => new[] { "ix0", "ix1", "ix2", "igc0" },
             "arista_eos" => new[] { "Ethernet1", "Ethernet2", "Ethernet10", "Ethernet49", "Ethernet50", "Management1" },
@@ -372,6 +548,8 @@ internal sealed class DemoFleet
         ("edge-fw-01", "ix0") => "outside",
         ("edge-fw-01", _) => "inside",
         (_, "Gi1/0/24") => "wlc-01",
+        ("dist-sw-01", "Gi1/0/19") => "Lobby display",
+        ("dist-sw-02", "Gi1/0/12") => "Desk 2F-14",
         (_, "Gi1/0/40") or (_, "Gi1/0/41") => "power management",
         _ => string.Empty,
     };
