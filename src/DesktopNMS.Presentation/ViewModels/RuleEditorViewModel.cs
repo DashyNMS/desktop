@@ -564,7 +564,7 @@ public sealed class RuleEditorViewModel : ObservableObject
     {
         var builder = IsConditionEditable ? JsonSerializer.Serialize(Root.ToNode()) : _source?.Builder;
         var sql = OverrideQuery ? AdvQuery : null;
-        RemovedColumns = AlertRuleCompatibility.FindRemovedColumns(builder, sql, ServerVersion ?? LibreNmsVersion.Faults);
+        RemovedColumns = AlertRuleCompatibility.FindRemovedColumns(builder, sql, ServerVersion);
     }
 
     private void RefreshForServerVersion()
