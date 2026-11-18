@@ -76,6 +76,44 @@ public sealed class IntelligenceChatExportTests
     }
 
     [Fact]
+    public void Graph_links_still_open_after_the_export_and_its_folder_are_moved_together()
+    {
+        var from = Directory.CreateTempSubdirectory("dashynms-export-");
+        var to = Directory.CreateTempSubdirectory("dashynms-shared-");
+        try
+        {
+            var answers = Enumerable.Range(1, 2).Select(n =>
+            {
+                var answer = IntelligenceMessageViewModel.Assistant();
+                answer.AddImage(new IntelligenceImage(new byte[] { (byte)n, 9 }, "image/png"));
+                answer.Text = $"Answer {n}.";
+                answer.Finish(IntelligenceReplyOutcome.Completed);
+                return answer;
+            }).ToArray();
+            const string Name = "Core (DC1) #2 50%";
+            new IntelligenceChatExporter().SaveMarkdown(ExportedChat.From(Name, answers, DateTimeOffset.UtcNow), Path.Combine(from.FullName, Name + ".md"));
+
+            File.Move(Path.Combine(from.FullName, Name + ".md"), Path.Combine(to.FullName, Name + ".md"));
+            Directory.Move(Path.Combine(from.FullName, Name + "-images"), Path.Combine(to.FullName, Name + "-images"));
+
+            var markdown = File.ReadAllText(Path.Combine(to.FullName, Name + ".md"));
+            var links = System.Text.RegularExpressions.Regex.Matches(markdown, @"!\[Graph \d+\]\(([^)\s]+)\)").Select(m => m.Groups[1].Value).ToList();
+            Assert.Equal(2, links.Count);
+            for (var i = 0; i < links.Count; i++)
+            {
+                Assert.DoesNotContain(' ', links[i]);
+                var file = Path.Combine(to.FullName, Uri.UnescapeDataString(links[i]).Replace('/', Path.DirectorySeparatorChar));
+                Assert.Equal(new byte[] { (byte)(i + 1), 9 }, File.ReadAllBytes(file));
+            }
+        }
+        finally
+        {
+            from.Delete(recursive: true);
+            to.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void A_question_is_plain_text_so_its_symbols_are_escaped()
     {
         var chat = ExportedChat.From("Chat", new[] { IntelligenceMessageViewModel.User("# not a heading\n1. not a list *or* [link]") }, DateTimeOffset.UtcNow);

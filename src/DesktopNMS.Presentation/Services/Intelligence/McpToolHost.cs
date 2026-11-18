@@ -1,9 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,9 +11,6 @@ using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Core.Security;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using ModelContextProtocol.Client;
-using ModelContextProtocol.Protocol;
 
 namespace DesktopNMS.Services.Intelligence;
 
@@ -27,15 +23,22 @@ namespace DesktopNMS.Services.Intelligence;
 /// process's. ChatGPT's tokens never reach it.
 /// </summary>
 /// <remarks>
-/// Started on first use and kept running; a crashed or exited server is
-/// started again on the next call, and a change of LibreNMS connection
-/// restarts it so it never answers for the previous network.
+/// Each started server is a generation, tied to the exact settings it was
+/// given. Started on first use and kept running; a crashed, exited or
+/// unresponsive server is replaced on the next call. Signing out, switching
+/// LibreNMS or saving a setting it uses retires the generation at once, and
+/// anything it was still looking up is discarded, so answers never come from
+/// the previous network, account or settings.
 /// </remarks>
-public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
+public sealed partial class McpToolHost : IIntelligenceTools, IAsyncDisposable
 {
     public static string ExecutableName => OperatingSystem.IsWindows() ? "dashynms-mcp.exe" : "dashynms-mcp";
 
-    private static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(90);
+    internal const string Discarded = "The LibreNMS connection or Intelligence settings changed while this lookup ran, so its result was dropped.";
+
+    internal const string Interrupted = "The network tools stopped while this lookup ran, so its result was dropped. They restart on the next question.";
+
+    private readonly TimeSpan _callTimeout;
 
     private readonly ISessionService _session;
     private readonly ISettingsStore _settings;
@@ -44,23 +47,18 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
     private readonly ILogger<McpToolHost> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly DesktopNMS.Core.Sensors.SensorDefinitionStore? _sensorDefinitions;
+    private readonly McpToolProcessStart _start;
+
+    private Generation? _current;
+    private readonly ConcurrentDictionary<Generation, Task> _retiring = new();
+    private CancellationTokenSource? _starting;
+
+    // Counted, so a start that finishes after a stop is thrown away rather than kept.
+    private long _stops;
 
     public event EventHandler? VersionChanged;
-    public string? ReportedVersion => _client is { } client && !client.Completion.IsCompleted
-        ? ComponentVersions.Clean(client.ServerInfo.Version) : null;
-
-    private void NotifyVersionChanged() => VersionChanged?.Invoke(this, EventArgs.Empty);
-
-    private async Task ObserveCompletionAsync(McpClient client)
-    {
-        await client.Completion.ConfigureAwait(false);
-        if (ReferenceEquals(_client, client)) NotifyVersionChanged();
-    }
-
-    private McpClient? _client;
-    private IReadOnlyList<IntelligenceTool>? _tools;
-    private Dictionary<string, McpClientTool> _byName = new();
-    private string? _startedFor;
+    public string? ReportedVersion => Volatile.Read(ref _current) is { } current && !current.Process.Completion.IsCompleted
+        ? ComponentVersions.Clean(current.Process.Version) : null;
 
     public McpToolHost(
         ISessionService session,
@@ -69,6 +67,19 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
         IGraylogPasswordProtector graylogPassword,
         ILoggerFactory loggerFactory,
         DesktopNMS.Core.Sensors.SensorDefinitionStore? sensorDefinitions = null)
+        : this(session, settings, unimusToken, graylogPassword, loggerFactory, sensorDefinitions, start: null, callTimeout: null)
+    {
+    }
+
+    internal McpToolHost(
+        ISessionService session,
+        ISettingsStore settings,
+        IUnimusTokenProtector unimusToken,
+        IGraylogPasswordProtector graylogPassword,
+        ILoggerFactory loggerFactory,
+        DesktopNMS.Core.Sensors.SensorDefinitionStore? sensorDefinitions,
+        McpToolProcessStart? start,
+        TimeSpan? callTimeout)
     {
         _session = session;
         _sensorDefinitions = sensorDefinitions;
@@ -76,6 +87,10 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
         _unimusToken = unimusToken;
         _graylogPassword = graylogPassword;
         _logger = loggerFactory.CreateLogger<McpToolHost>();
+        _callTimeout = callTimeout ?? TimeSpan.FromSeconds(90);
+        _start = start ?? ((values, token) => StdioMcpToolProcess.StartAsync(ExecutablePath, values, _logger, token));
+        _session.StateChanged += OnSourcesChanged;
+        _settings.Changed += OnSettingsChanged;
     }
 
     public static string ExecutablePath => Path.Combine(AppContext.BaseDirectory, "mcp", ExecutableName);
@@ -83,77 +98,237 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
     public static bool IsBundled => File.Exists(ExecutablePath);
 
     public async Task<IReadOnlyList<IntelligenceTool>> GetToolsAsync(CancellationToken cancellationToken)
-    {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
-            return _tools!;
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
+        => (await AcquireAsync(cancellationToken).ConfigureAwait(false)).Process.Tools;
 
     public async Task<IntelligenceToolResult> CallAsync(string name, JsonElement arguments, CancellationToken cancellationToken)
     {
-        McpClient client;
+        var generation = await AcquireAsync(cancellationToken).ConfigureAwait(false);
+        if (!generation.Process.Tools.Any(t => t.Name == name))
+        {
+            return new IntelligenceToolResult($"There is no tool called \"{name}\".", IsError: true);
+        }
+
+        var args = arguments.EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value.Clone());
+        using var call = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, generation.Retired);
+        call.CancelAfter(_callTimeout);
+
+        IntelligenceToolResult result;
+        try
+        {
+            result = await generation.Process.CallAsync(name, args, call.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            if (generation.Retired.IsCancellationRequested) return new IntelligenceToolResult(generation.Reason, IsError: true);
+
+            // An unresponsive server isn't asked again; the next lookup starts a fresh one.
+            _logger.LogWarning("Intelligence: tool {Tool} timed out; the network tools will restart", name);
+            await RetireAsync(generation, Interrupted).ConfigureAwait(false);
+            return new IntelligenceToolResult($"{name} took longer than {_callTimeout.TotalSeconds:0} seconds.", IsError: true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            if (generation.Retired.IsCancellationRequested) return new IntelligenceToolResult(generation.Reason, IsError: true);
+            _logger.LogWarning("Intelligence: tool {Tool} failed ({ErrorType})", name, ex.GetType().Name);
+
+            // This generation only: a newer one may already be answering.
+            await RetireAsync(generation, Interrupted).ConfigureAwait(false);
+            return new IntelligenceToolResult("The network tools stopped unexpectedly. They'll start again on the next question.", IsError: true);
+        }
+
+        // A result arriving after a sign-out, switch or saved change answers for the old ones.
+        if (IsCurrent(generation)) return result;
+        return new IntelligenceToolResult(generation.Retired.IsCancellationRequested ? generation.Reason : Discarded, IsError: true);
+    }
+
+    /// <summary>Stops the server - on disconnect, sign-out or exit - including one still starting.</summary>
+    public async Task StopAsync()
+    {
+        Interlocked.Increment(ref _stops);
+        try
+        {
+            Volatile.Read(ref _starting)?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // That start has already finished; the stop count discards it.
+        }
+
+        if (Volatile.Read(ref _current) is { } current)
+        {
+            await RetireAsync(current, Discarded).ConfigureAwait(false);
+        }
+
+        await Task.WhenAll(_retiring.Values).ConfigureAwait(false);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _session.StateChanged -= OnSourcesChanged;
+        _settings.Changed -= OnSettingsChanged;
+        await StopAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>The running generation for the current settings, started if needed.</summary>
+    private async Task<Generation> AcquireAsync(CancellationToken cancellationToken)
+    {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
-            if (!_byName.ContainsKey(name))
+            // A switch or saved change during a start retires what started; the
+            // next attempt starts for the new settings, or reports the sign-out.
+            for (var attempt = 1; ; attempt++)
             {
-                return new IntelligenceToolResult($"There is no tool called \"{name}\".", IsError: true);
+                if (await AcquireOnceAsync(cancellationToken).ConfigureAwait(false) is { } generation) return generation;
+                if (attempt == 3) throw StoppedWhileStarting();
             }
-
-            client = _client!;
         }
         finally
         {
             _gate.Release();
         }
+    }
 
-        var args = arguments.EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value.Clone());
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(CallTimeout);
-
+    /// <summary>One attempt, under the gate: the generation, or null when it no longer matched once started.</summary>
+    private async Task<Generation?> AcquireOnceAsync(CancellationToken cancellationToken)
+    {
+        List<KeyValuePair<string, string>> settings;
         try
         {
-            var result = await client.CallToolAsync(name, args, cancellationToken: timeout.Token).ConfigureAwait(false);
-            var images = result.Content
-                .OfType<ImageContentBlock>()
-                .Select(i => new IntelligenceImage(i.DecodedData.ToArray(), i.MimeType ?? "image/png"))
-                .ToList();
-            return new IntelligenceToolResult(Text(result), result.IsError == true, images);
+            settings = CurrentSettings()
+                       ?? throw new IntelligenceException("Connect DashyNMS to LibreNMS first.", IntelligenceFailure.Network);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (IntelligenceException)
         {
-            return new IntelligenceToolResult($"{name} took longer than {CallTimeout.TotalSeconds:0} seconds.", IsError: true);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogWarning("Intelligence: tool {Tool} failed ({ErrorType})", name, ex.GetType().Name);
+            // Signed out, or settings it can't use: nothing keeps the old server running.
             await StopAsync().ConfigureAwait(false);
-            return new IntelligenceToolResult("The network tools stopped unexpectedly. They'll start again on the next question.", IsError: true);
+            throw;
+        }
+
+        var identity = Identity(settings);
+        if (Volatile.Read(ref _current) is { } current)
+        {
+            if (current.Identity == identity && !current.Process.Completion.IsCompleted) return current;
+            await RetireAsync(current, Discarded).ConfigureAwait(false);
+        }
+
+        var stops = Interlocked.Read(ref _stops);
+        IMcpToolProcess process;
+        using (var starting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+        {
+            Volatile.Write(ref _starting, starting);
+            try
+            {
+                process = await _start(settings, starting.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw StoppedWhileStarting();
+            }
+            finally
+            {
+                Volatile.Write(ref _starting, null);
+            }
+        }
+
+        var generation = new Generation(process, identity);
+        Volatile.Write(ref _current, generation);
+
+        // A stop while it started - Intelligence turned off, exit - wins.
+        if (Interlocked.Read(ref _stops) != stops)
+        {
+            await RetireAsync(generation, Discarded).ConfigureAwait(false);
+            throw StoppedWhileStarting();
+        }
+
+        // A sign-out, switch or saved change while it started: it holds the old
+        // settings, so it never keeps running, even with nothing else to retire it.
+        if (!IsCurrent(generation))
+        {
+            await RetireAsync(generation, Discarded).ConfigureAwait(false);
+            return null;
+        }
+
+        NotifyVersionChanged();
+        _ = ObserveCompletionAsync(generation);
+        return generation;
+    }
+
+    private static IntelligenceException StoppedWhileStarting()
+        => new("The network tools were stopped during startup. Ask again to restart them.", IntelligenceFailure.Tools);
+
+    /// <summary>The server's settings now, or null when signed out.</summary>
+    private List<KeyValuePair<string, string>>? CurrentSettings()
+    {
+        if (_session.Connection is not { } connection) return null;
+        var settings = ToolSettings(connection, _settings.Current, _unimusToken.Load, _graylogPassword.Load);
+        if (_sensorDefinitions is not null)
+        {
+            settings.Add(new("DASHYNMS_SENSOR_DEFINITIONS_DIRECTORY", _sensorDefinitions.Paths.DefinitionsDirectory));
+            settings.Add(new("DASHYNMS_SENSOR_DEFINITIONS_SETTINGS", _sensorDefinitions.Paths.SettingsFile));
+        }
+
+        return settings;
+    }
+
+    private bool IsCurrent(Generation generation)
+    {
+        if (!ReferenceEquals(Volatile.Read(ref _current), generation) || generation.Retired.IsCancellationRequested) return false;
+        try
+        {
+            return CurrentSettings() is { } settings && Identity(settings) == generation.Identity;
+        }
+        catch (IntelligenceException)
+        {
+            return false;
         }
     }
 
-    /// <summary>Stops the server - on disconnect, sign-out or exit.</summary>
-    public async Task StopAsync()
+    private void OnSourcesChanged(object? sender, EventArgs e) => _ = RetireIfOutdatedAsync();
+
+    private void OnSettingsChanged(object? sender, AppSettings e) => _ = RetireIfOutdatedAsync();
+
+    /// <summary>Retires the running generation once the connection or settings no longer match it.</summary>
+    private async Task RetireIfOutdatedAsync()
     {
-        var client = _client;
-        _client = null;
-        NotifyVersionChanged();
-        _tools = null;
-        _byName = new Dictionary<string, McpClientTool>();
-        _startedFor = null;
-        if (client is not null)
+        try
+        {
+            if (Volatile.Read(ref _current) is { } current && !IsCurrent(current))
+            {
+                await RetireAsync(current, Discarded).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("Intelligence: retiring the network tools ({ErrorType})", ex.GetType().Name);
+        }
+    }
+
+    /// <summary>Cancels a generation's lookups and stops its server, leaving any newer one alone.</summary>
+    /// <remarks>Every caller waits for the same stop, so exit never moves on while a server is still stopping.</remarks>
+    private async Task RetireAsync(Generation generation, string reason)
+    {
+        var wasCurrent = ReferenceEquals(Interlocked.CompareExchange(ref _current, null, generation), generation);
+        var stopping = generation.RetireAsync(reason, StopProcessAsync);
+
+        // Kept until it finishes, so a stop on exit waits for a retirement already under way.
+        _retiring.TryAdd(generation, stopping);
+        try
+        {
+            await stopping.ConfigureAwait(false);
+        }
+        finally
+        {
+            _retiring.TryRemove(generation, out _);
+        }
+
+        if (wasCurrent) NotifyVersionChanged();
+
+        async Task StopProcessAsync()
         {
             try
             {
-                await client.DisposeAsync().ConfigureAwait(false);
+                await generation.Process.DisposeAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -162,205 +337,63 @@ public sealed class McpToolHost : IIntelligenceTools, IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);
-
-    private async Task EnsureStartedAsync(CancellationToken cancellationToken)
+    private void NotifyVersionChanged()
     {
-        var connection = _session.Connection
-                         ?? throw new IntelligenceException("Connect DashyNMS to LibreNMS first.", IntelligenceFailure.Network);
-
-        // Another LibreNMS (or a new token) means a new server, so answers
-        // can't come from the previous network.
-        // A changed config-text choice restarts it too: it's set at startup.
-        var identity = connection.WebRoot + "|" + connection.ApiToken.GetHashCode(StringComparison.Ordinal).ToString(CultureInfo.InvariantCulture)
-                       + "|" + ConfigText(_settings.Current);
-        if (_client is not null && !_client.Completion.IsCompleted && _startedFor == identity)
-        {
-            return;
-        }
-
-        await StopAsync().ConfigureAwait(false);
-
-        if (!IsBundled)
-        {
-            throw new IntelligenceException("DashyNMS's network tools aren't installed with this build.", IntelligenceFailure.Tools);
-        }
-
-        var environment = StdioClientTransportOptions.GetDefaultEnvironmentVariables();
-        if (_sensorDefinitions is not null)
-        {
-            environment["DASHYNMS_SENSOR_DEFINITIONS_DIRECTORY"] = _sensorDefinitions.Paths.DefinitionsDirectory;
-            environment["DASHYNMS_SENSOR_DEFINITIONS_SETTINGS"] = _sensorDefinitions.Paths.SettingsFile;
-        }
-        foreach (var (key, value) in Configuration(connection))
-        {
-            environment[key] = value;
-        }
-
-        var stderr = new Queue<string>();
-        var listening = true;
-        var transport = new StdioClientTransport(new StdioClientTransportOptions
-        {
-            Name = "DashyNMS network tools",
-            Command = ExecutablePath,
-            Arguments = Array.Empty<string>(),
-            WorkingDirectory = Path.GetDirectoryName(ExecutablePath),
-            InheritEnvironmentVariables = false,
-            EnvironmentVariables = environment,
-            ShutdownTimeout = TimeSpan.FromSeconds(5),
-
-            // Stderr and protocol diagnostics may contain credentials or tool data.
-            // Keep them out of the UI, persistent logs and debug output: the
-            // last few lines stay in memory only, for McpStartReason (#325).
-            StandardErrorLines = line =>
-            {
-                lock (stderr)
-                {
-                    if (!listening) return;
-                    if (stderr.Count == McpStartReason.MaxLines) stderr.Dequeue();
-                    stderr.Enqueue(line);
-                }
-            },
-        }, NullLoggerFactory.Instance);
-
         try
         {
-            using var startTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            startTimeout.CancelAfter(TimeSpan.FromSeconds(60));
-            _client = await McpClient.CreateAsync(transport, new McpClientOptions
-            {
-                ClientInfo = new Implementation { Name = "DashyNMS desktop", Version = typeof(McpToolHost).Assembly.GetName().Version?.ToString(3) ?? "0.0.0" },
-            }, NullLoggerFactory.Instance, startTimeout.Token).ConfigureAwait(false);
-
-            NotifyVersionChanged();
-            _ = ObserveCompletionAsync(_client);
-            var listed = await _client.ListToolsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-            _byName = listed
-                .Where(t => IntelligenceToolAllowlist.Names.Contains(t.Name))
-                .ToDictionary(t => t.Name, StringComparer.Ordinal);
-            _tools = _byName.Values
-                .Select(t => new IntelligenceTool(t.Name, t.Description ?? string.Empty, t.JsonSchema))
-                .ToList();
-            _startedFor = identity;
-            _logger.LogInformation("Intelligence: network tools started with {Count} of {Listed} tools", _tools.Count, listed.Count);
+            VersionChanged?.Invoke(this, EventArgs.Empty);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        catch (Exception ex)
         {
-            var reason = await StartReasonAsync(stderr).ConfigureAwait(false);
-            _logger.LogWarning("Intelligence: the network tools didn't start ({ErrorType}, {Reason})", ex.GetType().Name, reason);
-            await StopAsync().ConfigureAwait(false);
-            throw new IntelligenceException(
-                McpStartReason.Describe(reason) ?? "DashyNMS's network tools couldn't start. Check your connection and Intelligence settings, then try again.",
-                IntelligenceFailure.Tools);
-        }
-        finally
-        {
-            // Only a start's lines are kept; nothing once it's running.
-            lock (stderr)
-            {
-                listening = false;
-                stderr.Clear();
-            }
+            // A listener's failure never stops a server being retired or kept.
+            _logger.LogDebug("Intelligence: a version listener failed ({ErrorType})", ex.GetType().Name);
         }
     }
 
-    /// <summary>
-    /// The fixed reason word for a failed start. The server's last line can
-    /// arrive just after the exit is noticed, so an unknown reason waits a
-    /// moment and looks again.
-    /// </summary>
-    private static async Task<string> StartReasonAsync(Queue<string> stderr)
+    private async Task ObserveCompletionAsync(Generation generation)
     {
-        string Classify()
+        try
         {
-            lock (stderr) return McpStartReason.Classify(stderr.ToList());
+            await generation.Process.Completion.ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // How it ended doesn't matter here, only that it did.
         }
 
-        var reason = Classify();
-        if (reason != McpStartReason.Unknown) return reason;
-        await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
-        return Classify();
+        if (ReferenceEquals(Volatile.Read(ref _current), generation)) NotifyVersionChanged();
     }
 
-    /// <summary>The MCP server's settings (see the MCP README's table), from this app's own connection and settings.</summary>
-    private IEnumerable<KeyValuePair<string, string>> Configuration(LibreNmsConnection connection)
+    /// <summary>One started server and the exact settings it was started with.</summary>
+    private sealed class Generation(IMcpToolProcess process, string identity)
     {
-        var settings = _settings.Current;
+        private readonly CancellationTokenSource _retired = new();
+        private readonly object _sync = new();
+        private Task? _stopped;
 
-        yield return new("LIBRENMS_URL", connection.WebRoot.ToString());
-        yield return new("LIBRENMS_TOKEN", connection.ApiToken);
-        yield return new("LIBRENMS_TIMEOUT", Math.Max(5, connection.TimeoutSeconds).ToString(CultureInfo.InvariantCulture));
-        yield return new("LIBRENMS_TIMESTAMPS_UTC", settings.ServerTimestampsAreUtc ? "true" : "false");
-        if (connection.BackupWebRoot is { } backup)
+        public IMcpToolProcess Process { get; } = process;
+        public string Identity { get; } = identity;
+
+        /// <summary>Cancelled when retired, ending its lookups.</summary>
+        public CancellationToken Retired => _retired.Token;
+
+        /// <summary>What its unfinished lookups are told: superseded, or the server itself stopped.</summary>
+        public string Reason { get; private set; } = Discarded;
+
+        /// <summary>Retires it once; later callers wait for that same stop.</summary>
+        public Task RetireAsync(string reason, Func<Task> stop)
         {
-            yield return new("LIBRENMS_BACKUP_URL", backup.ToString());
-        }
-
-        if (connection.TrustedCertificates.Count > 0)
-        {
-            yield return new("LIBRENMS_TRUSTED_CERTS", string.Join(",", connection.TrustedCertificates));
-        }
-
-        // Settings › Intelligence: full (redacted) config text, a summary
-        // ("did it change, when and by how much"), or nothing from Unimus.
-        yield return new("MCP_CONFIG_TEXT", ConfigText(settings));
-
-        if (settings.Unimus is { Enabled: true, Url: { Length: > 0 } unimusUrl } unimus && _unimusToken.Load() is { Length: > 0 } unimusToken)
-        {
-            yield return new("UNIMUS_URL", unimusUrl);
-            yield return new("UNIMUS_TOKEN", unimusToken);
-            if (unimus.TrustedCertificates.Count > 0)
+            lock (_sync)
             {
-                yield return new("UNIMUS_TRUSTED_CERTS", string.Join(",", unimus.TrustedCertificates));
-            }
-        }
-
-        if (settings.Graylog is { Enabled: true } graylog
-            && GraylogConnection.FromSettings(graylog, _graylogPassword.Load(), out _) is { } graylogConnection)
-        {
-            yield return new("GRAYLOG_URL", graylogConnection.Root.ToString());
-            yield return new("GRAYLOG_USERNAME", graylog.Username ?? string.Empty);
-            yield return new("GRAYLOG_PASSWORD", _graylogPassword.Load() ?? string.Empty);
-            yield return new("GRAYLOG_VERSION", graylog.Version == GraylogSettings.Version20 ? "2.0" : "2.1");
-            yield return new("GRAYLOG_QUERY_FIELD", graylog.QueryField);
-            yield return new("GRAYLOG_MATCH_ANY_ADDRESS", graylog.MatchAnyAddress ? "true" : "false");
-            if (graylog.TrustedCertificates.Count > 0)
-            {
-                yield return new("GRAYLOG_TRUSTED_CERTS", string.Join(",", graylog.TrustedCertificates));
-            }
-        }
-    }
-
-    /// <summary>The MCP server's MCP_CONFIG_TEXT - summary unless set to one of the others.</summary>
-    private static string ConfigText(AppSettings settings) => settings.IntelligenceConfigText switch
-    {
-        AppSettings.IntelligenceConfigTextFull => "full",
-        AppSettings.IntelligenceConfigTextOff => "off",
-        _ => "summary",
-    };
-
-    /// <summary>The tool's text content, joined - what the model reads.</summary>
-    private static string Text(CallToolResult result)
-    {
-        var text = new StringBuilder();
-        foreach (var block in result.Content)
-        {
-            if (block is TextContentBlock t)
-            {
-                if (text.Length > 0)
+                if (_stopped is null)
                 {
-                    text.Append('\n');
+                    Reason = reason;
+                    _retired.Cancel();
+                    _stopped = stop();
                 }
 
-                text.Append(t.Text);
+                return _stopped;
             }
         }
-
-        if (text.Length == 0 && result.StructuredContent is { } structured)
-        {
-            text.Append(structured.ToString());
-        }
-
-        return text.Length == 0 ? "{}" : text.ToString();
     }
 }

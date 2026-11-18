@@ -42,7 +42,7 @@ try {
         foreach ($file in @('DashyNMS','dashynms-login','dashynms-update','libdashynms-notifications.dylib')) {
             if (-not (Test-Path "$app/Contents/MacOS/$file" -PathType Leaf)) { throw "Missing packaged file: $file" }
         }
-        foreach ($file in @('LICENSE','BUILD.txt','mcp/LICENSE','mcp/BUILD.txt')) {
+        foreach ($file in @('LICENSE','BUILD.txt','mcp/LICENSE','mcp/NOTICES.md','mcp/BUILD.txt','mcp/third-party/inventory.json')) {
             if (-not (Test-Path "$app/Contents/Resources/$file" -PathType Leaf)) { throw "Missing packaged resource: $file" }
         }
         $release = (& /usr/libexec/PlistBuddy -c 'Print :DashyNMSReleaseVersion' "$app/Contents/Info.plist").Trim()

@@ -17,11 +17,12 @@ $stage = Join-Path $root "artifacts/package-staging/$Version/$Runtime"
 $output = Join-Path $root "artifacts/packages/$Version/$Runtime"
 if ((Test-Path $stage) -or (Test-Path $output)) { throw 'This package version already has output. Use a new version or a fresh checkout.' }
 $publish = Join-Path $stage 'publish'
-New-Item $output -ItemType Directory -Force | Out-Null
 $mcpName = if ($IsWindows) { 'dashynms-mcp.exe' } else { 'dashynms-mcp' }
-foreach ($file in @($mcpName,'LICENSE','BUILD.txt','version.json')) {
+foreach ($file in @($mcpName,'LICENSE','NOTICES.md','BUILD.txt','version.json','third-party/inventory.json')) {
     if (-not (Test-Path "$root/artifacts/mcp/$Runtime/$file" -PathType Leaf)) { throw "Build the $Runtime MCP bundle first; missing $file." }
 }
+# Only once the bundle is complete, so a rebuilt bundle can be retried with the same version.
+New-Item $output -ItemType Directory -Force | Out-Null
 function Check-Native([string]$step) { if ($LASTEXITCODE -ne 0) { throw "$step failed with exit code $LASTEXITCODE." } }
 function Download-Verified([string]$url, [string]$path, [string]$sha256) {
     Invoke-WebRequest $url -OutFile $path
@@ -40,7 +41,7 @@ try {
     dotnet publish src/DesktopNMS.Avalonia -c Release -r $Runtime --self-contained true -m:1 `
         "-p:Version=$Version" "-p:RequireReleaseNotes=$($requireNotes.ToString().ToLowerInvariant())" @bundleOptions -p:DebugType=embedded -o $publish --nologo
     Check-Native 'Publish'
-    foreach ($file in @($mcpName,'LICENSE','BUILD.txt','version.json')) {
+    foreach ($file in @($mcpName,'LICENSE','NOTICES.md','BUILD.txt','version.json','third-party/inventory.json')) {
         if (-not (Test-Path "$publish/mcp/$file" -PathType Leaf)) { throw "The app is missing mcp/$file." }
     }
     Copy-Item LICENSE "$publish/LICENSE"
@@ -74,9 +75,9 @@ try {
         Get-ChildItem $publish | Where-Object Name -NotIn @('mcp','LICENSE','BUILD.txt') |
             ForEach-Object { Copy-Item $_.FullName $mac -Recurse }
         New-Item "$mac/mcp","$resources/mcp" -ItemType Directory -Force | Out-Null
-        Get-ChildItem "$publish/mcp" | Where-Object Name -NotIn @('LICENSE','BUILD.txt','version.json') |
+        Get-ChildItem "$publish/mcp" | Where-Object Name -NotIn @('LICENSE','NOTICES.md','BUILD.txt','version.json','third-party') |
             ForEach-Object { Copy-Item $_.FullName "$mac/mcp" -Recurse }
-        Copy-Item "$publish/mcp/LICENSE","$publish/mcp/BUILD.txt","$publish/mcp/version.json" "$resources/mcp"
+        Copy-Item "$publish/mcp/LICENSE","$publish/mcp/NOTICES.md","$publish/mcp/BUILD.txt","$publish/mcp/version.json","$publish/mcp/third-party" "$resources/mcp" -Recurse
         Copy-Item "$publish/LICENSE","$publish/BUILD.txt" $resources
         $architecture=if ($Runtime -eq 'osx-arm64') { 'arm64' } else { 'x86_64' }
         swiftc -swift-version 5 -parse-as-library -target "$architecture-apple-macos13" -emit-library tools/macos/Notifications.swift -o "$mac/libdashynms-notifications.dylib"

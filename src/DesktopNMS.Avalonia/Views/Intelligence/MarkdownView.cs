@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using DesktopNMS.Core.Intelligence;
+using DesktopNMS.Services.Intelligence;
 using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views.Intelligence;
@@ -116,12 +117,12 @@ public sealed partial class MarkdownView : Decorator
                 continue;
             }
 
-            // ``` fenced code
-            if (trimmed.StartsWith("```", StringComparison.Ordinal))
+            // ``` or ~~~ fenced code, closed only by a matching fence
+            if (MarkdownFence.TryOpen(line, out var fence, nested: true))
             {
                 var code = new StringBuilder();
                 i++;
-                while (i < lines.Length && !lines[i].Trim().StartsWith("```", StringComparison.Ordinal))
+                while (i < lines.Length && !fence.IsClosedBy(lines[i], nested: true))
                 {
                     if (code.Length > 0)
                     {
@@ -289,7 +290,7 @@ public sealed partial class MarkdownView : Decorator
     private bool StartsBlock(string[] lines, int i)
     {
         var t = lines[i].Trim();
-        return t.StartsWith("```", StringComparison.Ordinal)
+        return MarkdownFence.TryOpen(lines[i], out _, nested: true)
                || Heading().IsMatch(t)
                || RuleLine().IsMatch(t)
                || t.StartsWith('>')
@@ -567,6 +568,9 @@ public sealed partial class MarkdownView : Decorator
             Foreground = ToneBrush(reference.Tone),
             FontWeight = FontWeight.SemiBold,
             Padding = new Thickness(4, 0),
+
+            // No taller than the paragraph's own lines, so the text beside it keeps its baseline and descenders.
+            LineHeight = 17,
             Inlines = new InlineCollection { new Run(reference.Name) },
         };
         if (!string.IsNullOrEmpty(reference.Status))

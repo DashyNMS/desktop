@@ -123,11 +123,16 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         Images = _savedImages.ToList(),
     };
 
+    /// <summary>An answer cut off by closing the app, with the note after any code it stopped inside.</summary>
+    private static string Interrupted(string text)
+        => text + (DesktopNMS.Services.Intelligence.MarkdownFence.Unclosed(text, nested: true) is { } open ? "\n" + open.Closer : string.Empty)
+           + "\n\n(Interrupted when DashyNMS closed.)";
+
     public static IntelligenceMessageViewModel Restore(SavedIntelligenceMessage saved)
     {
         var message = new IntelligenceMessageViewModel(saved.IsUser)
         {
-            _text = saved.Text + (saved.IsIncomplete && !saved.IsUser ? "\n\n(Interrupted when DashyNMS closed.)" : string.Empty),
+            _text = saved.IsIncomplete && !saved.IsUser ? Interrupted(saved.Text) : saved.Text,
             _isStreaming = false,
             _restoredActivity = saved.IsIncomplete ? "Interrupted" : saved.Activity,
             ReplyStyle = saved.ReplyStyle,
