@@ -25,7 +25,7 @@ Remaining risk until then: Intelligence's config tools can miss Unimus devices t
 
 | | Before | Now |
 |---|---|---|
-| Bundled MCP | `61161c4` | `8f32942c194132fa7152f1e0f8e8448be7a3ac8e` (the reviewed source, MCP `1.1.0`) |
+| Bundled MCP | `61161c4` | `b95eb317c81ddfe750f69c5fefc4b2ab95188205` (MCP `1.1.0` with the LibreNMS 26.11 fixes, mcp#156; first reviewed at `8f32942`) |
 | Core in the MCP executable | n/a | `2.0.0-ci.64` (MCP's own pin; a separate process, so no shared graph with the app) |
 | Core in the app | `2.0.0-ci.59` | `2.0.0-ci.71` (includes DashyNMS/core#89) |
 
