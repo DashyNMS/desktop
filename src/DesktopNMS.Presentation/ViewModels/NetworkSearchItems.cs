@@ -27,6 +27,10 @@ public sealed class EndpointViewModel : ObservableObject
     private readonly EndpointRecord _record;
     private readonly IReadOnlySet<SearchSource> _blind;
     private bool _showAllLocations;
+    private bool _showAllSubnet;
+    private bool _showAllConnections;
+    private bool _connectionsFailed;
+    private IReadOnlyList<DeviceNeighbourItemViewModel>? _allConnections;
 
     public EndpointViewModel(EndpointRecord record, MacAddressFormat macFormat, IWindowService windows, bool serverTimestampsAreUtc, Func<string, Task> search,
         IReadOnlySet<SearchSource>? blindSpots = null)
@@ -42,7 +46,9 @@ public sealed class EndpointViewModel : ObservableObject
             .GroupBy(n => (n.DeviceId, n.PortId))
             .Select(g => new ArpNeighbourViewModel(g.First(), g.Select(n => MacAddresses.Format(n.Mac, macFormat)).Distinct().ToList(), windows))
             .ToList();
-        SubnetInterfaces = record.Subnet?.Interfaces.Take(SubnetInterfacesShown).Select(i => new SubnetInterfaceViewModel(i, windows, search)).ToList() ?? [];
+        AllSubnetInterfaces = record.Subnet?.Interfaces.Select(i => new SubnetInterfaceViewModel(i, windows, search)).ToList() ?? [];
+        ToggleSubnetCommand = new RelayCommand(() => ShowAllSubnet = !ShowAllSubnet);
+        ToggleConnectionsCommand = new RelayCommand(() => ShowAllConnections = !ShowAllConnections);
         Conflicts = record.Conflicts.Select(c => Describe(c, record, macFormat)).ToList();
 
         var device = record.MonitoredDevice;
@@ -79,7 +85,10 @@ public sealed class EndpointViewModel : ObservableObject
     public bool HasBest => Best is not null;
 
     /// <summary>"Connected to" only when there's a port to name; otherwise the card says where it was seen.</summary>
-    public string ConnectionHeading => HasBest ? "Connected to" : "Where it is";
+    public string ConnectionHeading => IsMonitored || HasAccessLocations ? "Connected to" : "Where it is";
+
+    /// <summary>Why there's no access port to show, for an endpoint LibreNMS doesn't monitor.</summary>
+    public bool ShowNoBestText => !IsMonitored && !HasAccessLocations;
 
     /// <summary>
     /// The one-line answer when there's no clear port: why not, in the terms
@@ -153,11 +162,121 @@ public sealed class EndpointViewModel : ObservableObject
 
     public bool HasSubnet => _record.Subnet is not null;
 
-    public IReadOnlyList<SubnetInterfaceViewModel> SubnetInterfaces { get; }
+    public IReadOnlyList<SubnetInterfaceViewModel> AllSubnetInterfaces { get; }
 
-    public string? MoreSubnetText => _record.Subnet is { } s && s.TotalInterfaces > SubnetInterfaces.Count
-        ? $"+{(s.TotalInterfaces - SubnetInterfaces.Count).ToString(CultureInfo.CurrentCulture)} more monitored interfaces on this network"
+    /// <summary>The gateway and the first few, or all of them once expanded.</summary>
+    public IReadOnlyList<SubnetInterfaceViewModel> SubnetInterfaces => ShowAllSubnet ? AllSubnetInterfaces : AllSubnetInterfaces.Take(SubnetInterfacesShown).ToList();
+
+    public bool ShowAllSubnet
+    {
+        get => _showAllSubnet;
+        private set
+        {
+            if (SetProperty(ref _showAllSubnet, value))
+            {
+                OnPropertyChanged(nameof(SubnetInterfaces));
+                OnPropertyChanged(nameof(MoreSubnetText));
+            }
+        }
+    }
+
+    public bool HasMoreSubnet => AllSubnetInterfaces.Count > SubnetInterfacesShown;
+
+    public string MoreSubnetText => ShowAllSubnet
+        ? "Show fewer"
+        : $"+{(AllSubnetInterfaces.Count - SubnetInterfacesShown).ToString(CultureInfo.CurrentCulture)} more monitored interfaces on this network";
+
+    /// <summary>Interfaces past what one search reads (a very large network), said rather than hidden.</summary>
+    public string? NotLoadedSubnetText => _record.Subnet is { } s && s.TotalInterfaces > s.Interfaces.Count
+        ? $"{(s.TotalInterfaces - s.Interfaces.Count).ToString("N0", CultureInfo.CurrentCulture)} more interfaces on this network aren't listed. Search the network to see them all."
         : null;
+
+    public RelayCommand ToggleSubnetCommand { get; }
+
+    // ---------------------------------------------------- Connected to
+
+    /// <summary>
+    /// For an endpoint LibreNMS doesn't monitor: every current access port it
+    /// was learned on (usually one), never the uplinks it merely passed
+    /// through. A host on two access ports - a dual-homed server - shows both.
+    /// </summary>
+    public IReadOnlyList<LocationItemViewModel> AccessLocations => AllLocations.Where(l => !l.IsStale && !l.IsUplink).ToList();
+
+    public bool HasAccessLocations => AccessLocations.Count > 0;
+
+    /// <summary>
+    /// For a monitored device: its neighbours, as Device Details lists them -
+    /// every switch, server or access point it links to, uplinks included.
+    /// Loaded after the search; null until then.
+    /// </summary>
+    public IReadOnlyList<DeviceNeighbourItemViewModel>? AllConnections
+    {
+        get => _allConnections;
+        set
+        {
+            if (SetProperty(ref _allConnections, value))
+            {
+                OnPropertyChanged(nameof(Connections));
+                OnPropertyChanged(nameof(HasConnections));
+                OnPropertyChanged(nameof(HasMoreConnections));
+                OnPropertyChanged(nameof(MoreConnectionsText));
+                OnPropertyChanged(nameof(IsLoadingConnections));
+                OnPropertyChanged(nameof(NoConnectionsText));
+            }
+        }
+    }
+
+    /// <summary>Connections shown before "+N more connections".</summary>
+    public const int ConnectionsShown = 4;
+
+    public IReadOnlyList<DeviceNeighbourItemViewModel> Connections =>
+        AllConnections is null ? [] : ShowAllConnections ? AllConnections : AllConnections.Take(ConnectionsShown).ToList();
+
+    public bool HasConnections => AllConnections is { Count: > 0 };
+
+    public bool IsLoadingConnections => IsMonitored && AllConnections is null && !ConnectionsFailed;
+
+    public bool ConnectionsFailed
+    {
+        get => _connectionsFailed;
+        set
+        {
+            if (SetProperty(ref _connectionsFailed, value))
+            {
+                OnPropertyChanged(nameof(IsLoadingConnections));
+                OnPropertyChanged(nameof(NoConnectionsText));
+            }
+        }
+    }
+
+    public string? NoConnectionsText => !IsMonitored ? null
+        : ConnectionsFailed ? "Its neighbours couldn't be read."
+        : AllConnections is { Count: 0 } ? "LibreNMS hasn't discovered any neighbours for this device."
+        : null;
+
+    public bool ShowAllConnections
+    {
+        get => _showAllConnections;
+        private set
+        {
+            if (SetProperty(ref _showAllConnections, value))
+            {
+                OnPropertyChanged(nameof(Connections));
+                OnPropertyChanged(nameof(MoreConnectionsText));
+            }
+        }
+    }
+
+    public bool HasMoreConnections => AllConnections is { } all && all.Count > ConnectionsShown;
+
+    public string MoreConnectionsText => ShowAllConnections || AllConnections is null
+        ? "Show fewer"
+        : $"+{(AllConnections.Count - ConnectionsShown).ToString(CultureInfo.CurrentCulture)} more connections";
+
+    public RelayCommand ToggleConnectionsCommand { get; }
+
+    /// <summary>The device's id, for loading its neighbours.</summary>
+    public int? MonitoredDeviceId => _record.MonitoredDevice?.DeviceId;
 
     public IReadOnlyList<string> Conflicts { get; }
 

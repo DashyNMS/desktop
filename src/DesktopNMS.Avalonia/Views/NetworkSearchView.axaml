@@ -236,10 +236,11 @@
                                                     <fi:SymbolIcon Symbol="PlugConnected" FontSize="16" />
                                                     <TextBlock Text="{Binding ConnectionHeading}" Classes="cardTitle" />
                                                 </StackPanel>
-                                                <ContentControl Content="{Binding Best}" IsVisible="{Binding HasBest}">
-                                                    <ContentControl.ContentTemplate>
+                                                <!-- An endpoint LibreNMS doesn't monitor: each access port it's on, usually one. -->
+                                                <ItemsControl ItemsSource="{Binding AccessLocations}" IsVisible="{Binding !IsMonitored}">
+                                                    <ItemsControl.ItemTemplate>
                                                         <DataTemplate x:DataType="vm:LocationItemViewModel">
-                                                            <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0">
+                                                            <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,10">
                                                                 <!-- The switch's state, on a tile tinted to match. -->
                                                                 <Panel Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Top">
                                                                     <Border CornerRadius="9" Opacity="0.16" Background="{Binding Switch.Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
@@ -277,8 +278,54 @@
                                                                 </StackPanel>
                                                             </Grid>
                                                         </DataTemplate>
-                                                    </ContentControl.ContentTemplate>                                        </ContentControl>
-                                                <TextBlock Text="{Binding NoBestText}" TextWrapping="Wrap" IsVisible="{Binding !HasBest}" />
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="{Binding NoBestText}" TextWrapping="Wrap" IsVisible="{Binding ShowNoBestText}" />
+
+                                                <!-- A monitored device: its neighbours, as Device Details lists them. -->
+                                                <TextBlock Text="Looking up its neighbours…" Classes="subtle" IsVisible="{Binding IsLoadingConnections}" />
+                                                <TextBlock Text="{Binding NoConnectionsText}" Classes="subtle" TextWrapping="Wrap"
+                                                           IsVisible="{Binding NoConnectionsText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <ItemsControl ItemsSource="{Binding Connections}" IsVisible="{Binding HasConnections}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:DeviceNeighbourItemViewModel">
+                                                            <Button Classes="neighbourCard" Command="{Binding OpenCommand}" Margin="0,0,0,8"
+                                                                    AutomationProperties.Name="{Binding Name, StringFormat='Open {0}'}">
+                                                                <Grid ColumnDefinitions="Auto,*">
+                                                                    <Panel Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Top">
+                                                                        <Border CornerRadius="9" Opacity="0.16" Background="{Binding StateSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                                        <Ellipse Width="9" Height="9" Fill="{Binding StateSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                                    </Panel>
+                                                                    <StackPanel Grid.Column="1">
+                                                                        <DockPanel>
+                                                                            <TextBlock DockPanel.Dock="Right" Text="Open ›" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                                                       Foreground="{DynamicResource AccentBrush}" IsVisible="{Binding IsKnownDevice}" />
+                                                                            <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                                        </DockPanel>
+                                                                        <TextBlock Text="{Binding Description}" Classes="subtle" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+                                                                        <WrapPanel Margin="0,6,0,0">
+                                                                            <Border Classes="pill"><TextBlock Text="{Binding MatchText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
+                                                                            <Border Classes="pill"><TextBlock Text="{Binding StateText}" FontSize="11" Foreground="{Binding StateSeverity, Converter={x:Static views:Converters.SeverityToBrush}}" /></Border>
+                                                                            <Border Classes="pill" IsVisible="{Binding IsStale}"><TextBlock Text="No longer seen" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
+                                                                        </WrapPanel>
+                                                                        <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,4,0,0">
+                                                                            <fi:SymbolIcon Symbol="PlugConnected" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                                                            <TextBlock Text="{Binding ConnectionText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                                        </StackPanel>
+                                                                        <StackPanel Orientation="Horizontal" Margin="20,3,0,0" IsVisible="{Binding HasLocalPort}">
+                                                                            <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding LocalPortStateText}" />
+                                                                            <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding LocalPort.InRateText, StringFormat='  ·  In {0}', FallbackValue=''}" />
+                                                                            <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding LocalPort.OutRateText, StringFormat='  ·  Out {0}', FallbackValue=''}" />
+                                                                        </StackPanel>
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <Button Classes="link" Command="{Binding ToggleConnectionsCommand}" IsVisible="{Binding HasMoreConnections}">
+                                                    <TextBlock Text="{Binding MoreConnectionsText}" />
+                                                </Button>
                                             </StackPanel>
                                         </Border>
 
@@ -440,8 +487,11 @@
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
-                                                <TextBlock Text="{Binding MoreSubnetText}" Classes="subtle" FontSize="12"
-                                                           IsVisible="{Binding MoreSubnetText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <Button Classes="link" Command="{Binding ToggleSubnetCommand}" IsVisible="{Binding HasMoreSubnet}">
+                                                    <TextBlock Text="{Binding MoreSubnetText}" FontSize="12" />
+                                                </Button>
+                                                <TextBlock Text="{Binding NotLoadedSubnetText}" Classes="subtle" FontSize="12" TextWrapping="Wrap"
+                                                           IsVisible="{Binding NotLoadedSubnetText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>

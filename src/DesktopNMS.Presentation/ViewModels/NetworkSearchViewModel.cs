@@ -44,6 +44,13 @@ public sealed class NetworkSearchViewModel : ObservableObject
     private readonly IWindowService _windows;
     private readonly ISessionService _session;
     private readonly ILogger<NetworkSearchViewModel> _logger;
+    private readonly DesktopNMS.Core.Services.IDeviceCache? _devices;
+
+    /// <summary>
+    /// A desktop page can afford to list a whole subnet: every interface one
+    /// search reads is named, so "+N more" expands rather than stopping short.
+    /// </summary>
+    private static readonly NetworkSearchOptions Options = new() { MaxSubnetInterfaces = 100, MaxNamedPorts = 120 };
     private CancellationTokenSource? _searchCts;
     private int _generation;
 
@@ -64,8 +71,10 @@ public sealed class NetworkSearchViewModel : ObservableObject
         ISettingsStore settings,
         IWindowService windows,
         ISessionService session,
-        ILogger<NetworkSearchViewModel> logger)
+        ILogger<NetworkSearchViewModel> logger,
+        DesktopNMS.Core.Services.IDeviceCache? devices = null)
     {
+        _devices = devices;
         _client = client;
         _settings = settings;
         _windows = windows;
@@ -302,7 +311,7 @@ public sealed class NetworkSearchViewModel : ObservableObject
 
         try
         {
-            var result = await new NetworkSearch(_client).SearchAsync(query, offset, cts.Token).ConfigureAwait(true);
+            var result = await new NetworkSearch(_client, Options).SearchAsync(query, offset, cts.Token).ConfigureAwait(true);
             if (generation != _generation || !_session.IsConnected || !ReferenceEquals(connection, _session.Connection))
             {
                 return;
@@ -316,6 +325,10 @@ public sealed class NetworkSearchViewModel : ObservableObject
             _searchedAt = DateTimeOffset.Now;
             _resultConnection = connection;
             Present(result);
+            if (Endpoint is { MonitoredDeviceId: { } deviceId } endpoint)
+            {
+                await LoadConnectionsAsync(endpoint, deviceId, generation, connection, cts.Token).ConfigureAwait(true);
+            }
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
@@ -399,6 +412,50 @@ public sealed class NetworkSearchViewModel : ObservableObject
         CopyCsvCommand.RaiseCanExecuteChanged();
         SaveCsvCommand.RaiseCanExecuteChanged();
         ShowFiltersCommand.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// A monitored device's neighbours, built as Device Details builds its
+    /// Connected to list (DeviceNeighbours), so the two pages agree.
+    /// </summary>
+    private async Task LoadConnectionsAsync(EndpointViewModel endpoint, int deviceId, int generation, object? connection, CancellationToken token)
+    {
+        try
+        {
+            var own = _client.Links.ListForDeviceAsync(deviceId, token);
+            var fleet = _client.Links.ListAllAsync(token);
+            var ports = _client.Ports.ListForDeviceAsync(deviceId, token);
+            await Task.WhenAll(own, fleet, ports).ConfigureAwait(true);
+            if (generation != _generation || !ReferenceEquals(connection, _session.Connection) || !ReferenceEquals(endpoint, Endpoint))
+            {
+                return;
+            }
+
+            var portItems = ports.Result.ToDictionary(p => p.PortId, p => new PortItemViewModel(p, null, [], _ => { }));
+            var built = DesktopNMS.Core.Topology.DeviceNeighbours.Build(
+                deviceId, own.Result, fleet.Result, portItems.ToDictionary(p => p.Key, p => p.Value.DisplayName),
+                new Dictionary<int, (int DeviceId, DesktopNMS.Core.Topology.NeighbourMatchKind Kind)>());
+            var style = _settings.Current.DeviceNameStyle;
+            endpoint.AllConnections = built
+                .Select(n =>
+                {
+                    var device = n.RemoteDeviceId is { } id ? _devices?.Get(id) : null;
+                    var name = device is null ? null : style.Resolve(device, device.Hostname);
+                    var local = n.LocalPortId is { } portId && portItems.TryGetValue(portId, out var port) ? port : null;
+                    return new DeviceNeighbourItemViewModel(n, device, name, local, endpoint.MonitoredDeviceName ?? string.Empty, _windows.ShowDeviceDetail);
+                })
+                .OrderBy(n => n.SortRank)
+                .ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (LibreNmsApiException ex) when (generation == _generation)
+        {
+            _logger.LogWarning("Network search couldn't read a device's neighbours: {Message}", ex.Message);
+            endpoint.ConnectionsFailed = true;
+        }
     }
 
     private static IEnumerable<(string Key, string DisplayText, int Count)> Counts(IEnumerable<string> keys)

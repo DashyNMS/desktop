@@ -176,6 +176,62 @@ public sealed class NetworkSearchPageTests
         Assert.Equal("Lobby display", page.Best.PortDescription);
     }
 
+    [Fact]
+    public void An_unmonitored_endpoint_on_two_access_ports_shows_both_and_never_an_uplink()
+    {
+        var page = Page(Record([Location(Switch, 19, "19", 1), Location(Switch, 20, "20", 1), Location(Core, 37, "Eth1/37", 5, uplink: true)]));
+
+        Assert.Equal(["19", "20"], page.AccessLocations.Select(l => l.PortName));
+        Assert.All(page.AccessLocations, l => Assert.Equal("Direct", l.KindText));
+        Assert.Equal("Connected to", page.ConnectionHeading);
+        Assert.False(page.ShowNoBestText);
+    }
+
+    [Fact]
+    public void A_monitored_device_waits_for_its_neighbours_then_shows_four_and_more()
+    {
+        var record = new EndpointRecord
+        {
+            Title = "192.0.2.20", Addresses = ["192.0.2.20"], Macs = [], Names = ["sw-access-01"], MonitoredDevice = Switch,
+            Locations = [], Neighbours = [], Conflicts = [],
+        };
+        var page = Page(record);
+        Assert.True(page.IsLoadingConnections);
+
+        page.AllConnections = Enumerable.Range(1, 6)
+            .Select(i => new DeviceNeighbourItemViewModel(
+                new DesktopNMS.Core.Topology.DeviceNeighbour(DesktopNMS.Core.Topology.NeighbourSource.ThisDevice, i, $"Gi1/0/{i}", $"ap-{i}.example.net", null, "bond0", null, DesktopNMS.Core.Topology.NeighbourMatchKind.None, ["lldp"], null, true),
+                null, null, null, "sw-access-01", _ => { }))
+            .ToList();
+
+        Assert.False(page.IsLoadingConnections);
+        Assert.Equal(EndpointViewModel.ConnectionsShown, page.Connections.Count);
+        Assert.Equal("+2 more connections", page.MoreConnectionsText);
+        page.ToggleConnectionsCommand.Execute(null);
+        Assert.Equal(6, page.Connections.Count);
+
+        page.AllConnections = [];
+        Assert.Equal("LibreNMS hasn't discovered any neighbours for this device.", page.NoConnectionsText);
+    }
+
+    [Fact]
+    public void The_subnet_expands_to_every_interface()
+    {
+        var interfaces = Enumerable.Range(1, 9).Select(i => new SubnetInterface($"192.0.2.{i}", 24, i, null, null)).ToList();
+        var record = Record() is var r ? new EndpointRecord
+        {
+            Title = r.Title, Addresses = r.Addresses, Macs = r.Macs, Names = r.Names, Locations = r.Locations, Neighbours = r.Neighbours, Conflicts = r.Conflicts,
+            Subnet = new EndpointSubnet("192.0.2.0/24", interfaces, 9),
+        } : null!;
+        var page = Page(record);
+
+        Assert.Equal(EndpointViewModel.SubnetInterfacesShown, page.SubnetInterfaces.Count);
+        Assert.Equal("+4 more monitored interfaces on this network", page.MoreSubnetText);
+        page.ToggleSubnetCommand.Execute(null);
+        Assert.Equal(9, page.SubnetInterfaces.Count);
+        Assert.Null(page.NotLoadedSubnetText);
+    }
+
     /// <summary>Records nothing: these tests don't open windows.</summary>
     private sealed class NullWindows : DesktopNMS.Services.IWindowService
     {
