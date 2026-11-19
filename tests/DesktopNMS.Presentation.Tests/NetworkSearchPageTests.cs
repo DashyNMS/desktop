@@ -50,13 +50,34 @@ public sealed class NetworkSearchPageTests
     }
 
     [Fact]
-    public void Only_uplinks_say_there_is_no_clear_port()
+    public void Only_uplinks_fall_back_to_the_closest_sighting_and_say_so()
     {
         var page = Page(Record([Location(Core, 37, "Eth1/37", 5, uplink: true)]));
 
         Assert.False(page.HasBest);
-        Assert.Equal("Where it is", page.ConnectionHeading);
-        Assert.Contains("no clear access port", page.NoBestText, StringComparison.Ordinal);
+        Assert.Equal("Connected to", page.ConnectionHeading);
+        Assert.Equal("Uplink", Assert.Single(page.MacLocations).KindText);
+        Assert.Contains("links between switches", page.MacLocationsNote, StringComparison.Ordinal);
+        Assert.False(page.ShowNoBestText);
+    }
+
+    [Fact]
+    public void A_device_with_no_neighbours_falls_back_to_where_its_mac_is_learned()
+    {
+        var record = new EndpointRecord
+        {
+            Title = "192.0.2.20", Addresses = ["192.0.2.20"], Macs = [], Names = ["sw-access-01"], MonitoredDevice = Switch,
+            Locations = [Location(Core, 37, "Eth1/37", 1)], Neighbours = [], Conflicts = [],
+        };
+        var page = Page(record);
+        Assert.Empty(page.MacLocations); // not until its neighbours are known to be missing
+
+        page.AllConnections = [];
+
+        Assert.Equal("Direct", Assert.Single(page.MacLocations).KindText);
+        Assert.Equal("Connected to", page.ConnectionHeading);
+        Assert.Null(page.NoConnectionsText);
+        Assert.Contains("No discovered neighbours", page.MacLocationsNote, StringComparison.Ordinal);
     }
 
     [Fact]

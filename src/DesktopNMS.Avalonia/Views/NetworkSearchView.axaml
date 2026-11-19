@@ -237,7 +237,9 @@
                                                     <TextBlock Text="{Binding ConnectionHeading}" Classes="cardTitle" />
                                                 </StackPanel>
                                                 <!-- An endpoint LibreNMS doesn't monitor: each access port it's on, usually one. -->
-                                                <ItemsControl ItemsSource="{Binding AccessLocations}" IsVisible="{Binding !IsMonitored}">
+                                                <TextBlock Text="{Binding MacLocationsNote}" Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,6"
+                                                           IsVisible="{Binding MacLocationsNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <ItemsControl ItemsSource="{Binding MacLocations}" IsVisible="{Binding HasMacLocations}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate x:DataType="vm:LocationItemViewModel">
                                                             <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,10">

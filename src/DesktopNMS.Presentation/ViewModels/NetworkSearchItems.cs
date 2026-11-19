@@ -85,10 +85,10 @@ public sealed class EndpointViewModel : ObservableObject
     public bool HasBest => Best is not null;
 
     /// <summary>"Connected to" only when there's a port to name; otherwise the card says where it was seen.</summary>
-    public string ConnectionHeading => IsMonitored || HasAccessLocations ? "Connected to" : "Where it is";
+    public string ConnectionHeading => HasConnections || HasMacLocations ? "Connected to" : "Where it is";
 
-    /// <summary>Why there's no access port to show, for an endpoint LibreNMS doesn't monitor.</summary>
-    public bool ShowNoBestText => !IsMonitored && !HasAccessLocations;
+    /// <summary>Why nothing could be shown at all - no neighbours and no MAC sightings.</summary>
+    public bool ShowNoBestText => !HasConnections && !HasMacLocations && !IsLoadingConnections;
 
     /// <summary>
     /// The one-line answer when there's no clear port: why not, in the terms
@@ -205,6 +205,29 @@ public sealed class EndpointViewModel : ObservableObject
     public bool HasAccessLocations => AccessLocations.Count > 0;
 
     /// <summary>
+    /// Where the MAC appears to be connected, when LibreNMS can't name the
+    /// link itself: every current access port, or failing that the closest
+    /// sighting even if it's an uplink (its pill says so). Shown for an
+    /// endpoint LibreNMS doesn't monitor, and for a monitored device with no
+    /// discovered neighbours.
+    /// </summary>
+    public IReadOnlyList<LocationItemViewModel> MacLocations => !ShowsMacLocations ? []
+        : HasAccessLocations ? AccessLocations
+        : AllLocations.Where(l => !l.IsStale).Take(1).ToList();
+
+    public bool HasMacLocations => MacLocations.Count > 0;
+
+    /// <summary>Only falls back to MAC sightings once the neighbours are known to be missing.</summary>
+    private bool ShowsMacLocations => !IsMonitored || ConnectionsFailed || AllConnections is { Count: 0 };
+
+    /// <summary>The fallback's caveat: the device's own neighbours weren't available, so this is where its MAC was seen.</summary>
+    public string? MacLocationsNote => IsMonitored && HasMacLocations
+        ? "No discovered neighbours, so this is where its MAC address was learned."
+        : !IsMonitored && HasMacLocations && !HasAccessLocations
+            ? "Seen only on links between switches; this is the closest. It may sit behind a switch LibreNMS doesn't poll."
+            : null;
+
+    /// <summary>
     /// For a monitored device: its neighbours, as Device Details lists them -
     /// every switch, server or access point it links to, uplinks included.
     /// Loaded after the search; null until then.
@@ -222,8 +245,19 @@ public sealed class EndpointViewModel : ObservableObject
                 OnPropertyChanged(nameof(MoreConnectionsText));
                 OnPropertyChanged(nameof(IsLoadingConnections));
                 OnPropertyChanged(nameof(NoConnectionsText));
+                RaiseFallbackChanged();
             }
         }
+    }
+
+    private void RaiseFallbackChanged()
+    {
+        OnPropertyChanged(nameof(MacLocations));
+        OnPropertyChanged(nameof(HasMacLocations));
+        OnPropertyChanged(nameof(MacLocationsNote));
+        OnPropertyChanged(nameof(ConnectionHeading));
+        OnPropertyChanged(nameof(ShowNoBestText));
+        OnPropertyChanged(nameof(NoConnectionsText));
     }
 
     /// <summary>Connections shown before "+N more connections".</summary>
@@ -244,12 +278,12 @@ public sealed class EndpointViewModel : ObservableObject
             if (SetProperty(ref _connectionsFailed, value))
             {
                 OnPropertyChanged(nameof(IsLoadingConnections));
-                OnPropertyChanged(nameof(NoConnectionsText));
+                RaiseFallbackChanged();
             }
         }
     }
 
-    public string? NoConnectionsText => !IsMonitored ? null
+    public string? NoConnectionsText => !IsMonitored || HasMacLocations ? null
         : ConnectionsFailed ? "Its neighbours couldn't be read."
         : AllConnections is { Count: 0 } ? "LibreNMS hasn't discovered any neighbours for this device."
         : null;
