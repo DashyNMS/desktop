@@ -203,11 +203,11 @@
                                     </ContentControl.ContentTemplate>
                                 </ContentControl>
                                 <!-- The answer: where it plugs in. -->
-                                <Border Classes="card" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="3,0,0,0" Padding="16,14">
-                                    <StackPanel Spacing="6">
+                                <Border Classes="card">
+                                    <StackPanel Spacing="8">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <fi:SymbolIcon Symbol="PlugConnected" FontSize="16" Foreground="{DynamicResource AccentBrush}" />
-                                            <TextBlock Text="{Binding ConnectionHeading}" Classes="section" VerticalAlignment="Center" />
+                                            <fi:SymbolIcon Symbol="PlugConnected" FontSize="16" />
+                                            <TextBlock Text="{Binding ConnectionHeading}" Classes="cardTitle" />
                                         </StackPanel>
                                         <ContentControl Content="{Binding Best}" IsVisible="{Binding HasBest}">
                                             <ContentControl.ContentTemplate>
