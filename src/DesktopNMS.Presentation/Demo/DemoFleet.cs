@@ -212,7 +212,14 @@ internal sealed class DemoFleet
             return Collection("ports", _ports.Where(p => portIds.Contains(p.Id))
                 .Select(p => (Port: p, Count: _macsOnPort.GetValueOrDefault(p.Id, 1)))
                 .OrderBy(x => x.Count)
-                .Select(x => new { port_id = x.Port.Id, device_id = x.Port.DeviceId, ifName = x.Port.Name, ifDescr = x.Port.Name, ifAlias = x.Port.Alias, ifType = "ethernetCsmacd", fdb_entries_count = x.Count }));
+                .Select(x =>
+                {
+                    // LibreNMS sends the whole port, with its MAC count added.
+                    var port = PortJson(x.Port);
+                    var row = port.GetType().GetProperties().ToDictionary(p => p.Name, p => p.GetValue(port));
+                    row["fdb_entries_count"] = x.Count;
+                    return (object)row;
+                }));
         }
 
         return int.TryParse(parts[1], out var id)

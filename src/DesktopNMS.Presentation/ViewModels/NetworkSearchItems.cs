@@ -60,6 +60,12 @@ public sealed class EndpointViewModel : ObservableObject
 
     public bool IsMonitored => _record.MonitoredDevice is not null;
 
+    /// <summary>The matched device in brief, like a Device Details neighbour card - when the endpoint is one.</summary>
+    public DeviceCardFacts? Device => _record.MonitoredDevice is { } d ? new DeviceCardFacts(d, DeviceName(d)) : null;
+
+    /// <summary>Addresses joined for the overview card, "192.0.2.1, 2001:db8::1".</summary>
+    public string AddressesText => string.Join(", ", _record.Addresses);
+
     public string? MonitoredInterfaceName => _record.MonitoredInterface?.DisplayName;
 
     public bool HasMonitoredInterface => _record.MonitoredInterface is not null;
@@ -218,7 +224,42 @@ public sealed class LocationItemViewModel
         OpenDeviceCommand = new RelayCommand(() => windows.ShowDeviceDetail(location.DeviceId));
         OpenPortCommand = new RelayCommand(() => windows.ShowDevicePort(location.DeviceId, location.PortId));
         AccessibleText = $"{DeviceName}, {PortName}, {KindText}, {FactsText}";
+
+        Switch = new DeviceCardFacts(location.Device, DeviceName);
+        Port = location.Port is { } p ? new PortItemViewModel(p, null, [], _ => { }) : null;
+        VlanText = location.VlanNumber is { } number
+            ? $"VLAN {number.ToString(CultureInfo.InvariantCulture)}" + (location.VlanName is { } vlanName ? $" ({vlanName})" : string.Empty)
+            : "VLAN unknown";
+        MacCountText = location.MacCount switch
+        {
+            null => null,
+            1 => "Only MAC on this port",
+            var n => $"{n.Value.ToString("N0", CultureInfo.CurrentCulture)} MACs on this port",
+        };
+        SeenText = location.UpdatedAt is { } at ? "Seen " + DurationAgo(ServerTime.Age(at, serverTimestampsAreUtc)) : null;
     }
+
+    /// <summary>The switch, as Device Details' neighbour cards show a device: its state and what it is.</summary>
+    public DeviceCardFacts Switch { get; }
+
+    /// <summary>The port's own status, speed and traffic, as on the Ports tab - null when the port couldn't be read.</summary>
+    public PortItemViewModel? Port { get; }
+
+    /// <summary>Only when the port's status is known - a port read without it would only say "Unknown".</summary>
+    public bool HasPort => Location.Port?.IfOperStatus is { Length: > 0 };
+
+    /// <summary>"Up · 1 Gbps", the Neighbours card's port line.</summary>
+    public string PortStateText => Port is null ? string.Empty : $"{Port.StatusText} · {Port.SpeedText}";
+
+    public string VlanText { get; }
+
+    public string? MacCountText { get; }
+
+    public bool HasMacCount => MacCountText is not null;
+
+    public string? SeenText { get; }
+
+    public bool HasSeen => SeenText is not null;
 
     public EndpointLocation Location { get; }
 
@@ -253,6 +294,51 @@ public sealed class LocationItemViewModel
             : span.TotalDays >= 1 ? $"{(int)span.TotalDays}d ago"
             : span.TotalHours >= 1 ? $"{(int)span.TotalHours}h ago"
             : $"{(int)span.TotalMinutes}m ago";
+}
+
+/// <summary>
+/// A device as Device Details' neighbour cards show one: a state tile, its
+/// name, "hardware · type · IP" and its state in words.
+/// </summary>
+public sealed class DeviceCardFacts
+{
+    public DeviceCardFacts(Device? device, string name)
+    {
+        Name = name;
+        Severity = device?.State switch
+        {
+            DeviceState.Up => AlertSeverity.Ok,
+            DeviceState.Down => AlertSeverity.Critical,
+            DeviceState.Maintenance => AlertSeverity.Warning,
+            _ => AlertSeverity.Unknown,
+        };
+        StateText = device is null ? "Not visible" : device.State.ToDisplayString();
+        var parts = device is null ? [] : new[] { device.Hardware, TitleCase(device.Type), device.Ip };
+        Description = string.Join(" · ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+        Location = string.IsNullOrWhiteSpace(device?.Location) ? null : device!.Location;
+        Version = device is null ? null : string.Join(" ", new[] { device.Os, device.Version }.Where(p => !string.IsNullOrWhiteSpace(p)));
+    }
+
+    public string Name { get; }
+
+    public AlertSeverity Severity { get; }
+
+    public string StateText { get; }
+
+    public string Description { get; }
+
+    public bool HasDescription => Description.Length > 0;
+
+    public string? Location { get; }
+
+    public bool HasLocation => Location is not null;
+
+    public string? Version { get; }
+
+    public bool HasVersion => !string.IsNullOrEmpty(Version);
+
+    private static string? TitleCase(string? text) =>
+        string.IsNullOrWhiteSpace(text) ? null : char.ToUpperInvariant(text[0]) + text[1..];
 }
 
 /// <summary>A value with a copy button - an address, or anything else worth pasting elsewhere.</summary>
@@ -379,7 +465,47 @@ public sealed class EndpointRowViewModel
         SortKey = record.Addresses.FirstOrDefault() is { } address && System.Net.IPAddress.TryParse(address, out var ip)
             ? Convert.ToHexString(ip.GetAddressBytes()).PadLeft(32, '0')
             : "~" + record.Title;
+
+        // What the filters test, LibreNMS's Source facet and who knows it.
+        var sources = new List<string>();
+        if (record.Neighbours.Count > 0)
+        {
+            sources.Add(SourceNeighbourTables);
+        }
+
+        if (record.Locations.Count > 0)
+        {
+            sources.Add(SourceForwardingTables);
+        }
+
+        if (record.MonitoredInterface is not null || record.MonitoredInterfacePortId is not null)
+        {
+            sources.Add(SourceInterfaceAddresses);
+        }
+
+        if (record.MonitoredDevice is not null)
+        {
+            sources.Add(SourceDevices);
+        }
+
+        SourceKeys = sources;
+        SeenByKeys = record.Neighbours.Select(n => EndpointViewModel.DeviceName(n.Device, n.DeviceId)).Distinct().ToList();
+        MonitoredKey = record.IsMonitored ? "Monitored" : "Not monitored";
     }
+
+    public const string SourceNeighbourTables = "Neighbour tables (ARP)";
+    public const string SourceForwardingTables = "Forwarding tables (FDB)";
+    public const string SourceInterfaceAddresses = "Interface addresses";
+    public const string SourceDevices = "Devices";
+
+    /// <summary>Where this row was found - the Source filter's values.</summary>
+    public IReadOnlyList<string> SourceKeys { get; }
+
+    /// <summary>The routers whose ARP tables hold it - the Seen by filter's values.</summary>
+    public IReadOnlyList<string> SeenByKeys { get; }
+
+    /// <summary>"Monitored" or "Not monitored".</summary>
+    public string MonitoredKey { get; }
 
     public string AddressText { get; }
 

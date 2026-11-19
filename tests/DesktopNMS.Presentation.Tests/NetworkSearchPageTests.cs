@@ -143,6 +143,39 @@ public sealed class NetworkSearchPageTests
         Assert.False(row.Matches("198.51.100"));
     }
 
+    [Fact]
+    public void Rows_carry_the_values_the_filters_test()
+    {
+        var record = Record();
+        var row = new EndpointRowViewModel(record, MacAddressFormat.Colon, new NullWindows(), _ => Task.CompletedTask);
+
+        Assert.Equal([EndpointRowViewModel.SourceNeighbourTables, EndpointRowViewModel.SourceForwardingTables], row.SourceKeys);
+        Assert.Equal(["fw-01.example.net"], row.SeenByKeys);
+        Assert.Equal("Not monitored", row.MonitoredKey);
+
+        var facet = new FilterFacet(() => { });
+        facet.Apply([(EndpointRowViewModel.SourceNeighbourTables, EndpointRowViewModel.SourceNeighbourTables, 1), (EndpointRowViewModel.SourceDevices, EndpointRowViewModel.SourceDevices, 1)]);
+        facet.Options.Single(o => o.Key == EndpointRowViewModel.SourceNeighbourTables).IsChecked = false;
+        Assert.True(facet.AllowsAny(row.SourceKeys)); // still found in a forwarding table, which isn't filtered out
+    }
+
+    [Fact]
+    public void The_connected_card_reads_like_a_device_details_neighbour_card()
+    {
+        var switchDevice = new Device { DeviceId = 1, Hostname = "sw-access-01.example.net", Hardware = "C9300-48P", Type = "network", Ip = "192.0.2.20", Status = true };
+        var port = new Port { PortId = 19, DeviceId = 1, IfName = "19", IfAlias = "Lobby display", IfOperStatus = "up", IfSpeed = 1_000_000_000 };
+        var location = new EndpointLocation("00005e005368", 1, 19, switchDevice, port, 2069, "Displays", 1, false, false, DateTime.UtcNow, false);
+
+        var page = Page(Record([location]));
+
+        Assert.Equal("C9300-48P · Network · 192.0.2.20", page.Best!.Switch.Description);
+        Assert.Equal("VLAN 2069 (Displays)", page.Best.VlanText);
+        Assert.Equal("Only MAC on this port", page.Best.MacCountText);
+        Assert.True(page.Best.HasPort);
+        Assert.StartsWith("Up · ", page.Best.PortStateText, StringComparison.Ordinal);
+        Assert.Equal("Lobby display", page.Best.PortDescription);
+    }
+
     /// <summary>Records nothing: these tests don't open windows.</summary>
     private sealed class NullWindows : DesktopNMS.Services.IWindowService
     {
@@ -177,6 +210,7 @@ public sealed class NetworkSearchPageTests
         public void ShowMainTab(MainTab tab) { }
         public void ShowSettingsSection(SettingsSection section) { }
         public void ShowDeviceFiltersDialog() { }
+        public void ShowNetworkSearchFiltersDialog() { }
         public void ShowAlertFiltersDialog() { }
         public bool ShowSignInDialog() => false;
         public bool ShowAddDeviceDialog() => false;

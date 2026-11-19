@@ -53,7 +53,8 @@ public sealed class NetworkSearchViewModel : ObservableObject
     private NetworkSearchResult? _result;
     private EndpointViewModel? _endpoint;
     private string _rowFilter = string.Empty;
-    private MacFormatOption _selectedMacFormat;
+    private DateTimeOffset? _searchedAt;
+    private MacAddressFormat _macFormat;
 
     public NetworkSearchViewModel(
         ILibreNmsClient client,
@@ -68,18 +69,17 @@ public sealed class NetworkSearchViewModel : ObservableObject
         _session = session;
         _logger = logger;
 
-        MacFormats =
-        [
-            new(MacAddressFormat.Colon, "aa:bb:cc:dd:ee:ff"),
-            new(MacAddressFormat.Hyphen, "aa-bb-cc-dd-ee-ff"),
-            new(MacAddressFormat.Dotted, "aabb.ccdd.eeff"),
-            new(MacAddressFormat.Bare, "aabbccddeeff"),
-        ];
-        _selectedMacFormat = MacFormats.First(f => f.Format == _settings.Current.NetworkSearchMacFormatValue);
+        _macFormat = _settings.Current.NetworkSearchMacFormatValue;
+        _settings.Changed += OnSettingsChanged;
 
         Recent = new ObservableCollection<string>(_settings.Current.NetworkSearchRecent);
         Rows = new BatchObservableCollection<EndpointRowViewModel>();
-        RowsView = new FilteredView(Rows) { Filter = o => o is EndpointRowViewModel row && row.Matches(RowFilter) };
+        SourceFilter = new FilterFacet(OnFiltersChanged);
+        SeenByFilter = new FilterFacet(OnFiltersChanged);
+        MonitoredFilter = new FilterFacet(OnFiltersChanged);
+        RowsView = new FilteredView(Rows) { Filter = o => o is EndpointRowViewModel row && Shows(row) };
+        ShowFiltersCommand = new RelayCommand(() => _windows.ShowNetworkSearchFiltersDialog(), () => IsList);
+        ClearFiltersCommand = new RelayCommand(ClearFilters);
         Coverage = new BatchObservableCollection<CoverageItemViewModel>();
 
         SearchCommand = new AsyncRelayCommand(() => SearchAsync(Query, 0));
@@ -137,24 +137,31 @@ public sealed class NetworkSearchViewModel : ObservableObject
 
     public bool HasRecent => Recent.Count > 0;
 
-    public IReadOnlyList<MacFormatOption> MacFormats { get; }
+    /// <summary>
+    /// Filters a list's rows the way LibreNMS's Source and network filters do:
+    /// tick the values to show (any of them), untick one to hide it.
+    /// </summary>
+    public FilterFacet SourceFilter { get; }
 
-    /// <summary>How MACs are written on this page, remembered for next time.</summary>
-    public MacFormatOption SelectedMacFormat
-    {
-        get => _selectedMacFormat;
-        set
-        {
-            if (value is null || !SetProperty(ref _selectedMacFormat, value))
-            {
-                return;
-            }
+    /// <summary>Filters by the router whose ARP table holds the endpoint.</summary>
+    public FilterFacet SeenByFilter { get; }
 
-            _settings.Current.NetworkSearchMacFormat = value.Format.ToString();
-            _settings.SaveQuietly();
-            Present(_result);
-        }
-    }
+    /// <summary>Monitored devices and interfaces, or everything else.</summary>
+    public FilterFacet MonitoredFilter { get; }
+
+    public bool IsFiltersActive => SourceFilter.HasActiveFilter || SeenByFilter.HasActiveFilter || MonitoredFilter.HasActiveFilter;
+
+    public RelayCommand ShowFiltersCommand { get; }
+
+    public RelayCommand ClearFiltersCommand { get; }
+
+    /// <summary>"12 of 25 shown" when filters hide rows.</summary>
+    public string? FilteredText => IsList && (IsFiltersActive || RowFilter.Length > 0)
+        ? $"{RowsView.Cast<object>().Count().ToString(CultureInfo.CurrentCulture)} of {Rows.Count.ToString(CultureInfo.CurrentCulture)} on this page shown"
+        : null;
+
+    /// <summary>The status bar's left side: when the results on screen were fetched.</summary>
+    public string? SearchedText => _searchedAt is { } at ? "searched " + at.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture) : null;
 
     /// <summary>The single endpoint the query identified, when it identified one.</summary>
     public EndpointViewModel? Endpoint
@@ -177,6 +184,7 @@ public sealed class NetworkSearchViewModel : ObservableObject
             if (SetProperty(ref _rowFilter, value ?? string.Empty))
             {
                 RowsView.Refresh();
+                OnPropertyChanged(nameof(FilteredText));
             }
         }
     }
@@ -276,6 +284,7 @@ public sealed class NetworkSearchViewModel : ObservableObject
                 Remember(result.Query.Text);
             }
 
+            _searchedAt = DateTimeOffset.Now;
             Present(result);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
@@ -305,7 +314,7 @@ public sealed class NetworkSearchViewModel : ObservableObject
     private void Present(NetworkSearchResult? result)
     {
         _result = result;
-        var format = SelectedMacFormat.Format;
+        var format = _macFormat;
 
         Endpoint = result is { Outcome: NetworkSearchOutcome.Single, Endpoints: [var only] }
             ? new EndpointViewModel(only, format, _windows, _settings.Current.ServerTimestampsAreUtc, SearchForAsync)
@@ -323,6 +332,9 @@ public sealed class NetworkSearchViewModel : ObservableObject
             }
         }
 
+        SourceFilter.Apply(Counts(Rows.SelectMany(r => r.SourceKeys)));
+        SeenByFilter.Apply(Counts(Rows.SelectMany(r => r.SeenByKeys)));
+        MonitoredFilter.Apply(Counts(Rows.Select(r => r.MonitoredKey)));
         RowsView.Refresh();
 
         using (Coverage.BeginBatch())
@@ -338,6 +350,7 @@ public sealed class NetworkSearchViewModel : ObservableObject
                  {
                      nameof(IsSingle), nameof(IsList), nameof(IsNotFound), nameof(IsIdle), nameof(HasResults), nameof(HasCoverage),
                      nameof(ListHeading), nameof(HasMorePages), nameof(NotFoundTitle), nameof(NotFoundDetail), nameof(IgnoredTermsText),
+                     nameof(IsFiltersActive), nameof(FilteredText), nameof(SearchedText),
                  })
         {
             OnPropertyChanged(name);
@@ -347,6 +360,50 @@ public sealed class NetworkSearchViewModel : ObservableObject
         PreviousPageCommand.RaiseCanExecuteChanged();
         CopyCsvCommand.RaiseCanExecuteChanged();
         SaveCsvCommand.RaiseCanExecuteChanged();
+        ShowFiltersCommand.RaiseCanExecuteChanged();
+    }
+
+    private static IEnumerable<(string Key, string DisplayText, int Count)> Counts(IEnumerable<string> keys)
+        => keys.GroupBy(k => k).Select(g => (g.Key, g.Key, g.Count()));
+
+    /// <summary>A row passes the text filter and every facet - a ticked value in each facet it has values for.</summary>
+    private bool Shows(EndpointRowViewModel row)
+        => row.Matches(RowFilter)
+           && SourceFilter.AllowsAny(row.SourceKeys)
+           && SeenByFilter.AllowsAny(row.SeenByKeys)
+           && MonitoredFilter.Allows(row.MonitoredKey);
+
+    private void OnFiltersChanged()
+    {
+        RowsView.Refresh();
+        OnPropertyChanged(nameof(IsFiltersActive));
+        OnPropertyChanged(nameof(FilteredText));
+    }
+
+    private void ClearFilters()
+    {
+        foreach (var facet in new[] { SourceFilter, SeenByFilter, MonitoredFilter })
+        {
+            facet.CheckAllCommand.Execute(null);
+        }
+
+        RowFilter = string.Empty;
+    }
+
+    /// <summary>Settings › Devices › MAC addresses: rewrite what's on screen in the new format.</summary>
+    private void OnSettingsChanged(object? sender, AppSettings settings)
+    {
+        var format = settings.NetworkSearchMacFormatValue;
+        if (format == _macFormat)
+        {
+            return;
+        }
+
+        UiThread.Dispatcher.Post(() =>
+        {
+            _macFormat = format;
+            Present(_result);
+        });
     }
 
     private void Remember(string query)
@@ -380,7 +437,7 @@ public sealed class NetworkSearchViewModel : ObservableObject
         OnPropertyChanged(nameof(IsIdle));
     }
 
-    private string Csv() => _result is { } r ? NetworkSearchExport.ToCsv(r.Endpoints, SelectedMacFormat.Format) : string.Empty;
+    private string Csv() => _result is { } r ? NetworkSearchExport.ToCsv(r.Endpoints, _macFormat) : string.Empty;
 
     private void SaveCsv()
     {
@@ -416,9 +473,17 @@ public sealed class NetworkSearchViewModel : ObservableObject
         : $"{(r.Offset + 1).ToString("N0", CultureInfo.CurrentCulture)}–{(r.Offset + r.Endpoints.Count).ToString("N0", CultureInfo.CurrentCulture)}";
 }
 
-/// <summary>One choice in the MAC format picker - shown as an example address, as LibreNMS does.</summary>
+/// <summary>One choice in Settings › Devices › MAC addresses - shown as an example address, as LibreNMS does.</summary>
 public sealed record MacFormatOption(MacAddressFormat Format, string Example)
 {
+    public static IReadOnlyList<MacFormatOption> All { get; } =
+    [
+        new(MacAddressFormat.Colon, "aa:bb:cc:dd:ee:ff"),
+        new(MacAddressFormat.Hyphen, "aa-bb-cc-dd-ee-ff"),
+        new(MacAddressFormat.Dotted, "aabb.ccdd.eeff"),
+        new(MacAddressFormat.Bare, "aabbccddeeff"),
+    ];
+
     public override string ToString() => Example;
 }
 

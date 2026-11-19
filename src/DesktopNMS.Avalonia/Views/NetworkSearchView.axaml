@@ -40,15 +40,35 @@
         <Style Selector="Button.copy fi|SymbolIcon">
             <Setter Property="FontSize" Value="14" />
         </Style>
+        <!-- Device Details' neighbour card and pill (NeighboursSection), so the two pages read alike. -->
+        <Style Selector="Button.neighbourCard">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.neighbourCard:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Border.pill">
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="8,1" />
+            <Setter Property="Margin" Value="0,0,6,4" />
+        </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,Auto,*">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
 
         <!-- ======================== Search ======================== -->
         <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="18,12">
             <StackPanel Spacing="8">
-                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-                    <TextBox Grid.Column="0" Name="SearchBox" Classes="search"
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+                    <TextBox Grid.Column="0" Name="SearchBox" Classes="search" VerticalAlignment="Center"
                              Text="{Binding Query}"
                              PlaceholderText="IP address, network, MAC address or name - paste a list to search several"
                              AutomationProperties.Name="Network search"
@@ -56,26 +76,25 @@
                         <TextBox.KeyBindings>
                             <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
                         </TextBox.KeyBindings>
-                        <TextBox.InnerLeftContent>
-                            <fi:SymbolIcon Symbol="Search" Margin="8,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
-                        </TextBox.InnerLeftContent>
                     </TextBox>
-                    <Button Grid.Column="1" Classes="primary" Margin="8,0,0,0" Padding="16,0" Height="32"
-                            Command="{Binding SearchCommand}" Content="Search" AutomationProperties.Name="Search" />
+                    <Button Grid.Column="1" Classes="icon" Margin="6,0,0,0" VerticalAlignment="Center"
+                            Command="{Binding SearchCommand}" ToolTip.Tip="Search (Enter)" AutomationProperties.Name="Search">
+                        <fi:SymbolIcon Symbol="Search" />
+                    </Button>
 
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="18,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="Show MACs as" Classes="subtle" VerticalAlignment="Center" />
-                        <ComboBox ItemsSource="{Binding MacFormats}" SelectedItem="{Binding SelectedMacFormat}" MinWidth="170"
-                                  AutomationProperties.Name="Show MAC addresses as">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:MacFormatOption">
-                                    <TextBlock Text="{Binding Example}" Classes="mono" />
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </StackPanel>
+                    <Rectangle Grid.Column="2" Classes="toolbarSeparator" Margin="10,4" />
 
-                    <Button Grid.Column="3" Classes="icon" Margin="10,0,0,0" ToolTip.Tip="Export the current results" AutomationProperties.Name="Export results"
+                    <!-- One trigger for every filter; the dot shows one's hiding something. As on the Devices tab. -->
+                    <Panel Grid.Column="3" VerticalAlignment="Center">
+                        <Button Classes="icon" Command="{Binding ShowFiltersCommand}" ToolTip.Tip="Filter results by source, router or whether they're monitored"
+                                AutomationProperties.Name="Filter results">
+                            <fi:SymbolIcon Symbol="Filter" />
+                        </Button>
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                 Margin="0,4,4,0" IsHitTestVisible="False" IsVisible="{Binding IsFiltersActive}" />
+                    </Panel>
+
+                    <Button Grid.Column="4" Classes="icon" Margin="4,0,0,0" VerticalAlignment="Center" ToolTip.Tip="Export the current results" AutomationProperties.Name="Export results"
                             IsEnabled="{Binding HasResults}">
                         <fi:SymbolIcon Symbol="Share" />
                         <Button.Flyout>
@@ -155,25 +174,34 @@
                         <DataTemplate x:DataType="vm:EndpointViewModel">
                             <StackPanel Spacing="14">
 
-                                <!-- Who it is. -->
-                                <StackPanel Spacing="4">
-                                    <SelectableTextBlock Text="{Binding Title}" FontFamily="{DynamicResource MonoFont}" FontSize="24" FontWeight="SemiBold"
-                                                         AutomationProperties.Name="{Binding Title, StringFormat='Endpoint {0}'}" />
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <Button Classes="link" Command="{Binding OpenDeviceCommand}" IsVisible="{Binding IsMonitored}"
-                                                ToolTip.Tip="Open this device">
-                                            <StackPanel Orientation="Horizontal" Spacing="5">
-                                                <fi:SymbolIcon Symbol="Server" FontSize="14" />
-                                                <TextBlock Text="{Binding MonitoredDeviceName, StringFormat='Monitored as {0}'}" />
-                                            </StackPanel>
-                                        </Button>
-                                        <Button Classes="link" Command="{Binding OpenInterfaceCommand}" IsVisible="{Binding HasMonitoredInterface}"
-                                                ToolTip.Tip="This address belongs to a monitored interface - open its port">
-                                            <TextBlock Text="{Binding MonitoredInterfaceName, StringFormat='on interface {0}'}" />
-                                        </Button>
-                                    </StackPanel>
-                                </StackPanel>
-
+                                <!-- A monitored device in brief, as Device Details' neighbour cards show one. -->
+                                <ContentControl Content="{Binding Device}" IsVisible="{Binding IsMonitored}">
+                                    <ContentControl.ContentTemplate>
+                                        <DataTemplate x:DataType="vm:DeviceCardFacts">
+                                            <Button Classes="neighbourCard" Command="{Binding $parent[ContentControl].((vm:EndpointViewModel)DataContext).OpenDeviceCommand}"
+                                                    ToolTip.Tip="Open this device" AutomationProperties.Name="{Binding Name, StringFormat='Open {0}'}">
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <Panel Width="40" Height="40" Margin="0,0,14,0" VerticalAlignment="Top">
+                                                        <Border CornerRadius="10" Opacity="0.16" Background="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                        <fi:SymbolIcon Symbol="Server" FontSize="18" Foreground="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                    </Panel>
+                                                    <StackPanel Grid.Column="1">
+                                                        <DockPanel>
+                                                            <TextBlock DockPanel.Dock="Right" Text="Open ›" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" />
+                                                            <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        </DockPanel>
+                                                        <TextBlock Text="{Binding Description}" Classes="subtle" Margin="0,2,0,0" IsVisible="{Binding HasDescription}" TextTrimming="CharacterEllipsis" />
+                                                        <WrapPanel Margin="0,6,0,0">
+                                                            <Border Classes="pill"><TextBlock Text="{Binding StateText}" FontSize="11" Foreground="{Binding Severity, Converter={x:Static views:Converters.SeverityToBrush}}" /></Border>
+                                                            <Border Classes="pill" IsVisible="{Binding HasVersion}"><TextBlock Text="{Binding Version}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
+                                                            <Border Classes="pill" IsVisible="{Binding HasLocation}"><TextBlock Text="{Binding Location}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
+                                                        </WrapPanel>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ContentControl.ContentTemplate>
+                                </ContentControl>
                                 <!-- The answer: where it plugs in. -->
                                 <Border Classes="card" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="3,0,0,0" Padding="16,14">
                                     <StackPanel Spacing="6">
@@ -184,25 +212,48 @@
                                         <ContentControl Content="{Binding Best}" IsVisible="{Binding HasBest}">
                                             <ContentControl.ContentTemplate>
                                                 <DataTemplate x:DataType="vm:LocationItemViewModel">
-                                                    <StackPanel Spacing="4">
-                                                        <WrapPanel Orientation="Horizontal">
-                                                            <Button Classes="link" Command="{Binding OpenDeviceCommand}" ToolTip.Tip="Open this switch">
-                                                                <TextBlock Text="{Binding DeviceName}" FontSize="18" FontWeight="SemiBold" />
-                                                            </Button>
-                                                            <TextBlock Text="›" FontSize="18" Margin="6,0" VerticalAlignment="Center" Classes="subtle" />
-                                                            <Button Classes="link" Command="{Binding OpenPortCommand}" ToolTip.Tip="Open this port and its graphs">
-                                                                <TextBlock Text="{Binding PortName}" FontSize="18" FontWeight="SemiBold" />
-                                                            </Button>
-                                                            <Border Classes="kind" Margin="10,0,0,0" BorderBrush="{Binding KindTone, Converter={x:Static views:Converters.SeverityToBrush}}"
-                                                                    ToolTip.Tip="{Binding KindToolTip}">
-                                                                <TextBlock Text="{Binding KindText}" Foreground="{Binding KindTone, Converter={x:Static views:Converters.SeverityToBrush}}" />
-                                                            </Border>
-                                                        </WrapPanel>
-                                                        <TextBlock Text="{Binding FactsText}" Classes="subtle" TextWrapping="Wrap" ToolTip.Tip="{Binding UpdatedToolTip}" />
-                                                    </StackPanel>
+                                                    <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0">
+                                                        <!-- The switch's state, on a tile tinted to match. -->
+                                                        <Panel Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Top">
+                                                            <Border CornerRadius="9" Opacity="0.16" Background="{Binding Switch.Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                            <Ellipse Width="9" Height="9" Fill="{Binding Switch.Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                        </Panel>
+                                                        <StackPanel Grid.Column="1">
+                                                            <DockPanel>
+                                                                <Button DockPanel.Dock="Right" Classes="link" Command="{Binding OpenPortCommand}" ToolTip.Tip="Open this port and its graphs">
+                                                                    <TextBlock Text="Port ›" FontSize="12" />
+                                                                </Button>
+                                                                <Button Classes="link" Command="{Binding OpenDeviceCommand}" ToolTip.Tip="Open this switch" HorizontalAlignment="Left">
+                                                                    <TextBlock Text="{Binding DeviceName}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                                </Button>
+                                                            </DockPanel>
+                                                            <TextBlock Text="{Binding Switch.Description}" Classes="subtle" Margin="0,2,0,0" IsVisible="{Binding Switch.HasDescription}" TextTrimming="CharacterEllipsis" />
+                                                            <WrapPanel Margin="0,6,0,0">
+                                                                <Border Classes="pill" ToolTip.Tip="{Binding KindToolTip}">
+                                                                    <TextBlock Text="{Binding KindText}" FontSize="11" Foreground="{Binding KindTone, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                                </Border>
+                                                                <Border Classes="pill"><TextBlock Text="{Binding Switch.StateText}" FontSize="11" Foreground="{Binding Switch.Severity, Converter={x:Static views:Converters.SeverityToBrush}}" /></Border>
+                                                                <Border Classes="pill"><TextBlock Text="{Binding VlanText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
+                                                                <Border Classes="pill" IsVisible="{Binding HasMacCount}"><TextBlock Text="{Binding MacCountText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
+                                                                <Border Classes="pill" IsVisible="{Binding HasSeen}" ToolTip.Tip="{Binding UpdatedToolTip}"><TextBlock Text="{Binding SeenText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
+                                                            </WrapPanel>
+                                                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,6,0,0">
+                                                                <fi:SymbolIcon Symbol="PlugConnected" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                                                <Button Classes="link" Command="{Binding OpenPortCommand}" ToolTip.Tip="Open this port and its graphs">
+                                                                    <TextBlock Text="{Binding PortName}" />
+                                                                </Button>
+                                                                <TextBlock Text="{Binding PortDescription, StringFormat='· {0}'}" Classes="subtle" VerticalAlignment="Center"
+                                                                           IsVisible="{Binding PortDescription, Converter={x:Static ObjectConverters.IsNotNull}}" TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="20,3,0,0" IsVisible="{Binding HasPort}">
+                                                                <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding PortStateText}" />
+                                                                <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding Port.InRateText, StringFormat='  ·  In {0}', FallbackValue=''}" />
+                                                                <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding Port.OutRateText, StringFormat='  ·  Out {0}', FallbackValue=''}" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </Grid>
                                                 </DataTemplate>
-                                            </ContentControl.ContentTemplate>
-                                        </ContentControl>
+                                            </ContentControl.ContentTemplate>                                        </ContentControl>
                                         <TextBlock Text="{Binding NoBestText}" TextWrapping="Wrap" IsVisible="{Binding !HasBest}" />
                                     </StackPanel>
                                 </Border>
@@ -452,31 +503,40 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- ======================== What was checked ======================== -->
-                <StackPanel Spacing="6" IsVisible="{Binding HasCoverage}">
-                    <TextBlock Text="What was checked" Classes="section" />
-                    <ItemsControl ItemsSource="{Binding Coverage}">
+            </StackPanel>        </ScrollViewer>
+
+        <!-- ======================== Status bar ======================== -->
+        <!-- What was checked, the way the Dashboard shows when it was updated:
+             each source's dot and word, details on hover. -->
+        <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,8"
+                IsVisible="{Binding HasCoverage}">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="14">
+                    <TextBlock Text="Checked" Classes="subtle" VerticalAlignment="Center" />
+                    <ItemsControl ItemsSource="{Binding Coverage}" VerticalAlignment="Center">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <WrapPanel Orientation="Horizontal" />
+                                <StackPanel Orientation="Horizontal" Spacing="14" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:CoverageItemViewModel">
-                                <Border Classes="card" Padding="10,4" Margin="0,0,8,8" ToolTip.Tip="{Binding Detail}"
-                                        AutomationProperties.Name="{Binding AccessibleText}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
-                                                 Fill="{Binding Tone, Converter={x:Static views:Converters.SeverityToBrush}}" />
-                                        <TextBlock Text="{Binding Label}" />
-                                        <TextBlock Text="{Binding StateText}" Classes="subtle" />
-                                    </StackPanel>
-                                </Border>
+                                <StackPanel Orientation="Horizontal" Spacing="5" Background="Transparent" ToolTip.Tip="{Binding Detail}"
+                                            AutomationProperties.Name="{Binding AccessibleText}">
+                                    <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                             Fill="{Binding Tone, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                    <TextBlock Text="{Binding Label}" Classes="subtle" />
+                                    <TextBlock Text="{Binding StateText}" Classes="subtle" Opacity="0.75" />
+                                </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
-            </StackPanel>
-        </ScrollViewer>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14">
+                    <TextBlock Text="{Binding FilteredText}" Classes="subtle" IsVisible="{Binding FilteredText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <TextBlock Text="{Binding SearchedText}" Classes="subtle" />
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

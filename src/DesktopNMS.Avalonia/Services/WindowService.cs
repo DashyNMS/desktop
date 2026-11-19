@@ -506,6 +506,14 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         Modal.Show(window, Owner());
     }
 
+    /// <summary>Live: the Network Search page is a singleton, so its facets are the ones filtering its list.</summary>
+    public void ShowNetworkSearchFiltersDialog()
+    {
+        var window = new NetworkSearchFiltersWindow { DataContext = services.GetRequiredService<NetworkSearchViewModel>() };
+        WindowPlacementMemory.Attach(window, services.GetRequiredService<ISettingsStore>());
+        Modal.Show(window, Owner());
+    }
+
     /// <summary>Live: MainViewModel is a singleton, so its GroupFilter is the one filtering the grid.</summary>
     public void ShowAlertFiltersDialog()
     {
