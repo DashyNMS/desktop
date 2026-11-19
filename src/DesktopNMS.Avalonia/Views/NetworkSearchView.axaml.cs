@@ -43,4 +43,27 @@ public partial class NetworkSearchView : UserControl
     }
 
     private void OnFocusSearchRequested(object? sender, System.EventArgs e) => FocusSearch();
+
+    /// <summary>A double-click anywhere on a row opens it, not just its address.</summary>
+    private void OnResultDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e) => OpenSelected();
+
+    /// <summary>Enter on a selected row opens it, for keyboard users.</summary>
+    private void OnResultKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key == Avalonia.Input.Key.Enter && OpenSelected())
+        {
+            e.Handled = true;
+        }
+    }
+
+    private bool OpenSelected()
+    {
+        if (ResultsGrid.SelectedItem is not EndpointRowViewModel row || !row.OpenCommand.CanExecute(null))
+        {
+            return false;
+        }
+
+        row.OpenCommand.Execute(null);
+        return true;
+    }
 }

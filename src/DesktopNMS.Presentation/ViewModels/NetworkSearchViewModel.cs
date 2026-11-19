@@ -54,6 +54,9 @@ public sealed class NetworkSearchViewModel : ObservableObject
     private EndpointViewModel? _endpoint;
     private string _rowFilter = string.Empty;
     private DateTimeOffset? _searchedAt;
+
+    /// <summary>The connection the results on screen came from; another one's results are dropped.</summary>
+    private object? _resultConnection;
     private MacAddressFormat _macFormat;
 
     public NetworkSearchViewModel(
@@ -160,6 +163,25 @@ public sealed class NetworkSearchViewModel : ObservableObject
         ? $"{RowsView.Cast<object>().Count().ToString(CultureInfo.CurrentCulture)} of {Rows.Count.ToString(CultureInfo.CurrentCulture)} on this page shown"
         : null;
 
+    /// <summary>
+    /// Sources that couldn't be read, said where the results are - so a card
+    /// saying "no switch has it" is never read as more than it is.
+    /// </summary>
+    public string? BlindSpotText
+    {
+        get
+        {
+            var gaps = Coverage.Where(c => c.IsBlindSpot).Select(c => $"{c.Label} ({c.StateText})").ToList();
+            return gaps.Count == 0 || IsIdle ? null
+                : $"Not everything could be checked: {string.Join(", ", gaps)}. Results may be incomplete.";
+        }
+    }
+
+    public bool HasBlindSpots => BlindSpotText is not null;
+
+    /// <summary>The Filter button's spoken name, which says when filters are hiding rows.</summary>
+    public string FiltersButtonName => IsFiltersActive ? "Filter results, filters on" : "Filter results";
+
     /// <summary>The status bar's left side: when the results on screen were fetched.</summary>
     public string? SearchedText => _searchedAt is { } at ? "searched " + at.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture) : null;
 
@@ -265,6 +287,13 @@ public sealed class NetworkSearchViewModel : ObservableObject
         _searchCts?.Dispose();
         var cts = _searchCts = new CancellationTokenSource();
         var generation = ++_generation;
+        var connection = _session.Connection;
+
+        // A new query starts with no filters; paging keeps them.
+        if (remember)
+        {
+            ResetFilters();
+        }
 
         Query = query;
         ErrorMessage = null;
@@ -274,7 +303,7 @@ public sealed class NetworkSearchViewModel : ObservableObject
         try
         {
             var result = await new NetworkSearch(_client).SearchAsync(query, offset, cts.Token).ConfigureAwait(true);
-            if (generation != _generation || !_session.IsConnected)
+            if (generation != _generation || !_session.IsConnected || !ReferenceEquals(connection, _session.Connection))
             {
                 return;
             }
@@ -285,6 +314,7 @@ public sealed class NetworkSearchViewModel : ObservableObject
             }
 
             _searchedAt = DateTimeOffset.Now;
+            _resultConnection = connection;
             Present(result);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
@@ -295,11 +325,15 @@ public sealed class NetworkSearchViewModel : ObservableObject
         {
             _logger.LogWarning("Network search failed: {Message}", ex.Message);
             ErrorMessage = ex.ToUserMessage();
+            _searchedAt = null;
+            Present(null);
         }
         catch (Exception ex) when (generation == _generation && ex is not OutOfMemoryException)
         {
             _logger.LogError(ex, "Network search failed unexpectedly");
             ErrorMessage = "The search couldn't finish. Try again, or check the connection to LibreNMS.";
+            _searchedAt = null;
+            Present(null);
         }
         finally
         {
@@ -316,8 +350,12 @@ public sealed class NetworkSearchViewModel : ObservableObject
         _result = result;
         var format = _macFormat;
 
+        var blind = (result?.Coverage ?? [])
+            .Where(c => c.State is SourceState.PermissionDenied or SourceState.Unavailable or SourceState.Failed)
+            .Select(c => c.Source)
+            .ToHashSet();
         Endpoint = result is { Outcome: NetworkSearchOutcome.Single, Endpoints: [var only] }
-            ? new EndpointViewModel(only, format, _windows, _settings.Current.ServerTimestampsAreUtc, SearchForAsync)
+            ? new EndpointViewModel(only, format, _windows, _settings.Current.ServerTimestampsAreUtc, SearchForAsync, blind)
             : null;
 
         using (Rows.BeginBatch())
@@ -333,7 +371,7 @@ public sealed class NetworkSearchViewModel : ObservableObject
         }
 
         SourceFilter.Apply(Counts(Rows.SelectMany(r => r.SourceKeys)));
-        SeenByFilter.Apply(Counts(Rows.SelectMany(r => r.SeenByKeys)));
+        SeenByFilter.Apply(Counts(Rows.SelectMany(r => r.SeenByKeys.Count > 0 ? r.SeenByKeys : [EndpointRowViewModel.NoRouter])));
         MonitoredFilter.Apply(Counts(Rows.Select(r => r.MonitoredKey)));
         RowsView.Refresh();
 
@@ -348,9 +386,9 @@ public sealed class NetworkSearchViewModel : ObservableObject
 
         foreach (var name in new[]
                  {
-                     nameof(IsSingle), nameof(IsList), nameof(IsNotFound), nameof(IsIdle), nameof(HasResults), nameof(HasCoverage),
+                     nameof(IsSingle), nameof(IsList), nameof(IsNotFound), nameof(IsIdle), nameof(HasResults), nameof(HasCoverage), nameof(FiltersButtonName),
                      nameof(ListHeading), nameof(HasMorePages), nameof(NotFoundTitle), nameof(NotFoundDetail), nameof(IgnoredTermsText),
-                     nameof(IsFiltersActive), nameof(FilteredText), nameof(SearchedText),
+                     nameof(IsFiltersActive), nameof(FilteredText), nameof(SearchedText), nameof(BlindSpotText), nameof(HasBlindSpots),
                  })
         {
             OnPropertyChanged(name);
@@ -370,7 +408,7 @@ public sealed class NetworkSearchViewModel : ObservableObject
     private bool Shows(EndpointRowViewModel row)
         => row.Matches(RowFilter)
            && SourceFilter.AllowsAny(row.SourceKeys)
-           && SeenByFilter.AllowsAny(row.SeenByKeys)
+           && SeenByFilter.AllowsAny(row.SeenByKeys.Count > 0 ? row.SeenByKeys : [EndpointRowViewModel.NoRouter])
            && MonitoredFilter.Allows(row.MonitoredKey);
 
     private void OnFiltersChanged()
@@ -378,16 +416,29 @@ public sealed class NetworkSearchViewModel : ObservableObject
         RowsView.Refresh();
         OnPropertyChanged(nameof(IsFiltersActive));
         OnPropertyChanged(nameof(FilteredText));
+        OnPropertyChanged(nameof(FiltersButtonName));
     }
 
     private void ClearFilters()
     {
+        ResetFilters();
+        OnFiltersChanged();
+    }
+
+    private void ResetFilters()
+    {
         foreach (var facet in new[] { SourceFilter, SeenByFilter, MonitoredFilter })
         {
-            facet.CheckAllCommand.Execute(null);
+            foreach (var option in facet.Options)
+            {
+                option.SetCheckedQuietly(true);
+            }
         }
 
-        RowFilter = string.Empty;
+        _rowFilter = string.Empty;
+        OnPropertyChanged(nameof(RowFilter));
+        OnPropertyChanged(nameof(IsFiltersActive));
+        OnPropertyChanged(nameof(FiltersButtonName));
     }
 
     /// <summary>Settings › Devices › MAC addresses: rewrite what's on screen in the new format.</summary>
@@ -437,34 +488,71 @@ public sealed class NetworkSearchViewModel : ObservableObject
         OnPropertyChanged(nameof(IsIdle));
     }
 
-    private string Csv() => _result is { } r ? NetworkSearchExport.ToCsv(r.Endpoints, _macFormat) : string.Empty;
+    /// <summary>What's on screen: the one endpoint, or this page's rows the filters leave.</summary>
+    private string Csv()
+    {
+        if (_result is not { } r)
+        {
+            return string.Empty;
+        }
+
+        var endpoints = IsList ? RowsView.Cast<EndpointRowViewModel>().Select(row => row.Record).ToList() : r.Endpoints;
+        return NetworkSearchExport.ToCsv(endpoints, _macFormat);
+    }
 
     private void SaveCsv()
     {
         var path = UiPlatform.FileDialogs.PickFileToSave(new FileDialogOptions(
             Filter: "CSV files (*.csv)|*.csv",
             FileName: $"network-search-{DateTime.Now:yyyy-MM-dd-HHmmss}.csv"));
-        if (path is not null)
-        {
-            File.WriteAllText(path, Csv());
-        }
-    }
-
-    /// <summary>A result from a connection that has gone is another account's data: drop it (#593).</summary>
-    private void OnSessionStateChanged(object? sender, EventArgs e)
-    {
-        if (_session.IsConnected)
+        if (path is null)
         {
             return;
         }
 
+        try
+        {
+            // With a byte-order mark, so spreadsheets read names and vendors as UTF-8.
+            File.WriteAllText(path, Csv(), new System.Text.UTF8Encoding(true));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Saving Network Search results failed");
+            _windows.ShowError("Couldn't save the results", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// A result from a connection that has gone or been replaced - another
+    /// server or account - is that connection's data: drop it (#593). Signing
+    /// in to the same connection again keeps nothing either.
+    /// </summary>
+    private void OnSessionStateChanged(object? sender, EventArgs e)
+    {
         UiThread.Dispatcher.Post(() =>
         {
+            if (_session.IsConnected && ReferenceEquals(_session.Connection, _resultConnection) && !IsBusy)
+            {
+                return;
+            }
+
             Cancel();
             ErrorMessage = null;
+            Query = string.Empty;
+            _searchedAt = null;
+            _resultConnection = null;
+            ResetFilters();
             Present(null);
+
+            // Signing out removes the settings file, and with it these.
             Recent.Clear();
+            foreach (var q in _settings.Current.NetworkSearchRecent)
+            {
+                Recent.Add(q);
+            }
+
             OnPropertyChanged(nameof(HasRecent));
+            ClearRecentCommand.RaiseCanExecuteChanged();
         });
     }
 
@@ -540,5 +628,6 @@ public sealed class CoverageItemViewModel
     /// <summary>Whether this source leaves a gap in what the result can claim.</summary>
     public bool IsBlindSpot { get; }
 
-    public string AccessibleText => $"{Label}: {StateText}";
+    /// <summary>Label, state and the reason, so screen readers get what the tooltip shows.</summary>
+    public string AccessibleText => Detail == Label + ": " + StateText ? Detail : $"{Label}: {StateText}. {Detail}";
 }

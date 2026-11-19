@@ -25,11 +25,14 @@ public sealed class EndpointViewModel : ObservableObject
     public const int SubnetInterfacesShown = 5;
 
     private readonly EndpointRecord _record;
+    private readonly IReadOnlySet<SearchSource> _blind;
     private bool _showAllLocations;
 
-    public EndpointViewModel(EndpointRecord record, MacAddressFormat macFormat, IWindowService windows, bool serverTimestampsAreUtc, Func<string, Task> search)
+    public EndpointViewModel(EndpointRecord record, MacAddressFormat macFormat, IWindowService windows, bool serverTimestampsAreUtc, Func<string, Task> search,
+        IReadOnlySet<SearchSource>? blindSpots = null)
     {
         _record = record;
+        _blind = blindSpots ?? new HashSet<SearchSource>();
         Title = record.Title.Length > 0 && MacAddresses.Normalise(record.Title) is { } titleMac ? MacAddresses.Format(titleMac, macFormat) : record.Title;
         Names = record.Names;
         AllLocations = record.Locations.Select(l => new LocationItemViewModel(l, windows, serverTimestampsAreUtc)).ToList();
@@ -82,7 +85,19 @@ public sealed class EndpointViewModel : ObservableObject
     /// The one-line answer when there's no clear port: why not, in the terms
     /// the evidence allows.
     /// </summary>
-    public string NoBestText => _record.Locations.Count > 0
+    /// <summary>"Seen on" with nothing in it: a real negative, or a source that couldn't be read.</summary>
+    public string NoLocationsText => _blind.Contains(SearchSource.ForwardingTable)
+        ? "Switch MAC tables couldn't be checked, so where it's connected isn't known."
+        : "No switch's MAC table has it.";
+
+    /// <summary>"Neighbour of" with nothing in it, said as precisely as the coverage allows.</summary>
+    public string NoNeighboursText => _blind.Contains(SearchSource.Arp)
+        ? "Router ARP tables couldn't be checked."
+        : "No router's ARP table has it.";
+
+    public string NoBestText => _blind.Contains(SearchSource.ForwardingTable) && _record.Locations.Count == 0
+        ? "Switch MAC tables couldn't be checked, so the port it's connected to isn't known."
+        : _record.Locations.Count > 0
         ? "Seen only on links between switches or aggregates, so there's no clear access port. It may sit behind a switch LibreNMS doesn't poll."
         : _record.Neighbours.Count > 0
             ? "Known to a router, but no polled switch's MAC table has it."
@@ -448,6 +463,7 @@ public sealed class EndpointRowViewModel
 {
     public EndpointRowViewModel(EndpointRecord record, MacAddressFormat format, IWindowService windows, Func<string, Task> search)
     {
+        Record = record;
         AddressText = record.Addresses.Count == 0 ? "—" : string.Join(", ", record.Addresses);
         MacText = record.Macs.Count == 0 ? "—" : string.Join(", ", record.Macs.Select(m => MacAddresses.Format(m.Hex, format)));
         NameText = record.Names.FirstOrDefault() ?? string.Empty;
@@ -460,6 +476,7 @@ public sealed class EndpointRowViewModel
         // Opening a row searches its most specific key: its address, else its MAC, else its name.
         var key = record.Addresses.FirstOrDefault() ?? record.Macs.FirstOrDefault()?.Hex ?? record.Names.FirstOrDefault() ?? record.Title;
         OpenCommand = new AsyncRelayCommand(() => search(key));
+        OpenName = "See where " + (MacAddresses.Normalise(key) is { } keyMac ? MacAddresses.Format(keyMac, format) : key) + " is connected";
         var device = record.MonitoredDevice;
         OpenDeviceCommand = new RelayCommand(() => windows.ShowDeviceDetail(device!.DeviceId), () => device is not null);
         SortKey = record.Addresses.FirstOrDefault() is { } address && System.Net.IPAddress.TryParse(address, out var ip)
@@ -492,6 +509,14 @@ public sealed class EndpointRowViewModel
         SeenByKeys = record.Neighbours.Select(n => EndpointViewModel.DeviceName(n.Device, n.DeviceId)).Distinct().ToList();
         MonitoredKey = record.IsMonitored ? "Monitored" : "Not monitored";
     }
+
+    /// <summary>The Seen by value for a row no router's ARP table holds, so Select none can hide those too.</summary>
+    public const string NoRouter = "No router";
+
+    public EndpointRecord Record { get; }
+
+    /// <summary>The open button's spoken name - meaningful even for a row with no address.</summary>
+    public string OpenName { get; }
 
     public const string SourceNeighbourTables = "Neighbour tables (ARP)";
     public const string SourceForwardingTables = "Forwarding tables (FDB)";
