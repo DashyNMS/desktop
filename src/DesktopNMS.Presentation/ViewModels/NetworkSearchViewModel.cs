@@ -94,8 +94,9 @@ public sealed class NetworkSearchViewModel : ObservableObject
         ClearFiltersCommand = new RelayCommand(ClearFilters);
         Coverage = new BatchObservableCollection<CoverageItemViewModel>();
 
-        SearchCommand = new AsyncRelayCommand(() => SearchAsync(Query, 0));
-        UseRecentCommand = new AsyncRelayCommand(p => p is string q ? SearchAsync(q, 0) : Task.CompletedTask);
+        // Plain commands, so a new search can start while one runs: SearchAsync cancels the old one.
+        SearchCommand = new RelayCommand(() => _ = SearchAsync(Query, 0));
+        UseRecentCommand = new RelayCommand(p => { if (p is string q) { _ = SearchAsync(q, 0); } });
         ClearRecentCommand = new RelayCommand(ClearRecent, () => Recent.Count > 0);
         CancelCommand = new RelayCommand(Cancel, () => IsBusy);
         NextPageCommand = new AsyncRelayCommand(() => SearchAsync(_result!.Query.Text, _result.Offset + _result.Endpoints.Count, remember: false), () => _result?.Remaining > 0 && !IsBusy);
@@ -260,9 +261,9 @@ public sealed class NetworkSearchViewModel : ObservableObject
         ? $"Only the first {NetworkSearchQuery.MaxTerms} pasted terms were searched; {n} more were left out."
         : null;
 
-    public AsyncRelayCommand SearchCommand { get; }
+    public RelayCommand SearchCommand { get; }
 
-    public AsyncRelayCommand UseRecentCommand { get; }
+    public RelayCommand UseRecentCommand { get; }
 
     public RelayCommand ClearRecentCommand { get; }
 
@@ -328,6 +329,10 @@ public sealed class NetworkSearchViewModel : ObservableObject
             if (Endpoint is { MonitoredDeviceId: { } deviceId } endpoint)
             {
                 await LoadConnectionsAsync(endpoint, deviceId, generation, connection, cts.Token).ConfigureAwait(true);
+                if (cts.IsCancellationRequested && Endpoint is { IsLoadingConnections: true } pending)
+                {
+                    pending.ConnectionsCancelled = true;
+                }
             }
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
@@ -360,6 +365,7 @@ public sealed class NetworkSearchViewModel : ObservableObject
 
     private void Present(NetworkSearchResult? result)
     {
+        var previous = ReferenceEquals(result, _result) ? Endpoint : null;
         _result = result;
         var format = _macFormat;
 
@@ -370,6 +376,14 @@ public sealed class NetworkSearchViewModel : ObservableObject
         Endpoint = result is { Outcome: NetworkSearchOutcome.Single, Endpoints: [var only] }
             ? new EndpointViewModel(only, format, _windows, _settings.Current.ServerTimestampsAreUtc, SearchForAsync, blind)
             : null;
+
+        // Re-presenting the same result (a new MAC format): keep its neighbours.
+        if (Endpoint is { } replacement && previous is not null && previous.MonitoredDeviceId == replacement.MonitoredDeviceId)
+        {
+            replacement.AllConnections = previous.AllConnections;
+            replacement.ConnectionsFailed = previous.ConnectionsFailed;
+            replacement.ConnectionsCancelled = previous.ConnectionsCancelled;
+        }
 
         using (Rows.BeginBatch())
         {
@@ -383,9 +397,11 @@ public sealed class NetworkSearchViewModel : ObservableObject
             }
         }
 
+        RememberHidden();
         SourceFilter.Apply(Counts(Rows.SelectMany(r => r.SourceKeys)));
         SeenByFilter.Apply(Counts(Rows.SelectMany(r => r.SeenByKeys.Count > 0 ? r.SeenByKeys : [EndpointRowViewModel.NoRouter])));
         MonitoredFilter.Apply(Counts(Rows.Select(r => r.MonitoredKey)));
+        RestoreHidden();
         RowsView.Refresh();
 
         using (Coverage.BeginBatch())
@@ -426,10 +442,12 @@ public sealed class NetworkSearchViewModel : ObservableObject
             var fleet = _client.Links.ListAllAsync(token);
             var ports = _client.Ports.ListForDeviceAsync(deviceId, token);
             await Task.WhenAll(own, fleet, ports).ConfigureAwait(true);
-            if (generation != _generation || !ReferenceEquals(connection, _session.Connection) || !ReferenceEquals(endpoint, Endpoint))
+            if (generation != _generation || !ReferenceEquals(connection, _session.Connection) || Endpoint?.MonitoredDeviceId != deviceId)
             {
                 return;
             }
+
+            endpoint = Endpoint;
 
             var portItems = ports.Result.ToDictionary(p => p.PortId, p => new PortItemViewModel(p, null, [], _ => { }));
             var built = DesktopNMS.Core.Topology.DeviceNeighbours.Build(
@@ -468,6 +486,46 @@ public sealed class NetworkSearchViewModel : ObservableObject
            && SeenByFilter.AllowsAny(row.SeenByKeys.Count > 0 ? row.SeenByKeys : [EndpointRowViewModel.NoRouter])
            && MonitoredFilter.Allows(row.MonitoredKey);
 
+    /// <summary>
+    /// Values unticked in each facet, kept across pages: a page without
+    /// router A drops A from the list, and coming back must not show it again.
+    /// Cleared for a new query or Clear filters.
+    /// </summary>
+    private readonly Dictionary<FilterFacet, HashSet<string>> _hidden = new();
+
+    private void RememberHidden()
+    {
+        foreach (var facet in new[] { SourceFilter, SeenByFilter, MonitoredFilter })
+        {
+            var hidden = _hidden.TryGetValue(facet, out var set) ? set : _hidden[facet] = new HashSet<string>();
+            foreach (var option in facet.Options)
+            {
+                if (option.IsChecked)
+                {
+                    hidden.Remove(option.Key);
+                }
+                else
+                {
+                    hidden.Add(option.Key);
+                }
+            }
+        }
+    }
+
+    private void RestoreHidden()
+    {
+        foreach (var (facet, hidden) in _hidden)
+        {
+            foreach (var option in facet.Options)
+            {
+                option.SetCheckedQuietly(!hidden.Contains(option.Key));
+            }
+        }
+
+        OnPropertyChanged(nameof(IsFiltersActive));
+        OnPropertyChanged(nameof(FiltersButtonName));
+    }
+
     private void OnFiltersChanged()
     {
         RowsView.Refresh();
@@ -484,6 +542,7 @@ public sealed class NetworkSearchViewModel : ObservableObject
 
     private void ResetFilters()
     {
+        _hidden.Clear();
         foreach (var facet in new[] { SourceFilter, SeenByFilter, MonitoredFilter })
         {
             foreach (var option in facet.Options)
@@ -541,8 +600,22 @@ public sealed class NetworkSearchViewModel : ObservableObject
     {
         _generation++;
         _searchCts?.Cancel();
+        if (Endpoint is { IsLoadingConnections: true } endpoint)
+        {
+            endpoint.ConnectionsCancelled = true;
+        }
+
         IsBusy = false;
         OnPropertyChanged(nameof(IsIdle));
+    }
+
+    /// <summary>F5 on this page: the same search and page again.</summary>
+    public void Refresh()
+    {
+        if (_result is { } result && !IsBusy)
+        {
+            _ = SearchAsync(result.Query.Text, result.Offset, remember: false);
+        }
     }
 
     /// <summary>What's on screen: the one endpoint, or this page's rows the filters leave.</summary>

@@ -103,7 +103,7 @@ public partial class MainWindow : Window
             { IsNetworkMapTabSelected: true } => NetworkMapViewControl.FocusSearch,
             { IsGeoMapTabSelected: true } => GeoMapViewControl.FocusSearch,
             { IsGraylogLogsTabSelected: true } => LogsViewControl.FocusSearch,
-            { IsNetworkSearchTabSelected: true } => NetworkSearchViewControl.FocusSearch,
+            { IsNetworkSearchTabSelected: true } => NetworkSearchViewControl.FocusPageFilter,
 
             // The Dashboard has no search box yet.
             _ => null,

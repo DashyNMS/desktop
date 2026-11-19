@@ -44,6 +44,25 @@ public partial class NetworkSearchView : UserControl
 
     private void OnFocusSearchRequested(object? sender, System.EventArgs e) => FocusSearch();
 
+    /// <summary>
+    /// Ctrl/Cmd+F: filters the list when one is showing, as on every other
+    /// page; otherwise there's nothing to filter, so it goes to the search box.
+    /// </summary>
+    public void FocusPageFilter()
+    {
+        if (_viewModel is not { IsList: true })
+        {
+            FocusSearch();
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            RowFilterBox.Focus();
+            RowFilterBox.SelectAll();
+        }, DispatcherPriority.Input);
+    }
+
     /// <summary>A double-click anywhere on a row opens it, not just its address.</summary>
     private void OnResultDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e) => OpenSelected();
 

@@ -2251,6 +2251,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
                 break;
 
+            case MainTab.NetworkSearch:
+                NetworkSearch?.Refresh();
+                break;
+
             default:
                 break;
         }
@@ -2304,6 +2308,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             case MainTab.LogsEvents:
             case MainTab.LogsAlerts:
                 _logs.ClearFiltersCommand.Execute(null);
+                break;
+
+            case MainTab.NetworkSearch:
+                NetworkSearch?.ClearFiltersCommand.Execute(null);
                 break;
 
             case MainTab.Dashboard:

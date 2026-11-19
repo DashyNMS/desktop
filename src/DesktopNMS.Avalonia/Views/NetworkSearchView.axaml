@@ -178,10 +178,10 @@
 
                 <!-- Sources that couldn't be read, said where the results are. -->
                 <Border Classes="card" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" IsVisible="{Binding HasBlindSpots}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <fi:SymbolIcon Symbol="ErrorCircle" FontSize="16" Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Top" />
-                        <TextBlock Text="{Binding BlindSpotText}" TextWrapping="Wrap" />
-                    </StackPanel>
+                    <Grid ColumnDefinitions="Auto,*">
+                        <fi:SymbolIcon Symbol="ErrorCircle" FontSize="16" Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Top" Margin="0,0,8,0" />
+                        <TextBlock Grid.Column="1" Text="{Binding BlindSpotText}" TextWrapping="Wrap" />
+                    </Grid>
                 </Border>
 
                 <TextBlock Text="{Binding IgnoredTermsText}" Classes="warning" TextWrapping="Wrap"
@@ -518,7 +518,7 @@
                 <StackPanel Spacing="8" IsVisible="{Binding IsList}">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Text="{Binding ListHeading}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Classes="search" Width="220" Margin="12,0,0,0" PlaceholderText="Filter this page"
+                        <TextBox Grid.Column="1" Name="RowFilterBox" Classes="search" Width="220" Margin="12,0,0,0" PlaceholderText="Filter this page"
                                  Text="{Binding RowFilter, Delay=150}" AutomationProperties.Name="Filter this page" />
                     </Grid>
                     <DataGrid Name="ResultsGrid" ItemsSource="{Binding RowsView}" IsReadOnly="True" MaxHeight="620" AutomationProperties.Name="Results"

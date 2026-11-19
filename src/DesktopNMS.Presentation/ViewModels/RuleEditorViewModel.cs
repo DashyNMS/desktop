@@ -534,7 +534,7 @@ public sealed class RuleEditorViewModel : ObservableObject
         }
     }
 
-    /// <summary>Columns this rule's conditions or SQL use that LibreNMS 26.10 removed - shown for review before saving.</summary>
+    /// <summary>Columns this rule's conditions or SQL use that the server's LibreNMS has removed - shown for review before saving.</summary>
     public IReadOnlyList<RemovedConditionField> RemovedColumns
     {
         get => _removedColumns;
@@ -775,7 +775,7 @@ public sealed class RuleEditorViewModel : ObservableObject
             CheckRemovedColumns();
             if (HasRemovedColumns && !ReviewedRemovedColumns)
             {
-                ErrorMessage = "This rule uses columns LibreNMS 26.10 removed. Review the conditions flagged above, then tick 'I've reviewed these' to save.";
+                ErrorMessage = "This rule uses columns LibreNMS has removed. Review the conditions flagged above, then tick 'I've reviewed these' to save.";
                 return;
             }
 

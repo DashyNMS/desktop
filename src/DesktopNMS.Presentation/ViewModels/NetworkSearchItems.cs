@@ -30,6 +30,7 @@ public sealed class EndpointViewModel : ObservableObject
     private bool _showAllSubnet;
     private bool _showAllConnections;
     private bool _connectionsFailed;
+    private bool _connectionsCancelled;
     private IReadOnlyList<DeviceNeighbourItemViewModel>? _allConnections;
 
     public EndpointViewModel(EndpointRecord record, MacAddressFormat macFormat, IWindowService windows, bool serverTimestampsAreUtc, Func<string, Task> search,
@@ -218,7 +219,7 @@ public sealed class EndpointViewModel : ObservableObject
     public bool HasMacLocations => MacLocations.Count > 0;
 
     /// <summary>Only falls back to MAC sightings once the neighbours are known to be missing.</summary>
-    private bool ShowsMacLocations => !IsMonitored || ConnectionsFailed || AllConnections is { Count: 0 };
+    private bool ShowsMacLocations => !IsMonitored || ConnectionsFailed || ConnectionsCancelled || AllConnections is { Count: 0 };
 
     /// <summary>The fallback's caveat: the device's own neighbours weren't available, so this is where its MAC was seen.</summary>
     public string? MacLocationsNote => IsMonitored && HasMacLocations
@@ -268,7 +269,21 @@ public sealed class EndpointViewModel : ObservableObject
 
     public bool HasConnections => AllConnections is { Count: > 0 };
 
-    public bool IsLoadingConnections => IsMonitored && AllConnections is null && !ConnectionsFailed;
+    public bool IsLoadingConnections => IsMonitored && AllConnections is null && !ConnectionsFailed && !ConnectionsCancelled;
+
+    /// <summary>The search was cancelled before the neighbours arrived.</summary>
+    public bool ConnectionsCancelled
+    {
+        get => _connectionsCancelled;
+        set
+        {
+            if (SetProperty(ref _connectionsCancelled, value))
+            {
+                OnPropertyChanged(nameof(IsLoadingConnections));
+                RaiseFallbackChanged();
+            }
+        }
+    }
 
     public bool ConnectionsFailed
     {
@@ -285,6 +300,7 @@ public sealed class EndpointViewModel : ObservableObject
 
     public string? NoConnectionsText => !IsMonitored || HasMacLocations ? null
         : ConnectionsFailed ? "Its neighbours couldn't be read."
+        : ConnectionsCancelled ? "The search was cancelled before its neighbours were read."
         : AllConnections is { Count: 0 } ? "LibreNMS hasn't discovered any neighbours for this device."
         : null;
 
