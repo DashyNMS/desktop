@@ -13,6 +13,7 @@ using DesktopNMS.Core;
 using DesktopNMS.Core.Alerting;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
+using DesktopNMS.Core.Devices;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Topology;
 using DesktopNMS.Infrastructure;
@@ -75,13 +76,13 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
     private readonly Dictionary<int, string> _portNamesByPortId = new();
 
     /// <summary>
-    /// VLAN internal id -&gt; the VLAN itself, populated whenever
-    /// <see cref="LoadVlansAsync"/> loads. FdbItemViewModel reads this
-    /// directly (not a copy) to resolve FdbEntry.VlanId - see its own
-    /// remarks, and LoadVlansAsync's, for why this is a device-filtered
-    /// slice of a fleet-wide fetch rather than a per-device one.
+    /// How the FDB tab's rows read their VLAN, replaced whenever
+    /// <see cref="LoadVlansAsync"/> loads. FdbItemViewModel holds this same
+    /// object (not a copy), so rows built before the VLANs arrive pick the
+    /// new resolver up - see LoadVlansAsync's remarks for why the VLANs are a
+    /// device-filtered slice of a fleet-wide fetch rather than a per-device one.
     /// </summary>
-    private readonly Dictionary<int, Vlan> _vlansById = new();
+    private readonly FdbVlanLookup _fdbVlans = new();
 
     private const int EventLogPageSize = 50;
 
@@ -3563,8 +3564,10 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Every VLAN configured on this device - its own tab, and also what
-    /// <see cref="FdbEntry.VlanId"/> resolves against on the FDB tab (see
-    /// <see cref="_vlansById"/>). The VLANs endpoint has no per-device filter
+    /// an older server's <see cref="FdbEntry.VlanId"/> resolves against on the
+    /// FDB tab, and where VLAN names come from (see <see cref="_fdbVlans"/>).
+    /// LibreNMS 26.11 sends the number itself, so its FDB rows show their
+    /// VLAN even when this fails (core#86). The VLANs endpoint has no per-device filter
     /// that also returns the internal id FdbEntry.VlanId needs (see
     /// <see cref="IVlansApi"/>'s remarks), so it comes back for the whole
     /// fleet and is filtered down here - fetched independently, same as
@@ -3581,21 +3584,14 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
                 .OrderBy(v => v.VlanNumber)
                 .ToList();
 
-            // Mutated in place, not reassigned: FdbItemViewModel rows already
-            // built hold this same dictionary reference (see LoadFdbAsync),
-            // and RefreshVlan below only helps if their next read of it sees
-            // these updated values rather than whatever a fresh dictionary
-            // object would have held.
-            _vlansById.Clear();
-            foreach (var vlan in mine)
-            {
-                _vlansById[vlan.VlanId] = vlan;
-            }
+            // FdbItemViewModel rows already built hold this same lookup (see
+            // LoadFdbAsync), so RefreshVlan below makes them read the new one.
+            _fdbVlans.Resolver = new FdbVlanResolver(mine);
 
             VlanEntries.ReplaceAll(mine.Select(vlan => new VlanItemViewModel(vlan, Ports)));
 
             // FDB rows built before this finished resolved against whatever
-            // was in _vlansById at the time (likely nothing) - tell them to
+            // _fdbVlans held at the time (likely nothing) - tell them to
             // re-check now that it is populated.
             foreach (var entry in FdbEntries)
             {
@@ -3643,7 +3639,7 @@ public sealed class DeviceDetailViewModel : ObservableObject, IDisposable
 
             FdbEntries.ReplaceAll(entries
                 .OrderBy(e => e.MacAddress, StringComparer.OrdinalIgnoreCase)
-                .Select(entry => new FdbItemViewModel(entry, _portNamesByPortId, _vlansById, _settings.Current.ServerTimestampsAreUtc)));
+                .Select(entry => new FdbItemViewModel(entry, _portNamesByPortId, _fdbVlans, _settings.Current.ServerTimestampsAreUtc)));
 
             OnPropertyChanged(nameof(HasFdbEntries));
             OnPropertyChanged(nameof(HasVisibleFdbEntries));
@@ -5167,6 +5163,15 @@ public sealed class PortItemViewModel
 }
 
 /// <summary>
+/// The VLAN resolver a device's FDB rows share: empty until the VLAN table
+/// loads, then replaced - one object, so rows built earlier see the change.
+/// </summary>
+public sealed class FdbVlanLookup
+{
+    public FdbVlanResolver Resolver { get; set; } = FdbVlanResolver.Empty;
+}
+
+/// <summary>
 /// One row in a device's FDB tab - one MAC address the switch has learned.
 /// An <see cref="ObservableObject"/> (not a plain class) specifically so
 /// <see cref="RefreshPortName"/> can be called once port names resolve after
@@ -5176,14 +5181,14 @@ public sealed class FdbItemViewModel : ObservableObject
 {
     private readonly FdbEntry _entry;
     private readonly Dictionary<int, string> _portNamesByPortId;
-    private readonly Dictionary<int, Vlan> _vlansById;
+    private readonly FdbVlanLookup _vlans;
     private readonly bool _serverTimestampsAreUtc;
 
-    public FdbItemViewModel(FdbEntry entry, Dictionary<int, string> portNamesByPortId, Dictionary<int, Vlan> vlansById, bool serverTimestampsAreUtc)
+    public FdbItemViewModel(FdbEntry entry, Dictionary<int, string> portNamesByPortId, FdbVlanLookup vlans, bool serverTimestampsAreUtc)
     {
         _entry = entry;
         _portNamesByPortId = portNamesByPortId;
-        _vlansById = vlansById;
+        _vlans = vlans;
         _serverTimestampsAreUtc = serverTimestampsAreUtc;
     }
 
@@ -5203,35 +5208,17 @@ public sealed class FdbItemViewModel : ObservableObject
         : string.Create(CultureInfo.InvariantCulture, $"Port {_entry.PortId}");
 
     /// <summary>
-    /// The real 802.1Q VLAN number, resolved via <see cref="_vlansById"/> -
-    /// <see cref="FdbEntry.VlanId"/> is LibreNMS's own internal id for the
-    /// VLAN row, not the tag itself (confirmed against a live server: a
-    /// vlan_id of 50 on a device whose actual VLANs were all four digits).
-    /// Falls back to the raw id if it cannot be resolved (VLANs failed to
-    /// load, or a stale/unknown id), which is no worse than showing the
-    /// wrong number outright, just not corrected.
+    /// The real 802.1Q VLAN number, through Core's <see cref="FdbVlanResolver"/>:
+    /// LibreNMS 26.11 sends it directly, older servers an internal row id
+    /// resolved through the VLAN table (core#86). "-" when it is unknown -
+    /// never the internal id, which on a real server can be 50 for VLAN 2074.
     /// </summary>
-    public string VlanText
-    {
-        get
-        {
-            if (_entry.VlanId is not { } vlanId || vlanId <= 0)
-            {
-                return "-";
-            }
-
-            return _vlansById.TryGetValue(vlanId, out var vlan)
-                ? vlan.VlanNumber.ToString(CultureInfo.InvariantCulture)
-                : vlanId.ToString(CultureInfo.InvariantCulture);
-        }
-    }
+    public string VlanText => _vlans.Resolver.NumberOf(_entry) is { } number
+        ? number.ToString(CultureInfo.InvariantCulture)
+        : "-";
 
     /// <summary>The VLAN's own name, e.g. "I-MGMT-Intern" - shown as a subtitle under the number when known.</summary>
-    public string? VlanNameText => _entry.VlanId is { } vlanId
-        && _vlansById.TryGetValue(vlanId, out var vlan)
-        && !string.IsNullOrWhiteSpace(vlan.VlanName)
-            ? vlan.VlanName
-            : null;
+    public string? VlanNameText => _vlans.Resolver.NameOf(_entry);
 
     public bool HasVlanName => VlanNameText is not null;
 

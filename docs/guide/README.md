@@ -29,6 +29,7 @@ Try **Try the demo** on the sign-in window if you want to explore before connect
 - [Investigate a device](how-to/devices.md): check ports, compare graphs and follow neighbours.
 - [Schedule maintenance and rediscover devices](how-to/maintenance.md): plan work on one device or a selection.
 - [Search and export logs](how-to/logs.md): trace events and save the entries you have loaded.
+- [Find anything with Network Search](how-to/network-search.md): see which switch port, VLAN and router an address or MAC address is on.
 - [Use maps and health readings](how-to/maps-and-health.md): find related devices and check sensor limits.
 
 ## Set up your tools

@@ -2026,6 +2026,25 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>Settings, Devices, MAC addresses (#57): how Network Search writes MAC addresses.</summary>
+    public IReadOnlyList<MacFormatOption> MacFormatOptions => MacFormatOption.All;
+
+    /// <summary>Colons unless the draft names another known format, as Core loads it.</summary>
+    public MacFormatOption SelectedMacFormat
+    {
+        get => MacFormatOptions.First(o => o.Format == _draft.NetworkSearchMacFormatValue);
+        set
+        {
+            if (value is null || _draft.NetworkSearchMacFormatValue == value.Format)
+            {
+                return;
+            }
+
+            _draft.NetworkSearchMacFormat = value.Format.ToString();
+            OnPropertyChanged();
+        }
+    }
+
     public IReadOnlyList<KeyValuePair<string, string>> IntelligenceDetailOptions => ViewModels.IntelligenceDetailOptions.All;
 
     /// <summary>The detail level new chats start with (#329).</summary>

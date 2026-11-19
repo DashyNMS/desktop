@@ -35,4 +35,7 @@ public enum MainTab
 
     /// <summary>Intelligence: questions about the network, answered with the user's ChatGPT plan.</summary>
     Intelligence,
+
+    /// <summary>Network Search: find an endpoint by address, network, MAC or name and see where it's connected (#57).</summary>
+    NetworkSearch,
 }

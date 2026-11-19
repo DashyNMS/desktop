@@ -41,6 +41,16 @@ internal sealed class ScreenshotTour(string folder, MainViewModel main, IWindowS
         await TabAsync(mainWindow, MainTab.LogsEvents, "logs", 4).ConfigureAwait(true);
         await TabAsync(mainWindow, MainTab.MapsNetwork, "network-map", 8).ConfigureAwait(true);
 
+        // Network Search (#57): one endpoint in full, a conflict, and a network's list.
+        if (main.NetworkSearch is { } search)
+        {
+            await SectionAsync(mainWindow, () => { main.SelectedTab = MainTab.NetworkSearch; _ = search.SearchForAsync("192.0.2.117"); }, "network-search").ConfigureAwait(true);
+            await SectionAsync(mainWindow, () => _ = search.SearchForAsync("00-00-5E-00-53-69"), "network-search-shared").ConfigureAwait(true);
+            await SectionAsync(mainWindow, () => _ = search.SearchForAsync("192.0.2.200"), "network-search-conflict").ConfigureAwait(true);
+            await SectionAsync(mainWindow, () => _ = search.SearchForAsync("dist-sw-01"), "network-search-device").ConfigureAwait(true);
+            await SectionAsync(mainWindow, () => _ = search.SearchForAsync("192.0.2.0/24"), "network-search-list").ConfigureAwait(true);
+        }
+
         windows.ShowDeviceDetail(fleet.FeaturedDeviceId);
         await SettleAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(true);
         var deviceWindow = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Windows.OfType<DeviceView>().FirstOrDefault();

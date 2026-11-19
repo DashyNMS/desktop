@@ -129,6 +129,17 @@
                                 <TextBlock Text="Intelligence" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
                             </StackPanel>
                         </Button>
+                        <!-- Network Search (#57): under Intelligence, as both are ways to ask about the network rather than pages of it. -->
+                        <Button Classes="rail" Classes.selected="{Binding IsNetworkSearchTabSelected}"
+                                Command="{Binding SelectNetworkSearchTabCommand}"
+                                IsVisible="{Binding ShowNetworkSearchTab}"
+                                ToolTip.Tip="Network search (Ctrl+Shift+F)" AutomationProperties.Name="Network search"
+                                AutomationProperties.AcceleratorKey="Ctrl+Shift+F">
+                            <StackPanel Orientation="Horizontal">
+                                <fi:SymbolIcon Symbol="Search" />
+                                <TextBlock Text="Search" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
+                            </StackPanel>
+                        </Button>
                         <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="12,4,12,6" />
                         <Button Classes="rail" Command="{Binding SettingsCommand}"
                                 ToolTip.Tip="Settings" AutomationProperties.Name="Settings">
@@ -368,6 +379,7 @@
             <views:NeighboursView Name="NeighboursViewControl" DataContext="{Binding Neighbours}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsNeighboursTabSelected}" />
             <views:LogsView Name="LogsViewControl" DataContext="{Binding Logs}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsLogsFamilyTabSelected}" />
             <intel:IntelligenceView DataContext="{Binding Intelligence}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsIntelligenceTabSelected}" />
+            <views:NetworkSearchView Name="NetworkSearchViewControl" DataContext="{Binding NetworkSearch}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsNetworkSearchTabSelected}" />
             <maps:NetworkMapView Name="NetworkMapViewControl" DataContext="{Binding NetworkMap}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsNetworkMapTabSelected}" />
             <maps:GeoMapView Name="GeoMapViewControl" DataContext="{Binding GeoMap}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsGeoMapTabSelected}" />
             <maps:CustomMapsView DataContext="{Binding CustomMaps}" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsCustomMapsTabSelected}" />
