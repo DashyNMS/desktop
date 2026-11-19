@@ -21,20 +21,23 @@ Recent searches appear under the box. Select one to search again, or **Clear** t
 
 ## Read a result
 
-**Connected to** comes first, laid out like the neighbour cards in device details:
+**Connected to** comes first, laid out like the neighbour cards in device details.
 
-- the switch and port the address most likely plugs into;
-- the switch's state;
-- whether the address is the **Direct** (only) MAC on the port, **Shared** with others, or on a port whose MAC count couldn't be read;
-- its VLAN, how recently it was seen, and the port's status and traffic.
+- **An address LibreNMS doesn't monitor** shows the switch and port it plugs into. If it's on more than one access port, such as a server with two links, every port is shown. Each one shows:
+  - the switch's state;
+  - whether the address is the **Direct** (only) MAC on the port, **Shared** with others, or on a port whose MAC count couldn't be read;
+  - its VLAN, how recently it was seen, and the port's status and traffic.
+- **A monitored device**, such as a switch or server, shows every neighbour it's linked to, uplinks included, as device details does. Select **+N more connections** to see them all.
 
-If a switch only saw the address on links to other switches, Connected to explains that there's no clear access port.
+When LibreNMS can't name the link, Connected to falls back to where the MAC address was learned and says why. This happens for a device with no discovered neighbours, or an address seen only on links between switches. In the second case it shows the closest port, marked **Uplink**.
+
+Neighbours LibreNMS doesn't monitor are shown in full, but can't be opened.
 
 The cards below show:
 
 - **Seen on**: every switch port that learned the address, closest first. Uplinks are marked with an arrow, and a sighting more than a day older than the newest is dimmed as stale.
 - **IP addresses** and **MAC addresses**: copy any value with its button. The MAC's maker comes from LibreNMS.
-- **Same subnet**: the network the address belongs to, with its gateway and other monitored interfaces.
+- **Same subnet**: the network the address belongs to, with its gateway first. Select **+N more** to list every monitored interface on it.
 - **Neighbour of**: the routers whose ARP tables hold the address.
 
 A search that matches a monitored device opens with a summary of that device. Select it to open device details. Every switch, port and interface opens its own view too.
