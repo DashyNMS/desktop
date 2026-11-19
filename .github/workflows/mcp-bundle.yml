@@ -59,7 +59,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: DashyNMS/mcp
-          ref: 8f32942c194132fa7152f1e0f8e8448be7a3ac8e
+          ref: b95eb317c81ddfe750f69c5fefc4b2ab95188205
           path: artifacts/mcp-source
           submodules: recursive
           persist-credentials: false

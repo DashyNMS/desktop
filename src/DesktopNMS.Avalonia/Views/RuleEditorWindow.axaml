@@ -208,11 +208,11 @@
                         <TextBlock Text="{Binding PerEntityExplanation}" Classes="subtle" TextWrapping="Wrap" />
                     </StackPanel>
 
-                    <!-- Columns LibreNMS 26.10 removed (#350): flagged, never rewritten. -->
+                    <!-- Columns LibreNMS 26.10 or 26.11 removed (#350, #587): flagged, never rewritten. -->
                     <Border Classes="warningNotice" IsVisible="{Binding HasRemovedColumns}">
                         <StackPanel>
                             <TextBlock TextWrapping="Wrap" FontWeight="SemiBold"
-                                       Text="This rule uses columns LibreNMS 26.10 removed, so it won't match as it used to. Custom SQL isn't changed for you." />
+                                       Text="This rule uses columns LibreNMS has removed, so it won't match as it used to. Custom SQL isn't changed for you." />
                             <TextBlock Text="{Binding RemovedColumnsText}" TextWrapping="Wrap" Margin="0,6" />
                             <CheckBox Content="I've reviewed these" IsChecked="{Binding ReviewedRemovedColumns}" />
                         </StackPanel>

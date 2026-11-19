@@ -122,6 +122,9 @@ public interface IWindowService
     /// </summary>
     void ShowDeviceFiltersDialog();
 
+    /// <summary>Network Search's filters (#57) - live, like the Devices tab's, so nothing to report back.</summary>
+    void ShowNetworkSearchFiltersDialog();
+
     /// <summary>The Alerts tab's equivalent of <see cref="ShowDeviceFiltersDialog"/> - its device group filter (issue #162), live like the Devices one.</summary>
     void ShowAlertFiltersDialog();
 
