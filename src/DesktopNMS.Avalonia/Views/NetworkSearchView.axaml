@@ -54,6 +54,17 @@
             <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
         </Style>
+        <!-- A neighbour LibreNMS doesn't monitor has nothing to open, but it's
+             still information: shown at full strength, just not clickable. -->
+        <Style Selector="Button.neighbourCard:disabled">
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+        <Style Selector="Button.neighbourCard:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        </Style>
         <Style Selector="Border.pill">
             <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
             <Setter Property="CornerRadius" Value="9" />
