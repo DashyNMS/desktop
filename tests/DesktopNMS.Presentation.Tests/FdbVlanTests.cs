@@ -62,9 +62,16 @@ public sealed class FdbVlanTests
         var row = Row(new FdbEntry { DeviceId = 1, VlanId = 50 }, lookup);
         Assert.Equal("-", row.VlanText);
 
+        var changed = new List<string?>();
+        row.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
         lookup.Resolver = new FdbVlanResolver(Vlans);
+        row.RefreshVlan();
 
+        // The row tells the grid, so it redraws rather than keeping "-".
+        Assert.Contains(nameof(FdbItemViewModel.VlanText), changed);
+        Assert.Contains(nameof(FdbItemViewModel.VlanNameText), changed);
         Assert.Equal("2074", row.VlanText);
+        Assert.Equal("Cameras", row.VlanNameText);
     }
 
     [Fact]
