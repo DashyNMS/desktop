@@ -202,62 +202,6 @@
                                         </DataTemplate>
                                     </ContentControl.ContentTemplate>
                                 </ContentControl>
-                                <!-- The answer: where it plugs in. -->
-                                <Border Classes="card">
-                                    <StackPanel Spacing="8">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <fi:SymbolIcon Symbol="PlugConnected" FontSize="16" />
-                                            <TextBlock Text="{Binding ConnectionHeading}" Classes="cardTitle" />
-                                        </StackPanel>
-                                        <ContentControl Content="{Binding Best}" IsVisible="{Binding HasBest}">
-                                            <ContentControl.ContentTemplate>
-                                                <DataTemplate x:DataType="vm:LocationItemViewModel">
-                                                    <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0">
-                                                        <!-- The switch's state, on a tile tinted to match. -->
-                                                        <Panel Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Top">
-                                                            <Border CornerRadius="9" Opacity="0.16" Background="{Binding Switch.Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
-                                                            <Ellipse Width="9" Height="9" Fill="{Binding Switch.Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
-                                                        </Panel>
-                                                        <StackPanel Grid.Column="1">
-                                                            <DockPanel>
-                                                                <Button DockPanel.Dock="Right" Classes="link" Command="{Binding OpenPortCommand}" ToolTip.Tip="Open this port and its graphs">
-                                                                    <TextBlock Text="Port ›" FontSize="12" />
-                                                                </Button>
-                                                                <Button Classes="link" Command="{Binding OpenDeviceCommand}" ToolTip.Tip="Open this switch" HorizontalAlignment="Left">
-                                                                    <TextBlock Text="{Binding DeviceName}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                                </Button>
-                                                            </DockPanel>
-                                                            <TextBlock Text="{Binding Switch.Description}" Classes="subtle" Margin="0,2,0,0" IsVisible="{Binding Switch.HasDescription}" TextTrimming="CharacterEllipsis" />
-                                                            <WrapPanel Margin="0,6,0,0">
-                                                                <Border Classes="pill" ToolTip.Tip="{Binding KindToolTip}">
-                                                                    <TextBlock Text="{Binding KindText}" FontSize="11" Foreground="{Binding KindTone, Converter={x:Static views:Converters.SeverityToBrush}}" />
-                                                                </Border>
-                                                                <Border Classes="pill"><TextBlock Text="{Binding Switch.StateText}" FontSize="11" Foreground="{Binding Switch.Severity, Converter={x:Static views:Converters.SeverityToBrush}}" /></Border>
-                                                                <Border Classes="pill"><TextBlock Text="{Binding VlanText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
-                                                                <Border Classes="pill" IsVisible="{Binding HasMacCount}"><TextBlock Text="{Binding MacCountText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
-                                                                <Border Classes="pill" IsVisible="{Binding HasSeen}" ToolTip.Tip="{Binding UpdatedToolTip}"><TextBlock Text="{Binding SeenText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
-                                                            </WrapPanel>
-                                                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,6,0,0">
-                                                                <fi:SymbolIcon Symbol="PlugConnected" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
-                                                                <Button Classes="link" Command="{Binding OpenPortCommand}" ToolTip.Tip="Open this port and its graphs">
-                                                                    <TextBlock Text="{Binding PortName}" />
-                                                                </Button>
-                                                                <TextBlock Text="{Binding PortDescription, StringFormat='· {0}'}" Classes="subtle" VerticalAlignment="Center"
-                                                                           IsVisible="{Binding PortDescription, Converter={x:Static ObjectConverters.IsNotNull}}" TextTrimming="CharacterEllipsis" />
-                                                            </StackPanel>
-                                                            <StackPanel Orientation="Horizontal" Margin="20,3,0,0" IsVisible="{Binding HasPort}">
-                                                                <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding PortStateText}" />
-                                                                <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding Port.InRateText, StringFormat='  ·  In {0}', FallbackValue=''}" />
-                                                                <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding Port.OutRateText, StringFormat='  ·  Out {0}', FallbackValue=''}" />
-                                                            </StackPanel>
-                                                        </StackPanel>
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ContentControl.ContentTemplate>                                        </ContentControl>
-                                        <TextBlock Text="{Binding NoBestText}" TextWrapping="Wrap" IsVisible="{Binding !HasBest}" />
-                                    </StackPanel>
-                                </Border>
-
                                 <!-- Something that doesn't add up. -->
                                 <Border Classes="card" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" IsVisible="{Binding HasConflicts}">
                                     <StackPanel Spacing="6">
@@ -277,6 +221,62 @@
 
                                 <Grid ColumnDefinitions="3*,14,2*">
                                     <StackPanel Grid.Column="0" Spacing="14">
+                                        <!-- The answer: where it plugs in, first in the stack. -->
+                                        <Border Classes="card">
+                                            <StackPanel Spacing="8">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <fi:SymbolIcon Symbol="PlugConnected" FontSize="16" />
+                                                    <TextBlock Text="{Binding ConnectionHeading}" Classes="cardTitle" />
+                                                </StackPanel>
+                                                <ContentControl Content="{Binding Best}" IsVisible="{Binding HasBest}">
+                                                    <ContentControl.ContentTemplate>
+                                                        <DataTemplate x:DataType="vm:LocationItemViewModel">
+                                                            <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0">
+                                                                <!-- The switch's state, on a tile tinted to match. -->
+                                                                <Panel Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Top">
+                                                                    <Border CornerRadius="9" Opacity="0.16" Background="{Binding Switch.Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                                    <Ellipse Width="9" Height="9" Fill="{Binding Switch.Severity, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                                </Panel>
+                                                                <StackPanel Grid.Column="1">
+                                                                    <DockPanel>
+                                                                        <Button DockPanel.Dock="Right" Classes="link" Command="{Binding OpenPortCommand}" ToolTip.Tip="Open this port and its graphs">
+                                                                            <TextBlock Text="Port ›" FontSize="12" />
+                                                                        </Button>
+                                                                        <Button Classes="link" Command="{Binding OpenDeviceCommand}" ToolTip.Tip="Open this switch" HorizontalAlignment="Left">
+                                                                            <TextBlock Text="{Binding DeviceName}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                                        </Button>
+                                                                    </DockPanel>
+                                                                    <TextBlock Text="{Binding Switch.Description}" Classes="subtle" Margin="0,2,0,0" IsVisible="{Binding Switch.HasDescription}" TextTrimming="CharacterEllipsis" />
+                                                                    <WrapPanel Margin="0,6,0,0">
+                                                                        <Border Classes="pill" ToolTip.Tip="{Binding KindToolTip}">
+                                                                            <TextBlock Text="{Binding KindText}" FontSize="11" Foreground="{Binding KindTone, Converter={x:Static views:Converters.SeverityToBrush}}" />
+                                                                        </Border>
+                                                                        <Border Classes="pill"><TextBlock Text="{Binding Switch.StateText}" FontSize="11" Foreground="{Binding Switch.Severity, Converter={x:Static views:Converters.SeverityToBrush}}" /></Border>
+                                                                        <Border Classes="pill"><TextBlock Text="{Binding VlanText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
+                                                                        <Border Classes="pill" IsVisible="{Binding HasMacCount}"><TextBlock Text="{Binding MacCountText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
+                                                                        <Border Classes="pill" IsVisible="{Binding HasSeen}" ToolTip.Tip="{Binding UpdatedToolTip}"><TextBlock Text="{Binding SeenText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>
+                                                                    </WrapPanel>
+                                                                    <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,6,0,0">
+                                                                        <fi:SymbolIcon Symbol="PlugConnected" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                                                        <Button Classes="link" Command="{Binding OpenPortCommand}" ToolTip.Tip="Open this port and its graphs">
+                                                                            <TextBlock Text="{Binding PortName}" />
+                                                                        </Button>
+                                                                        <TextBlock Text="{Binding PortDescription, StringFormat='· {0}'}" Classes="subtle" VerticalAlignment="Center"
+                                                                                   IsVisible="{Binding PortDescription, Converter={x:Static ObjectConverters.IsNotNull}}" TextTrimming="CharacterEllipsis" />
+                                                                    </StackPanel>
+                                                                    <StackPanel Orientation="Horizontal" Margin="20,3,0,0" IsVisible="{Binding HasPort}">
+                                                                        <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding PortStateText}" />
+                                                                        <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding Port.InRateText, StringFormat='  ·  In {0}', FallbackValue=''}" />
+                                                                        <TextBlock Classes="subtle" FontSize="11.5" Text="{Binding Port.OutRateText, StringFormat='  ·  Out {0}', FallbackValue=''}" />
+                                                                    </StackPanel>
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ContentControl.ContentTemplate>                                        </ContentControl>
+                                                <TextBlock Text="{Binding NoBestText}" TextWrapping="Wrap" IsVisible="{Binding !HasBest}" />
+                                            </StackPanel>
+                                        </Border>
+
 
                                         <!-- Seen on: every switch port that learned it, closest first. -->
                                         <Border Classes="card">
