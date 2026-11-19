@@ -393,6 +393,22 @@
                                            Text="How the Ports tab in device details shows a device's ports. Table shows every detail in columns you can sort. Cards show each port's status, speed, traffic, errors and VLANs at a glance, several to a row. Search, Group by, export and port graphs work the same in both." />
                             </StackPanel>
                         </Border>
+                        <!-- #57: how Network Search writes MAC addresses, shown as LibreNMS shows the choice - an example address. -->
+                        <Border Classes="card" Margin="0,12,0,0">
+                            <StackPanel>
+                                <TextBlock Text="MAC addresses" Classes="section" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding MacFormatOptions}" SelectedItem="{Binding SelectedMacFormat}" MinWidth="180"
+                                          AutomationProperties.Name="Show MAC addresses as">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:MacFormatOption">
+                                            <TextBlock Text="{Binding Example}" FontFamily="{DynamicResource MonoFont}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="How Network Search shows MAC addresses, and writes them when you copy or export results. Search accepts any of these formats, whichever you choose." />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- ==================== Maps ==================== -->
