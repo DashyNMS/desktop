@@ -236,6 +236,26 @@ public sealed class NetworkSearchPageTests
     }
 
     [Fact]
+    public void A_cancelled_or_failed_neighbour_lookup_says_so_over_the_mac_fallback()
+    {
+        EndpointRecord Device() => new()
+        {
+            Title = "192.0.2.20", Addresses = ["192.0.2.20"], Macs = [], Names = ["sw-access-01"], MonitoredDevice = Switch,
+            Locations = [Location(Core, 37, "Eth1/37", 1)], Neighbours = [], Conflicts = [],
+        };
+
+        var cancelled = Page(Device());
+        cancelled.ConnectionsCancelled = true;
+        Assert.False(cancelled.IsLoadingConnections);
+        Assert.StartsWith("The search was cancelled", cancelled.MacLocationsNote, StringComparison.Ordinal);
+        Assert.Single(cancelled.MacLocations);
+
+        var failed = Page(Device());
+        failed.ConnectionsFailed = true;
+        Assert.StartsWith("Its neighbours couldn't be read", failed.MacLocationsNote, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void The_subnet_expands_to_every_interface()
     {
         var interfaces = Enumerable.Range(1, 9).Select(i => new SubnetInterface($"192.0.2.{i}", 24, i, null, null)).ToList();

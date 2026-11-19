@@ -329,7 +329,8 @@ public sealed class NetworkSearchViewModel : ObservableObject
             if (Endpoint is { MonitoredDeviceId: { } deviceId } endpoint)
             {
                 await LoadConnectionsAsync(endpoint, deviceId, generation, connection, cts.Token).ConfigureAwait(true);
-                if (cts.IsCancellationRequested && Endpoint is { IsLoadingConnections: true } pending)
+                // Only this search's own endpoint: a newer search may already show another.
+                if (cts.IsCancellationRequested && generation == _generation && Endpoint is { IsLoadingConnections: true } pending && pending.MonitoredDeviceId == deviceId)
                 {
                     pending.ConnectionsCancelled = true;
                 }
@@ -472,7 +473,12 @@ public sealed class NetworkSearchViewModel : ObservableObject
         catch (LibreNmsApiException ex) when (generation == _generation)
         {
             _logger.LogWarning("Network search couldn't read a device's neighbours: {Message}", ex.Message);
-            endpoint.ConnectionsFailed = true;
+
+            // The endpoint showing that device now - a MAC format change may have replaced it mid-load.
+            if (ReferenceEquals(connection, _session.Connection) && Endpoint is { } current && current.MonitoredDeviceId == deviceId)
+            {
+                current.ConnectionsFailed = true;
+            }
         }
     }
 

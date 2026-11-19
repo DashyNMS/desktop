@@ -223,7 +223,9 @@ public sealed class EndpointViewModel : ObservableObject
 
     /// <summary>The fallback's caveat: the device's own neighbours weren't available, so this is where its MAC was seen.</summary>
     public string? MacLocationsNote => IsMonitored && HasMacLocations
-        ? "No discovered neighbours, so this is where its MAC address was learned."
+        ? ConnectionsFailed ? "Its neighbours couldn't be read, so this is where its MAC address was learned."
+            : ConnectionsCancelled ? "The search was cancelled before its neighbours were read, so this is where its MAC address was learned."
+            : "No discovered neighbours, so this is where its MAC address was learned."
         : !IsMonitored && HasMacLocations && !HasAccessLocations
             ? "Seen only on links between switches; this is the closest. It may sit behind a switch LibreNMS doesn't poll."
             : null;
