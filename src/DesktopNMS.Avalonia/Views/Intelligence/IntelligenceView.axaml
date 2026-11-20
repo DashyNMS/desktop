@@ -88,9 +88,6 @@
                                 </MenuFlyout>
                             </Button.Flyout>
                         </Button>
-                        <Button Classes="icon" ToolTip.Tip="Intelligence settings" Command="{Binding OpenSettingsCommand}">
-                            <fi:SymbolIcon Symbol="Settings" />
-                        </Button>
                         <!-- Brings the context sidebar back once it's been collapsed - by the edge it opens from. -->
                         <Button Name="ShowContextButton" Classes="icon" ToolTip.Tip="Show the context sidebar" AutomationProperties.Name="Show context"
                                 IsVisible="False" Click="OnShowContextClick">
