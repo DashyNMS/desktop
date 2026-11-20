@@ -242,7 +242,8 @@ without changing the returned response or original exception.
 Each logical request increments `dashynms.api.requests` (counter); elapsed time
 also enters `dashynms.api.duration` (millisecond distribution, first and every
 tenth observation per series). Fixed areas are `devicelist` (GET devices),
-`alerts` (GET alerts), `sensors` (GET resources/sensors) and `apiother` (all other
+`alerts` (GET alerts, or GET faults on LibreNMS 26.10 and later, including the
+once-per-connection `faults?state=-1` probe), `sensors` (GET resources/sensors) and `apiother` (all other
 routes/writes). Query parameters never become dimensions. Outcomes are success,
 clienterror (HTTP 4xx), servererror (HTTP 5xx), timeout, networkfailure, cancelled
 and failed (other API/parse failures). Cancellation is not treated as failure.
