@@ -30,8 +30,8 @@ Remaining risk until then: Intelligence's config tools can miss Unimus devices t
 | Core in the app | `2.0.0-ci.59` | `2.0.0-ci.76` (includes DashyNMS/core#89 and core#75) |
 
 - **Every packaging path** pins the same commit: `dev-build.yml`, `mcp-bundle.yml` and both jobs of `package-build.yml`.
-- **Batch 3 recheck (core#90).** The pin moves to `bcdbd8f` (mcp#121). Every tool's device `status` now follows LibreNMS's reported state: `ignored` and `unknown` are new words. `network_overview` and `list_groups_and_locations` count those devices apart from up and down. Desktop passes tool output to the model as it receives it, so no app change is needed. `McpBundleTests` reruns the handover checks against this revision in the package builds.
-- **mcp#156** (VLAN and rule details on LibreNMS 26.11, needed by #587) is still open, so no newer compatibility fix is lost by this pin. #587 moves the pin again once that is published.
+- **Batch 3 recheck (core#90).** The pin moves to `bcdbd8f` (mcp#121). Every tool's device `status` now follows LibreNMS's reported state: `ignored` and `unknown` are new words. `network_overview` and `list_groups_and_locations` count those devices apart from up and down. Desktop passes tool output to the model as it receives it. Core's Intelligence status cards name ignored and unreported devices and count them in the overview (core#94). `McpBundleTests` reruns the handover checks against this revision in the package builds.
+- **mcp#156** (VLAN and rule details on LibreNMS 26.11, needed by #587) is in this pin.
 - **Licences.** MCP is MIT-licensed from `4312052`. `Publish-Mcp.ps1` copies `LICENSE` and `NOTICES.md`, and fills `third-party/` with MCP's own `collect-dependency-notices.py`:
   - Supplements are read byte-exact from git, so a CRLF checkout can't fail their hashes.
   - Only packages that put runtime files in the executable are included: 33 at this pin. `Microsoft.NET.ILLink.Tasks` is a build-only analyzer, so it's left out.
@@ -84,7 +84,6 @@ Still manual:
 
 The handover doesn't fix these, and Desktop doesn't claim them as fixed:
 
-- **DashyNMS/mcp#121:** tools reporting ignored and unknown device states.
 - **DashyNMS/mcp#71:** `health_overview` across a large network without global read.
 - **DashyNMS/mcp#70:** event-log windows on busy networks only reach back a few hours.
 
