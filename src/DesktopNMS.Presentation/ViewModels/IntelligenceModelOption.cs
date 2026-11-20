@@ -13,7 +13,7 @@ namespace DesktopNMS.ViewModels;
 /// </summary>
 public sealed record IntelligenceModelOption(string Provider, string Id, string Name, IReadOnlyList<string> Efforts, string? DefaultEffort = null, string? Description = null)
 {
-    public bool HasEfforts => Efforts.Count > 0;
+    public bool HasEfforts => Efforts is { Count: > 0 };
 
     public static IntelligenceModelOption FromChatGpt(ChatGptModel model)
         => new(AppSettings.IntelligenceProviderChatGpt, model.Slug, model.DisplayName, Array.Empty<string>());

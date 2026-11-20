@@ -923,6 +923,9 @@ public partial class App : Application
         services.AddSingleton<DesktopNMS.Services.Intelligence.Agents.IAgentProvider>(sp => new DesktopNMS.Services.Intelligence.Agents.CodexAgentProvider(
             System.IO.Path.Combine(AppPaths.DataDirectory, "intelligence", "agents", "codex"),
             sp.GetRequiredService<ILogger<DesktopNMS.Services.Intelligence.Agents.CodexAgentProvider>>()));
+        services.AddSingleton<DesktopNMS.Services.Intelligence.Agents.IAgentProvider>(sp => new DesktopNMS.Services.Intelligence.Agents.ClaudeCodeAgentProvider(
+            System.IO.Path.Combine(AppPaths.DataDirectory, "intelligence", "agents", "claude-code"),
+            sp.GetRequiredService<ILogger<DesktopNMS.Services.Intelligence.Agents.ClaudeCodeAgentProvider>>()));
 
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<TrayViewModel>();
