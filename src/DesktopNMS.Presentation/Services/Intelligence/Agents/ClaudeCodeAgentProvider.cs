@@ -53,16 +53,17 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
     private static readonly string[] Efforts = ["low", "medium", "high", "xhigh", "max"];
 
     /// <summary>
-    /// Claude Code's model aliases, which always mean the latest of each
-    /// family the account can use. It has no command to list models, so these
-    /// are the ones its documentation names.
+    /// The Claude models DashyNMS offers, by their full ids so each shows its
+    /// version. Claude Code has no command to list models, so this follows
+    /// Anthropic's current lineup and is updated with it; a model the account
+    /// can't use says so when asked.
     /// </summary>
     internal static readonly IReadOnlyList<AgentModel> Models =
     [
-        new("opus", "Claude Opus", Efforts, Description: "The most capable for complex investigations."),
-        new("sonnet", "Claude Sonnet", Efforts, Description: "Fast and capable for everyday questions."),
-        new("haiku", "Claude Haiku", Efforts, Description: "The quickest, for simple lookups."),
-        new("fable", "Claude Fable", Efforts, Description: "The newest family, where the plan includes it."),
+        new("claude-opus-5-5", "Claude Opus 5.5", Efforts, Description: "The most capable for complex investigations."),
+        new("claude-sonnet-5-5", "Claude Sonnet 5.5", Efforts, Description: "Fast and capable for everyday questions."),
+        new("claude-haiku-5-5", "Claude Haiku 5.5", Efforts, Description: "The quickest, for simple lookups."),
+        new("claude-fable-5-1", "Claude Fable 5.1", Efforts, Description: "The newest family, where the plan includes it or with usage credits."),
     ];
 
     private readonly string _workingDirectory;
@@ -421,6 +422,13 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
             return new AgentProviderException(
                 "Claude Code has reached a usage limit for this account. Check its usage in Settings › Intelligence, then try again once it resets.",
                 IntelligenceFailure.PlanUsage, usage: usage ?? new AgentUsage(Array.Empty<AgentUsageWindow>(), DateTimeOffset.UtcNow, LimitReached: true));
+        }
+
+        if (detail.Contains("usage credits", StringComparison.OrdinalIgnoreCase))
+        {
+            return new AgentProviderException(
+                "This model needs usage credits on your Claude plan. Choose another model in the picker, or add credits in your Claude account.",
+                IntelligenceFailure.PlanUsage);
         }
 
         if (subtype == "error_max_turns")

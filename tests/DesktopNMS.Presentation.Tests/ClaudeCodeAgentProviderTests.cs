@@ -137,6 +137,20 @@ public sealed class ClaudeCodeAgentProviderTests
     }
 
     [Fact]
+    public void Models_show_their_versions()
+        => Assert.Equal(["Claude Opus 5.5", "Claude Sonnet 5.5", "Claude Haiku 5.5", "Claude Fable 5.1"], ClaudeCodeAgentProvider.Models.Select(m => m.Name));
+
+    [Fact]
+    public void A_model_that_needs_credits_says_so()
+    {
+        var ex = ClaudeCodeAgentProvider.Failure("Fable 5.1 requires usage credits. Switch to another model, or manage usage credits.", "success", null);
+
+        Assert.Equal(IntelligenceFailure.PlanUsage, ex.Failure);
+        Assert.Contains("usage credits", ex.Message);
+        Assert.Null(ex.State);
+    }
+
+    [Fact]
     public void A_lost_login_says_how_to_sign_in()
     {
         var ex = ClaudeCodeAgentProvider.Failure("Please run /login", null, null);
