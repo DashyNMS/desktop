@@ -856,7 +856,7 @@
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
-                                        <Button Classes="bare" Margin="8,8,0,4" Command="{Binding IntelligenceProviders.AddCommand}" IsVisible="{Binding IntelligenceProviders.HasAddable}">
+                                        <Button Classes="bare" Margin="8,8,0,4" Command="{Binding IntelligenceProviders.AddCommand}">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <fi:SymbolIcon Symbol="Add" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                                                 <TextBlock Text="Add provider" Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -1005,6 +1005,8 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
+                                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,8" IsVisible="{Binding !IntelligenceProviders.HasAddable}"
+                                               Text="Every provider DashyNMS supports is already in your list. Switch one on there to offer it in the model picker." />
                                     <Button Content="Cancel" HorizontalAlignment="Right" Margin="0,6,0,0" Command="{Binding IntelligenceProviders.CancelAddCommand}" />
                                 </StackPanel>
                             </Border>

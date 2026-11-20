@@ -46,7 +46,7 @@ public sealed class IntelligenceProvidersViewModel : ObservableObject
             };
         }
 
-        AddCommand = new RelayCommand(() => IsAdding = true, () => Addable.Count > 0);
+        AddCommand = new RelayCommand(() => IsAdding = true);
         CancelAddCommand = new RelayCommand(() => IsAdding = false);
         AddProviderCommand = new RelayCommand(p =>
         {
