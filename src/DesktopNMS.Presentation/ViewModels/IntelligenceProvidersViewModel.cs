@@ -50,7 +50,8 @@ public sealed class IntelligenceProvidersViewModel : ObservableObject
         CancelAddCommand = new RelayCommand(() => IsAdding = false);
         AddProviderCommand = new RelayCommand(p =>
         {
-            if (p is not IntelligenceProviderEntryViewModel entry) return;
+            // One of each: a provider already in the list can't be added again.
+            if (p is not IntelligenceProviderEntryViewModel entry || Listed.Contains(entry)) return;
             Chosen(entry.Id).Added = true;
             IsAdding = false;
             Refresh();
@@ -61,8 +62,8 @@ public sealed class IntelligenceProvidersViewModel : ObservableObject
         Selected = Listed.FirstOrDefault();
     }
 
-    /// <summary>Every provider DashyNMS supports, listed or not.</summary>
-    internal List<IntelligenceProviderEntryViewModel> All { get; }
+    /// <summary>Every provider DashyNMS supports, listed or not - Add provider shows them all, the listed ones unavailable.</summary>
+    public List<IntelligenceProviderEntryViewModel> All { get; }
 
     /// <summary>The providers shown in the list.</summary>
     public ObservableCollection<IntelligenceProviderEntryViewModel> Listed { get; } = new();
@@ -186,6 +187,22 @@ public sealed class IntelligenceProviderEntryViewModel : ObservableObject
 
     public bool IsChatGpt => Id == AppSettings.IntelligenceProviderChatGpt;
 
+    /// <summary>In the provider list already - Add provider shows it as added and won't add it twice.</summary>
+    public bool IsListed => _owner.Listed.Contains(this);
+
+    public bool CanAdd => !IsListed;
+
+    /// <summary>
+    /// Add provider's second line: how to install it when it isn't, how to
+    /// sign in when it's installed but signed out, otherwise what it needs.
+    /// </summary>
+    public string AddNote => Route switch
+    {
+        { State: AgentProviderState.NotInstalled, SetupCommandText: { } install } => "Not installed. Install with " + install,
+        { State: AgentProviderState.SignedOut, SetupCommandText: { } signIn } => "Installed. Sign in with " + signIn,
+        _ => Requirement,
+    };
+
     public RelayCommand RemoveCommand { get; }
 
     public RelayCommand UseSignInCommand { get; }
@@ -307,6 +324,7 @@ public sealed class IntelligenceProviderEntryViewModel : ObservableObject
                  {
                      nameof(Connection), nameof(UsesSignIn), nameof(UsesCodex), nameof(Route), nameof(Agent), nameof(IsAgentRoute),
                      nameof(StatusLine), nameof(IsReady), nameof(VersionText), nameof(Models), nameof(HasModels), nameof(ModelsSummary), nameof(Enabled),
+                     nameof(IsListed), nameof(CanAdd), nameof(AddNote),
                  })
         {
             OnPropertyChanged(name);
