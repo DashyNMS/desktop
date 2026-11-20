@@ -97,15 +97,31 @@ public sealed class IntelligenceAgentProviderTests
     }
 
     [Fact]
-    public async Task A_provider_switched_off_in_Settings_leaves_the_picker()
+    public async Task A_provider_removed_in_Settings_leaves_the_picker()
     {
         var (model, _, _, _) = await CreateAsync(second: true);
         using var _ = model;
 
-        Settings.Current.IntelligenceProviders["second"] = new() { Enabled = false };
+        Settings.Current.IntelligenceProviders["second"] = new() { Added = false };
         Settings.Save();
 
         Assert.DoesNotContain(model.Composer.AvailableProviders, p => p.Id == "second");
+        Assert.Contains(model.Composer.AvailableProviders, p => p.Id == "agent");
+    }
+
+    [Fact]
+    public async Task Removing_ChatGPT_disconnects_its_own_sign_in_and_signing_in_lists_it_again()
+    {
+        var credentials = new ChatGptCredentials { Subject = "synthetic-account", AccessToken = "synthetic", RefreshToken = "synthetic", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1) };
+        var (model, _, _, _) = await CreateAsync(credentials: credentials);
+        using var _ = model;
+        Assert.True(model.IsSignedIn);
+
+        Settings.Current.IntelligenceProviders[AppSettings.IntelligenceProviderChatGpt] = new() { Added = false };
+        Settings.Save();
+        for (var i = 0; i < 100 && model.IsSignedIn; i++) await Task.Delay(10);
+
+        Assert.False(model.IsSignedIn);
         Assert.Contains(model.Composer.AvailableProviders, p => p.Id == "agent");
     }
 
@@ -331,7 +347,7 @@ public sealed class IntelligenceAgentProviderTests
         await Task.Delay(20);
     }
 
-    private static async Task<(IntelligenceViewModel Model, FakeAgent Agent, Store Store, Windows Windows)> CreateAsync(bool ready = true, bool second = false, bool secondHasEfforts = true, bool webSearch = false, string id = "agent")
+    private static async Task<(IntelligenceViewModel Model, FakeAgent Agent, Store Store, Windows Windows)> CreateAsync(bool ready = true, bool second = false, bool secondHasEfforts = true, bool webSearch = false, string id = "agent", ChatGptCredentials? credentials = null)
     {
         var settings = new TestSettings();
         Settings = settings;
@@ -347,7 +363,7 @@ public sealed class IntelligenceAgentProviderTests
         var agent = new FakeAgent(id) { Ready = ready };
         var agents = new List<IAgentProvider> { agent };
         if (second) agents.Add(new FakeAgent("second") { HasEfforts = secondHasEfforts });
-        var model = new IntelligenceViewModel(Proxy<IChatGptCredentialStore>(), null!,
+        var model = new IntelligenceViewModel(Proxy<IChatGptCredentialStore>((method, _) => method.Name == "Load" ? credentials : null), null!,
             Proxy<ISessionService>((method, _) => method.Name == "get_Connection" ? connection : null),
             windows.Proxy, devices, client, settings,
             new AlertMonitor(client, null!, settings, null!, devices, NullLogger<AlertMonitor>.Instance), store,

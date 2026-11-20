@@ -108,10 +108,10 @@ public partial class SettingsWindow : Window
         Close();
     }
 
-    /// <summary>A row in Settings › Providers was clicked: show that provider's details, unless the click was on its switch.</summary>
+    /// <summary>A row in Settings › Providers was clicked: show that provider's details, unless the click was on its bin.</summary>
     private void OnProviderRowPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (e.Source is Visual { } source && source.FindAncestorOfType<ToggleSwitch>(includeSelf: true) is not null) return;
+        if (e.Source is Visual { } source && source.FindAncestorOfType<Button>(includeSelf: true) is not null) return;
         if (sender is Control { DataContext: IntelligenceProviderEntryViewModel entry } && DataContext is SettingsViewModel settings)
         {
             settings.IntelligenceProviders.Selected = entry;

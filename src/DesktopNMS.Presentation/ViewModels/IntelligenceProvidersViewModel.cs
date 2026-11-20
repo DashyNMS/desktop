@@ -17,8 +17,10 @@ namespace DesktopNMS.ViewModels;
 /// </summary>
 /// <remarks>
 /// ChatGPT is one entry with two connections - DashyNMS's own sign-in or Codex
-/// on this computer - and is always listed. Another provider is listed once
-/// it's added, or as soon as it's found installed; Add provider offers the rest.
+/// on this computer. A provider is listed once it's added, or until it's
+/// removed when it's found installed (ChatGPT always, until removed). Removing
+/// takes it out of the model picker; only ChatGPT's own sign-in is disconnected,
+/// as the agents' sign-ins belong to their command-line tools.
 /// </remarks>
 public sealed class IntelligenceProvidersViewModel : ObservableObject
 {
@@ -124,12 +126,15 @@ public sealed class IntelligenceProvidersViewModel : ObservableObject
         return chosen;
     }
 
-    /// <summary>Lists ChatGPT, then every provider added or found installed, in a fixed order.</summary>
+    /// <summary>Lists every provider added, or not removed and found installed - ChatGPT unless removed - in a fixed order.</summary>
     internal void Refresh()
     {
-        var listed = All.Where(e => e.Id == AppSettings.IntelligenceProviderChatGpt
-                                    || _draft.IntelligenceProviders.TryGetValue(e.Id, out var chosen) && chosen.Added
-                                    || e.Route?.State is AgentProviderState.Ready or AgentProviderState.SignedOut or AgentProviderState.Unavailable).ToList();
+        var listed = All.Where(e =>
+        {
+            var added = _draft.IntelligenceProviders.TryGetValue(e.Id, out var chosen) ? chosen.Added : null;
+            return added ?? (e.Id == AppSettings.IntelligenceProviderChatGpt
+                             || e.Route?.State is AgentProviderState.Ready or AgentProviderState.SignedOut or AgentProviderState.Unavailable);
+        }).ToList();
         for (var i = Listed.Count - 1; i >= 0; i--)
         {
             if (!listed.Contains(Listed[i])) Listed.RemoveAt(i);
@@ -143,13 +148,13 @@ public sealed class IntelligenceProvidersViewModel : ObservableObject
         if (Selected is null || !Listed.Contains(Selected)) Selected = Listed.FirstOrDefault();
     }
 
-    /// <summary>Takes a provider off the list - ChatGPT always stays. Its sign-in and chats are kept.</summary>
+    /// <summary>
+    /// Takes a provider off the list and out of the model picker, once Settings
+    /// is applied. Its chats are kept; ChatGPT's own sign-in is disconnected then.
+    /// </summary>
     internal void Remove(IntelligenceProviderEntryViewModel entry)
     {
-        if (entry.Id == AppSettings.IntelligenceProviderChatGpt) return;
-        var chosen = Chosen(entry.Id);
-        chosen.Added = false;
-        chosen.Enabled = false;
+        Chosen(entry.Id).Added = false;
         Refresh();
     }
 
@@ -173,7 +178,7 @@ public sealed class IntelligenceProviderEntryViewModel : ObservableObject
         Id = id;
         Name = name;
         Requirement = requirement;
-        RemoveCommand = new RelayCommand(() => _owner.Remove(this), () => !IsChatGpt);
+        RemoveCommand = new RelayCommand(() => _owner.Remove(this));
         UseSignInCommand = new RelayCommand(() => Connection = AppSettings.IntelligenceConnectionSignIn);
         UseCodexCommand = new RelayCommand(() => Connection = AppSettings.IntelligenceConnectionCodex);
     }
@@ -248,17 +253,10 @@ public sealed class IntelligenceProviderEntryViewModel : ObservableObject
 
     public bool IsAgentRoute => Agent is not null;
 
-    /// <summary>Offered in the model picker - the list's switch.</summary>
-    public bool Enabled
-    {
-        get => !_owner.Draft.IntelligenceProviders.TryGetValue(Id, out var chosen) || chosen.Enabled;
-        set
-        {
-            if (value == Enabled) return;
-            _owner.Chosen(Id).Enabled = value;
-            OnPropertyChanged();
-        }
-    }
+    /// <summary>The bin's tooltip: what removing does for this provider.</summary>
+    public string RemoveTip => IsChatGpt
+        ? "Remove ChatGPT and disconnect DashyNMS's ChatGPT sign-in. Its chats are kept."
+        : $"Remove {Name}. Its sign-in stays with {Name} itself, and its chats are kept.";
 
     /// <summary>The list's second line: ready and on what plan, or what's wrong.</summary>
     public string StatusLine => Route switch
@@ -323,7 +321,7 @@ public sealed class IntelligenceProviderEntryViewModel : ObservableObject
         foreach (var name in new[]
                  {
                      nameof(Connection), nameof(UsesSignIn), nameof(UsesCodex), nameof(Route), nameof(Agent), nameof(IsAgentRoute),
-                     nameof(StatusLine), nameof(IsReady), nameof(VersionText), nameof(Models), nameof(HasModels), nameof(ModelsSummary), nameof(Enabled),
+                     nameof(StatusLine), nameof(IsReady), nameof(VersionText), nameof(Models), nameof(HasModels), nameof(ModelsSummary),
                      nameof(IsListed), nameof(CanAdd), nameof(AddNote),
                  })
         {

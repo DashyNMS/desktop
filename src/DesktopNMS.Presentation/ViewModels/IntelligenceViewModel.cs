@@ -108,6 +108,12 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         var executables = Executables(settings.Current);
         settings.Changed += (_, current) => _dispatcher.InvokeAsync(() =>
         {
+            // ChatGPT removed in Settings: its sign-in is DashyNMS's own, so it goes too. Agents keep theirs.
+            if (ProviderSettings(AppSettings.IntelligenceProviderChatGpt)?.Added == false && IsSignedIn && !_isBusy)
+            {
+                _ = DisconnectAsync();
+            }
+
             RefreshOffered();
             OnPropertyChanged(nameof(HasReadyProvider));
             OnPropertyChanged(nameof(NeedsProvider));
@@ -235,7 +241,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     public bool HasReadyProvider => Providers.Any(p => IsReady(p.Id));
 
     /// <summary>
-    /// Whether a provider is offered now: ready, switched on in Settings and,
+    /// Whether a provider is offered now: ready, not removed in Settings and,
     /// for ChatGPT's two routes, the connection chosen there. ChatGPT's own
     /// readiness comes from the live sign-in, which renews in place.
     /// </summary>
@@ -249,7 +255,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
             AppSettings.IntelligenceProviderCodex => ChatGptConnection == AppSettings.IntelligenceConnectionCodex,
             _ => true,
         };
-        return ready && route && ProviderSettings(EntryFor(provider))?.Enabled != false;
+        return ready && route && ProviderSettings(EntryFor(provider))?.Added != false;
     }
 
     /// <summary>
@@ -299,7 +305,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     private static string Defaults(AppSettings settings) => string.Join("\n",
         new[] { settings.IntelligenceProvider, settings.IntelligenceModel ?? string.Empty }
             .Concat(settings.IntelligenceProviders.OrderBy(p => p.Key, StringComparer.Ordinal)
-                .Select(p => p.Key + "=" + p.Value.Model + "/" + p.Value.Effort + "/" + p.Value.Connection + "/" + p.Value.Enabled + "/" + string.Join(",", p.Value.HiddenModels))));
+                .Select(p => p.Key + "=" + p.Value.Model + "/" + p.Value.Effort + "/" + p.Value.Connection + "/" + p.Value.Added + "/" + string.Join(",", p.Value.HiddenModels))));
 
     private static Dictionary<string, string?> Executables(AppSettings settings)
         => settings.IntelligenceProviders.ToDictionary(p => p.Key, p => p.Value.ExecutablePath, StringComparer.Ordinal);
@@ -548,6 +554,14 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
             Chats.SaveActive();
 
             _credentials = credentials;
+
+            // Signing in puts ChatGPT back in Settings' provider list if it had been removed.
+            if (ProviderSettings(AppSettings.IntelligenceProviderChatGpt) is { Added: false } removed)
+            {
+                removed.Added = true;
+                _settings.Save();
+            }
+
             Chats.EnsureScope();
             _store.Save(credentials);
             _logger.LogInformation("Intelligence: signed in with ChatGPT (plan usage {CanUse})", credentials.CanUsePlan);
