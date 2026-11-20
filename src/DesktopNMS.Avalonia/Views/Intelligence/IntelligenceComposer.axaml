@@ -64,6 +64,10 @@
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         </Style>
+        <!-- Reasoning levels share the segmented control's look, narrower to fit five in the picker. -->
+        <Style Selector="RadioButton.navTab /template/ Border#Root">
+            <Setter Property="Padding" Value="4,6" />
+        </Style>
         <!-- The box is the card; the TextBox inside has no frame of its own. -->
         <Style Selector="TextBox#QuestionBox, TextBox#QuestionBox:pointerover, TextBox#QuestionBox:focus">
             <Setter Property="Background" Value="Transparent" />
@@ -175,8 +179,8 @@
                                                         </ItemsControl.ItemsPanel>
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate x:DataType="vm:IntelligenceComposerViewModel+EffortOption">
-                                                                <RadioButton Classes="navTab" Padding="0" Content="{Binding Name}" IsChecked="{Binding IsSelected, Mode=OneWay}"
-                                                                             GroupName="ReasoningLevel" FontSize="12" HorizontalAlignment="Stretch"
+                                                                <RadioButton Classes="navTab" Content="{Binding ShortName}" IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                                                             GroupName="ReasoningLevel" FontSize="12" HorizontalAlignment="Stretch" Click="OnModelChosen"
                                                                              Command="{Binding $parent[ItemsControl].((vm:IntelligenceComposerViewModel)DataContext).SelectEffortCommand}"
                                                                              CommandParameter="{Binding Key}" AutomationProperties.Name="{Binding Name, StringFormat='Reasoning: {0}'}" />
                                                             </DataTemplate>

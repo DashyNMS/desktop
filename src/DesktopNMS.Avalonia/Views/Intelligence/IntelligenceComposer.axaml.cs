@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using DesktopNMS.ViewModels;
 
 namespace DesktopNMS.Views.Intelligence;
@@ -23,8 +24,17 @@ public partial class IntelligenceComposer : UserControl
         QuestionBox.CaretIndex = QuestionBox.Text?.Length ?? 0;
     }
 
-    /// <summary>A model or Provider settings was chosen: the picker has done its job.</summary>
-    private void OnModelChosen(object? sender, RoutedEventArgs e) => ModelPickerButton.Flyout?.Hide();
+    /// <summary>
+    /// A model, a reasoning level or Provider settings was chosen. A model with
+    /// reasoning levels keeps the picker open so the level can be chosen next;
+    /// anything else closes it. Closed afterwards, not here: Click comes before
+    /// the button's command, and closing first would detach the command's binding.
+    /// </summary>
+    private void OnModelChosen(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: IntelligenceModelOption { HasEfforts: true } }) return;
+        Dispatcher.UIThread.Post(() => ModelPickerButton.Flyout?.Hide());
+    }
 
     /// <summary>Enter asks; Shift+Enter is a new line.</summary>
     private void OnQuestionKeyDown(object? sender, KeyEventArgs e)

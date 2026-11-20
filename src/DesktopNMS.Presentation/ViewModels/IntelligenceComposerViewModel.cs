@@ -293,6 +293,9 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
         };
     }
 
-    /// <summary>One reasoning level in the picker's segmented row.</summary>
-    public sealed record EffortOption(string Key, string Name, bool IsSelected);
+    /// <summary>One reasoning level in the picker's segmented row: a short label to fit, the full name for screen readers.</summary>
+    public sealed record EffortOption(string Key, string Name, bool IsSelected)
+    {
+        public string ShortName => Key == "xhigh" ? "X-high" : Name;
+    }
 }
