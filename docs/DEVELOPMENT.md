@@ -624,9 +624,7 @@ connection, Unimus and Graylog, the config-text policy and Settings › Health
 thresholds. It treats each started server as a generation tied to exactly
 those values. Sign-out, a LibreNMS switch or a saved setting retires it, and
 discards anything it was still looking up. Spotlight reaches the model's
-instructions as checked IDs only. Why the app keeps the process rather than
-adopting `DashyNMS.Agent.Shared`, and what was verified for each MCP update,
-is in [docs/design/intelligence-mcp-handover.md](design/intelligence-mcp-handover.md).
+instructions as checked IDs only.
 
 ### Building the installer
 
