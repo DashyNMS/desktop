@@ -926,6 +926,12 @@ public partial class App : Application
         services.AddSingleton<DesktopNMS.Services.Intelligence.Agents.IAgentProvider>(sp => new DesktopNMS.Services.Intelligence.Agents.ClaudeCodeAgentProvider(
             System.IO.Path.Combine(AppPaths.DataDirectory, "intelligence", "agents", "claude-code"),
             sp.GetRequiredService<ILogger<DesktopNMS.Services.Intelligence.Agents.ClaudeCodeAgentProvider>>()));
+        services.AddSingleton<DesktopNMS.Services.Intelligence.Agents.IAgentProvider>(sp => new DesktopNMS.Services.Intelligence.Agents.CopilotAgentProvider(
+            System.IO.Path.Combine(AppPaths.DataDirectory, "intelligence", "agents", "copilot"),
+            sp.GetRequiredService<ILogger<DesktopNMS.Services.Intelligence.Agents.CopilotAgentProvider>>()));
+        services.AddSingleton<DesktopNMS.Services.Intelligence.Agents.IAgentProvider>(sp => new DesktopNMS.Services.Intelligence.Agents.GeminiAgentProvider(
+            System.IO.Path.Combine(AppPaths.DataDirectory, "intelligence", "agents", "gemini"),
+            sp.GetRequiredService<ILogger<DesktopNMS.Services.Intelligence.Agents.GeminiAgentProvider>>()));
 
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<TrayViewModel>();

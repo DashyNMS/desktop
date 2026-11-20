@@ -162,6 +162,7 @@ public sealed class IntelligenceProvidersViewModel : ObservableObject
     {
         AppSettings.IntelligenceProviderClaudeCode => "A Claude plan or Anthropic API key",
         AppSettings.IntelligenceProviderCopilot => "Any Copilot plan, Free included",
+        AppSettings.IntelligenceProviderGemini => "A Google account: free, AI Pro or Ultra",
         _ => "Installed on this computer",
     };
 }

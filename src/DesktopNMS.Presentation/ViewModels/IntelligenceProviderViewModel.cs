@@ -63,6 +63,8 @@ public sealed class IntelligenceProviderViewModel : ObservableObject
     {
         AppSettings.IntelligenceProviderCodex => "Uses Codex on this computer with its existing sign-in: your ChatGPT plan or OpenAI API account. DashyNMS gives it only the read-only network tools; its own tools and your Codex settings are left out of these chats.",
         AppSettings.IntelligenceProviderClaudeCode => "Uses Claude Code on this computer with its existing sign-in: your Claude plan or Anthropic API account. DashyNMS gives it only the read-only network tools; its own tools and your Claude Code settings are left out of these chats.",
+        AppSettings.IntelligenceProviderCopilot => "Uses the GitHub Copilot CLI on this computer with its existing sign-in, on any Copilot plan. Questions go to GitHub, then to the company that makes the chosen model, and count against your plan's AI credits.",
+        AppSettings.IntelligenceProviderGemini => "Uses Antigravity CLI on this computer with your Google account: free, AI Pro or Ultra. Questions go to Google and count against your plan's quota.",
         _ => "Uses your own ChatGPT Plus or Pro plan. Sign in through your browser - DashyNMS never sees your ChatGPT password.",
     };
 
@@ -166,6 +168,10 @@ public sealed class IntelligenceProviderViewModel : ObservableObject
         {
             AppSettings.IntelligenceProviderCodex => "Install Codex, sign in once, then choose Check again. If it's installed somewhere DashyNMS can't find, choose its executable below.",
             AppSettings.IntelligenceProviderClaudeCode => "Install Claude Code, sign in once, then choose Check again. If it's installed somewhere DashyNMS can't find, choose its executable below.",
+            AppSettings.IntelligenceProviderCopilot => "Install the GitHub Copilot CLI, sign in once, then choose Check again. VS Code's copilot command only offers to install it, so DashyNMS looks for the CLI itself.",
+            AppSettings.IntelligenceProviderGemini => OperatingSystem.IsWindows()
+                ? "Install Antigravity CLI, Google's terminal agent, sign in once with your Google account, then choose Check again."
+                : "Install Antigravity CLI, Google's terminal agent, with the installer on antigravity.google, sign in once, then choose Check again.",
             _ => null,
         },
         AgentProviderState.SignedOut when !IsChatGpt => $"{Name} is installed but not signed in. Sign in with the command below in a terminal, then choose Check again.",
@@ -183,6 +189,12 @@ public sealed class IntelligenceProviderViewModel : ObservableObject
             : "curl -fsSL https://claude.ai/install.sh | bash",
         (AgentProviderState.SignedOut, AppSettings.IntelligenceProviderCodex) => "codex login",
         (AgentProviderState.SignedOut, AppSettings.IntelligenceProviderClaudeCode) => "claude auth login",
+        (AgentProviderState.NotInstalled, AppSettings.IntelligenceProviderCopilot) => OperatingSystem.IsWindows()
+            ? "winget install GitHub.Copilot"
+            : "npm install -g @github/copilot",
+        (AgentProviderState.SignedOut, AppSettings.IntelligenceProviderCopilot) => "copilot login",
+        (AgentProviderState.NotInstalled, AppSettings.IntelligenceProviderGemini) when OperatingSystem.IsWindows() => "winget install Google.AntigravityCLI",
+        (AgentProviderState.SignedOut, AppSettings.IntelligenceProviderGemini) => "agy",
         _ => null,
     };
 
