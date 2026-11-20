@@ -67,6 +67,20 @@ public sealed class IntelligenceAgentProviderTests
     }
 
     [Fact]
+    public async Task The_picker_reopens_on_the_chats_provider_with_no_search()
+    {
+        var (model, _, _, _) = await CreateAsync(second: true);
+        using var _ = model;
+        model.Composer.ShowProviderCommand.Execute(model.Providers.Single(p => p.Id == "second"));
+        model.Composer.ModelSearch = "nothing";
+
+        model.Composer.ResetPicker();
+
+        Assert.Equal("agent", model.Composer.PickerProvider?.Id);
+        Assert.Empty(model.Composer.ModelSearch);
+    }
+
+    [Fact]
     public async Task A_level_on_another_providers_tab_chooses_that_tabs_model()
     {
         var (model, _, _, _) = await CreateAsync(second: true);

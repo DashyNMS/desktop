@@ -24,6 +24,9 @@ public partial class IntelligenceComposer : UserControl
         QuestionBox.CaretIndex = QuestionBox.Text?.Length ?? 0;
     }
 
+    /// <summary>The picker opens on the chat's own provider, with the search cleared.</summary>
+    private void OnPickerOpening(object? sender, System.EventArgs e) => (DataContext as IntelligenceComposerViewModel)?.ResetPicker();
+
     /// <summary>
     /// A model, a reasoning level or Provider settings was chosen. A model with
     /// reasoning levels keeps the picker open so the level can be chosen next;

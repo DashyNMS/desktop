@@ -110,7 +110,7 @@
                                 <TextBlock Text="{Binding ModelButtonText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />
                             </DockPanel>
                             <Button.Flyout>
-                                <Flyout Placement="TopEdgeAlignedLeft">
+                                <Flyout Placement="TopEdgeAlignedLeft" Opening="OnPickerOpening">
                                     <Border Width="320" Padding="6,4">
                                         <StackPanel Spacing="6">
                                             <!-- A tab per provider that can answer now; setting one up is Settings' job. -->

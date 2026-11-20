@@ -212,6 +212,17 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// The picker is opening: it starts on the chat's own provider with the
+    /// search cleared, however it was left last time.
+    /// </summary>
+    public void ResetPicker()
+    {
+        ModelSearch = string.Empty;
+        PickerProvider = Providers.FirstOrDefault(p => p.Id == _selectedModel?.Provider && p.IsReady) ?? AvailableProviders.FirstOrDefault();
+        RaisePicker();
+    }
+
     public string ModelSearch
     {
         get => _modelSearch;
