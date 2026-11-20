@@ -109,8 +109,8 @@
                                 <Flyout Placement="TopEdgeAlignedLeft">
                                     <Border Width="320" Padding="6,4">
                                         <StackPanel Spacing="6">
-                                            <!-- One tab per provider; a provider that can't answer still shows, and says why below. -->
-                                            <ItemsControl ItemsSource="{Binding Providers}">
+                                            <!-- A tab per provider that can answer now; setting one up is Settings' job. -->
+                                            <ItemsControl ItemsSource="{Binding AvailableProviders}" IsVisible="{Binding HasProviderTabs}">
                                                 <ItemsControl.ItemsPanel>
                                                     <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="4" /></ItemsPanelTemplate>
                                                 </ItemsControl.ItemsPanel>
@@ -118,8 +118,7 @@
                                                     <DataTemplate x:DataType="vm:IntelligenceProviderViewModel">
                                                         <Button Classes="providerTab" Classes.open="{Binding IsPickerTab}"
                                                                 Command="{Binding $parent[ItemsControl].((vm:IntelligenceComposerViewModel)DataContext).ShowProviderCommand}"
-                                                                CommandParameter="{Binding}" ToolTip.Tip="{Binding Name}" AutomationProperties.Name="{Binding Name}"
-                                                                Opacity="{Binding !IsReady, Converter={x:Static views:Converters.DimWhen}}">
+                                                                CommandParameter="{Binding}" ToolTip.Tip="{Binding Name}" AutomationProperties.Name="{Binding Name}">
                                                             <fi:SymbolIcon Symbol="{Binding Id, Converter={x:Static views:Converters.ProviderIcon}}" FontSize="16" />
                                                         </Button>
                                                     </DataTemplate>
@@ -155,7 +154,7 @@
                                             </ScrollViewer>
                                             <TextBlock Classes="subtle" FontSize="12" Margin="8,0" Text="No models match." IsVisible="{Binding !HasPickerModels}" />
 
-                                            <!-- The tab's provider in one line: why it can't answer, what it can't do, or its usage. -->
+                                            <!-- The tab's provider in one line: what it can't do, or its usage. -->
                                             <StackPanel Margin="8,2,8,0" Spacing="2" IsVisible="{Binding HasPickerNote}">
                                                 <TextBlock Classes="subtle" FontSize="12" TextWrapping="Wrap" Text="{Binding PickerNote}" />
                                                 <Button Classes="link" Padding="0" FontSize="12" Content="Provider settings" Command="{Binding OpenProviderSettingsCommand}"

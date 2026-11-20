@@ -15,8 +15,9 @@ namespace DesktopNMS.ViewModels;
 /// itself is the conversation's job; this holds what the next question goes out with.
 /// </summary>
 /// <remarks>
-/// The model picker (#316) groups models by provider: a tab per provider, a
-/// search box, and the chosen model's reasoning levels beneath. Choosing a
+/// The model picker (#316) groups models by provider: a tab per provider that
+/// can answer now - one that's signed out or not installed isn't offered here,
+/// but in Settings - a search box, and the chosen model's reasoning levels beneath. Choosing a
 /// model from another provider for a conversation already under way goes
 /// through <see cref="_canSelect"/>, which asks first.
 /// </remarks>
@@ -33,7 +34,7 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
     private IntelligenceProviderViewModel? _pickerProvider;
     private string _modelSearch = string.Empty;
 
-    /// <param name="providers">Every provider, ready or not - the picker explains the ones that aren't.</param>
+    /// <param name="providers">Every provider; the picker offers only those that can answer.</param>
     /// <param name="isLocked">True while an answer runs, when the detail level can't change.</param>
     /// <param name="canSelect">Asked before a model from another provider replaces the current one; false keeps it.</param>
     internal IntelligenceComposerViewModel(ObservableCollection<IntelligenceProviderViewModel> providers, AsyncRelayCommand send, RelayCommand stop, Func<bool> isLocked,
@@ -157,10 +158,16 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
 
     public string? SelectedProviderId => _selectedModel?.Provider;
 
-    /// <summary>The provider tab open in the picker.</summary>
+    /// <summary>The providers that can answer now - the picker's tabs.</summary>
+    public IReadOnlyList<IntelligenceProviderViewModel> AvailableProviders => Providers.Where(p => p.IsReady).ToList();
+
+    /// <summary>Tabs only when there's a choice to make.</summary>
+    public bool HasProviderTabs => AvailableProviders.Count > 1;
+
+    /// <summary>The provider tab open in the picker - always one that can answer.</summary>
     public IntelligenceProviderViewModel? PickerProvider
     {
-        get => _pickerProvider ?? Providers.FirstOrDefault(p => p.IsReady) ?? Providers.FirstOrDefault();
+        get => _pickerProvider is { IsReady: true } open ? open : AvailableProviders.FirstOrDefault();
         set
         {
             if (!SetProperty(ref _pickerProvider, value)) return;
@@ -206,7 +213,6 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
         get
         {
             if (PickerProvider is not { } provider) return null;
-            if (!provider.IsReady) return provider.IsChecking ? $"Checking {provider.Name}…" : $"{provider.Name}: {provider.StatusText.ToLowerInvariant()}. Set it up in Settings.";
             if (!provider.Capabilities.WebSearch) return $"{provider.Name} answers from your network only: no web search." + (provider.UsageText is { } usage ? " " + usage + "." : string.Empty);
             if (provider.Models.Count == 0) return $"{provider.Name} didn't list any models.";
             return provider.UsageText;
@@ -263,6 +269,8 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
 
     private void RaisePicker()
     {
+        OnPropertyChanged(nameof(AvailableProviders));
+        OnPropertyChanged(nameof(HasProviderTabs));
         OnPropertyChanged(nameof(PickerProvider));
         OnPropertyChanged(nameof(PickerModels));
         OnPropertyChanged(nameof(HasPickerModels));

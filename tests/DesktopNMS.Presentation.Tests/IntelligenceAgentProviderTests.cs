@@ -33,6 +33,21 @@ public sealed class IntelligenceAgentProviderTests
     }
 
     [Fact]
+    public async Task The_picker_offers_only_providers_that_can_answer()
+    {
+        var (model, _, _, _) = await CreateAsync(second: true);
+        using var _ = model;
+        var second = model.Providers.Single(p => p.Id == "second");
+        ((FakeAgent)second.Agent!).Ready = false;
+        await second.CheckAsync(CancellationToken.None);
+
+        Assert.Equal(["agent"], model.Composer.AvailableProviders.Select(p => p.Id));
+        Assert.False(model.Composer.HasProviderTabs);
+        Assert.DoesNotContain(model.Composer.AvailableProviders, p => p.IsChatGpt);
+        Assert.Equal("agent", model.Composer.PickerProvider?.Id);
+    }
+
+    [Fact]
     public async Task No_ready_provider_asks_for_one_to_be_set_up()
     {
         var (model, _, _, _) = await CreateAsync(ready: false);
