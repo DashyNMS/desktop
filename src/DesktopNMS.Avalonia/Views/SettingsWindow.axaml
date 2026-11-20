@@ -1140,17 +1140,17 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:IntelligenceProviderEntryViewModel">
-                                <Button Margin="0,0,8,8" Padding="12,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" IsEnabled="{Binding CanAdd}"
+                                <Button Margin="0,0,8,8" Padding="12,10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Left" VerticalContentAlignment="Center" IsEnabled="{Binding CanAdd}"
                                         Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).IntelligenceProviders.AddProviderCommand}" CommandParameter="{Binding}"
                                         ToolTip.Tip="{Binding Name, StringFormat='{}{0} is already in your list'}" ToolTip.IsEnabled="{Binding IsListed}">
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <intel:ProviderIcon Provider="{Binding IconId}" Size="16" VerticalAlignment="Center" />
-                                        <StackPanel>
+                                    <Grid ColumnDefinitions="Auto,*" Opacity="{Binding IsListed, Converter={x:Static views:Converters.DimWhen}}">
+                                        <intel:ProviderIcon Provider="{Binding IconId}" Size="16" VerticalAlignment="Top" Margin="0,2,10,0" />
+                                        <StackPanel Grid.Column="1">
                                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                                             <TextBlock Text="{Binding AddNote}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" IsVisible="{Binding CanAdd}" />
                                             <TextBlock Text="Added" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" IsVisible="{Binding IsListed}" />
                                         </StackPanel>
-                                    </StackPanel>
+                                    </Grid>
                                 </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
