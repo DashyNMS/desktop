@@ -27,7 +27,7 @@ Remaining risk until then: Intelligence's config tools can miss Unimus devices t
 |---|---|---|
 | Bundled MCP | `61161c4` | `bcdbd8f9300ec3fccfe66d76cc553a9d6f528bce` (MCP `1.1.0` with the LibreNMS 26.11 fixes, mcp#156, and truthful device states, mcp#121; first reviewed at `8f32942`) |
 | Core in the MCP executable | n/a | `2.0.0-ci.76` (MCP's own pin; a separate process, so no shared graph with the app) |
-| Core in the app | `2.0.0-ci.59` | `2.0.0-ci.76` (includes DashyNMS/core#89 and core#75) |
+| Core in the app | `2.0.0-ci.59` | `2.0.0-ci.78` (includes DashyNMS/core#89, core#75 and core#94) |
 
 - **Every packaging path** pins the same commit: `dev-build.yml`, `mcp-bundle.yml` and both jobs of `package-build.yml`.
 - **Batch 3 recheck (core#90).** The pin moves to `bcdbd8f` (mcp#121). Every tool's device `status` now follows LibreNMS's reported state: `ignored` and `unknown` are new words. `network_overview` and `list_groups_and_locations` count those devices apart from up and down. Desktop passes tool output to the model as it receives it. Core's Intelligence status cards name ignored and unreported devices and count them in the overview (core#94). `McpBundleTests` reruns the handover checks against this revision in the package builds.
