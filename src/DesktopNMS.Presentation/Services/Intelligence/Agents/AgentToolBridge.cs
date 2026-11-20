@@ -55,7 +55,7 @@ public sealed class AgentToolBridge : IAsyncDisposable
     public async Task<AgentToolSession> OpenSessionAsync(CancellationToken cancellationToken)
     {
         var endpoint = await StartAsync(cancellationToken).ConfigureAwait(false);
-        var session = new AgentToolSession(this, _tools, endpoint);
+        var session = new AgentToolSession(this, _tools, endpoint, _logger);
         _sessions[session] = 0;
         return session;
     }

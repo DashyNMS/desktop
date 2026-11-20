@@ -763,7 +763,16 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
             {
                 var turn = new AgentTurn(question, model.Id, effort, instructions, _providerSession, temporary,
                     _providerSession is null ? Preamble(answer) : null);
-                result = await agent.AskAsync(turn, tools, listener, cancellationToken).ConfigureAwait(true);
+                try
+                {
+                    result = await agent.AskAsync(turn, tools, listener, cancellationToken).ConfigureAwait(true);
+                }
+                catch (AgentProviderException ex) when (ex.SessionLost && turn.Session is not null)
+                {
+                    // The agent lost the chat's session: a new one carries on from what the chat shows.
+                    _providerSession = null;
+                    result = await agent.AskAsync(turn with { Session = null, Preamble = Preamble(answer) }, tools, listener, cancellationToken).ConfigureAwait(true);
+                }
             }
             catch (AgentProviderException ex)
             {

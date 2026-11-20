@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using DesktopNMS.Core.Intelligence;
+using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.Services.Intelligence.Agents;
 
@@ -31,15 +32,17 @@ public sealed class AgentToolSession : IDisposable
 
     private readonly AgentToolBridge _bridge;
     private readonly IIntelligenceTools _tools;
+    private readonly ILogger _logger;
     private readonly object _sync = new();
     private Turn? _turn;
     private IReadOnlySet<string>? _offered;
     private bool _disposed;
 
-    internal AgentToolSession(AgentToolBridge bridge, IIntelligenceTools tools, Uri endpoint)
+    internal AgentToolSession(AgentToolBridge bridge, IIntelligenceTools tools, Uri endpoint, ILogger logger)
     {
         _bridge = bridge;
         _tools = tools;
+        _logger = logger;
         Endpoint = endpoint;
         Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
@@ -115,6 +118,8 @@ public sealed class AgentToolSession : IDisposable
         }
         catch (Exception ex) when (ex is IntelligenceException or InvalidOperationException or JsonException)
         {
+            // The agent is told; the log says which request failed, never what it held.
+            _logger.LogWarning("Intelligence: the agent tool bridge couldn't answer {Method} ({ErrorType})", method, ex.GetType().Name);
             // Network-tool start-up failures are worded for people already (IntelligenceException);
             // anything else may hold server detail, so it isn't passed on.
             return Error(id, -32603, ex is IntelligenceException ? ex.Message : "The DashyNMS tools couldn't answer.");

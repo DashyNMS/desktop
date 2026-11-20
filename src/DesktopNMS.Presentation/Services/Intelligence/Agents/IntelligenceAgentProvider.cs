@@ -96,6 +96,13 @@ public sealed class AgentProviderException : Exception
 
     /// <summary>Set when the failure was a usage limit the provider described.</summary>
     public AgentUsage? Usage { get; }
+
+    /// <summary>
+    /// The agent no longer has the chat's session - a temporary chat after a
+    /// restart, or history cleared outside DashyNMS. The chat carries on in a
+    /// new session, with its visible conversation as context.
+    /// </summary>
+    public bool SessionLost { get; init; }
 }
 
 /// <summary>
