@@ -919,6 +919,11 @@ public partial class App : Application
         services.AddSingleton<INeighbourDirectory, NeighbourDirectory>();
         services.AddSingleton<McpToolHost>();
 
+        // Agent providers (#316): each runs in an empty folder of DashyNMS's own, so it never sees a project.
+        services.AddSingleton<DesktopNMS.Services.Intelligence.Agents.IAgentProvider>(sp => new DesktopNMS.Services.Intelligence.Agents.CodexAgentProvider(
+            System.IO.Path.Combine(AppPaths.DataDirectory, "intelligence", "agents", "codex"),
+            sp.GetRequiredService<ILogger<DesktopNMS.Services.Intelligence.Agents.CodexAgentProvider>>()));
+
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<TrayViewModel>();
         services.AddSingleton<TrayIconService>();
