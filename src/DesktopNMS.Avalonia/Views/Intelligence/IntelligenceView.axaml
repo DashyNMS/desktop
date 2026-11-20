@@ -151,7 +151,7 @@
                                     <DockPanel Margin="0,4">
                                         <Button DockPanel.Dock="Right" Content="Set up" Padding="12,4" VerticalAlignment="Center"
                                                 Command="{Binding $parent[UserControl].((vm:IntelligenceViewModel)DataContext).OpenSettingsCommand}" />
-                                        <fi:SymbolIcon DockPanel.Dock="Left" Symbol="{Binding Id, Converter={x:Static views:Converters.ProviderIcon}}" FontSize="16"
+                                        <intel:ProviderIcon Provider="{Binding Id}" DockPanel.Dock="Left" Size="16"
                                                        Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
                                         <StackPanel VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Name}" />

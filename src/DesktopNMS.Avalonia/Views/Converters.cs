@@ -23,17 +23,6 @@ public static class Converters
         _ => Symbol.Checkmark,
     });
 
-    /// <summary>
-    /// A provider's mark in the model picker and Settings (#316): neutral glyphs
-    /// in the app's own style rather than other companies' logos.
-    /// </summary>
-    public static readonly IValueConverter ProviderIcon = new FuncValueConverter<string?, Symbol>(provider => provider switch
-    {
-        AppSettings.IntelligenceProviderCodex => Symbol.CodeBlock,
-        AppSettings.IntelligenceProviderClaudeCode => Symbol.BotSparkle,
-        _ => Symbol.ChatSparkle,
-    });
-
     /// <summary>True when both bound values are equal - the picker's tick beside the chosen model.</summary>
     public static readonly IMultiValueConverter AreEqual = new FuncMultiValueConverter<object?, bool>(values =>
     {

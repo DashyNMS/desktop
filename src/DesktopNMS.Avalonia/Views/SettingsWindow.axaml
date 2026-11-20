@@ -4,6 +4,7 @@
         xmlns:services="using:DesktopNMS.Services"
         xmlns:infra="using:DesktopNMS.Infrastructure"
         xmlns:views="using:DesktopNMS.Views"
+        xmlns:intel="using:DesktopNMS.Views.Intelligence"
         xmlns:fi="using:FluentIcons.Avalonia"
         x:Class="DesktopNMS.Views.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
@@ -802,7 +803,7 @@
                                             <DockPanel>
                                                 <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Classes="subtle" Text="{Binding Provider.StatusText}" IsVisible="{Binding !Provider.IsReady}" />
                                                 <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Classes="ok" Text="Ready" IsVisible="{Binding Provider.IsReady}" />
-                                                <fi:SymbolIcon DockPanel.Dock="Left" Symbol="{Binding Provider.Id, Converter={x:Static views:Converters.ProviderIcon}}" FontSize="16"
+                                                <intel:ProviderIcon Provider="{Binding Provider.Id}" DockPanel.Dock="Left" Size="16"
                                                                Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
                                                 <TextBlock Text="{Binding Provider.Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
                                             </DockPanel>

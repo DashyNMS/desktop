@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:DesktopNMS.ViewModels"
              xmlns:views="using:DesktopNMS.Views"
+             xmlns:intel="using:DesktopNMS.Views.Intelligence"
              xmlns:fi="using:FluentIcons.Avalonia"
              x:Class="DesktopNMS.Views.Intelligence.IntelligenceComposer"
              x:DataType="vm:IntelligenceComposerViewModel">
@@ -105,8 +106,8 @@
                             <DockPanel>
                                 <fi:SymbolIcon DockPanel.Dock="Right" Symbol="ChevronDown" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"
                                                Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <fi:SymbolIcon DockPanel.Dock="Left" Symbol="{Binding SelectedProviderId, Converter={x:Static views:Converters.ProviderIcon}}"
-                                               FontSize="14" Margin="0,0,7,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <intel:ProviderIcon Provider="{Binding SelectedProviderId}" DockPanel.Dock="Left"
+                                               Size="14" Margin="0,0,7,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
                                 <TextBlock Text="{Binding ModelButtonText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />
                             </DockPanel>
                             <Button.Flyout>
@@ -123,7 +124,7 @@
                                                         <Button Classes="providerTab" Classes.open="{Binding IsPickerTab}"
                                                                 Command="{Binding $parent[ItemsControl].((vm:IntelligenceComposerViewModel)DataContext).ShowProviderCommand}"
                                                                 CommandParameter="{Binding}" ToolTip.Tip="{Binding Name}" AutomationProperties.Name="{Binding Name}">
-                                                            <fi:SymbolIcon Symbol="{Binding Id, Converter={x:Static views:Converters.ProviderIcon}}" FontSize="16" />
+                                                            <intel:ProviderIcon Provider="{Binding Id}" Size="16" />
                                                         </Button>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
