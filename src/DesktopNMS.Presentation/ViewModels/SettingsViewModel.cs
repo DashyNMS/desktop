@@ -204,6 +204,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => CanInstallUpdate && !IsCheckingForUpdates && !_isInstallingUpdate);
         _updates.ReadyUpdateChanged += OnReadyUpdateChanged;
         Intelligence.Models.CollectionChanged += OnIntelligenceModelsChanged;
+        IntelligenceAgents = Intelligence.Providers.Where(p => p.IsAgent).Select(p => new IntelligenceAgentSettingsViewModel(p, _draft)).ToList();
         ViewLatestReleaseCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri(_latestRelease!.HtmlUrl!)),
             () => _latestRelease?.HtmlUrl is not null);
@@ -2160,6 +2161,24 @@ public sealed partial class SettingsViewModel : ObservableObject
                 _draft.IntelligenceModel = value;
                 OnPropertyChanged();
             }
+        }
+    }
+
+    /// <summary>Codex and Claude Code's cards: their status, executable and defaults (#316).</summary>
+    public IReadOnlyList<IntelligenceAgentSettingsViewModel> IntelligenceAgents { get; }
+
+    /// <summary>Every provider, for the default provider picker.</summary>
+    public IReadOnlyList<IntelligenceProviderViewModel> IntelligenceProviderChoices => Intelligence.Providers;
+
+    /// <summary>The provider a new conversation starts with, when it can answer; otherwise the first that can.</summary>
+    public string IntelligenceDefaultProvider
+    {
+        get => _draft.IntelligenceProvider;
+        set
+        {
+            if (value is null || _draft.IntelligenceProvider == value) return;
+            _draft.IntelligenceProvider = value;
+            OnPropertyChanged();
         }
     }
 

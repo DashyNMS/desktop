@@ -58,6 +58,14 @@ public sealed class IntelligenceProviderViewModel : ObservableObject
 
     public AgentCapabilities Capabilities { get; }
 
+    /// <summary>What answers and whose account pays for it, for Settings.</summary>
+    public string Description => Id switch
+    {
+        AppSettings.IntelligenceProviderCodex => "Uses Codex on this computer with its existing sign-in: your ChatGPT plan or OpenAI API account. DashyNMS gives it only the read-only network tools; its own tools and your Codex settings are left out of these chats.",
+        AppSettings.IntelligenceProviderClaudeCode => "Uses Claude Code on this computer with its existing sign-in: your Claude plan or Anthropic API account. DashyNMS gives it only the read-only network tools; its own tools and your Claude Code settings are left out of these chats.",
+        _ => "Uses your own ChatGPT Plus or Pro plan. Sign in through your browser - DashyNMS never sees your ChatGPT password.",
+    };
+
     internal IAgentProvider? Agent { get; }
 
     public bool IsAgent => Agent is not null;
@@ -198,7 +206,8 @@ public sealed class IntelligenceProviderViewModel : ObservableObject
     /// Checks the agent again: installation, version and sign-in, then its
     /// models and usage. Only the latest check's result is kept.
     /// </summary>
-    public async Task CheckAsync(CancellationToken cancellationToken)
+    /// <param name="executablePath">An executable to check instead of the saved one - Settings, before it's saved.</param>
+    public async Task CheckAsync(CancellationToken cancellationToken, string? executablePath = null)
     {
         if (Agent is null) return;
         var check = Interlocked.Increment(ref _checks);
@@ -208,7 +217,7 @@ public sealed class IntelligenceProviderViewModel : ObservableObject
         AgentUsage? usage = null;
         try
         {
-            status = await Agent.CheckAsync(_executablePath?.Invoke(), cancellationToken).ConfigureAwait(true);
+            status = await Agent.CheckAsync(executablePath ?? _executablePath?.Invoke(), cancellationToken).ConfigureAwait(true);
             if (status.IsReady)
             {
                 models = await Agent.ListModelsAsync(cancellationToken).ConfigureAwait(true);

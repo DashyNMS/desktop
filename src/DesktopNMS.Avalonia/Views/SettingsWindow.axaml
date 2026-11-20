@@ -4,6 +4,7 @@
         xmlns:services="using:DesktopNMS.Services"
         xmlns:infra="using:DesktopNMS.Infrastructure"
         xmlns:views="using:DesktopNMS.Views"
+        xmlns:fi="using:FluentIcons.Avalonia"
         x:Class="DesktopNMS.Views.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
         Title="DashyNMS settings"
@@ -757,6 +758,16 @@
                         <TextBlock Text="AGENTS" Classes="section" Margin="0,8,0,6" />
                         <Border Classes="card" Margin="0,0,0,12">
                             <StackPanel>
+                                <TextBlock Text="Default provider" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding IntelligenceProviderChoices}" SelectedValue="{Binding IntelligenceDefaultProvider}"
+                                          SelectedValueBinding="{ReflectionBinding Id}" DisplayMemberBinding="{ReflectionBinding Name}"
+                                          Width="260" AutomationProperties.Name="Default provider" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Text="New chats start with this provider when it's ready, or the first one that is. Each chat keeps its provider; the model picker by the question box changes it for one chat." />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card" Margin="0,0,0,12">
+                            <StackPanel>
                                 <DockPanel>
                                     <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Classes="subtle" Text="Not connected" IsVisible="{Binding Intelligence.IsSignedOut}" />
                                     <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Classes="ok" Text="Connected" IsVisible="{Binding Intelligence.IsSignedIn}" />
@@ -781,6 +792,67 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
+
+                        <!-- Codex and Claude Code (#316): installed on this computer, with their own sign-in. -->
+                        <ItemsControl ItemsSource="{Binding IntelligenceAgents}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:IntelligenceAgentSettingsViewModel">
+                                    <Border Classes="card" Margin="0,0,0,12">
+                                        <StackPanel>
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Classes="subtle" Text="{Binding Provider.StatusText}" IsVisible="{Binding !Provider.IsReady}" />
+                                                <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Classes="ok" Text="Ready" IsVisible="{Binding Provider.IsReady}" />
+                                                <fi:SymbolIcon DockPanel.Dock="Left" Symbol="{Binding Provider.Id, Converter={x:Static views:Converters.ProviderIcon}}" FontSize="16"
+                                                               Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <TextBlock Text="{Binding Provider.Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            </DockPanel>
+                                            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0" Text="{Binding Provider.Description}" />
+                                            <TextBlock Classes="subtle" Margin="0,10,0,0" Text="{Binding Provider.AccountText}" IsVisible="{Binding Provider.AccountText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                            <TextBlock Classes="subtle" Margin="0,2,0,0" Text="{Binding Provider.VersionText}" IsVisible="{Binding Provider.VersionText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                                            <!-- Not ready: what's wrong, and the command that fixes it, to run in a terminal. -->
+                                            <TextBlock TextWrapping="Wrap" Margin="0,12,0,0" Text="{Binding Provider.DetailText}" IsVisible="{Binding Provider.HasDetail}" />
+                                            <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="6" Padding="10,4,4,4" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                                    IsVisible="{Binding Provider.HasSetupCommand}">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <SelectableTextBlock Text="{Binding Provider.SetupCommandText}" FontFamily="Cascadia Mono, Consolas, Menlo, monospace" VerticalAlignment="Center" />
+                                                    <Button Classes="icon" ToolTip.Tip="Copy command" AutomationProperties.Name="Copy command" Command="{Binding CopySetupCommand}">
+                                                        <fi:SymbolIcon Symbol="Copy" />
+                                                    </Button>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <TextBlock Text="Executable" Classes="section" Margin="0,16,0,6" />
+                                            <DockPanel>
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" Margin="8,0,0,0">
+                                                    <Button Content="Browse…" Command="{Binding BrowseCommand}" />
+                                                    <Button Content="Check again" Command="{Binding CheckCommand}" />
+                                                </StackPanel>
+                                                <TextBox Text="{Binding ExecutablePath}" Watermark="Found automatically" AutomationProperties.Name="Executable" />
+                                            </DockPanel>
+                                            <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                       Text="Leave empty to use the one on your PATH or in its usual install location." />
+
+                                            <StackPanel Margin="0,16,0,0" IsVisible="{Binding Provider.IsReady}">
+                                                <TextBlock Text="Default model" Classes="section" Margin="0,0,0,6" />
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <ComboBox ItemsSource="{Binding Provider.Models}" SelectedValue="{Binding DefaultModel}"
+                                                              SelectedValueBinding="{ReflectionBinding Id}" DisplayMemberBinding="{ReflectionBinding Name}"
+                                                              Width="260" AutomationProperties.Name="Default model" />
+                                                    <ComboBox ItemsSource="{Binding DefaultEfforts}" SelectedValue="{Binding DefaultEffort}"
+                                                              SelectedValueBinding="{ReflectionBinding Key}" DisplayMemberBinding="{ReflectionBinding Value}"
+                                                              Width="180" IsVisible="{Binding HasDefaultEfforts}" AutomationProperties.Name="Default reasoning" />
+                                                </StackPanel>
+                                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                           Text="What new conversations on this provider start with, and how much it reasons. The picker by the question box changes them for one conversation." />
+                                                <TextBlock Classes="subtle" Margin="0,12,0,0" Text="{Binding Provider.UsageText}" IsVisible="{Binding Provider.HasUsage}" />
+                                                <TextBlock Classes="subtle" Margin="0,12,0,0" Text="Usage appears here once the provider reports it." IsVisible="{Binding !Provider.HasUsage}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
                         <TextBlock Text="REPLIES" Classes="section" Margin="0,8,0,6" />
                         <Border Classes="card" Margin="0,0,0,12">
