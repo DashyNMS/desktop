@@ -48,6 +48,41 @@ public sealed class IntelligenceAgentProviderTests
     }
 
     [Fact]
+    public async Task The_reasoning_row_follows_the_open_tab()
+    {
+        var (model, _, _, _) = await CreateAsync(second: true, secondHasEfforts: false);
+        using var _ = model;
+        var agent = model.Providers.Single(p => p.Id == "agent");
+        var second = model.Providers.Single(p => p.Id == "second");
+        Assert.Equal("agent", model.Composer.SelectedModel?.Provider);
+
+        // A tab whose models have no levels hides the row, even while a model with levels is chosen.
+        model.Composer.ShowProviderCommand.Execute(second);
+        Assert.False(model.Composer.HasEfforts);
+
+        // Back on the chosen model's tab, its levels show straight away.
+        model.Composer.ShowProviderCommand.Execute(agent);
+        Assert.True(model.Composer.HasEfforts);
+        Assert.Equal("medium", Assert.Single(model.Composer.Efforts, e => e.IsSelected).Key);
+    }
+
+    [Fact]
+    public async Task A_level_on_another_providers_tab_chooses_that_tabs_model()
+    {
+        var (model, _, _, _) = await CreateAsync(second: true);
+        using var _ = model;
+        var second = model.Providers.Single(p => p.Id == "second");
+
+        model.Composer.ShowProviderCommand.Execute(second);
+        Assert.True(model.Composer.HasEfforts);
+        Assert.Equal("Second model", model.Composer.ReasoningModel?.Name);
+        model.Composer.SelectEffortCommand.Execute("high");
+
+        Assert.Equal("second", model.Composer.SelectedModel?.Provider);
+        Assert.Equal("high", model.Composer.SelectedEffort);
+    }
+
+    [Fact]
     public async Task No_ready_provider_asks_for_one_to_be_set_up()
     {
         var (model, _, _, _) = await CreateAsync(ready: false);
@@ -211,7 +246,7 @@ public sealed class IntelligenceAgentProviderTests
         await Task.Delay(20);
     }
 
-    private static async Task<(IntelligenceViewModel Model, FakeAgent Agent, Store Store, Windows Windows)> CreateAsync(bool ready = true, bool second = false)
+    private static async Task<(IntelligenceViewModel Model, FakeAgent Agent, Store Store, Windows Windows)> CreateAsync(bool ready = true, bool second = false, bool secondHasEfforts = true)
     {
         var settings = new TestSettings();
         settings.Current.IntelligenceConsentGiven = true;
@@ -224,7 +259,7 @@ public sealed class IntelligenceAgentProviderTests
         var windows = new Windows();
         var agent = new FakeAgent("agent") { Ready = ready };
         var agents = new List<IAgentProvider> { agent };
-        if (second) agents.Add(new FakeAgent("second"));
+        if (second) agents.Add(new FakeAgent("second") { HasEfforts = secondHasEfforts });
         var model = new IntelligenceViewModel(Proxy<IChatGptCredentialStore>(), null!,
             Proxy<ISessionService>((method, _) => method.Name == "get_Connection" ? connection : null),
             windows.Proxy, devices, client, settings,
@@ -237,6 +272,7 @@ public sealed class IntelligenceAgentProviderTests
     private sealed class FakeAgent(string id) : IAgentProvider
     {
         public bool Ready { get; set; } = true;
+        public bool HasEfforts { get; init; } = true;
         public List<AgentTurn> Turns { get; } = new();
         public AgentProviderException? Failure { get; set; }
         public int Retirements;
@@ -251,7 +287,8 @@ public sealed class IntelligenceAgentProviderTests
                 : new AgentProviderStatus(AgentProviderState.SignedOut, "agent", "1.0"));
 
         public Task<IReadOnlyList<AgentModel>> ListModelsAsync(CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<AgentModel>>([new AgentModel(id + "-model", id == "agent" ? "Agent model" : "Second model", ["low", "medium", "high"], "medium")]);
+            => Task.FromResult<IReadOnlyList<AgentModel>>([new AgentModel(id + "-model", id == "agent" ? "Agent model" : "Second model",
+                HasEfforts ? ["low", "medium", "high"] : Array.Empty<string>(), HasEfforts ? "medium" : null)]);
 
         public Task<AgentUsage?> ReadUsageAsync(CancellationToken cancellationToken) => Task.FromResult<AgentUsage?>(null);
 

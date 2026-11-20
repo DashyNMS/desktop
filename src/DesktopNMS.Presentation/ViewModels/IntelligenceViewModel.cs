@@ -159,7 +159,8 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         DisconnectCommand = new AsyncRelayCommand(DisconnectAsync, () => IsSignedIn && !_isBusy);
         var send = new AsyncRelayCommand(SendAsync, () => CanSend);
         var stop = new RelayCommand(() => _running?.Cancel(), () => _isBusy);
-        Composer = new IntelligenceComposerViewModel(Providers, send, stop, () => IsBusy && !Chats!.IsChangingChat, ConfirmProviderChange)
+        Composer = new IntelligenceComposerViewModel(Providers, send, stop, () => IsBusy && !Chats!.IsChangingChat, ConfirmProviderChange,
+            provider => DefaultModel(provider), DefaultEffort)
         {
             OpenProviderSettingsCommand = new RelayCommand(() => _windows.ShowSettingsSection(SettingsSection.Intelligence)),
         };

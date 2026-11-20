@@ -25,6 +25,8 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
 {
     private readonly Func<bool> _isLocked;
     private readonly Func<IntelligenceModelOption, bool> _canSelect;
+    private readonly Func<string, IntelligenceModelOption?> _defaultModel;
+    private readonly Func<string, string?> _defaultEffort;
     private string _question = string.Empty;
     private IntelligenceModelOption? _selectedModel;
     private string? _selectedEffort;
@@ -37,9 +39,13 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
     /// <param name="providers">Every provider; the picker offers only those that can answer.</param>
     /// <param name="isLocked">True while an answer runs, when the detail level can't change.</param>
     /// <param name="canSelect">Asked before a model from another provider replaces the current one; false keeps it.</param>
+    /// <param name="defaultModel">The model a provider's tab starts with - Settings' choice, else its first.</param>
+    /// <param name="defaultEffort">The reasoning level Settings chose for a provider, if any.</param>
     internal IntelligenceComposerViewModel(ObservableCollection<IntelligenceProviderViewModel> providers, AsyncRelayCommand send, RelayCommand stop, Func<bool> isLocked,
-        Func<IntelligenceModelOption, bool>? canSelect = null)
+        Func<IntelligenceModelOption, bool>? canSelect = null, Func<string, IntelligenceModelOption?>? defaultModel = null, Func<string, string?>? defaultEffort = null)
     {
+        _defaultModel = defaultModel ?? (id => providers.FirstOrDefault(p => p.Id == id)?.Models.FirstOrDefault());
+        _defaultEffort = defaultEffort ?? (_ => null);
         Providers = providers;
         SendCommand = send;
         StopCommand = stop;
@@ -55,7 +61,16 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
         });
         SelectEffortCommand = new RelayCommand(p =>
         {
-            if (p is string effort && CanChangeChat) SelectedEffort = effort;
+            if (p is not string effort || !CanChangeChat || ReasoningModel is not { } model) return;
+
+            // A level on another provider's tab chooses that tab's model too.
+            if (!Equals(model, SelectedModel))
+            {
+                SelectedModel = model;
+                if (!Equals(model, SelectedModel)) return;
+            }
+
+            SelectedEffort = effort;
         }, p => p is string && CanChangeChat);
         Providers.CollectionChanged += OnProvidersChanged;
         foreach (var provider in Providers) Watch(provider);
@@ -141,10 +156,31 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
         }
     }
 
-    public IReadOnlyList<EffortOption> Efforts => _selectedModel?.Efforts
-        .Select(e => new EffortOption(e, IntelligenceModelOption.EffortName(e), e == EffectiveEffort)).ToList() ?? new List<EffortOption>();
+    /// <summary>
+    /// The model the picker's Reasoning row is for: the chosen one when its
+    /// provider's tab is open, otherwise the model that tab would start with -
+    /// so a provider's levels show as soon as its tab is opened.
+    /// </summary>
+    public IntelligenceModelOption? ReasoningModel => PickerProvider is not { } provider ? _selectedModel
+        : _selectedModel?.Provider == provider.Id ? _selectedModel
+        : _defaultModel(provider.Id);
 
-    public bool HasEfforts => _selectedModel?.HasEfforts == true;
+    /// <summary>The Reasoning row's levels, with the one that would be used marked.</summary>
+    public IReadOnlyList<EffortOption> Efforts
+    {
+        get
+        {
+            var model = ReasoningModel;
+            if (model is null) return new List<EffortOption>();
+            var current = Equals(model, _selectedModel)
+                ? EffectiveEffort
+                : _defaultEffort(model.Provider) is { } chosen && model.Efforts.Contains(chosen) ? chosen : model.DefaultEffort;
+            return model.Efforts.Select(e => new EffortOption(e, IntelligenceModelOption.EffortName(e), e == current)).ToList();
+        }
+    }
+
+    /// <summary>The Reasoning row shows: the open tab's model has levels to choose.</summary>
+    public bool HasEfforts => ReasoningModel?.HasEfforts == true;
 
     /// <summary>The level the next answer uses: the chosen one, or the model's default.</summary>
     public string? EffectiveEffort => _selectedEffort ?? _selectedModel?.DefaultEffort;
@@ -152,7 +188,7 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
     /// <summary>The picker button: "Sonnet · High", or the model alone where there's no reasoning to choose.</summary>
     public string ModelButtonText => _selectedModel is null
         ? "Choose a model"
-        : EffectiveEffort is { } effort && HasEfforts ? $"{_selectedModel.Name} · {IntelligenceModelOption.EffortName(effort)}" : _selectedModel.Name;
+        : EffectiveEffort is { } effort && _selectedModel.HasEfforts ? $"{_selectedModel.Name} · {IntelligenceModelOption.EffortName(effort)}" : _selectedModel.Name;
 
     public string? SelectedProviderName => Providers.FirstOrDefault(p => p.Id == _selectedModel?.Provider)?.Name;
 
@@ -259,6 +295,7 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(SelectedEffort));
         OnPropertyChanged(nameof(EffectiveEffort));
+        OnPropertyChanged(nameof(ReasoningModel));
         OnPropertyChanged(nameof(Efforts));
         OnPropertyChanged(nameof(HasEfforts));
         OnPropertyChanged(nameof(ModelButtonText));
@@ -274,6 +311,9 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
         OnPropertyChanged(nameof(PickerProvider));
         OnPropertyChanged(nameof(PickerModels));
         OnPropertyChanged(nameof(HasPickerModels));
+        OnPropertyChanged(nameof(ReasoningModel));
+        OnPropertyChanged(nameof(Efforts));
+        OnPropertyChanged(nameof(HasEfforts));
         OnPropertyChanged(nameof(PickerNote));
         OnPropertyChanged(nameof(HasPickerNote));
     }

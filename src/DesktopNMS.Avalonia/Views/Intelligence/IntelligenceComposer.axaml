@@ -165,11 +165,11 @@
                                                         HorizontalAlignment="Left" Click="OnModelChosen" />
                                             </StackPanel>
 
-                                            <!-- Reasoning for the chosen model, where it has levels to choose. -->
+                                            <!-- Reasoning for the open tab's model, where it has levels to choose. -->
                                             <StackPanel Spacing="6" Margin="0,4,0,2" IsVisible="{Binding HasEfforts}">
                                                 <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="2,0" />
                                                 <DockPanel Margin="8,2,8,0">
-                                                    <TextBlock DockPanel.Dock="Right" Classes="subtle" FontSize="12" Text="{Binding SelectedModel.Name, FallbackValue=''}" />
+                                                    <TextBlock DockPanel.Dock="Right" Classes="subtle" FontSize="12" Text="{Binding ReasoningModel.Name, FallbackValue=''}" />
                                                     <TextBlock Text="Reasoning" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                                                 </DockPanel>
                                                 <Border Classes="navTabTrack" HorizontalAlignment="Stretch">
