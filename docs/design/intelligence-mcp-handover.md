@@ -25,12 +25,13 @@ Remaining risk until then: Intelligence's config tools can miss Unimus devices t
 
 | | Before | Now |
 |---|---|---|
-| Bundled MCP | `61161c4` | `b95eb317c81ddfe750f69c5fefc4b2ab95188205` (MCP `1.1.0` with the LibreNMS 26.11 fixes, mcp#156; first reviewed at `8f32942`) |
-| Core in the MCP executable | n/a | `2.0.0-ci.64` (MCP's own pin; a separate process, so no shared graph with the app) |
-| Core in the app | `2.0.0-ci.59` | `2.0.0-ci.71` (includes DashyNMS/core#89) |
+| Bundled MCP | `61161c4` | `bcdbd8f9300ec3fccfe66d76cc553a9d6f528bce` (MCP `1.1.0` with the LibreNMS 26.11 fixes, mcp#156, and truthful device states, mcp#121; first reviewed at `8f32942`) |
+| Core in the MCP executable | n/a | `2.0.0-ci.76` (MCP's own pin; a separate process, so no shared graph with the app) |
+| Core in the app | `2.0.0-ci.59` | `2.0.0-ci.78` (includes DashyNMS/core#89, core#75 and core#94) |
 
 - **Every packaging path** pins the same commit: `dev-build.yml`, `mcp-bundle.yml` and both jobs of `package-build.yml`.
-- **mcp#156** (VLAN and rule details on LibreNMS 26.11, needed by #587) is still open, so no newer compatibility fix is lost by this pin. #587 moves the pin again once that is published.
+- **Batch 3 recheck (core#90).** The pin moves to `bcdbd8f` (mcp#121). Every tool's device `status` now follows LibreNMS's reported state: `ignored` and `unknown` are new words. `network_overview` and `list_groups_and_locations` count those devices apart from up and down. Desktop passes tool output to the model as it receives it. Core's Intelligence status cards name ignored and unreported devices and count them in the overview (core#94). `McpBundleTests` reruns the handover checks against this revision in the package builds.
+- **mcp#156** (VLAN and rule details on LibreNMS 26.11, needed by #587) is in this pin.
 - **Licences.** MCP is MIT-licensed from `4312052`. `Publish-Mcp.ps1` copies `LICENSE` and `NOTICES.md`, and fills `third-party/` with MCP's own `collect-dependency-notices.py`:
   - Supplements are read byte-exact from git, so a CRLF checkout can't fail their hashes.
   - Only packages that put runtime files in the executable are included: 33 at this pin. `Microsoft.NET.ILLink.Tasks` is a build-only analyzer, so it's left out.
@@ -83,7 +84,6 @@ Still manual:
 
 The handover doesn't fix these, and Desktop doesn't claim them as fixed:
 
-- **DashyNMS/mcp#121:** tools reporting ignored and unknown device states.
 - **DashyNMS/mcp#71:** `health_overview` across a large network without global read.
 - **DashyNMS/mcp#70:** event-log windows on busy networks only reach back a few hours.
 
