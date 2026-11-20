@@ -44,7 +44,7 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
     internal IntelligenceComposerViewModel(ObservableCollection<IntelligenceProviderViewModel> providers, AsyncRelayCommand send, RelayCommand stop, Func<bool> isLocked,
         Func<IntelligenceModelOption, bool>? canSelect = null, Func<string, IntelligenceModelOption?>? defaultModel = null, Func<string, string?>? defaultEffort = null)
     {
-        _defaultModel = defaultModel ?? (id => providers.FirstOrDefault(p => p.Id == id)?.Models.FirstOrDefault());
+        _defaultModel = defaultModel ?? (id => providers.FirstOrDefault(p => p.Id == id)?.VisibleModels.FirstOrDefault());
         _defaultEffort = defaultEffort ?? (_ => null);
         Providers = providers;
         SendCommand = send;
@@ -190,12 +190,12 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
         ? "Choose a model"
         : EffectiveEffort is { } effort && _selectedModel.HasEfforts ? $"{_selectedModel.Name} · {IntelligenceModelOption.EffortName(effort)}" : _selectedModel.Name;
 
-    public string? SelectedProviderName => Providers.FirstOrDefault(p => p.Id == _selectedModel?.Provider)?.Name;
+    public string? SelectedProviderName => Providers.FirstOrDefault(p => p.Id == _selectedModel?.Provider)?.DisplayName;
 
     public string? SelectedProviderId => _selectedModel?.Provider;
 
     /// <summary>The providers that can answer now - the picker's tabs.</summary>
-    public IReadOnlyList<IntelligenceProviderViewModel> AvailableProviders => Providers.Where(p => p.IsReady).ToList();
+    public IReadOnlyList<IntelligenceProviderViewModel> AvailableProviders => Providers.Where(p => p.IsOffered).ToList();
 
     /// <summary>Tabs only when there's a choice to make.</summary>
     public bool HasProviderTabs => AvailableProviders.Count > 1;
@@ -203,7 +203,7 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
     /// <summary>The provider tab open in the picker - always one that can answer.</summary>
     public IntelligenceProviderViewModel? PickerProvider
     {
-        get => _pickerProvider is { IsReady: true } open ? open : AvailableProviders.FirstOrDefault();
+        get => _pickerProvider is { IsOffered: true } open ? open : AvailableProviders.FirstOrDefault();
         set
         {
             if (!SetProperty(ref _pickerProvider, value)) return;
@@ -219,7 +219,7 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
     public void ResetPicker()
     {
         ModelSearch = string.Empty;
-        PickerProvider = Providers.FirstOrDefault(p => p.Id == _selectedModel?.Provider && p.IsReady) ?? AvailableProviders.FirstOrDefault();
+        PickerProvider = Providers.FirstOrDefault(p => p.Id == _selectedModel?.Provider && p.IsOffered) ?? AvailableProviders.FirstOrDefault();
         RaisePicker();
     }
 
@@ -237,7 +237,7 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
     {
         get
         {
-            var models = (IEnumerable<IntelligenceModelOption>?)PickerProvider?.Models ?? Array.Empty<IntelligenceModelOption>();
+            var models = (IEnumerable<IntelligenceModelOption>?)PickerProvider?.VisibleModels ?? Array.Empty<IntelligenceModelOption>();
             var search = _modelSearch.Trim();
             if (search.Length > 0)
             {
@@ -260,7 +260,7 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
         get
         {
             if (PickerProvider is not { } provider) return null;
-            if (provider.Models.Count == 0) return $"{provider.Name} didn't list any models.";
+            if (provider.VisibleModels.Count == 0) return $"{provider.DisplayName} has no models to show. Choose which in Settings › Providers.";
             return provider.UsageText;
         }
     }
@@ -339,7 +339,8 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
         provider.Models.CollectionChanged += (_, _) => RaisePicker();
         provider.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(IntelligenceProviderViewModel.Status) or nameof(IntelligenceProviderViewModel.Usage)) RaisePicker();
+            if (e.PropertyName is nameof(IntelligenceProviderViewModel.Status) or nameof(IntelligenceProviderViewModel.Usage)
+                or nameof(IntelligenceProviderViewModel.IsOffered) or nameof(IntelligenceProviderViewModel.VisibleModels)) RaisePicker();
         };
     }
 

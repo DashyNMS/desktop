@@ -10,9 +10,9 @@ namespace DesktopNMS.Views.Intelligence;
 
 /// <summary>
 /// A provider's mark (#316) in the model picker, the Intelligence tab and
-/// Settings: OpenAI's for Codex and Claude's for Claude Code, so each agent is
-/// recognisable at a glance, and the app's own sparkle for ChatGPT so its tab
-/// stays distinct from Codex's. The marks are Simple Icons' 24-unit paths
+/// Settings: OpenAI's for ChatGPT, whether it connects directly or through
+/// Codex - only one of those is ever offered - and Claude's for Claude Code,
+/// so each is recognisable at a glance. The marks are Simple Icons' 24-unit paths
 /// (simple-icons 15.22.0, CC0); they belong to OpenAI and Anthropic and name
 /// only the provider that answers.
 /// </summary>
@@ -49,8 +49,8 @@ public sealed class ProviderIcon : ContentControl
 
     private void Update() => Content = Provider switch
     {
-        AppSettings.IntelligenceProviderCodex => new PathIcon { Data = OpenAi, Width = Size, Height = Size },
+        AppSettings.IntelligenceProviderCodex or AppSettings.IntelligenceProviderChatGpt => new PathIcon { Data = OpenAi, Width = Size, Height = Size },
         AppSettings.IntelligenceProviderClaudeCode => new PathIcon { Data = Claude, Width = Size, Height = Size, Foreground = ClaudeCoral },
-        _ => new SymbolIcon { Symbol = Symbol.ChatSparkle, FontSize = Size },
+        _ => new SymbolIcon { Symbol = Symbol.BotSparkle, FontSize = Size },
     };
 }

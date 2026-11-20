@@ -108,6 +108,9 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         var executables = Executables(settings.Current);
         settings.Changed += (_, current) => _dispatcher.InvokeAsync(() =>
         {
+            RefreshOffered();
+            OnPropertyChanged(nameof(HasReadyProvider));
+            OnPropertyChanged(nameof(NeedsProvider));
             Chats!.EnsureScope();
             OnPropertyChanged(nameof(IsSingleChatMode));
             OnPropertyChanged(nameof(ShowSavedChats));
@@ -162,7 +165,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         Composer = new IntelligenceComposerViewModel(Providers, send, stop, () => IsBusy && !Chats!.IsChangingChat, ConfirmProviderChange,
             provider => DefaultModel(provider), DefaultEffort)
         {
-            OpenProviderSettingsCommand = new RelayCommand(() => _windows.ShowSettingsSection(SettingsSection.Intelligence)),
+            OpenProviderSettingsCommand = new RelayCommand(() => _windows.ShowSettingsSection(SettingsSection.IntelligenceProviders)),
         };
         Composer.Edited += (_, _) => Chats!.QueueSave();
         Composer.PropertyChanged += (_, e) =>
@@ -198,7 +201,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
             IntelligenceConsent.Accept(_settings.Current);
             _settings.Save();
         });
-        OpenSettingsCommand = new RelayCommand(() => _windows.ShowSettingsSection(SettingsSection.Intelligence));
+        OpenSettingsCommand = new RelayCommand(() => _windows.ShowSettingsSection(SettingsSection.IntelligenceProviders));
         AskSuggestionCommand = new AsyncRelayCommand(async p =>
         {
             if (!ShowSuggestions || p is not string question || !Suggestions.Contains(question)) return;
@@ -231,10 +234,52 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     /// <summary>At least one provider can answer, so the conversation can be shown.</summary>
     public bool HasReadyProvider => Providers.Any(p => IsReady(p.Id));
 
-    /// <summary>Whether a provider can answer now. ChatGPT's comes from the live sign-in, which renews in place.</summary>
-    internal bool IsReady(string provider) => provider == AppSettings.IntelligenceProviderChatGpt
-        ? IsSignedIn
-        : Providers.FirstOrDefault(p => p.Id == provider)?.IsReady == true;
+    /// <summary>
+    /// Whether a provider is offered now: ready, switched on in Settings and,
+    /// for ChatGPT's two routes, the connection chosen there. ChatGPT's own
+    /// readiness comes from the live sign-in, which renews in place.
+    /// </summary>
+    internal bool IsReady(string provider)
+    {
+        if (Providers.FirstOrDefault(p => p.Id == provider) is not { } found) return false;
+        var ready = provider == AppSettings.IntelligenceProviderChatGpt ? IsSignedIn : found.IsReady;
+        var route = provider switch
+        {
+            AppSettings.IntelligenceProviderChatGpt => ChatGptConnection == AppSettings.IntelligenceConnectionSignIn,
+            AppSettings.IntelligenceProviderCodex => ChatGptConnection == AppSettings.IntelligenceConnectionCodex,
+            _ => true,
+        };
+        return ready && route && ProviderSettings(EntryFor(provider))?.Enabled != false;
+    }
+
+    /// <summary>
+    /// How ChatGPT connects (#316): DashyNMS's own sign-in, or Codex on this
+    /// computer - one at a time. Until it's chosen, the one already signed in.
+    /// </summary>
+    internal string ChatGptConnection => ProviderSettings(AppSettings.IntelligenceProviderChatGpt)?.Connection
+        ?? (IsSignedIn || Providers.FirstOrDefault(p => p.Id == AppSettings.IntelligenceProviderCodex) is not { IsReady: true }
+            ? AppSettings.IntelligenceConnectionSignIn
+            : AppSettings.IntelligenceConnectionCodex);
+
+    /// <summary>The Settings entry a provider belongs to: Codex is ChatGPT's other connection.</summary>
+    internal static string EntryFor(string provider)
+        => provider == AppSettings.IntelligenceProviderCodex ? AppSettings.IntelligenceProviderChatGpt : provider;
+
+    /// <summary>The provider that answers for a Settings entry - ChatGPT's chosen route.</summary>
+    internal string RouteFor(string entry)
+        => entry == AppSettings.IntelligenceProviderChatGpt && ChatGptConnection == AppSettings.IntelligenceConnectionCodex
+            ? AppSettings.IntelligenceProviderCodex
+            : entry;
+
+    /// <summary>Brings each provider's offered state and hidden models up to date with Settings and sign-ins.</summary>
+    internal void RefreshOffered()
+    {
+        foreach (var provider in Providers)
+        {
+            provider.SetHiddenModels(ProviderSettings(provider.Id)?.HiddenModels);
+            provider.IsOffered = IsReady(provider.Id);
+        }
+    }
 
     /// <summary>No provider can answer yet: the tab offers to set one up.</summary>
     public bool NeedsProvider => !HasReadyProvider;
@@ -254,7 +299,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     private static string Defaults(AppSettings settings) => string.Join("\n",
         new[] { settings.IntelligenceProvider, settings.IntelligenceModel ?? string.Empty }
             .Concat(settings.IntelligenceProviders.OrderBy(p => p.Key, StringComparer.Ordinal)
-                .Select(p => p.Key + "=" + p.Value.Model + "/" + p.Value.Effort)));
+                .Select(p => p.Key + "=" + p.Value.Model + "/" + p.Value.Effort + "/" + p.Value.Connection + "/" + p.Value.Enabled + "/" + string.Join(",", p.Value.HiddenModels))));
 
     private static Dictionary<string, string?> Executables(AppSettings settings)
         => settings.IntelligenceProviders.ToDictionary(p => p.Key, p => p.Value.ExecutablePath, StringComparer.Ordinal);
@@ -268,6 +313,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
 
     private void OnProviderStatusChanged(IntelligenceProviderViewModel provider)
     {
+        RefreshOffered();
         // A provider that signed out or changed account takes its chats with it, and the
         // picker falls back to one that can answer.
         Chats?.EnsureScope();
@@ -291,11 +337,13 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     /// </summary>
     internal IntelligenceModelOption? DefaultModel(string? provider)
     {
-        var chosen = Providers.FirstOrDefault(p => p.Id == (provider ?? _settings.Current.IntelligenceProvider) && IsReady(p.Id))
+        var wanted = provider ?? RouteFor(_settings.Current.IntelligenceProvider);
+        var chosen = Providers.FirstOrDefault(p => p.Id == wanted && IsReady(p.Id))
                      ?? (provider is null ? Providers.FirstOrDefault(p => IsReady(p.Id)) : null);
         if (chosen is null) return null;
         var preferred = chosen.IsChatGpt ? _settings.Current.IntelligenceModel : ProviderSettings(chosen.Id)?.Model;
-        return chosen.Models.FirstOrDefault(m => m.Id == preferred) ?? chosen.Models.FirstOrDefault();
+        var models = chosen.VisibleModels;
+        return models.FirstOrDefault(m => m.Id == preferred) ?? models.FirstOrDefault();
     }
 
     /// <summary>The reasoning level Settings chose for <paramref name="provider"/>.</summary>
@@ -852,6 +900,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     private void RaiseAccount()
     {
         _chatGpt.Status = ChatGptStatus();
+        RefreshOffered();
         OnPropertyChanged(nameof(HasReadyProvider));
         OnPropertyChanged(nameof(NeedsProvider));
         OnPropertyChanged(nameof(ChatProvider));

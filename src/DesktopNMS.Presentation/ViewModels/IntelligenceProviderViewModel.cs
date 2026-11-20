@@ -74,6 +74,40 @@ public sealed class IntelligenceProviderViewModel : ObservableObject
 
     public ObservableCollection<IntelligenceModelOption> Models { get; } = new();
 
+    private bool _isOffered;
+    private IReadOnlyCollection<string> _hiddenModels = Array.Empty<string>();
+
+    /// <summary>
+    /// Offered in the model picker and chat list: ready, switched on in
+    /// Settings, and - for ChatGPT's two routes - the connection chosen there.
+    /// Set by IntelligenceViewModel, which knows all three.
+    /// </summary>
+    public bool IsOffered
+    {
+        get => _isOffered;
+        internal set
+        {
+            if (SetProperty(ref _isOffered, value)) StatusChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>The models the picker shows: all but those hidden in Settings.</summary>
+    public IReadOnlyList<IntelligenceModelOption> VisibleModels => Models.Where(m => !_hiddenModels.Contains(m.Id)).ToList();
+
+    internal void SetHiddenModels(IEnumerable<string>? hidden)
+    {
+        var list = (hidden ?? Array.Empty<string>()).ToHashSet(StringComparer.Ordinal);
+        if (list.SetEquals(_hiddenModels)) return;
+        _hiddenModels = list;
+        OnPropertyChanged(nameof(VisibleModels));
+    }
+
+    /// <summary>
+    /// The name people see. Codex is one of ChatGPT's two connections, so it
+    /// shows as ChatGPT; only one of them is ever offered at a time.
+    /// </summary>
+    public string DisplayName => Id == AppSettings.IntelligenceProviderCodex ? "ChatGPT" : Name;
+
     private bool _isPickerTab;
 
     /// <summary>This provider's tab is the one open in the composer's model picker.</summary>

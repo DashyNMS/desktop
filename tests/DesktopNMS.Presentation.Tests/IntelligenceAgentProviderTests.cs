@@ -97,6 +97,49 @@ public sealed class IntelligenceAgentProviderTests
     }
 
     [Fact]
+    public async Task A_provider_switched_off_in_Settings_leaves_the_picker()
+    {
+        var (model, _, _, _) = await CreateAsync(second: true);
+        using var _ = model;
+
+        Settings.Current.IntelligenceProviders["second"] = new() { Enabled = false };
+        Settings.Save();
+
+        Assert.DoesNotContain(model.Composer.AvailableProviders, p => p.Id == "second");
+        Assert.Contains(model.Composer.AvailableProviders, p => p.Id == "agent");
+    }
+
+    [Fact]
+    public async Task Hidden_models_leave_the_picker_and_new_chats()
+    {
+        var (model, _, _, _) = await CreateAsync();
+        using var _ = model;
+
+        Settings.Current.IntelligenceProviders["agent"] = new() { HiddenModels = ["agent-model"] };
+        Settings.Save();
+
+        Assert.Empty(model.Composer.PickerModels);
+        Assert.Null(model.DefaultModel("agent"));
+    }
+
+    [Fact]
+    public async Task Only_the_chosen_ChatGPT_connection_is_offered()
+    {
+        var (model, _, _, _) = await CreateAsync(id: AppSettings.IntelligenceProviderCodex);
+        using var _ = model;
+
+        Assert.Equal(AppSettings.IntelligenceConnectionCodex, model.ChatGptConnection);
+        Assert.Contains(model.Composer.AvailableProviders, p => p.Id == AppSettings.IntelligenceProviderCodex);
+        Assert.Equal("ChatGPT", model.Providers.Single(p => p.Id == AppSettings.IntelligenceProviderCodex).DisplayName);
+
+        Settings.Current.IntelligenceProviders[AppSettings.IntelligenceProviderChatGpt] = new() { Connection = AppSettings.IntelligenceConnectionSignIn };
+        Settings.Save();
+
+        Assert.DoesNotContain(model.Composer.AvailableProviders, p => p.Id == AppSettings.IntelligenceProviderCodex);
+        Assert.True(model.NeedsProvider);
+    }
+
+    [Fact]
     public async Task No_ready_provider_asks_for_one_to_be_set_up()
     {
         var (model, _, _, _) = await CreateAsync(ready: false);
@@ -276,6 +319,9 @@ public sealed class IntelligenceAgentProviderTests
             IntelligenceProviderViewModel.DescribeUsage(new([new("weekly", 3, null), new("5-hour", 17, now.AddHours(2))], now), now));
     }
 
+    /// <summary>The settings of the model the last CreateAsync made - tests in a class run one at a time.</summary>
+    private static TestSettings Settings = null!;
+
     /// <summary>Asks the composer's question and waits for the answer to finish, as the Ask button would.</summary>
     private static async Task AskAsync(IntelligenceViewModel model)
     {
@@ -285,9 +331,10 @@ public sealed class IntelligenceAgentProviderTests
         await Task.Delay(20);
     }
 
-    private static async Task<(IntelligenceViewModel Model, FakeAgent Agent, Store Store, Windows Windows)> CreateAsync(bool ready = true, bool second = false, bool secondHasEfforts = true, bool webSearch = false)
+    private static async Task<(IntelligenceViewModel Model, FakeAgent Agent, Store Store, Windows Windows)> CreateAsync(bool ready = true, bool second = false, bool secondHasEfforts = true, bool webSearch = false, string id = "agent")
     {
         var settings = new TestSettings();
+        Settings = settings;
         settings.Current.IntelligenceConsentGiven = true;
         settings.Current.IntelligenceConsentVersion = IntelligenceConsent.CurrentVersion;
         settings.Current.IntelligenceEnabled = false;
@@ -297,7 +344,7 @@ public sealed class IntelligenceAgentProviderTests
         var client = Proxy<ILibreNmsClient>();
         var store = new Store();
         var windows = new Windows();
-        var agent = new FakeAgent("agent") { Ready = ready };
+        var agent = new FakeAgent(id) { Ready = ready };
         var agents = new List<IAgentProvider> { agent };
         if (second) agents.Add(new FakeAgent("second") { HasEfforts = secondHasEfforts });
         var model = new IntelligenceViewModel(Proxy<IChatGptCredentialStore>(), null!,
