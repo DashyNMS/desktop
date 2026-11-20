@@ -190,6 +190,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         SelectIntegrationsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Integrations);
         SelectGraylogSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Graylog);
         SelectIntelligenceSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Intelligence);
+        SelectIntelligenceProvidersSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.IntelligenceProviders);
         SelectMapsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Maps);
         ResetMapTileUrlCommand = new RelayCommand(() => MapTileUrl = null);
         SelectAboutSectionCommand = new RelayCommand(() =>
@@ -204,7 +205,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => CanInstallUpdate && !IsCheckingForUpdates && !_isInstallingUpdate);
         _updates.ReadyUpdateChanged += OnReadyUpdateChanged;
         Intelligence.Models.CollectionChanged += OnIntelligenceModelsChanged;
-        IntelligenceAgents = Intelligence.Providers.Where(p => p.IsAgent).Select(p => new IntelligenceAgentSettingsViewModel(p, _draft)).ToList();
+        IntelligenceProviders = new IntelligenceProvidersViewModel(Intelligence, _draft);
         ViewLatestReleaseCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri(_latestRelease!.HtmlUrl!)),
             () => _latestRelease?.HtmlUrl is not null);
@@ -303,6 +304,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public RelayCommand SelectIntelligenceSectionCommand { get; }
 
+    public RelayCommand SelectIntelligenceProvidersSectionCommand { get; }
+
     public RelayCommand SelectMapsSectionCommand { get; }
 
     public RelayCommand SelectAboutSectionCommand { get; }
@@ -328,6 +331,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsIntegrationsSectionSelected));
                 OnPropertyChanged(nameof(IsGraylogSectionSelected));
                 OnPropertyChanged(nameof(IsIntelligenceSectionSelected));
+                OnPropertyChanged(nameof(IsIntelligenceProvidersSectionSelected));
                 OnPropertyChanged(nameof(IsMapsSectionSelected));
                 OnPropertyChanged(nameof(IsAboutSectionSelected));
                 OnPropertyChanged(nameof(IsServerInformationSectionSelected));
@@ -369,6 +373,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     public bool IsGraylogSectionSelected => SelectedSection == SettingsSection.Graylog;
 
     public bool IsIntelligenceSectionSelected => SelectedSection == SettingsSection.Intelligence;
+
+    public bool IsIntelligenceProvidersSectionSelected => SelectedSection == SettingsSection.IntelligenceProviders;
 
     public bool IsMapsSectionSelected => SelectedSection == SettingsSection.Maps;
 
@@ -2164,23 +2170,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Codex and Claude Code's cards: their status, executable and defaults (#316).</summary>
-    public IReadOnlyList<IntelligenceAgentSettingsViewModel> IntelligenceAgents { get; }
-
-    /// <summary>Every provider, for the default provider picker.</summary>
-    public IReadOnlyList<IntelligenceProviderViewModel> IntelligenceProviderChoices => Intelligence.Providers;
-
-    /// <summary>The provider a new conversation starts with, when it can answer; otherwise the first that can.</summary>
-    public string IntelligenceDefaultProvider
-    {
-        get => _draft.IntelligenceProvider;
-        set
-        {
-            if (value is null || _draft.IntelligenceProvider == value) return;
-            _draft.IntelligenceProvider = value;
-            OnPropertyChanged();
-        }
-    }
+    /// <summary>Settings › Providers (#316): the provider list and the chosen provider's details.</summary>
+    public IntelligenceProvidersViewModel IntelligenceProviders { get; }
 
     /// <summary>The Intelligence page's account controls - the live ChatGPT connection, not part of the draft.</summary>
     public IntelligenceViewModel Intelligence { get; }

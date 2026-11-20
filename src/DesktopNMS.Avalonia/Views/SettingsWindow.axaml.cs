@@ -1,5 +1,7 @@
 using System.ComponentModel;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using DesktopNMS.Core.Api;
@@ -104,5 +106,15 @@ public partial class SettingsWindow : Window
         _viewModel!.RequestClose -= OnRequestClose;
         Saved |= saved;
         Close();
+    }
+
+    /// <summary>A row in Settings › Providers was clicked: show that provider's details, unless the click was on its switch.</summary>
+    private void OnProviderRowPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Source is Visual { } source && source.FindAncestorOfType<ToggleSwitch>(includeSelf: true) is not null) return;
+        if (sender is Control { DataContext: IntelligenceProviderEntryViewModel entry } && DataContext is SettingsViewModel settings)
+        {
+            settings.IntelligenceProviders.Selected = entry;
+        }
     }
 }
