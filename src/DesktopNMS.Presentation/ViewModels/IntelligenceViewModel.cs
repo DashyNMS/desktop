@@ -12,18 +12,24 @@ using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using DesktopNMS.Services.Intelligence;
+using DesktopNMS.Services.Intelligence.Agents;
 using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.ViewModels;
 
 /// <summary>
 /// The Intelligence tab: ask about the network in plain words, answered by
-/// the user's own ChatGPT plan using DashyNMS's read-only network tools.
+/// the user's own ChatGPT plan, Codex or Claude Code using DashyNMS's
+/// read-only network tools.
 /// </summary>
 /// <remarks>
-/// This holds the account, the conversation and asking. The chat list
+/// This holds the providers, the conversation and asking. The chat list
 /// (<see cref="Chats"/>), the composer (<see cref="Composer"/>) and the context
-/// sidebar (<see cref="Context"/>) are their own view models (#327).
+/// sidebar (<see cref="Context"/>) are their own view models (#327). ChatGPT
+/// keeps its own route through Core's IntelligenceConversation; the agents
+/// (#316) run their own tool loop and reach the tools through
+/// <see cref="AgentToolBridge"/>. Each chat belongs to one provider and its
+/// account, and moves to another only when the user says so.
 /// </remarks>
 public sealed partial class IntelligenceViewModel : ObservableObject, IDisposable
 {
@@ -56,6 +62,16 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     private bool _consentGiven;
     private DashyOutfit _companionOutfit = DashyOutfits.Pick(Random.Shared.Next(100));
 
+    private readonly IntelligenceProviderViewModel _chatGpt = IntelligenceProviderViewModel.ChatGpt();
+    private readonly Dictionary<string, AgentToolSession> _agentTools = new(StringComparer.Ordinal);
+    private AgentToolBridge? _bridge;
+
+    /// <summary>The open chat's provider - whose account it's saved under, and who answers it.</summary>
+    private string _chatProvider = AppSettings.IntelligenceProviderChatGpt;
+
+    /// <summary>The open chat's agent session, as the agent named it; null until its first answer.</summary>
+    private string? _providerSession;
+
     public IntelligenceViewModel(
         IChatGptCredentialStore store,
         McpToolHost tools,
@@ -67,7 +83,8 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         AlertMonitor alerts,
         IIntelligenceChatStore chats,
         ILogger<IntelligenceViewModel> logger, IAppMetrics? metrics = null,
-        IntelligenceChatExporter? exporter = null)
+        IntelligenceChatExporter? exporter = null,
+        IEnumerable<IAgentProvider>? agents = null)
     {
         _metrics = metrics;
         _exporter = exporter;
@@ -82,10 +99,13 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         _logger = logger;
         _dispatcher = UiThread.Dispatcher;
 
-        // A new default model in Settings applies straight away. Only a change
-        // to the default itself moves the picker, so a model picked for this
-        // conversation stays put when other settings are saved.
-        _defaultModel = settings.Current.IntelligenceModel;
+        // A new default in Settings applies straight away. Only a change to the
+        // defaults themselves moves the picker, so a model picked for this
+        // conversation stays put when other settings are saved - and an
+        // existing conversation only takes its own provider's new default, never
+        // another provider's.
+        _defaultModel = Defaults(settings.Current);
+        var executables = Executables(settings.Current);
         settings.Changed += (_, current) => _dispatcher.InvokeAsync(() =>
         {
             Chats!.EnsureScope();
@@ -93,15 +113,28 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
             OnPropertyChanged(nameof(ShowSavedChats));
             OnPropertyChanged(nameof(ShowMascot));
             OnPropertyChanged(nameof(ColourStatusIndicators));
-            if (current.IntelligenceModel == _defaultModel)
+
+            // A different executable is a different agent: check it, and stop the old one.
+            var chosen = Executables(current);
+            foreach (var provider in Providers.Where(p => p.IsAgent && chosen.GetValueOrDefault(p.Id) != executables.GetValueOrDefault(p.Id)))
+            {
+                _ = provider.Agent!.RetireAsync().ContinueWith(_ => _dispatcher.InvokeAsync(() => provider.CheckAsync(CancellationToken.None)), TaskScheduler.Default);
+            }
+
+            executables = chosen;
+            var defaults = Defaults(current);
+            if (defaults == _defaultModel)
             {
                 return;
             }
 
-            _defaultModel = current.IntelligenceModel;
-            if (Models.FirstOrDefault(m => m.Slug == _defaultModel) is { } preferred)
+            _defaultModel = defaults;
+            if (_isBusy) return;
+            var preferred = Messages.Count == 0 ? DefaultModel(null) : DefaultModel(_chatProvider);
+            if (preferred is not null && (Messages.Count == 0 || preferred.Provider == _chatProvider))
             {
-                Composer!.SelectedModel = preferred;
+                Composer!.Restore(preferred, DefaultEffort(preferred.Provider));
+                OnModelChanged();
             }
         });
         ToggleSidebarCommand = new RelayCommand(() => IsSidebarOpen = !IsSidebarOpen);
@@ -111,16 +144,31 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         _responses = new ResponsesClient(http);
         _conversation = new IntelligenceConversation(_responses, _tools, _logger);
 
+        Providers.Add(_chatGpt);
+        foreach (var agent in agents ?? Array.Empty<IAgentProvider>())
+        {
+            var id = agent.Id;
+            var provider = IntelligenceProviderViewModel.ForAgent(agent, () => ProviderSettings(id)?.ExecutablePath, logger);
+            provider.StatusChanged += (_, _) => OnProviderStatusChanged(provider);
+            Providers.Add(provider);
+        }
+
+        Models.CollectionChanged += (_, _) => _chatGpt.ReplaceModels(Models.Select(IntelligenceModelOption.FromChatGpt));
+
         ConnectCommand = new AsyncRelayCommand(ConnectAsync, () => !_isSigningIn);
         DisconnectCommand = new AsyncRelayCommand(DisconnectAsync, () => IsSignedIn && !_isBusy);
         var send = new AsyncRelayCommand(SendAsync, () => CanSend);
         var stop = new RelayCommand(() => _running?.Cancel(), () => _isBusy);
-        Composer = new IntelligenceComposerViewModel(Models, send, stop, () => IsBusy && !Chats!.IsChangingChat);
+        Composer = new IntelligenceComposerViewModel(Providers, send, stop, () => IsBusy && !Chats!.IsChangingChat, ConfirmProviderChange)
+        {
+            OpenProviderSettingsCommand = new RelayCommand(() => _windows.ShowSettingsSection(SettingsSection.Intelligence)),
+        };
         Composer.Edited += (_, _) => Chats!.QueueSave();
         Composer.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(IntelligenceComposerViewModel.SelectedModel))
             {
+                OnModelChanged();
                 RetryQuestionCommand!.RaiseCanExecuteChanged();
                 AskSuggestionCommand?.RaiseCanExecuteChanged();
             }
@@ -158,14 +206,126 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         }, p => ShowSuggestions && !_isBusy && Composer.SelectedModel is not null && p is string question && Suggestions.Contains(question));
 
         _credentials = _store.Load();
+        _chatGpt.Status = ChatGptStatus();
         Chats = new IntelligenceChatListViewModel(this, chats, windows, _dispatcher, logger) { NewChatCommand = ClearCommand };
         Context.Spotlight.CollectionChanged += (_, _) => Chats.QueueSave();
-        _session.StateChanged += (_, _) => _dispatcher.InvokeAsync(Chats.EnsureScope);
+        _session.StateChanged += (_, _) => _dispatcher.InvokeAsync(() =>
+        {
+            // Another network or a sign-out: agents' sessions and tool access end with the old one.
+            _ = RetireAgentsAsync();
+            Chats.EnsureScope();
+        });
         Chats.EnsureScope();
         if (IsSignedIn)
         {
             _ = LoadModelsAsync();
         }
+
+        if (settings.Current.IntelligenceEnabled) _ = CheckAgentsAsync();
+    }
+
+    /// <summary>ChatGPT, then the agents installed with this build - each ready or explaining why not.</summary>
+    public ObservableCollection<IntelligenceProviderViewModel> Providers { get; } = new();
+
+    /// <summary>At least one provider can answer, so the conversation can be shown.</summary>
+    public bool HasReadyProvider => Providers.Any(p => IsReady(p.Id));
+
+    /// <summary>Whether a provider can answer now. ChatGPT's comes from the live sign-in, which renews in place.</summary>
+    internal bool IsReady(string provider) => provider == AppSettings.IntelligenceProviderChatGpt
+        ? IsSignedIn
+        : Providers.FirstOrDefault(p => p.Id == provider)?.IsReady == true;
+
+    /// <summary>No provider can answer yet: the tab offers to set one up.</summary>
+    public bool NeedsProvider => !HasReadyProvider;
+
+    /// <summary>Codex and Claude Code, for the set-up panel.</summary>
+    public IEnumerable<IntelligenceProviderViewModel> AgentProviders => Providers.Where(p => p.IsAgent);
+
+    public bool HasAgentProviders => Providers.Any(p => p.IsAgent);
+
+    /// <summary>The open chat's provider, for the header and notice.</summary>
+    public IntelligenceProviderViewModel? ChatProvider => Providers.FirstOrDefault(p => p.Id == _chatProvider);
+
+    /// <summary>Checks each agent's installation and sign-in, together.</summary>
+    public Task CheckAgentsAsync() => Task.WhenAll(Providers.Where(p => p.IsAgent).Select(p => p.CheckAsync(CancellationToken.None)));
+
+    /// <summary>Every default a new chat starts with, as one value to compare.</summary>
+    private static string Defaults(AppSettings settings) => string.Join("\n",
+        new[] { settings.IntelligenceProvider, settings.IntelligenceModel ?? string.Empty }
+            .Concat(settings.IntelligenceProviders.OrderBy(p => p.Key, StringComparer.Ordinal)
+                .Select(p => p.Key + "=" + p.Value.Model + "/" + p.Value.Effort)));
+
+    private static Dictionary<string, string?> Executables(AppSettings settings)
+        => settings.IntelligenceProviders.ToDictionary(p => p.Key, p => p.Value.ExecutablePath, StringComparer.Ordinal);
+
+    private IntelligenceProviderSettings? ProviderSettings(string id)
+        => _settings.Current.IntelligenceProviders.TryGetValue(id, out var chosen) ? chosen : null;
+
+    private AgentProviderStatus ChatGptStatus() => IsSignedIn
+        ? new AgentProviderStatus(AgentProviderState.Ready, AccountKey: _credentials?.Subject, AccountText: SignedInAsText)
+        : new AgentProviderStatus(AgentProviderState.SignedOut);
+
+    private void OnProviderStatusChanged(IntelligenceProviderViewModel provider)
+    {
+        // A provider that signed out or changed account takes its chats with it, and the
+        // picker falls back to one that can answer.
+        Chats?.EnsureScope();
+        if (Composer.SelectedModel is null || !IsReady(Composer.SelectedModel.Provider))
+        {
+            var model = DefaultModel(_chatProvider) ?? (Messages.Count == 0 ? DefaultModel(null) : null);
+            if (model is not null)
+            {
+                Composer.Restore(model, DefaultEffort(model.Provider));
+                OnModelChanged();
+            }
+        }
+
+        RaiseAccount();
+    }
+
+    /// <summary>
+    /// The model a chat starts with on <paramref name="provider"/>: the one
+    /// chosen in Settings, else the first listed. Null provider picks the
+    /// default provider, or the first that can answer.
+    /// </summary>
+    internal IntelligenceModelOption? DefaultModel(string? provider)
+    {
+        var chosen = Providers.FirstOrDefault(p => p.Id == (provider ?? _settings.Current.IntelligenceProvider) && IsReady(p.Id))
+                     ?? (provider is null ? Providers.FirstOrDefault(p => IsReady(p.Id)) : null);
+        if (chosen is null) return null;
+        var preferred = chosen.IsChatGpt ? _settings.Current.IntelligenceModel : ProviderSettings(chosen.Id)?.Model;
+        return chosen.Models.FirstOrDefault(m => m.Id == preferred) ?? chosen.Models.FirstOrDefault();
+    }
+
+    /// <summary>The reasoning level Settings chose for <paramref name="provider"/>.</summary>
+    private string? DefaultEffort(string? provider) => provider is null ? null : ProviderSettings(provider)?.Effort;
+
+    /// <summary>
+    /// Asked before the composer moves a conversation to another provider
+    /// (#316). An empty chat just changes; one with messages asks first, since
+    /// its earlier questions and answers will be sent to the new provider.
+    /// </summary>
+    private bool ConfirmProviderChange(IntelligenceModelOption model)
+    {
+        if (!IsReady(model.Provider) || Providers.FirstOrDefault(p => p.Id == model.Provider) is not { } target) return false;
+        if (Messages.Count == 0) return true;
+        return _windows.Confirm($"Continue with {target.Name}?",
+            $"This chat's earlier questions and answers will be sent to {target.Company} with your next question, so {target.Name} can carry on from them. " +
+            $"Lookup results and anything private to {ChatProvider?.Name ?? "the previous provider"} stay behind. To keep them apart, start a new chat instead.",
+            $"Continue with {target.Name}");
+    }
+
+    /// <summary>A model from another provider was chosen and accepted: the chat changes hands.</summary>
+    private void OnModelChanged()
+    {
+        if (Composer.SelectedModel is not { } model || model.Provider == _chatProvider || Chats is null || Chats.IsChangingChat) return;
+        _chatProvider = model.Provider;
+        _providerSession = null;
+
+        // ChatGPT's own history - reasoning and tool exchanges - never goes to another provider.
+        _conversation.Clear();
+        Chats.MoveSelected();
+        OnPropertyChanged(nameof(ChatProvider));
     }
 
     public ObservableCollection<IntelligenceMessageViewModel> Messages { get; } = new();
@@ -273,9 +433,9 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         }
     }
 
-    public bool NeedsConsent => IsSignedIn && !_consentGiven;
+    public bool NeedsConsent => HasReadyProvider && !_consentGiven;
 
-    public bool ShowConversation => IsSignedIn && _consentGiven;
+    public bool ShowConversation => HasReadyProvider && _consentGiven;
 
     public bool ShowSuggestions => ShowConversation && Messages.Count == 0 && string.IsNullOrWhiteSpace(Composer.Question);
 
@@ -323,7 +483,8 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
 
     public bool HasError => !string.IsNullOrEmpty(_errorText);
 
-    private bool CanSend => IsSignedIn && _consentGiven && !_isBusy && !string.IsNullOrWhiteSpace(Composer.Question) && Composer.SelectedModel is not null;
+    private bool CanSend => _consentGiven && !_isBusy && !string.IsNullOrWhiteSpace(Composer.Question)
+        && Composer.SelectedModel is { } model && IsReady(model.Provider);
 
     private async Task ConnectAsync()
     {
@@ -377,13 +538,16 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         _store.Clear();
         _credentials = null;
         Chats.EnsureScope();
-        _conversation.Clear();
-        Messages.Clear();
+        if (_chatProvider == AppSettings.IntelligenceProviderChatGpt)
+        {
+            _conversation.Clear();
+            Messages.Clear();
+        }
+
         Models.Clear();
-        Composer.SelectedModel = null;
         ErrorText = null;
-        await _tools.StopAsync().ConfigureAwait(true);
         RaiseAccount();
+        if (!HasReadyProvider) await _tools.StopAsync().ConfigureAwait(true);
     }
 
     private async Task LoadModelsAsync()
@@ -392,16 +556,23 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         {
             var token = await AccessTokenAsync(CancellationToken.None).ConfigureAwait(true);
             var models = await _responses.ListModelsAsync(token, CancellationToken.None).ConfigureAwait(true);
-            var keep = Chats.SelectedChat?.Data.Model ?? Composer.SelectedModel?.Slug;
             Models.Clear();
             foreach (var model in models)
             {
                 Models.Add(model);
             }
 
-            Composer.SelectedModel = Models.FirstOrDefault(m => m.Slug == keep)
-                                     ?? Models.FirstOrDefault(m => m.Slug == _settings.Current.IntelligenceModel)
-                                     ?? Models.FirstOrDefault();
+            // Only a ChatGPT chat - or one with no model yet - picks up ChatGPT's list.
+            if (_chatProvider == AppSettings.IntelligenceProviderChatGpt)
+            {
+                var keep = Chats.SelectedChat?.Data.Model ?? Composer.SelectedModel?.Id;
+                Composer.Restore(_chatGpt.Models.FirstOrDefault(m => m.Id == keep) ?? DefaultModel(AppSettings.IntelligenceProviderChatGpt), null);
+            }
+            else if (Composer.SelectedModel is null)
+            {
+                Composer.Restore(DefaultModel(null), null);
+            }
+
             if (Models.Count == 0)
             {
                 ErrorText = "Your ChatGPT plan didn't list any models DashyNMS can use.";
@@ -445,10 +616,21 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         try
         {
             var spotlight = Context.SpotlightForAgent;
-            var model = Composer.SelectedModel!.Slug;
+            var selected = Composer.SelectedModel!;
             var token = _running.Token;
-            var webSearchEnabled = IntelligenceConsent.AllowsWebSearch(_settings.Current);
-            await Task.Run(() => _conversation.AskAsync(question, model, AccessTokenAsync, listener, token, spotlight, webSearchEnabled, detail)).ConfigureAwait(true);
+            if (selected.Provider == AppSettings.IntelligenceProviderChatGpt)
+            {
+                var model = selected.Id;
+                var webSearchEnabled = IntelligenceConsent.AllowsWebSearch(_settings.Current);
+
+                // A chat moved here from an agent has no ChatGPT history: its visible conversation goes first.
+                var asked = _conversation.IsEmpty && Preamble(answer) is { } earlier ? earlier + question : question;
+                await Task.Run(() => _conversation.AskAsync(asked, model, AccessTokenAsync, listener, token, spotlight, webSearchEnabled, detail)).ConfigureAwait(true);
+            }
+            else
+            {
+                await AskAgentAsync(question, selected, Composer.EffectiveEffort, detail, spotlight, answer, listener, token).ConfigureAwait(true);
+            }
             Context.OnAnswer(IntelligenceInlineMarkup.ToReadableText(answer.Text, answer.InlineReferences));
             if (string.IsNullOrWhiteSpace(answer.Text))
             {
@@ -470,6 +652,12 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         catch (ChatGptSignInException ex)
         {
             outcome = IntelligenceRequestTiming.Failure(ex, _running.IsCancellationRequested);
+            ErrorText = ex.Message;
+            answer.Finish(IntelligenceReplyOutcome.Failed, ex.Message);
+        }
+        catch (AgentProviderException ex) when (!_running.IsCancellationRequested)
+        {
+            outcome = MetricOutcome.Failed;
             ErrorText = ex.Message;
             answer.Finish(IntelligenceReplyOutcome.Failed, ex.Message);
         }
@@ -529,12 +717,113 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     {
         _running?.Cancel();
         Chats.SaveActive();
+        await RetireAgentsAsync().ConfigureAwait(true);
         await _tools.StopAsync().ConfigureAwait(true);
         Chats.SaveActive();
     }
 
-    /// <summary>Writes any chat saves still waiting - the app is closing.</summary>
-    public void Dispose() => Chats.Dispose();
+    /// <summary>Writes any chat saves still waiting and stops the agents - the app is closing.</summary>
+    public void Dispose()
+    {
+        Chats.Dispose();
+        RetireAgentsAsync().Wait(TimeSpan.FromSeconds(5));
+        if (_bridge is { } bridge) bridge.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
+    }
+
+    /// <summary>
+    /// Ends every agent's processes and tool access: the network changed, it
+    /// signed out, or Intelligence was turned off. Anything still running is
+    /// stopped and its output discarded; the next question starts afresh.
+    /// </summary>
+    private async Task RetireAgentsAsync()
+    {
+        foreach (var session in _agentTools.Values) session.Dispose();
+        _agentTools.Clear();
+        await Task.WhenAll(Providers.Where(p => p.Agent is not null).Select(p => p.Agent!.RetireAsync())).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Asks an agent (#316): the same instructions as ChatGPT, with web search
+    /// off since agents get no search tool here, and tool calls opened on its
+    /// bridge session for this question only.
+    /// </summary>
+    private async Task AskAgentAsync(string question, IntelligenceModelOption model, string? effort, string detail,
+        IReadOnlyCollection<IntelligenceObjectReference>? spotlight, IntelligenceMessageViewModel answer, IIntelligenceListener listener, CancellationToken cancellationToken)
+    {
+        var provider = Providers.First(p => p.Id == model.Provider);
+        var agent = provider.Agent!;
+        var instructions = IntelligenceInstructions.Build(detail, spotlight, webSearchEnabled: false);
+        var tools = await AgentToolsAsync(provider.Id, cancellationToken).ConfigureAwait(true);
+        var chat = Chats.SelectedChat;
+        var temporary = IsSingleChatMode;
+        AgentTurnResult result;
+        using (tools.BeginTurn(listener, cancellationToken))
+        {
+            try
+            {
+                var turn = new AgentTurn(question, model.Id, effort, instructions, _providerSession, temporary,
+                    _providerSession is null ? Preamble(answer) : null);
+                result = await agent.AskAsync(turn, tools, listener, cancellationToken).ConfigureAwait(true);
+            }
+            catch (AgentProviderException ex)
+            {
+                if (ex.Usage is not null) provider.Usage = ex.Usage;
+                if (ex.State is { } state && state != AgentProviderState.Ready) _ = provider.CheckAsync(CancellationToken.None);
+                throw;
+            }
+        }
+
+        // A chat switched away from while it ran keeps its session in its own save, not this one.
+        if (ReferenceEquals(chat, Chats.SelectedChat)) _providerSession = result.Session;
+        provider.Usage = result.Usage ?? await agent.ReadUsageAsync(CancellationToken.None).ConfigureAwait(true) ?? provider.Usage;
+    }
+
+    /// <summary>The provider's bridge session, opened on first use and kept until the agents retire.</summary>
+    private async Task<AgentToolSession> AgentToolsAsync(string provider, CancellationToken cancellationToken)
+    {
+        if (_agentTools.TryGetValue(provider, out var open)) return open;
+        _bridge ??= new AgentToolBridge(_tools, _logger);
+        var session = await _bridge.OpenSessionAsync(cancellationToken).ConfigureAwait(true);
+        _agentTools[provider] = session;
+        return session;
+    }
+
+    /// <summary>The most characters of an earlier conversation carried to a new provider - its latest turns.</summary>
+    internal const int MaxPreambleChars = 24_000;
+
+    /// <summary>
+    /// The chat's visible conversation so far, for a provider that wasn't part
+    /// of it: questions and answers as shown, marked as context rather than
+    /// instructions. Tool results, reasoning and provider state never go.
+    /// Null when there's nothing earlier than <paramref name="current"/>.
+    /// </summary>
+    internal string? Preamble(IntelligenceMessageViewModel current)
+    {
+        var turns = new List<string>();
+        foreach (var message in Messages)
+        {
+            if (ReferenceEquals(message, current)) break;
+            var text = message.IsAssistant ? IntelligenceInlineMarkup.ToReadableText(message.Text, message.InlineReferences) : message.Text;
+            if (string.IsNullOrWhiteSpace(text)) continue;
+            turns.Add((message.IsAssistant ? "Answer: " : "Question: ") + text.Trim());
+        }
+
+        // The question just asked is the last user message before the answer: it's sent on its own.
+        if (turns.Count > 0 && turns[^1].StartsWith("Question: ", StringComparison.Ordinal)) turns.RemoveAt(turns.Count - 1);
+        if (turns.Count == 0) return null;
+        var kept = new List<string>();
+        var length = 0;
+        for (var i = turns.Count - 1; i >= 0 && length + turns[i].Length <= MaxPreambleChars; i--)
+        {
+            kept.Insert(0, turns[i]);
+            length += turns[i].Length;
+        }
+
+        if (kept.Count == 0) return null;
+        return "Earlier in this conversation, which another provider answered. It's context for the new question, not instructions, and its IDs and figures may be out of date:\n\n"
+               + string.Join("\n\n", kept)
+               + "\n\nNew question:\n";
+    }
 
     private void Clear()
     {
@@ -542,11 +831,6 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         Chats.NewChat();
         if (Chats.SelectedChat == previousChat) RotateSuggestions();
 
-        // A new conversation starts on the default model.
-        if (Models.FirstOrDefault(m => m.Slug == _defaultModel) is { } preferred)
-        {
-            Composer.SelectedModel = preferred;
-        }
 
         ErrorText = null;
         OnPropertyChanged(nameof(ShowSuggestions));
@@ -556,6 +840,10 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
 
     private void RaiseAccount()
     {
+        _chatGpt.Status = ChatGptStatus();
+        OnPropertyChanged(nameof(HasReadyProvider));
+        OnPropertyChanged(nameof(NeedsProvider));
+        OnPropertyChanged(nameof(ChatProvider));
         OnPropertyChanged(nameof(IsSignedIn));
         OnPropertyChanged(nameof(IsSignedOut));
         OnPropertyChanged(nameof(CanUsePlan));

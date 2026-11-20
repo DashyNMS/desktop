@@ -8,7 +8,7 @@
              x:DataType="vm:IntelligenceViewModel">
 
     <!-- Intelligence: ask about the network, answered with the user's own
-         ChatGPT plan using DashyNMS's read-only network tools. The account
+         ChatGPT plan, Codex or Claude Code using DashyNMS's read-only network tools. The account
          lives in Settings › Intelligence, not here. The context sidebar on
          the right becomes a drawer when the window is narrow. -->
     <UserControl.Styles>
@@ -133,14 +133,35 @@
             </Border>
 
             <!-- ======================== Not connected ======================== -->
-            <Border Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520" Padding="28,24" CornerRadius="8"
-                    Background="{DynamicResource SurfaceAltBrush}" IsVisible="{Binding IsSignedOut}">
+            <!-- No provider can answer yet: ChatGPT signs in here; an agent is set up in Settings, and each says why it isn't ready. -->
+            <Border Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="540" Padding="28,24" CornerRadius="8"
+                    Background="{DynamicResource SurfaceAltBrush}" IsVisible="{Binding NeedsProvider}">
                 <StackPanel>
                     <TextBlock Text="Ask about your network" Classes="heading" />
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,16"
-                               Text="Ask what's alerting, how a device is doing, where an address is plugged in or what changed overnight. Intelligence answers using your own ChatGPT plan, looking things up with read-only tools - it can't change anything. Needs ChatGPT Plus or Pro." />
+                               Text="Ask what's alerting, how a device is doing, where an address is plugged in or what changed overnight. Intelligence answers with your own ChatGPT plan, or with Codex or Claude Code on this computer, looking things up with read-only tools. It can't change anything." />
                     <Button Classes="primary" HorizontalAlignment="Left" Padding="16,8" Command="{Binding ConnectCommand}"><TextBlock Text="Continue with ChatGPT" /></Button>
-                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,12,0,0" Text="Your browser opens to sign in. DashyNMS never sees your ChatGPT password." />
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,0" Text="Needs ChatGPT Plus or Pro. Your browser opens to sign in, and DashyNMS never sees your password." />
+
+                    <StackPanel IsVisible="{Binding HasAgentProviders}" Margin="0,18,0,0">
+                        <TextBlock Text="Or use an agent on this computer" FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <ItemsControl ItemsSource="{Binding AgentProviders}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:IntelligenceProviderViewModel">
+                                    <DockPanel Margin="0,4">
+                                        <Button DockPanel.Dock="Right" Content="Set up" Padding="12,4" VerticalAlignment="Center"
+                                                Command="{Binding $parent[UserControl].((vm:IntelligenceViewModel)DataContext).OpenSettingsCommand}" />
+                                        <fi:SymbolIcon DockPanel.Dock="Left" Symbol="{Binding Id, Converter={x:Static views:Converters.ProviderIcon}}" FontSize="16"
+                                                       Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" />
+                                            <TextBlock Classes="subtle" FontSize="12" Text="{Binding StatusText}" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -150,9 +171,11 @@
                 <StackPanel>
                     <TextBlock Text="Before you ask" Classes="heading" />
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,8"
-                               Text="Your questions, and what DashyNMS looks up to answer them - device names, addresses, alerts, ports and log lines from your network - are sent to OpenAI to be processed, using your ChatGPT plan." />
+                               Text="Your questions, and what DashyNMS looks up to answer them - device names, addresses, alerts, ports and log lines from your network - are sent to the company behind the provider that answers: OpenAI for ChatGPT and Codex, Anthropic for Claude Code. It's processed under your own plan or account with them." />
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="Codex and Claude Code run on this computer with your existing sign-in. DashyNMS gives them only its read-only network tools, and they keep their own record of each conversation on this computer." />
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,16"
-                               Text="Passwords, tokens and SNMP communities are never sent. Config backups are summarised unless you choose otherwise in Settings › Intelligence. Web search can check public information; search terms may be sent to search providers. You can turn it off in Settings. You'll see this again only if what's sent changes." />
+                               Text="Passwords, tokens and SNMP communities are never sent. Config backups are summarised unless you choose otherwise in Settings › Intelligence. With ChatGPT, web search can check public information; search terms may be sent to search providers. You can turn it off in Settings. You'll see this again only if what's sent changes." />
                     <Button Classes="primary" HorizontalAlignment="Left" Padding="16,8" Command="{Binding AcceptConsentCommand}"><TextBlock Text="OK, continue" /></Button>
                 </StackPanel>
             </Border>

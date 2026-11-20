@@ -23,6 +23,9 @@ public partial class IntelligenceComposer : UserControl
         QuestionBox.CaretIndex = QuestionBox.Text?.Length ?? 0;
     }
 
+    /// <summary>A model or Provider settings was chosen: the picker has done its job.</summary>
+    private void OnModelChosen(object? sender, RoutedEventArgs e) => ModelPickerButton.Flyout?.Hide();
+
     /// <summary>Enter asks; Shift+Enter is a new line.</summary>
     private void OnQuestionKeyDown(object? sender, KeyEventArgs e)
     {

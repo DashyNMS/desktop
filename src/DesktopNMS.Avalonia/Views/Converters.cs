@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
@@ -20,6 +21,24 @@ public static class Converters
         "■" => Symbol.Stop,
         "!" => Symbol.Important,
         _ => Symbol.Checkmark,
+    });
+
+    /// <summary>
+    /// A provider's mark in the model picker and Settings (#316): neutral glyphs
+    /// in the app's own style rather than other companies' logos.
+    /// </summary>
+    public static readonly IValueConverter ProviderIcon = new FuncValueConverter<string?, Symbol>(provider => provider switch
+    {
+        AppSettings.IntelligenceProviderCodex => Symbol.CodeBlock,
+        AppSettings.IntelligenceProviderClaudeCode => Symbol.BotSparkle,
+        _ => Symbol.ChatSparkle,
+    });
+
+    /// <summary>True when both bound values are equal - the picker's tick beside the chosen model.</summary>
+    public static readonly IMultiValueConverter AreEqual = new FuncMultiValueConverter<object?, bool>(values =>
+    {
+        var list = values.ToList();
+        return list.Count == 2 && Equals(list[0], list[1]);
     });
 
     private static readonly IBrush CriticalBrush = new ImmutableSolidColorBrush(Color.Parse("#DA3633"));

@@ -30,7 +30,7 @@ public sealed class IntelligenceStarterQuestionsTests
         model.ConsentGiven = true;
         var host = (IIntelligenceChatHost)model;
         host.Restore(new());
-        model.Composer.SelectedModel = new ChatGptModel("example", "Example");
+        model.Composer.SelectedModel = IntelligenceModelOption.FromChatGpt(new ChatGptModel("example", "Example"));
         Assert.True(model.ShowSuggestions);
         var suggestion = model.Suggestions[0];
         Assert.True(model.AskSuggestionCommand.CanExecute(suggestion));
@@ -38,7 +38,7 @@ public sealed class IntelligenceStarterQuestionsTests
         model.AskSuggestionCommand.CanExecuteChanged += (_, _) => modelChanges++;
         model.Composer.SelectedModel = null;
         Assert.False(model.AskSuggestionCommand.CanExecute(suggestion));
-        model.Composer.SelectedModel = new ChatGptModel("example", "Example");
+        model.Composer.SelectedModel = IntelligenceModelOption.FromChatGpt(new ChatGptModel("example", "Example"));
         Assert.Equal(2, modelChanges);
         Assert.True(model.AskSuggestionCommand.CanExecute(suggestion));
 
