@@ -175,7 +175,7 @@
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,8"
                                Text="Codex and Claude Code run on this computer with your existing sign-in. DashyNMS gives them only its read-only network tools, and they keep their own record of each conversation on this computer." />
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,16"
-                               Text="Passwords, tokens and SNMP communities are never sent. Config backups are summarised unless you choose otherwise in Settings › Intelligence. With ChatGPT, web search can check public information; search terms may be sent to search providers. You can turn it off in Settings. You'll see this again only if what's sent changes." />
+                               Text="Passwords, tokens and SNMP communities are never sent. Config backups are summarised unless you choose otherwise in Settings › Intelligence. Web search can check public information; search terms may be sent to search providers. You can turn it off in Settings. You'll see this again only if what's sent changes." />
                     <Button Classes="primary" HorizontalAlignment="Left" Padding="16,8" Command="{Binding AcceptConsentCommand}"><TextBlock Text="OK, continue" /></Button>
                 </StackPanel>
             </Border>

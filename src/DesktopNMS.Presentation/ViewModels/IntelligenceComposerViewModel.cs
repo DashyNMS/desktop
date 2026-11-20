@@ -260,7 +260,6 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
         get
         {
             if (PickerProvider is not { } provider) return null;
-            if (!provider.Capabilities.WebSearch) return $"{provider.Name} answers from your network only: no web search." + (provider.UsageText is { } usage ? " " + usage + "." : string.Empty);
             if (provider.Models.Count == 0) return $"{provider.Name} didn't list any models.";
             return provider.UsageText;
         }

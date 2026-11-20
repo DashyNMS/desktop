@@ -20,7 +20,9 @@ namespace DesktopNMS.Services.Intelligence.Agents;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Each run is locked down: no built-in tools (<c>--tools ""</c>), only
+/// Each run is locked down: no built-in tools (<c>--tools ""</c>) - but for
+/// WebSearch when Settings allows web search; never WebFetch, which could
+/// carry network data to any address in a URL - only
 /// DashyNMS's MCP server (<c>--strict-mcp-config</c>), none of the user's
 /// settings files - so no hooks, plugins or permission rules of theirs -
 /// no skills or slash commands, and nothing that would ask for permission is
@@ -41,6 +43,9 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
     internal const string BridgeServerName = AgentToolSession.ServerName;
 
     internal const string TokenVariable = "DASHYNMS_MCP_TOKEN";
+
+    /// <summary>Claude Code's web search tool: results with sources, searched by Anthropic's provider.</summary>
+    internal const string WebSearchTool = "WebSearch";
 
     private static readonly TimeSpan StatusTimeout = TimeSpan.FromSeconds(30);
 
@@ -80,7 +85,7 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
 
     public string Company => "Anthropic";
 
-    public AgentCapabilities Capabilities { get; } = new(WebSearch: false, Images: true, Usage: true);
+    public AgentCapabilities Capabilities { get; } = new(WebSearch: true, Images: true, Usage: true);
 
     public async Task<AgentProviderStatus> CheckAsync(string? executablePath, CancellationToken cancellationToken)
     {
@@ -190,8 +195,8 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
         var args = new List<string>
         {
             "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
-            "--setting-sources", "", "--tools", "", "--disable-slash-commands",
-            "--strict-mcp-config", "--mcp-config", mcpFile, "--allowedTools", "mcp__" + BridgeServerName,
+            "--setting-sources", "", "--tools", turn.WebSearch ? WebSearchTool : "", "--disable-slash-commands",
+            "--strict-mcp-config", "--mcp-config", mcpFile, "--allowedTools", turn.WebSearch ? "mcp__" + BridgeServerName + "," + WebSearchTool : "mcp__" + BridgeServerName,
             "--permission-mode", "dontAsk", "--permission-prompts", "none",
             "--system-prompt-file", instructionsFile, "--model", turn.Model,
         };
@@ -220,7 +225,7 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
         await process.WriteLineAsync((turn.Preamble ?? string.Empty) + turn.Question, cancellationToken).ConfigureAwait(false);
         process.CloseInput();
 
-        var stream = new StreamState(turn.Session);
+        var stream = new StreamState(turn.Session) { WebSearch = turn.WebSearch };
         try
         {
             await foreach (var line in process.ReadLinesAsync(cancellationToken).ConfigureAwait(false))
@@ -277,7 +282,7 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
         {
             case "system" when message["subtype"]?.ToString() == "init":
                 stream.Session = message["session_id"]?.ToString() ?? stream.Session;
-                return CheckSession(message);
+                return CheckSession(message, stream.WebSearch);
 
             case "stream_event" when message["parent_tool_use_id"] is null:
                 var delta = message["event"]?["delta"];
@@ -292,11 +297,31 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
             case "assistant":
                 foreach (var block in message["message"]?["content"] as JsonArray ?? new JsonArray())
                 {
-                    if (block?["type"]?.ToString() == "tool_use" && block["name"]?.ToString() is { } tool && !IsBridgeTool(tool))
+                    if (block?["type"]?.ToString() != "tool_use" || block["name"]?.ToString() is not { } tool) continue;
+                    if (stream.WebSearch && tool == WebSearchTool)
+                    {
+                        // Shown as activity, as ChatGPT's searches are; finished when its result arrives.
+                        if (block["id"]?.ToString() is { } id) stream.Searches.Add(id);
+                        listener.OnToolStarted("web_search", "{}");
+                        continue;
+                    }
+
+                    if (!IsBridgeTool(tool))
                     {
                         return new AgentProviderException(
                             "Claude Code tried to use one of its own tools, which DashyNMS doesn't allow in Intelligence chats, so the answer was stopped. Try asking again.",
                             IntelligenceFailure.Tools);
+                    }
+                }
+
+                return null;
+
+            case "user":
+                foreach (var block in message["message"]?["content"] as JsonArray ?? new JsonArray())
+                {
+                    if (block?["type"]?.ToString() == "tool_result" && block["tool_use_id"]?.ToString() is { } id && stream.Searches.Remove(id))
+                    {
+                        listener.OnToolFinished("web_search", block["is_error"]?.GetValue<bool>() == true);
                     }
                 }
 
@@ -325,10 +350,10 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
     /// Claude Code's own account of the session it started: only DashyNMS's
     /// tools, and DashyNMS's server connected. Anything else and it isn't asked.
     /// </summary>
-    private static AgentProviderException? CheckSession(JsonObject init)
+    private static AgentProviderException? CheckSession(JsonObject init, bool webSearch)
     {
         var tools = (init["tools"] as JsonArray ?? new JsonArray()).Select(t => t?.ToString() ?? string.Empty).ToList();
-        if (tools.Any(t => !IsBridgeTool(t)))
+        if (tools.Any(t => !IsBridgeTool(t) && !(webSearch && t == WebSearchTool)))
         {
             return new AgentProviderException(
                 "Claude Code started with tools of its own, which DashyNMS doesn't allow in Intelligence chats, so it wasn't asked. Update Claude Code, then try again.",
@@ -336,7 +361,7 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
         }
 
         var bridge = (init["mcp_servers"] as JsonArray ?? new JsonArray()).FirstOrDefault(s => s?["name"]?.ToString() == BridgeServerName);
-        if (bridge?["status"]?.ToString() != "connected" || tools.Count == 0)
+        if (bridge?["status"]?.ToString() != "connected" || !tools.Any(IsBridgeTool))
         {
             return new AgentProviderException(
                 "Claude Code couldn't reach DashyNMS's network tools, so it wasn't asked to answer. Try again; if it keeps happening, restart DashyNMS.",
@@ -452,5 +477,11 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
         public AgentUsage? Usage { get; set; }
 
         public bool Finished { get; set; }
+
+        /// <summary>Web search was allowed for this question.</summary>
+        public bool WebSearch { get; init; }
+
+        /// <summary>Web searches started and not yet answered.</summary>
+        public HashSet<string> Searches { get; } = new(StringComparer.Ordinal);
     }
 }

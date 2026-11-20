@@ -744,16 +744,17 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     }
 
     /// <summary>
-    /// Asks an agent (#316): the same instructions as ChatGPT, with web search
-    /// off since agents get no search tool here, and tool calls opened on its
-    /// bridge session for this question only.
+    /// Asks an agent (#316): the same instructions as ChatGPT, web search only
+    /// when Settings allows it and the agent offers it, and tool calls opened on
+    /// its bridge session for this question only.
     /// </summary>
     private async Task AskAgentAsync(string question, IntelligenceModelOption model, string? effort, string detail,
         IReadOnlyCollection<IntelligenceObjectReference>? spotlight, IntelligenceMessageViewModel answer, IIntelligenceListener listener, CancellationToken cancellationToken)
     {
         var provider = Providers.First(p => p.Id == model.Provider);
         var agent = provider.Agent!;
-        var instructions = IntelligenceInstructions.Build(detail, spotlight, webSearchEnabled: false);
+        var webSearch = provider.Capabilities.WebSearch && IntelligenceConsent.AllowsWebSearch(_settings.Current);
+        var instructions = IntelligenceInstructions.Build(detail, spotlight, webSearch);
         var tools = await AgentToolsAsync(provider.Id, cancellationToken).ConfigureAwait(true);
         var chat = Chats.SelectedChat;
         var temporary = IsSingleChatMode;
@@ -763,7 +764,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
             try
             {
                 var turn = new AgentTurn(question, model.Id, effort, instructions, _providerSession, temporary,
-                    _providerSession is null ? Preamble(answer) : null);
+                    _providerSession is null ? Preamble(answer) : null, webSearch);
                 try
                 {
                     result = await agent.AskAsync(turn, tools, listener, cancellationToken).ConfigureAwait(true);

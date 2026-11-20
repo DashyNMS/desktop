@@ -877,7 +877,7 @@
                                            Text="Your questions, and what's looked up to answer them - device names, addresses, alerts, ports and log lines - go to the agent's provider to be processed. Passwords, tokens and SNMP communities are never sent." />
                                 <CheckBox Content="Allow web search" IsChecked="{Binding IntelligenceWebSearchEnabled}" Margin="0,14,0,0" />
                                 <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,4,0,0"
-                                           Text="Look up current firmware releases, vendor documentation and other public information, with source links. Search terms may be sent to search providers. Available where your selected model and ChatGPT account permit it." />
+                                           Text="Look up current firmware releases, vendor documentation and other public information, with source links. Search terms may be sent to search providers. Applies to ChatGPT, Codex and Claude Code, where the model and account permit it." />
                                 <TextBlock Text="Config backups" Classes="section" Margin="0,14,0,6" />
                                 <ComboBox ItemsSource="{Binding IntelligenceConfigTextOptions}" SelectedValue="{Binding IntelligenceConfigText}"
                                           SelectedValueBinding="{ReflectionBinding Key}" DisplayMemberBinding="{ReflectionBinding Value}"

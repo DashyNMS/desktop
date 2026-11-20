@@ -65,6 +65,8 @@ public sealed record AgentCapabilities(bool WebSearch, bool Images, bool Usage);
 /// One question for an agent. <see cref="Session"/> continues the agent's own
 /// conversation, or null to start one; <see cref="Preamble"/> carries an earlier
 /// conversation's visible questions and answers when the user moved it here.
+/// <see cref="WebSearch"/> is Settings' web search choice, already checked
+/// against the notice that describes it.
 /// </summary>
 public sealed record AgentTurn(
     string Question,
@@ -73,7 +75,8 @@ public sealed record AgentTurn(
     string Instructions,
     string? Session,
     bool Temporary,
-    string? Preamble = null);
+    string? Preamble = null,
+    bool WebSearch = false);
 
 /// <summary>The agent's session to continue next time, and its latest usage if it reported any.</summary>
 public sealed record AgentTurnResult(string? Session, AgentUsage? Usage);

@@ -143,6 +143,31 @@ public sealed class IntelligenceAgentProviderTests
     }
 
     [Fact]
+    public async Task Web_search_follows_the_setting_and_its_notice()
+    {
+        var (model, agent, _, _) = await CreateAsync(webSearch: true);
+        using var _ = model;
+
+        model.Composer.Question = "Latest firmware?";
+        await AskAsync(model);
+
+        Assert.True(agent.Turns.Single().WebSearch);
+        Assert.Equal(IntelligenceInstructions.Build(IntelligenceDetail.Normalize(null), null, webSearchEnabled: true), agent.Turns.Single().Instructions);
+    }
+
+    [Fact]
+    public async Task Web_search_stays_off_when_Settings_turns_it_off()
+    {
+        var (model, agent, _, _) = await CreateAsync(webSearch: false);
+        using var _ = model;
+
+        model.Composer.Question = "Latest firmware?";
+        await AskAsync(model);
+
+        Assert.False(agent.Turns.Single().WebSearch);
+    }
+
+    [Fact]
     public async Task The_chosen_reasoning_level_goes_with_the_question()
     {
         var (model, agent, _, _) = await CreateAsync();
@@ -260,12 +285,13 @@ public sealed class IntelligenceAgentProviderTests
         await Task.Delay(20);
     }
 
-    private static async Task<(IntelligenceViewModel Model, FakeAgent Agent, Store Store, Windows Windows)> CreateAsync(bool ready = true, bool second = false, bool secondHasEfforts = true)
+    private static async Task<(IntelligenceViewModel Model, FakeAgent Agent, Store Store, Windows Windows)> CreateAsync(bool ready = true, bool second = false, bool secondHasEfforts = true, bool webSearch = false)
     {
         var settings = new TestSettings();
         settings.Current.IntelligenceConsentGiven = true;
         settings.Current.IntelligenceConsentVersion = IntelligenceConsent.CurrentVersion;
         settings.Current.IntelligenceEnabled = false;
+        settings.Current.IntelligenceWebSearchEnabled = webSearch;
         var connection = new LibreNmsConnection(new Uri("https://nms.example.net/"), "synthetic");
         var devices = Proxy<IDeviceCache>((method, _) => method.Name == "get_All" ? Array.Empty<Device>() : null);
         var client = Proxy<ILibreNmsClient>();
@@ -293,7 +319,7 @@ public sealed class IntelligenceAgentProviderTests
         public string Id => id;
         public string Name => id == "agent" ? "Agent" : "Second agent";
         public string Company => "Example Ltd";
-        public AgentCapabilities Capabilities => new(WebSearch: false, Images: true, Usage: true);
+        public AgentCapabilities Capabilities => new(WebSearch: true, Images: true, Usage: true);
 
         public Task<AgentProviderStatus> CheckAsync(string? executablePath, CancellationToken cancellationToken)
             => Task.FromResult(Ready

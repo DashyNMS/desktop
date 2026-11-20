@@ -163,6 +163,44 @@ public sealed class ClaudeCodeAgentProviderTests
     }
 
     [Fact]
+    public void Web_search_adds_only_the_search_tool()
+    {
+        var args = ClaudeCodeAgentProvider.Arguments(new AgentTurn("Q", "sonnet", null, "i", null, false, WebSearch: true), "i.md", "m.json");
+
+        Assert.Equal("WebSearch", args[args.IndexOf("--tools") + 1]);
+        Assert.Equal("mcp__dashynms,WebSearch", args[args.IndexOf("--allowedTools") + 1]);
+        Assert.DoesNotContain(args, a => a.Contains("WebFetch", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void The_search_tool_is_refused_when_web_search_is_off_and_shown_when_on()
+    {
+        const string init = """
+            {"type":"system","subtype":"init","session_id":"s","tools":["WebSearch","mcp__dashynms__network_overview"],"mcp_servers":[{"name":"dashynms","status":"connected"}]}
+            """;
+        const string search = """{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"WebSearch","input":{}}]}}""";
+        const string result = """{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"results"}]}}""";
+
+        Assert.NotNull(Read(init, new(null), new Listener()));
+        Assert.NotNull(Read(search, new(null), new Listener()));
+
+        var listener = new Listener();
+        var stream = new ClaudeCodeAgentProvider.StreamState(null) { WebSearch = true };
+        Assert.Null(Read(init, stream, listener));
+        Assert.Null(Read(search, stream, listener));
+        Assert.Null(Read(result, stream, listener));
+        Assert.Equal(["started web_search", "finished web_search"], listener.Activity);
+    }
+
+    [Fact]
+    public void Fetching_pages_stays_refused_even_with_web_search()
+    {
+        var stream = new ClaudeCodeAgentProvider.StreamState(null) { WebSearch = true };
+
+        Assert.NotNull(Read("""{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t2","name":"WebFetch","input":{}}]}}""", stream, new Listener()));
+    }
+
+    [Fact]
     public void A_temporary_chat_keeps_nothing_on_disk()
     {
         var args = ClaudeCodeAgentProvider.Arguments(new AgentTurn("Q", "haiku", null, "i", "session-1", Temporary: true), "i.md", "m.json");
@@ -187,9 +225,10 @@ public sealed class ClaudeCodeAgentProviderTests
     private sealed class Listener : IIntelligenceListener
     {
         public List<string> Text { get; } = new();
+        public List<string> Activity { get; } = new();
         public void OnText(string delta) => Text.Add(delta);
-        public void OnToolStarted(string name, string arguments) { }
-        public void OnToolFinished(string name, bool isError) { }
+        public void OnToolStarted(string name, string arguments) => Activity.Add("started " + name);
+        public void OnToolFinished(string name, bool isError) => Activity.Add("finished " + name);
         public void OnImage(IntelligenceImage image) { }
     }
 }

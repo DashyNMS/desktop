@@ -25,7 +25,8 @@ namespace DesktopNMS.Services.Intelligence.Agents;
 /// <para>
 /// Each app-server is started for DashyNMS with Codex's own tools switched
 /// off - shell, file edits, apps, plugins, browser, computer use, image
-/// generation, sub-agents, hooks and web search - and the user's MCP servers
+/// generation, sub-agents and hooks, and web search unless Settings allows
+/// it - and the user's MCP servers
 /// disabled, leaving only DashyNMS's read-only tools through
 /// <see cref="AgentToolBridge"/>. Threads run read-only with approvals never
 /// granted: anything that still asks is declined, and a turn that starts a
@@ -97,7 +98,7 @@ public sealed partial class CodexAgentProvider : IAgentProvider
 
     public string Company => "OpenAI";
 
-    public AgentCapabilities Capabilities { get; } = new(WebSearch: false, Images: true, Usage: true);
+    public AgentCapabilities Capabilities { get; } = new(WebSearch: true, Images: true, Usage: true);
 
     public async Task<AgentProviderStatus> CheckAsync(string? executablePath, CancellationToken cancellationToken)
     {
@@ -117,7 +118,7 @@ public sealed partial class CodexAgentProvider : IAgentProvider
         {
             if (_executable != executable) await StopServerAsync().ConfigureAwait(false);
             _executable = executable;
-            var server = await ServerAsync(token: null, cancellationToken).ConfigureAwait(false);
+            var server = await ServerAsync(token: null, webSearch: false, cancellationToken).ConfigureAwait(false);
             var account = await server.Rpc.RequestAsync("account/read", new JsonObject { ["refreshToken"] = false }, cancellationToken).WaitAsync(RequestTimeout, cancellationToken).ConfigureAwait(false);
             ScheduleIdleStop();
             return Status(executable, version, account);
@@ -249,7 +250,7 @@ public sealed partial class CodexAgentProvider : IAgentProvider
         try
         {
             CancelIdleStop();
-            server = await ServerAsync(tools, cancellationToken).ConfigureAwait(false);
+            server = await ServerAsync(tools, turn.WebSearch, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -287,7 +288,7 @@ public sealed partial class CodexAgentProvider : IAgentProvider
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var server = _server is { IsAlive: true } running ? running : await ServerAsync(token: null, cancellationToken).ConfigureAwait(false);
+            var server = _server is { IsAlive: true } running ? running : await ServerAsync(token: null, webSearch: false, cancellationToken).ConfigureAwait(false);
             ScheduleIdleStop();
             return server;
         }
@@ -297,10 +298,13 @@ public sealed partial class CodexAgentProvider : IAgentProvider
         }
     }
 
-    /// <summary>The running app-server, started anew when there's none or it has another bridge session. Under the gate.</summary>
-    private async Task<Server> ServerAsync(AgentToolSession? token, CancellationToken cancellationToken)
+    /// <summary>
+    /// The running app-server, started anew when there's none, it has another
+    /// bridge session, or web search has been turned on or off. Under the gate.
+    /// </summary>
+    private async Task<Server> ServerAsync(AgentToolSession? token, bool webSearch, CancellationToken cancellationToken)
     {
-        if (_server is { IsAlive: true } running && (token is null || ReferenceEquals(running.Tools, token)))
+        if (_server is { IsAlive: true } running && (token is null || ReferenceEquals(running.Tools, token) && running.WebSearch == webSearch))
         {
             return running;
         }
@@ -311,8 +315,8 @@ public sealed partial class CodexAgentProvider : IAgentProvider
         var features = await KnownFeaturesAsync(executable, cancellationToken).ConfigureAwait(false);
         var servers = ConfiguredMcpServers(CodexHome());
         var environment = new Dictionary<string, string?> { [TokenVariable] = token?.Token };
-        var process = AgentProcess.Start(executable, Arguments(features, servers, token?.Endpoint), _workingDirectory, environment);
-        var server = new Server(process, token, _logger);
+        var process = AgentProcess.Start(executable, Arguments(features, servers, token?.Endpoint, webSearch), _workingDirectory, environment);
+        var server = new Server(process, token, webSearch, _logger);
         try
         {
             await server.InitialiseAsync(cancellationToken).ConfigureAwait(false);
@@ -366,7 +370,7 @@ public sealed partial class CodexAgentProvider : IAgentProvider
     /// documented <c>--disable</c> and <c>-c</c> options. No secrets: the bridge
     /// token is read from the environment.
     /// </summary>
-    internal static List<string> Arguments(IReadOnlySet<string> knownFeatures, IEnumerable<string> userServers, Uri? bridge)
+    internal static List<string> Arguments(IReadOnlySet<string> knownFeatures, IEnumerable<string> userServers, Uri? bridge, bool webSearch = false)
     {
         var args = new List<string> { "app-server" };
         foreach (var feature in DisabledFeatures.Where(knownFeatures.Contains))
@@ -375,9 +379,9 @@ public sealed partial class CodexAgentProvider : IAgentProvider
             args.Add(feature);
         }
 
-        // No web search, nothing approved, read-only, and no project or skill instructions in the prompt:
-        // a skill would only tempt the model towards tools it doesn't have here.
-        args.AddRange(["-c", "web_search=\"disabled\"", "-c", "approval_policy=\"never\"", "-c", "sandbox_mode=\"read-only\"",
+        // Live web search only when Settings allows it; nothing approved, read-only, and no project or
+        // skill instructions in the prompt: a skill would only tempt the model towards tools it doesn't have here.
+        args.AddRange(["-c", webSearch ? "web_search=\"live\"" : "web_search=\"disabled\"", "-c", "approval_policy=\"never\"", "-c", "sandbox_mode=\"read-only\"",
             "-c", "project_doc_max_bytes=0", "-c", "skills.include_instructions=false"]);
 
         // The user's MCP servers stay configured but are off for DashyNMS's sessions.
@@ -529,10 +533,11 @@ public sealed partial class CodexAgentProvider : IAgentProvider
         private readonly object _sync = new();
         private Turn? _turn;
 
-        public Server(AgentProcess process, AgentToolSession? tools, ILogger logger)
+        public Server(AgentProcess process, AgentToolSession? tools, bool webSearch, ILogger logger)
         {
             _logger = logger;
             Tools = tools;
+            WebSearch = webSearch;
             Rpc = new JsonRpcConnection(process, OnNotificationAsync, OnRequestAsync);
         }
 
@@ -540,6 +545,9 @@ public sealed partial class CodexAgentProvider : IAgentProvider
 
         /// <summary>The bridge session whose token this process holds, or null for a status-only process.</summary>
         public AgentToolSession? Tools { get; }
+
+        /// <summary>Started with Codex's web search on.</summary>
+        public bool WebSearch { get; }
 
         public bool IsAlive => !Rpc.IsClosed;
 
@@ -677,6 +685,7 @@ public sealed partial class CodexAgentProvider : IAgentProvider
                     break;
 
                 case "item/started":
+                    if (IsWebSearch(parameters?["item"]) && turn.IsOpen) turn.Listener.OnToolStarted("web_search", "{}");
                     CheckItem(turn, parameters?["item"]);
                     break;
 
@@ -686,6 +695,7 @@ public sealed partial class CodexAgentProvider : IAgentProvider
                         turn.AddMessage(text);
                     }
 
+                    if (IsWebSearch(parameters?["item"]) && turn.IsOpen) turn.Listener.OnToolFinished("web_search", isError: false);
                     CheckItem(turn, parameters?["item"]);
                     break;
 
@@ -726,13 +736,17 @@ public sealed partial class CodexAgentProvider : IAgentProvider
         {
             var type = item?["type"]?.ToString();
             var server = item?["server"]?.ToString();
-            if (type is null || !(ForbiddenItems.Contains(type) || type == "mcpToolCall" && server != BridgeServerName && !IsResourceLookup(server, item?["tool"]?.ToString()))) return;
+            if (type is null || type == "webSearch" && WebSearch) return;
+            if (!(ForbiddenItems.Contains(type) || type == "mcpToolCall" && server != BridgeServerName && !IsResourceLookup(server, item?["tool"]?.ToString()))) return;
             _logger.LogWarning("Intelligence: Codex started a {ItemType} item ({Server} {Tool}), which DashyNMS doesn't allow; the turn was stopped", type, server ?? "no server", item?["tool"]?.ToString() ?? "-");
             turn.Fail(new AgentProviderException(
                 "Codex tried to use one of its own tools, which DashyNMS doesn't allow in Intelligence chats, so the answer was stopped. Try asking again.",
                 IntelligenceFailure.Tools));
             _ = InterruptAsync(turn);
         }
+
+        /// <summary>A web search item - shown as activity, as ChatGPT's searches are.</summary>
+        private bool IsWebSearch(JsonNode? item) => WebSearch && item?["type"]?.ToString() == "webSearch";
 
         /// <summary>
         /// Codex's built-in MCP resource lookups: they read only resources the

@@ -115,6 +115,13 @@ public sealed class CodexAgentProviderTests
     }
 
     [Fact]
+    public void Live_web_search_only_when_allowed()
+    {
+        Assert.Contains("web_search=\"live\"", CodexAgentProvider.Arguments(new HashSet<string>(), [], null, webSearch: true));
+        Assert.Contains("web_search=\"disabled\"", CodexAgentProvider.Arguments(new HashSet<string>(), [], null, webSearch: false));
+    }
+
+    [Fact]
     public void A_status_only_server_has_no_bridge()
     {
         var args = CodexAgentProvider.Arguments(new HashSet<string>(), [], bridge: null);

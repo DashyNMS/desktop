@@ -4,11 +4,13 @@ Intelligence answers questions about your network in plain words: what's alertin
 
 An answer comes from one of three providers, each with your own account:
 
-| Provider | Runs | Account | Web search |
-| --- | --- | --- | --- |
-| ChatGPT | In DashyNMS | Your ChatGPT Plus or Pro plan | Yes, if you allow it |
-| Codex | On this computer | Codex's own sign-in: a ChatGPT plan or an OpenAI API key | No |
-| Claude Code | On this computer | Claude Code's own sign-in: a Claude plan or an Anthropic API key | No |
+| Provider | Runs | Account |
+| --- | --- | --- |
+| ChatGPT | In DashyNMS | Your ChatGPT Plus or Pro plan |
+| Codex | On this computer | Codex's own sign-in: a ChatGPT plan or an OpenAI API key |
+| Claude Code | On this computer | Claude Code's own sign-in: a Claude plan or an Anthropic API key |
+
+Each can also search the web for current public information, such as firmware releases, while **Allow web search** is on in **Settings › Intelligence**.
 
 ## Set up a provider
 
@@ -52,7 +54,7 @@ When a provider stops on a limit, the answer says so. Try again after it resets,
 
 DashyNMS starts Codex and Claude Code in a locked-down session of its own:
 
-- Their own tools are switched off: no shell commands, file edits, web browsing, web search, plugins or sub-agents.
+- Their own tools are switched off: no shell commands, file edits, web browsing, plugins or sub-agents. Web search is on only while **Allow web search** is. Claude Code can search but not open pages itself, so nothing from your network can be passed to a website in an address.
 - Your MCP servers, hooks, skills and settings files are left out of these chats. DashyNMS doesn't change your Codex or Claude Code configuration.
 - They can reach only DashyNMS's read-only network tools, through a private connection on this computer. Your LibreNMS, Graylog and Unimus credentials stay in DashyNMS.
 - They run in an empty folder of DashyNMS's own, so they never see your projects.
