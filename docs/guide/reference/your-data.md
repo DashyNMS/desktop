@@ -6,7 +6,7 @@ DashyNMS saves:
 
 - Your settings: your server's address, notification choices, dashboards, map layouts and window positions.
 - Your saved passwords: your LibreNMS API token, and your Graylog and Unimus passwords if you use them. DashyNMS encrypts these, so only you, signed in to this computer, can read them.
-- Your Intelligence chats, encrypted in the same way.
+- Your Intelligence chats, encrypted in the same way. If Codex or Claude Code answers a saved chat, that agent also keeps its own record of it in its own folder (`.codex` or `.claude` in your home folder), as it does for any conversation. [Intelligence](../how-to/intelligence.md#whats-sent-and-whats-kept) has the details.
 - Logs of what DashyNMS did each day, kept for 14 days. They help when you report a problem.
 - Downloaded updates, until they're installed.
 - Map tiles, kept for a week so maps load faster.
