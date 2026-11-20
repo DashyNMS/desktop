@@ -186,8 +186,13 @@
             <!-- The composer, with the keyboard hint beneath and Dashy standing on top. -->
             <Grid Grid.Row="3" MaxWidth="860" Margin="24,4,24,18" RowDefinitions="Auto,Auto" IsVisible="{Binding ShowConversation}">
                 <intel:IntelligenceComposer Name="ComposerBox" DataContext="{Binding Composer}" />
-                <TextBlock Grid.Row="1" Text="Enter to ask · Shift+Enter for a new line" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
-                           Margin="2,6,0,0" TextWrapping="Wrap" />
+                <DockPanel Grid.Row="1" Margin="2,6,2,0">
+                    <!-- The chat's provider usage, only as the provider reported it (#316). -->
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding ChatProvider.UsageText, FallbackValue=''}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="12,0,0,0" IsVisible="{Binding ChatProvider.HasUsage, FallbackValue=False}"
+                               ToolTip.Tip="{Binding ChatProvider.Name, StringFormat='As {0} last reported it', FallbackValue=''}" />
+                    <TextBlock Text="Enter to ask · Shift+Enter for a new line" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </DockPanel>
                 <!-- Feet on the composer's top edge: the drawing's feet end 41px into its 44px. -->
                 <intel:IntelligenceMascot HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,6,0" ZIndex="10"
                                           Outfit="{Binding CompanionOutfit}" IsBusy="{Binding IsBusy}" HasError="{Binding HasError}"
