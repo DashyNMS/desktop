@@ -47,10 +47,14 @@ try {
     $nativeLibraries = if ($Runtime.StartsWith('osx-')) {
         '-p:IncludeNativeLibrariesForSelfExtract=false'
     } else { '-p:IncludeNativeLibrariesForSelfExtract=true' }
+    # Uncompressed on macOS, as for the app (Publish-Package.ps1): compressed
+    # single-file apps on Apple silicon can crash when starting a child process
+    # with redirected output (dotnet/runtime#123324).
+    $compression = if ($Runtime.StartsWith('osx-')) { 'false' } else { 'true' }
     # Resolve the MCP repo's .NET 10 global.json rather than the desktop SDK.
     dotnet publish (Join-Path $source 'src\DashyNMS.Mcp\DashyNMS.Mcp.csproj') `
         -c Release -r $Runtime --self-contained true `
-        -p:PublishSingleFile=true $nativeLibraries -p:EnableCompressionInSingleFile=true `
+        -p:PublishSingleFile=true $nativeLibraries "-p:EnableCompressionInSingleFile=$compression" `
         -p:DebugType=none "-p:SourceRevisionId=$commit" `
         -o $output --nologo -v quiet
     if ($LASTEXITCODE -ne 0) { throw "Publishing the MCP server failed." }
