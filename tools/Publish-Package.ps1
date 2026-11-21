@@ -35,7 +35,11 @@ try {
     } elseif ($IsMacOS) {
         # Keep managed assemblies inside the app host, with native libraries
         # beside it so each Mach-O file can be signed before sealing the app.
-        @('-p:PublishSingleFile=true','-p:IncludeNativeLibrariesForSelfExtract=false','-p:EnableCompressionInSingleFile=true')
+        # Uncompressed: on Apple silicon a compressed single-file app can fail
+        # with an AccessViolationException when it starts a child process with
+        # redirected output (dotnet/runtime#123324, #112167; fixed only in .NET
+        # 11). DashyNMS does that at startup when it reads the Keychain key.
+        @('-p:PublishSingleFile=true','-p:IncludeNativeLibrariesForSelfExtract=false','-p:EnableCompressionInSingleFile=false')
     } else { @('-p:PublishSingleFile=false') }
     $requireNotes = $Version -match '^\d+\.\d+\.\d+(-preview\.\d+)?$'
     dotnet publish src/DesktopNMS.Avalonia -c Release -r $Runtime --self-contained true -m:1 `
