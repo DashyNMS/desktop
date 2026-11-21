@@ -124,7 +124,7 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
                 }
             }, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is JsonRpcException or AgentProviderException or IOException or ObjectDisposedException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (ex is JsonRpcException or AgentProviderException or IOException or ObjectDisposedException || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning("Intelligence: the GitHub Copilot CLI didn't report its sign-in ({ErrorType})", ex.GetType().Name);
             return new AgentProviderStatus(AgentProviderState.Unavailable, executable, version,
@@ -212,7 +212,7 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
                 cancellationToken).ConfigureAwait(false);
             lock (_sync) return _usage = usage ?? _usage;
         }
-        catch (Exception ex) when (ex is JsonRpcException or AgentProviderException or IOException or ObjectDisposedException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (ex is JsonRpcException or AgentProviderException or IOException or ObjectDisposedException || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {
             lock (_sync) return _usage;
         }

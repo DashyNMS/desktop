@@ -115,7 +115,15 @@ public sealed class JsonRpcConnection : IAsyncDisposable
 
                 if (id is null)
                 {
-                    await _onNotification(method, message["params"]).ConfigureAwait(false);
+                    try
+                    {
+                        await _onNotification(method, message["params"]).ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        // One bad event doesn't end the session; the owner's turn logic decides what it means.
+                    }
+
                     continue;
                 }
 

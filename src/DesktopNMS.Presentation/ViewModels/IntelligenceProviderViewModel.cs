@@ -298,7 +298,12 @@ public sealed class IntelligenceProviderViewModel : ObservableObject
     }
 
     /// <summary>A different executable is a different agent: it's offered again only once its own check finishes.</summary>
-    internal void MarkUnchecked() => Status = AgentProviderStatus.Checking;
+    internal void MarkUnchecked()
+    {
+        // A check of the old executable still running mustn't publish its account afterwards.
+        Interlocked.Increment(ref _checks);
+        Status = AgentProviderStatus.Checking;
+    }
 
     private void Finished()
     {

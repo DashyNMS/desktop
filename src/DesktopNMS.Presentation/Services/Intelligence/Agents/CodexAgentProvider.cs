@@ -648,6 +648,11 @@ public sealed partial class CodexAgentProvider : IAgentProvider
                 if (!string.IsNullOrWhiteSpace(answer)) listener.OnAnswerCompleted(answer);
                 return new AgentTurnResult(thread, turn.Usage);
             }
+            catch (Exception ex) when (ex is JsonRpcException or TimeoutException)
+            {
+                // Codex refused or didn't reply in time: worded for the person, never its raw error.
+                throw new AgentProviderException("Codex couldn't answer just now. Try again.", IntelligenceFailure.Model);
+            }
             finally
             {
                 lock (_sync)
