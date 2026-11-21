@@ -2082,6 +2082,37 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>Use the custom personality below (#608); off keeps the text.</summary>
+    public bool IntelligencePersonalityEnabled
+    {
+        get => _draft.IntelligencePersonalityEnabled;
+        set
+        {
+            if (_draft.IntelligencePersonalityEnabled == value) return;
+            _draft.IntelligencePersonalityEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>How Dashy should sound, as typed - cleaned only when it's sent.</summary>
+    public string IntelligencePersonality
+    {
+        get => _draft.IntelligencePersonality;
+        set
+        {
+            value ??= string.Empty;
+            if (value.Length > Core.Intelligence.IntelligencePersonality.MaxLength) value = value[..Core.Intelligence.IntelligencePersonality.MaxLength];
+            if (_draft.IntelligencePersonality == value) return;
+            _draft.IntelligencePersonality = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IntelligencePersonalityCount));
+        }
+    }
+
+    public int IntelligencePersonalityLimit => Core.Intelligence.IntelligencePersonality.MaxLength;
+
+    public string IntelligencePersonalityCount => $"{IntelligencePersonality.Length} / {IntelligencePersonalityLimit}";
+
     public bool IntelligenceColourStatusIndicators
     {
         get => _draft.IntelligenceColourStatusIndicators;

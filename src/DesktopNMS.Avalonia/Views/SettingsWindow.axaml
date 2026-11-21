@@ -803,6 +803,23 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Dashy's voice (#608): tone only, below DashyNMS's own rules. -->
+                        <TextBlock Text="PERSONALITY" Classes="section" Margin="0,8,0,6" />
+                        <Border Classes="card" Margin="0,0,0,12">
+                            <StackPanel>
+                                <CheckBox Content="Use a custom personality" IsChecked="{Binding IntelligencePersonalityEnabled}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,4,0,0"
+                                           Text="Describe how Dashy should sound: blunt and brief, patient for a junior engineer, or anything else. It changes tone and wording only. Dashy still checks its facts, uses only the read-only tools, says what it couldn't confirm and keeps to the detail level." />
+                                <TextBox Text="{Binding IntelligencePersonality}" Margin="0,10,0,0" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" MaxHeight="160"
+                                         MaxLength="{Binding IntelligencePersonalityLimit}"
+                                         PlaceholderText="For example: Be direct and brief. Lead with what's broken, skip pleasantries."
+                                         AutomationProperties.Name="Custom personality" />
+                                <TextBlock Classes="subtle" FontSize="11" HorizontalAlignment="Right" Margin="0,4,0,0" Text="{Binding IntelligencePersonalityCount}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="It's sent with each question to the provider answering it, and saved with your settings on this computer, not in chats." />
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Text="WHAT'S SENT" Classes="section" Margin="0,8,0,6" />
                         <Border Classes="card">
                             <StackPanel>
@@ -810,7 +827,7 @@
                                            Text="Your questions, and what's looked up to answer them - device names, addresses, alerts, ports and log lines - go to the agent's provider to be processed. Passwords, tokens and SNMP communities are never sent." />
                                 <CheckBox Content="Allow web search" IsChecked="{Binding IntelligenceWebSearchEnabled}" Margin="0,14,0,0" />
                                 <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,4,0,0"
-                                           Text="Look up current firmware releases, vendor documentation and other public information, with source links. Search terms may be sent to search providers. Applies to ChatGPT, Codex and Claude Code, where the model and account permit it." />
+                                           Text="Look up current firmware releases, vendor documentation and other public information, with source links. Search terms may be sent to search providers. Applies to ChatGPT, Codex, Claude Code and Gemini, where the model and account permit it. GitHub Copilot answers without it." />
                                 <TextBlock Text="Config backups" Classes="section" Margin="0,14,0,6" />
                                 <ComboBox ItemsSource="{Binding IntelligenceConfigTextOptions}" SelectedValue="{Binding IntelligenceConfigText}"
                                           SelectedValueBinding="{ReflectionBinding Key}" DisplayMemberBinding="{ReflectionBinding Value}"

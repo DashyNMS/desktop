@@ -188,6 +188,12 @@
                     <TextBlock DockPanel.Dock="Right" Text="{Binding ChatProvider.UsageText, FallbackValue=''}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
                                Margin="12,0,0,0" IsVisible="{Binding ChatProvider.HasUsage, FallbackValue=False}"
                                ToolTip.Tip="{Binding ChatProvider.Name, StringFormat='As {0} last reported it', FallbackValue=''}" />
+                    <!-- The tone isn't Dashy's own while a custom personality is on (#608). -->
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" IsVisible="{Binding UsesCustomPersonality}"
+                                ToolTip.Tip="Answers are shaped by the personality you described in Settings › Intelligence. Facts and checks are unchanged.">
+                        <fi:SymbolIcon Symbol="PersonVoice" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="Custom personality" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                    </StackPanel>
                     <TextBlock Text="Enter to ask · Shift+Enter for a new line" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                 </DockPanel>
                 <!-- Feet on the composer's top edge: the drawing's feet end 41px into its 44px. -->

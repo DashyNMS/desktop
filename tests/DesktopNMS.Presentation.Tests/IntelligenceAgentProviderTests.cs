@@ -202,6 +202,25 @@ public sealed class IntelligenceAgentProviderTests
     }
 
     [Fact]
+    public async Task A_custom_personality_goes_with_the_question_and_is_shown_only_while_on()
+    {
+        var (model, agent, _, _) = await CreateAsync();
+        using var _ = model;
+        Settings.Current.IntelligencePersonality = "Be blunt.";
+        Settings.Save();
+        Assert.False(model.UsesCustomPersonality);
+
+        Settings.Current.IntelligencePersonalityEnabled = true;
+        Settings.Save();
+        await Task.Yield();
+        model.Composer.Question = "Anything down?";
+        await AskAsync(model);
+
+        Assert.True(model.UsesCustomPersonality);
+        Assert.Contains("<personality>\nBe blunt.\n</personality>", agent.Turns.Single().Instructions);
+    }
+
+    [Fact]
     public async Task Web_search_follows_the_setting_and_its_notice()
     {
         var (model, agent, _, _) = await CreateAsync(webSearch: true);

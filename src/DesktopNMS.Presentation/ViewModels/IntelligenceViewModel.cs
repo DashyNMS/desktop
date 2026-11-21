@@ -120,6 +120,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
             RefreshOffered();
             OnPropertyChanged(nameof(HasReadyProvider));
             OnPropertyChanged(nameof(NeedsProvider));
+            OnPropertyChanged(nameof(UsesCustomPersonality));
             Chats!.EnsureScope();
             OnPropertyChanged(nameof(IsSingleChatMode));
             OnPropertyChanged(nameof(ShowSavedChats));
@@ -427,6 +428,12 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
 
     public ObservableCollection<IntelligenceMessageViewModel> Messages { get; } = new();
 
+    /// <summary>
+    /// Answers are shaped by the user's own description of how Dashy sounds
+    /// (#608) - said beside the composer, so anyone reading knows the tone isn't Dashy's own.
+    /// </summary>
+    public bool UsesCustomPersonality => IntelligencePersonality.Effective(_settings.Current) is not null;
+
     /// <summary>The saved chats for this account and network.</summary>
     public IntelligenceChatListViewModel Chats { get; }
 
@@ -730,7 +737,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
 
                 // A chat moved here from an agent has no ChatGPT history: its visible conversation goes first.
                 var asked = _conversation.IsEmpty && Preamble(answer) is { } earlier ? earlier + question : question;
-                await Task.Run(() => _conversation.AskAsync(asked, model, AccessTokenAsync, listener, token, spotlight, webSearchEnabled, detail)).ConfigureAwait(true);
+                await Task.Run(() => _conversation.AskAsync(asked, model, AccessTokenAsync, listener, token, spotlight, webSearchEnabled, detail, IntelligencePersonality.Effective(_settings.Current))).ConfigureAwait(true);
             }
             else
             {
@@ -858,7 +865,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         var provider = Providers.First(p => p.Id == model.Provider);
         var agent = provider.Agent!;
         var webSearch = provider.Capabilities.WebSearch && IntelligenceConsent.AllowsWebSearch(_settings.Current);
-        var instructions = IntelligenceInstructions.Build(detail, spotlight, webSearch);
+        var instructions = IntelligenceInstructions.Build(detail, spotlight, webSearch, IntelligencePersonality.Effective(_settings.Current));
         var tools = await AgentToolsAsync(provider.Id, cancellationToken).ConfigureAwait(true);
         var chat = Chats.SelectedChat;
         var temporary = IsSingleChatMode;
