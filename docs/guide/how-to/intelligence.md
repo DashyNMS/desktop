@@ -66,7 +66,7 @@ Each chat keeps the provider it started with. If you move a chat that already ha
 
 In **Settings › Intelligence › Personality**, describe how you'd like Dashy to sound, for example "Be blunt and brief. Lead with what's broken." Tick **Use a custom personality** and apply. While it's on, **Custom personality** shows under the question box.
 
-A personality changes tone and wording only. Dashy still checks its facts, uses only the read-only tools, says what it couldn't confirm and keeps to the chat's detail level, whatever the description asks. It can be up to 600 characters. It's sent with each question to the provider answering it, and saved with your settings on this computer, not in chats. Turning it off keeps the text for later.
+A personality changes tone and wording only. Dashy still checks its facts, uses only the read-only tools, says what it couldn't confirm and keeps to the chat's detail level, whatever the description asks. It can be up to 600 characters. It's sent with each question to the provider answering it, and saved with your settings on this computer, not in chats. Turning it off keeps the text for later. Copilot and Gemini take no separate instructions, so for them DashyNMS sends the personality with a chat's first question, and a change applies from the next new chat.
 
 ## Usage and limits
 
@@ -88,7 +88,7 @@ If an agent tries to use anything else, DashyNMS stops the answer and says so.
 
 ## What's sent and what's kept
 
-Your questions, and what DashyNMS looks up to answer them, go to the company behind the provider: OpenAI for ChatGPT and Codex, Anthropic for Claude Code, GitHub for Copilot (which passes them on to the chosen model's maker) and Google for Gemini. That includes device names, addresses, alerts, ports and log lines, and your personality description if you've set one. Passwords, tokens and SNMP communities are never sent. Config backups are summarised unless you choose otherwise in **Settings › Intelligence**.
+Your questions, and what DashyNMS looks up to answer them, go to the company behind the provider: OpenAI for ChatGPT and Codex (or, for Codex, whichever model provider its own configuration names), Anthropic for Claude Code, GitHub for Copilot (which passes them on to the chosen model's maker) and Google for Gemini. That includes device names, addresses, alerts, ports and log lines, and your personality description if you've set one. Passwords, tokens and SNMP communities are never sent. Config backups are summarised unless you choose otherwise in **Settings › Intelligence**.
 
 DashyNMS keeps saved chats encrypted on this computer. The agents also keep their own record of each saved chat in their own folders, as they do for any conversation, and deleting a chat in DashyNMS leaves that record where it is. **Single chat mode** keeps one temporary chat:
 

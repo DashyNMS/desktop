@@ -54,6 +54,7 @@ To remove everything, for example after uninstalling:
 
 1. Quit DashyNMS.
 2. Delete the folders listed for your system above.
+   If you used Codex, Claude Code, GitHub Copilot or Gemini with Intelligence, their own records of those chats are in their folders in your home folder (`.codex`, `.claude`, `.copilot` and `.gemini`), alongside their records of everything else you've used them for. To remove only DashyNMS's, delete those chats from inside each agent, for example with its session or history commands. Deleting a whole folder also removes the agent's sign-in and settings.
 3. On macOS, open **Keychain Access**, search for **DashyNMS data key** and delete it. On Linux, run:
 
    ```bash
