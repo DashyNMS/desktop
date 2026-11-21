@@ -31,6 +31,18 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
 
     public static IntelligenceMessageViewModel Assistant(string? replyStyle = null, string? question = null) => new(isUser: false) { ReplyStyle = replyStyle, SubmittedQuestion = question };
 
+    /// <summary>A divider marking the chat moving to another provider: neither a question nor an answer.</summary>
+    public static IntelligenceMessageViewModel ForHandoff(IntelligenceHandoff handoff)
+        => new(isUser: false) { Handoff = handoff, _isStreaming = false, Outcome = IntelligenceReplyOutcome.Completed };
+
+    /// <summary>Set when this entry marks the chat changing hands; the transcript shows it as a divider.</summary>
+    public IntelligenceHandoff? Handoff { get; private init; }
+
+    public bool IsHandoff => Handoff is not null;
+
+    /// <summary>The divider as words, for screen readers.</summary>
+    public string HandoffText => Handoff is { } h ? $"Agent changed from {h.FromModel} to {h.ToModel}" : string.Empty;
+
     public SpotlightOption? SpotlightTarget(IntelligenceInlineReference reference)
     {
         var known = InlineReferences.FirstOrDefault(item => item.Key == reference.Key && item.Object == reference.Object);
@@ -121,6 +133,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         SubmittedQuestion = SubmittedQuestion,
         FailureText = FailureText,
         Images = _savedImages.ToList(),
+        Handoff = Handoff,
     };
 
     /// <summary>An answer cut off by closing the app, with the note after any code it stopped inside.</summary>
@@ -140,6 +153,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
             Outcome = saved.IsIncomplete || saved.Outcome == IntelligenceReplyOutcome.Generating ? IntelligenceReplyOutcome.Interrupted : saved.Outcome ?? IntelligenceReplyOutcome.Completed,
             SubmittedQuestion = saved.SubmittedQuestion,
             FailureText = saved.FailureText,
+            Handoff = saved.Handoff,
         };
         foreach (var image in saved.Images) message.AddImage(image);
         message.SeedInlineReferences(saved.PriorReferences);
@@ -151,7 +165,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
 
     public bool IsUser { get; }
 
-    public bool IsAssistant => !IsUser;
+    public bool IsAssistant => !IsUser && !IsHandoff;
 
     private readonly List<IntelligenceStatusCard> _statusSnapshots = new();
     private readonly Dictionary<string, IntelligenceInlineReference> _inlineReferences = new(StringComparer.OrdinalIgnoreCase);

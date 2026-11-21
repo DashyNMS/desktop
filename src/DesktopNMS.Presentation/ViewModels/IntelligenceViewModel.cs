@@ -69,6 +69,9 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     /// <summary>The open chat's provider - whose account it's saved under, and who answers it.</summary>
     private string _chatProvider = AppSettings.IntelligenceProviderChatGpt;
 
+    /// <summary>The model the chat was last on, for naming where a handoff came from.</summary>
+    private IntelligenceModelOption? _chatModel;
+
     /// <summary>The open chat's agent session, as the agent named it; null until its first answer.</summary>
     private string? _providerSession;
 
@@ -373,15 +376,39 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     /// <summary>A model from another provider was chosen and accepted: the chat changes hands.</summary>
     private void OnModelChanged()
     {
-        if (Composer.SelectedModel is not { } model || model.Provider == _chatProvider || Chats is null || Chats.IsChangingChat) return;
+        var previous = _chatModel;
+        if (Composer.SelectedModel is not { } model) return;
+        _chatModel = model;
+        if (model.Provider == _chatProvider || Chats is null || Chats.IsChangingChat) return;
+        var from = _chatProvider;
         _chatProvider = model.Provider;
         _providerSession = null;
 
         // ChatGPT's own history - reasoning and tool exchanges - never goes to another provider.
         _conversation.Clear();
+        if (Messages.Count > 0) MarkHandoff(from, previous?.Provider == from ? previous.Name : ProviderName(from), model);
         Chats.MoveSelected();
         OnPropertyChanged(nameof(ChatProvider));
     }
+
+    /// <summary>
+    /// Shows the chat changing hands where it happened. Changes made before
+    /// the next question fold into one divider, from where the chat was to
+    /// where it is now - and none at all once it's back where it started.
+    /// </summary>
+    private void MarkHandoff(string fromProvider, string fromModel, IntelligenceModelOption to)
+    {
+        if (Messages[^1].Handoff is { } pending)
+        {
+            Messages.RemoveAt(Messages.Count - 1);
+            (fromProvider, fromModel) = (pending.FromProvider, pending.FromModel);
+        }
+
+        if (fromProvider == to.Provider) return;
+        Messages.Add(IntelligenceMessageViewModel.ForHandoff(new IntelligenceHandoff(fromProvider, fromModel, to.Provider, to.Name)));
+    }
+
+    private string ProviderName(string provider) => Providers.FirstOrDefault(p => p.Id == provider)?.DisplayName ?? provider;
 
     public ObservableCollection<IntelligenceMessageViewModel> Messages { get; } = new();
 

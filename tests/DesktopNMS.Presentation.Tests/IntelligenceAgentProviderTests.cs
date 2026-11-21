@@ -291,6 +291,31 @@ public sealed class IntelligenceAgentProviderTests
         Assert.Contains(store.Deletes, d => d.StartsWith(agent.Id + ":", StringComparison.Ordinal));
         Assert.StartsWith("second:", store.Saves.Last().Scope);
         Assert.Equal("second", store.Saves.Last().Chat.Provider);
+        Assert.DoesNotContain("Agent changed", turn.Preamble);
+
+        // The transcript, and the saved chat, mark where it changed hands.
+        var handoff = Assert.Single(model.Messages, m => m.IsHandoff).Handoff!;
+        Assert.Equal((agent.Id, "second"), (handoff.FromProvider, handoff.ToProvider));
+        Assert.Single(store.Saves.Last().Chat.Messages, m => m.Handoff is not null);
+    }
+
+    [Fact]
+    public async Task Changes_before_the_next_question_fold_into_one_divider_and_none_once_back()
+    {
+        var (model, agent, _, windows) = await CreateAsync(second: true);
+        using var _ = model;
+        model.Composer.Question = "Question";
+        await AskAsync(model);
+        windows.Confirmation = true;
+        var original = model.Composer.SelectedModel!;
+
+        model.Composer.SelectedModel = model.Providers.Single(p => p.Id == "second").Models[0];
+        Assert.True(model.Messages[^1].IsHandoff);
+        Assert.Equal(original.Name, model.Messages[^1].Handoff!.FromModel);
+
+        model.Composer.SelectedModel = original;
+        Assert.DoesNotContain(model.Messages, m => m.IsHandoff);
+        Assert.Equal(agent.Id, model.Composer.SelectedModel?.Provider);
     }
 
     [Fact]
