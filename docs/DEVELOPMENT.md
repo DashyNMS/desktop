@@ -242,7 +242,8 @@ without changing the returned response or original exception.
 Each logical request increments `dashynms.api.requests` (counter); elapsed time
 also enters `dashynms.api.duration` (millisecond distribution, first and every
 tenth observation per series). Fixed areas are `devicelist` (GET devices),
-`alerts` (GET alerts), `sensors` (GET resources/sensors) and `apiother` (all other
+`alerts` (GET alerts, or GET faults on LibreNMS 26.10 and later, including the
+once-per-connection `faults?state=-1` probe), `sensors` (GET resources/sensors) and `apiother` (all other
 routes/writes). Query parameters never become dimensions. Outcomes are success,
 clienterror (HTTP 4xx), servererror (HTTP 5xx), timeout, networkfailure, cancelled
 and failed (other API/parse failures). Cancellation is not treated as failure.
@@ -623,9 +624,7 @@ connection, Unimus and Graylog, the config-text policy and Settings › Health
 thresholds. It treats each started server as a generation tied to exactly
 those values. Sign-out, a LibreNMS switch or a saved setting retires it, and
 discards anything it was still looking up. Spotlight reaches the model's
-instructions as checked IDs only. Why the app keeps the process rather than
-adopting `DashyNMS.Agent.Shared`, and what was verified for each MCP update,
-is in [docs/design/intelligence-mcp-handover.md](design/intelligence-mcp-handover.md).
+instructions as checked IDs only.
 
 ### Building the installer
 

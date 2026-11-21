@@ -8,7 +8,7 @@
              x:DataType="vm:IntelligenceViewModel">
 
     <!-- Intelligence: ask about the network, answered with the user's own
-         ChatGPT plan using DashyNMS's read-only network tools. The account
+         ChatGPT plan or an agent on this computer using DashyNMS's read-only network tools. The account
          lives in Settings › Intelligence, not here. The context sidebar on
          the right becomes a drawer when the window is narrow. -->
     <UserControl.Styles>
@@ -88,9 +88,6 @@
                                 </MenuFlyout>
                             </Button.Flyout>
                         </Button>
-                        <Button Classes="icon" ToolTip.Tip="Intelligence settings" Command="{Binding OpenSettingsCommand}">
-                            <fi:SymbolIcon Symbol="Settings" />
-                        </Button>
                         <!-- Brings the context sidebar back once it's been collapsed - by the edge it opens from. -->
                         <Button Name="ShowContextButton" Classes="icon" ToolTip.Tip="Show the context sidebar" AutomationProperties.Name="Show context"
                                 IsVisible="False" Click="OnShowContextClick">
@@ -133,14 +130,35 @@
             </Border>
 
             <!-- ======================== Not connected ======================== -->
-            <Border Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520" Padding="28,24" CornerRadius="8"
-                    Background="{DynamicResource SurfaceAltBrush}" IsVisible="{Binding IsSignedOut}">
+            <!-- No provider can answer yet: ChatGPT signs in here; an agent is set up in Settings, and each says why it isn't ready. -->
+            <Border Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="540" Padding="28,24" CornerRadius="8"
+                    Background="{DynamicResource SurfaceAltBrush}" IsVisible="{Binding NeedsProvider}">
                 <StackPanel>
                     <TextBlock Text="Ask about your network" Classes="heading" />
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,16"
-                               Text="Ask what's alerting, how a device is doing, where an address is plugged in or what changed overnight. Intelligence answers using your own ChatGPT plan, looking things up with read-only tools - it can't change anything. Needs ChatGPT Plus or Pro." />
+                               Text="Ask what's alerting, how a device is doing, where an address is plugged in or what changed overnight. Intelligence answers with your own ChatGPT plan, or with Codex, Claude Code, GitHub Copilot or Gemini on this computer, looking things up with read-only tools. It can't change anything." />
                     <Button Classes="primary" HorizontalAlignment="Left" Padding="16,8" Command="{Binding ConnectCommand}"><TextBlock Text="Continue with ChatGPT" /></Button>
-                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,12,0,0" Text="Your browser opens to sign in. DashyNMS never sees your ChatGPT password." />
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,0" Text="Needs ChatGPT Plus or Pro. Your browser opens to sign in, and DashyNMS never sees your password." />
+
+                    <StackPanel IsVisible="{Binding HasAgentProviders}" Margin="0,18,0,0">
+                        <TextBlock Text="Or use an agent on this computer" FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <ItemsControl ItemsSource="{Binding AgentProviders}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:IntelligenceProviderViewModel">
+                                    <DockPanel Margin="0,4">
+                                        <Button DockPanel.Dock="Right" Content="Set up" Padding="12,4" VerticalAlignment="Center"
+                                                Command="{Binding $parent[UserControl].((vm:IntelligenceViewModel)DataContext).OpenSettingsCommand}" />
+                                        <intel:ProviderIcon Provider="{Binding Id}" DockPanel.Dock="Left" Size="16"
+                                                       Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" />
+                                            <TextBlock Classes="subtle" FontSize="12" Text="{Binding StatusText}" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -150,7 +168,9 @@
                 <StackPanel>
                     <TextBlock Text="Before you ask" Classes="heading" />
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,8"
-                               Text="Your questions, and what DashyNMS looks up to answer them - device names, addresses, alerts, ports and log lines from your network - are sent to OpenAI to be processed, using your ChatGPT plan." />
+                               Text="Your questions, and what DashyNMS looks up to answer them - device names, addresses, alerts, ports and log lines from your network - are sent to the company behind the provider that answers: OpenAI for ChatGPT and Codex (or the model provider set in Codex's own configuration), Anthropic for Claude Code, GitHub for Copilot (which passes it on to the chosen model's maker) and Google for Gemini. It's processed under your own plan or account with them." />
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="Codex, Claude Code, Copilot and Gemini run on this computer with your existing sign-in. DashyNMS gives them only its read-only network tools, and they keep their own record of each conversation on this computer." />
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,16"
                                Text="Passwords, tokens and SNMP communities are never sent. Config backups are summarised unless you choose otherwise in Settings › Intelligence. Web search can check public information; search terms may be sent to search providers. You can turn it off in Settings. You'll see this again only if what's sent changes." />
                     <Button Classes="primary" HorizontalAlignment="Left" Padding="16,8" Command="{Binding AcceptConsentCommand}"><TextBlock Text="OK, continue" /></Button>
@@ -163,8 +183,19 @@
             <!-- The composer, with the keyboard hint beneath and Dashy standing on top. -->
             <Grid Grid.Row="3" MaxWidth="860" Margin="24,4,24,18" RowDefinitions="Auto,Auto" IsVisible="{Binding ShowConversation}">
                 <intel:IntelligenceComposer Name="ComposerBox" DataContext="{Binding Composer}" />
-                <TextBlock Grid.Row="1" Text="Enter to ask · Shift+Enter for a new line" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
-                           Margin="2,6,0,0" TextWrapping="Wrap" />
+                <DockPanel Grid.Row="1" Margin="2,6,2,0">
+                    <!-- The chat's provider usage, only as the provider reported it (#316). -->
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding ChatProvider.UsageText, FallbackValue=''}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="12,0,0,0" IsVisible="{Binding ChatProvider.HasUsage, FallbackValue=False}"
+                               ToolTip.Tip="{Binding ChatProvider.Name, StringFormat='As {0} last reported it', FallbackValue=''}" />
+                    <!-- The tone isn't Dashy's own while a custom personality is on (#608). -->
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" IsVisible="{Binding UsesCustomPersonality}"
+                                ToolTip.Tip="Answers are shaped by the personality you described in Settings › Intelligence. Facts and checks are unchanged.">
+                        <fi:SymbolIcon Symbol="PersonVoice" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="Custom personality" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Text="Enter to ask · Shift+Enter for a new line" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </DockPanel>
                 <!-- Feet on the composer's top edge: the drawing's feet end 41px into its 44px. -->
                 <intel:IntelligenceMascot HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,6,0" ZIndex="10"
                                           Outfit="{Binding CompanionOutfit}" IsBusy="{Binding IsBusy}" HasError="{Binding HasError}"

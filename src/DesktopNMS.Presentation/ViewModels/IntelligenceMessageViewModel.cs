@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text.RegularExpressions;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Infrastructure;
 
@@ -30,6 +31,18 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
     public static IntelligenceMessageViewModel User(string text) => new(isUser: true) { _text = text };
 
     public static IntelligenceMessageViewModel Assistant(string? replyStyle = null, string? question = null) => new(isUser: false) { ReplyStyle = replyStyle, SubmittedQuestion = question };
+
+    /// <summary>A divider marking the chat moving to another provider: neither a question nor an answer.</summary>
+    public static IntelligenceMessageViewModel ForHandoff(IntelligenceHandoff handoff)
+        => new(isUser: false) { Handoff = handoff, _isStreaming = false, Outcome = IntelligenceReplyOutcome.Completed };
+
+    /// <summary>Set when this entry marks the chat changing hands; the transcript shows it as a divider.</summary>
+    public IntelligenceHandoff? Handoff { get; private init; }
+
+    public bool IsHandoff => Handoff is not null;
+
+    /// <summary>The divider as words, for screen readers.</summary>
+    public string HandoffText => Handoff is { } h ? $"Agent changed from {h.FromModel} to {h.ToModel}" : string.Empty;
 
     public SpotlightOption? SpotlightTarget(IntelligenceInlineReference reference)
     {
@@ -121,6 +134,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         SubmittedQuestion = SubmittedQuestion,
         FailureText = FailureText,
         Images = _savedImages.ToList(),
+        Handoff = Handoff,
     };
 
     /// <summary>An answer cut off by closing the app, with the note after any code it stopped inside.</summary>
@@ -140,6 +154,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
             Outcome = saved.IsIncomplete || saved.Outcome == IntelligenceReplyOutcome.Generating ? IntelligenceReplyOutcome.Interrupted : saved.Outcome ?? IntelligenceReplyOutcome.Completed,
             SubmittedQuestion = saved.SubmittedQuestion,
             FailureText = saved.FailureText,
+            Handoff = saved.Handoff,
         };
         foreach (var image in saved.Images) message.AddImage(image);
         message.SeedInlineReferences(saved.PriorReferences);
@@ -151,7 +166,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
 
     public bool IsUser { get; }
 
-    public bool IsAssistant => !IsUser;
+    public bool IsAssistant => !IsUser && !IsHandoff;
 
     private readonly List<IntelligenceStatusCard> _statusSnapshots = new();
     private readonly Dictionary<string, IntelligenceInlineReference> _inlineReferences = new(StringComparer.OrdinalIgnoreCase);
@@ -168,6 +183,30 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
             _priorReferences.TryAdd(reference.Key, reference with { Status = "", Tone = "unknown", Detail = "Name verified earlier in this chat; current status not supplied by this reply" });
         }
         OnPropertyChanged(nameof(InlineReferences));
+    }
+
+    private static readonly Regex ObjectMarker = new(@"\[\[(device|alert):([1-9]\d{0,8})\]\]", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Names each device and alert marker no lookup in this chat named, from
+    /// the app's own device and alert lists, so an answer never shows a bare
+    /// "Device 442" or "Alert 501" - one that only appeared in an event log or
+    /// outage history has no status card.
+    /// </summary>
+    /// <param name="lookup">The object ("device" or "alert", and its ID) as the app last saw it, or null when it isn't listed.</param>
+    public void NameObjects(Func<string, int, IntelligenceInlineReference?> lookup)
+    {
+        var added = false;
+        foreach (Match match in ObjectMarker.Matches(_text))
+        {
+            var key = match.Groups[1].Value + ":" + match.Groups[2].Value;
+            if (_inlineReferences.ContainsKey(key) || _priorReferences.ContainsKey(key) || _priorReferences.Count >= 2000) continue;
+            if (!int.TryParse(match.Groups[2].Value, out var id) || lookup(match.Groups[1].Value, id) is not { } reference) continue;
+            _priorReferences[key] = reference;
+            added = true;
+        }
+
+        if (added) OnPropertyChanged(nameof(InlineReferences));
     }
 
     public void AddStatusCard(IntelligenceStatusCard card)

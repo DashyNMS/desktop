@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
@@ -20,6 +21,13 @@ public static class Converters
         "■" => Symbol.Stop,
         "!" => Symbol.Important,
         _ => Symbol.Checkmark,
+    });
+
+    /// <summary>True when both bound values are equal - the picker's tick beside the chosen model.</summary>
+    public static readonly IMultiValueConverter AreEqual = new FuncMultiValueConverter<object?, bool>(values =>
+    {
+        var list = values.ToList();
+        return list.Count == 2 && Equals(list[0], list[1]);
     });
 
     private static readonly IBrush CriticalBrush = new ImmutableSolidColorBrush(Color.Parse("#DA3633"));
