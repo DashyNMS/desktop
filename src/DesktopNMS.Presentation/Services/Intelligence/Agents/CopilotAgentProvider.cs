@@ -112,7 +112,7 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
                 }
             }, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is JsonRpcException or AgentProviderException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (ex is JsonRpcException or AgentProviderException or IOException or ObjectDisposedException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning("Intelligence: the GitHub Copilot CLI didn't report its sign-in ({ErrorType})", ex.GetType().Name);
             return new AgentProviderStatus(AgentProviderState.Unavailable, executable, version,
@@ -200,7 +200,7 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
                 cancellationToken).ConfigureAwait(false);
             lock (_sync) return _usage = usage ?? _usage;
         }
-        catch (Exception ex) when (ex is JsonRpcException or AgentProviderException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (ex is JsonRpcException or AgentProviderException or IOException or ObjectDisposedException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {
             lock (_sync) return _usage;
         }
@@ -242,16 +242,16 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
 
     public async Task<AgentTurnResult> AskAsync(AgentTurn turn, AgentToolSession tools, IIntelligenceListener listener, CancellationToken cancellationToken)
     {
-        var executable = _executable ?? throw new AgentProviderException("GitHub Copilot isn't set up yet. Check it in Settings › Intelligence.",
+        var executable = _executable ?? throw new AgentProviderException("GitHub Copilot isn't set up yet. Check it in Settings › Providers.",
             IntelligenceFailure.Tools, AgentProviderState.NotInstalled);
         Directory.CreateDirectory(_workingDirectory);
         var files = Path.Combine(Path.GetTempPath(), "dashynms-copilot-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(files);
+        PrivateFiles.CreateFolder(files);
         var mcp = Path.Combine(files, "mcp.json");
         string? session = null;
         try
         {
-            await File.WriteAllTextAsync(mcp, McpConfiguration(tools.Endpoint, tools.Token).ToJsonString(), cancellationToken).ConfigureAwait(false);
+            await PrivateFiles.WriteAsync(mcp, McpConfiguration(tools.Endpoint, tools.Token).ToJsonString(), cancellationToken).ConfigureAwait(false);
             var process = AgentProcess.Start(executable, Arguments(turn, mcp, UserServers()), _workingDirectory);
             lock (_sync) _running.Add(process);
             try
@@ -368,7 +368,7 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
         cancellationToken.ThrowIfCancellationRequested();
         if (!stream.Finished || stream.ExitCode is not (null or 0))
         {
-            throw Failure(process.StderrTail, null, turn.Session is not null);
+            throw Failure(await process.StderrTailAsync().ConfigureAwait(false), null, turn.Session is not null);
         }
 
         if (!string.IsNullOrWhiteSpace(stream.Answer)) listener.OnAnswerCompleted(stream.Answer);
@@ -392,7 +392,7 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
                     || type == "mcp" && warning.Contains("blocked", StringComparison.OrdinalIgnoreCase) && warning.Contains("'" + BridgeServerName + "'", StringComparison.Ordinal))
                 {
                     return new AgentProviderException(
-                        "Your Copilot policy blocks MCP servers, and DashyNMS's network tools reach Copilot as one, so it wasn't asked. If an organisation manages your Copilot, ask an administrator to allow them, then choose Check again in Settings › Intelligence.",
+                        "Your Copilot policy blocks MCP servers, and DashyNMS's network tools reach Copilot as one, so it wasn't asked. If an organisation manages your Copilot, ask an administrator to allow them, then choose Check again in Settings › Providers.",
                         IntelligenceFailure.Tools, AgentProviderState.Unavailable);
                 }
 
@@ -440,7 +440,7 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
         if (IsRefusal(detail))
         {
             return new AgentProviderException(
-                "GitHub Copilot refused: this account, or its organisation's policy, doesn't allow Copilot CLI. Check the account in Settings › Intelligence.",
+                "GitHub Copilot refused: this account, or its organisation's policy, doesn't allow Copilot CLI. Check the account in Settings › Providers.",
                 IntelligenceFailure.PlanUsage, AgentProviderState.Unavailable);
         }
 
@@ -448,7 +448,7 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
             || detail.Contains("not logged in", StringComparison.OrdinalIgnoreCase) || detail.Contains("authenticate", StringComparison.OrdinalIgnoreCase))
         {
             return new AgentProviderException(
-                "GitHub Copilot isn't signed in any more. Run copilot login in a terminal, then choose Check again in Settings › Intelligence.",
+                "GitHub Copilot isn't signed in any more. Run copilot login in a terminal, then choose Check again in Settings › Providers.",
                 IntelligenceFailure.PlanUsage, AgentProviderState.SignedOut);
         }
 
@@ -456,7 +456,7 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
             || detail.Contains("credits", StringComparison.OrdinalIgnoreCase))
         {
             return new AgentProviderException(
-                "GitHub Copilot has reached a usage limit for this account. Check its usage in Settings › Intelligence, then try again once it resets, or choose Auto in the picker.",
+                "GitHub Copilot has reached a usage limit for this account. Check its usage in Settings › Providers, then try again once it resets, or choose Auto in the picker.",
                 IntelligenceFailure.PlanUsage, usage: new AgentUsage(Array.Empty<AgentUsageWindow>(), DateTimeOffset.UtcNow, LimitReached: true));
         }
 
@@ -531,7 +531,7 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Left behind: the token in it stops working when the question ends.
+            // Left behind: only this user can read it, and its token stops working when the agents are retired or DashyNMS closes.
         }
     }
 

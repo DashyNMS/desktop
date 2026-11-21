@@ -149,17 +149,17 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
 
     public async Task<AgentTurnResult> AskAsync(AgentTurn turn, AgentToolSession tools, IIntelligenceListener listener, CancellationToken cancellationToken)
     {
-        var executable = _executable ?? throw new AgentProviderException("Claude Code isn't set up yet. Check it in Settings › Intelligence.",
+        var executable = _executable ?? throw new AgentProviderException("Claude Code isn't set up yet. Check it in Settings › Providers.",
             IntelligenceFailure.Tools, AgentProviderState.NotInstalled);
         Directory.CreateDirectory(_workingDirectory);
         var files = Path.Combine(Path.GetTempPath(), "dashynms-claude-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(files);
+        PrivateFiles.CreateFolder(files);
         var instructions = Path.Combine(files, "instructions.md");
         var mcp = Path.Combine(files, "mcp.json");
         try
         {
-            await File.WriteAllTextAsync(instructions, turn.Instructions, cancellationToken).ConfigureAwait(false);
-            await File.WriteAllTextAsync(mcp, McpConfiguration(tools.Endpoint).ToJsonString(), cancellationToken).ConfigureAwait(false);
+            await PrivateFiles.WriteAsync(instructions, turn.Instructions, cancellationToken).ConfigureAwait(false);
+            await PrivateFiles.WriteAsync(mcp, McpConfiguration(tools.Endpoint).ToJsonString(), cancellationToken).ConfigureAwait(false);
             var environment = new Dictionary<string, string?> { [TokenVariable] = tools.Token };
             var process = AgentProcess.Start(executable, Arguments(turn, instructions, mcp), _workingDirectory, environment);
             lock (_sync) _running.Add(process);
@@ -264,7 +264,7 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
         cancellationToken.ThrowIfCancellationRequested();
         if (!stream.Finished)
         {
-            if (turn.Session is not null && process.StderrTail.Contains("No conversation found", StringComparison.OrdinalIgnoreCase))
+            if (turn.Session is not null && (await process.StderrTailAsync().ConfigureAwait(false)).Contains("No conversation found", StringComparison.OrdinalIgnoreCase))
             {
                 throw new AgentProviderException("Claude Code no longer has this conversation.", IntelligenceFailure.Model) { SessionLost = true };
             }
@@ -412,7 +412,7 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
             || detail.Contains("authentication", StringComparison.OrdinalIgnoreCase) || detail.Contains("OAuth", StringComparison.OrdinalIgnoreCase))
         {
             return new AgentProviderException(
-                "Claude Code isn't signed in any more. Run claude auth login in a terminal, then choose Check again in Settings › Intelligence.",
+                "Claude Code isn't signed in any more. Run claude auth login in a terminal, then choose Check again in Settings › Providers.",
                 IntelligenceFailure.PlanUsage, AgentProviderState.SignedOut);
         }
 
@@ -420,7 +420,7 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
             || detail.Contains("credit balance", StringComparison.OrdinalIgnoreCase))
         {
             return new AgentProviderException(
-                "Claude Code has reached a usage limit for this account. Check its usage in Settings › Intelligence, then try again once it resets.",
+                "Claude Code has reached a usage limit for this account. Check its usage in Settings › Providers, then try again once it resets.",
                 IntelligenceFailure.PlanUsage, usage: usage ?? new AgentUsage(Array.Empty<AgentUsageWindow>(), DateTimeOffset.UtcNow, LimitReached: true));
         }
 

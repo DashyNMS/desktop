@@ -316,7 +316,7 @@ public sealed partial class CodexAgentProvider : IAgentProvider
         }
 
         await StopServerAsync().ConfigureAwait(false);
-        var executable = _executable ?? throw new AgentProviderException("Codex isn't set up yet. Check it in Settings › Intelligence.", IntelligenceFailure.Tools, AgentProviderState.NotInstalled);
+        var executable = _executable ?? throw new AgentProviderException("Codex isn't set up yet. Check it in Settings › Providers.", IntelligenceFailure.Tools, AgentProviderState.NotInstalled);
         Directory.CreateDirectory(_workingDirectory);
         var features = await KnownFeaturesAsync(executable, cancellationToken).ConfigureAwait(false);
 
@@ -844,10 +844,10 @@ public sealed partial class CodexAgentProvider : IAgentProvider
             return code switch
             {
                 "usageLimitExceeded" or "rateLimitExceeded" => new AgentProviderException(
-                    "Codex has reached a usage limit for this account. Check its usage in Settings › Intelligence, then try again once it resets.",
+                    "Codex has reached a usage limit for this account. Check its usage in Settings › Providers, then try again once it resets.",
                     IntelligenceFailure.PlanUsage, usage: usage ?? new AgentUsage(Array.Empty<AgentUsageWindow>(), DateTimeOffset.UtcNow, LimitReached: true)),
                 "unauthorized" => new AgentProviderException(
-                    "Codex isn't signed in any more. Run codex login in a terminal, then choose Check again in Settings › Intelligence.",
+                    "Codex isn't signed in any more. Run codex login in a terminal, then choose Check again in Settings › Providers.",
                     IntelligenceFailure.PlanUsage, AgentProviderState.SignedOut),
                 "contextWindowExceeded" => new AgentProviderException(
                     "This conversation is too long for the model. Start a new chat to carry on.", IntelligenceFailure.Model),

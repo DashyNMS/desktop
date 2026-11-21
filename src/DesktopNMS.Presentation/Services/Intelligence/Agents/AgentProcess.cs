@@ -31,6 +31,7 @@ public sealed partial class AgentProcess : IAsyncDisposable
     private readonly SemaphoreSlim _writing = new(1, 1);
     private readonly TaskCompletionSource<int> _exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly bool _framed;
+    private readonly TaskCompletionSource _errorsRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _disposed;
 
     private AgentProcess(Process process, bool framed)
@@ -81,7 +82,7 @@ public sealed partial class AgentProcess : IAsyncDisposable
         if (IsShim(executable) && args.FirstOrDefault(a => !PlainArgument().IsMatch(a)) is not null)
         {
             throw new AgentProviderException(
-                "DashyNMS can't pass its settings safely to this script launcher. Choose the agent's .exe in Settings › Intelligence instead.",
+                "DashyNMS can't pass its settings safely to this script launcher. Choose the agent's .exe in Settings › Providers instead.",
                 Core.Intelligence.IntelligenceFailure.Tools, AgentProviderState.Unavailable);
         }
 
@@ -103,7 +104,7 @@ public sealed partial class AgentProcess : IAsyncDisposable
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
         {
             process.Dispose();
-            throw new AgentProviderException("The agent couldn't be started. Check its executable in Settings › Intelligence.",
+            throw new AgentProviderException("The agent couldn't be started. Check its executable in Settings › Providers.",
                 Core.Intelligence.IntelligenceFailure.Tools, AgentProviderState.NotInstalled);
         }
 
@@ -317,6 +318,21 @@ public sealed partial class AgentProcess : IAsyncDisposable
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
         {
         }
+        finally
+        {
+            _errorsRead.TrySetResult();
+        }
+    }
+
+    /// <summary>
+    /// The error output's last lines once it has all been read - it's read
+    /// apart from the output, so its final lines can still be arriving when
+    /// the output ends - waiting no more than a moment.
+    /// </summary>
+    internal async Task<string> StderrTailAsync()
+    {
+        await Task.WhenAny(_errorsRead.Task, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
+        return StderrTail;
     }
 
     private void OnExited()

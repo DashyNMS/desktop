@@ -162,16 +162,17 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
 
     public async Task<AgentTurnResult> AskAsync(AgentTurn turn, AgentToolSession tools, IIntelligenceListener listener, CancellationToken cancellationToken)
     {
-        var executable = _executable ?? throw new AgentProviderException("Gemini isn't set up yet. Check it in Settings › Intelligence.",
+        var executable = _executable ?? throw new AgentProviderException("Gemini isn't set up yet. Check it in Settings › Providers.",
             IntelligenceFailure.Tools, AgentProviderState.NotInstalled);
         var workspace = Path.Combine(_workingDirectory, Guid.NewGuid().ToString("N"));
         var settings = Path.Combine(Path.GetTempPath(), "dashynms-gemini-" + Guid.NewGuid().ToString("N") + ".json");
         var stream = new StreamState(turn.Session) { WebSearch = turn.WebSearch };
         try
         {
-            Directory.CreateDirectory(Path.Combine(workspace, ".agents"));
-            await File.WriteAllTextAsync(Path.Combine(workspace, ".agents", "mcp_config.json"), McpConfiguration(tools.Endpoint, tools.Token).ToJsonString(), cancellationToken).ConfigureAwait(false);
-            await File.WriteAllTextAsync(settings, SessionSettings(workspace, UserServers()).ToJsonString(), cancellationToken).ConfigureAwait(false);
+            PrivateFiles.CreateFolder(workspace);
+            PrivateFiles.CreateFolder(Path.Combine(workspace, ".agents"));
+            await PrivateFiles.WriteAsync(Path.Combine(workspace, ".agents", "mcp_config.json"), McpConfiguration(tools.Endpoint, tools.Token).ToJsonString(), cancellationToken).ConfigureAwait(false);
+            await PrivateFiles.WriteAsync(settings, SessionSettings(workspace, UserServers()).ToJsonString(), cancellationToken).ConfigureAwait(false);
             var process = AgentProcess.Start(executable, Arguments(turn, settings), workspace);
             lock (_sync) _running.Add(process);
             try
@@ -302,7 +303,7 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        if (!stream.Finished) throw Failure(process.StderrTail);
+        if (!stream.Finished) throw Failure(await process.StderrTailAsync().ConfigureAwait(false));
         if (!string.IsNullOrWhiteSpace(stream.Answer)) listener.OnAnswerCompleted(stream.Answer);
         return new AgentTurnResult(turn.Temporary ? null : stream.Session, null);
     }
@@ -388,7 +389,7 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
             || detail.Contains("log in", StringComparison.OrdinalIgnoreCase))
         {
             return new AgentProviderException(
-                "Antigravity CLI isn't signed in any more. Run agy in a terminal to sign in, then choose Check again in Settings › Intelligence.",
+                "Antigravity CLI isn't signed in any more. Run agy in a terminal to sign in, then choose Check again in Settings › Providers.",
                 IntelligenceFailure.PlanUsage, AgentProviderState.SignedOut);
         }
 
@@ -432,7 +433,7 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
         }
 
         // The sign-in message goes to the error output.
-        return string.Join("\n", lines) + "\n" + process.StderrTail;
+        return string.Join("\n", lines) + "\n" + await process.StderrTailAsync().ConfigureAwait(false);
     }
 
     /// <summary>Antigravity's own folder.</summary>
@@ -489,7 +490,7 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Left behind: the token in it stops working when the question ends.
+            // Left behind: only this user can read it, and its token stops working when the agents are retired or DashyNMS closes.
         }
     }
 
