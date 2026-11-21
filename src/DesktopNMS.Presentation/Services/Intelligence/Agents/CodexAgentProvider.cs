@@ -71,9 +71,15 @@ public sealed partial class CodexAgentProvider : IAgentProvider
     ];
 
     /// <summary>Codex items that are its own tools: none may run in a DashyNMS chat.</summary>
-    private static readonly HashSet<string> ForbiddenItems = new(StringComparer.Ordinal)
+    /// <summary>
+    /// The item types a DashyNMS turn may contain - an allowlist, so a kind of
+    /// item a later Codex adds stops the turn rather than running unchecked.
+    /// MCP calls are allowed only to DashyNMS's server, and web search only when
+    /// Settings allows it; both are checked separately.
+    /// </summary>
+    private static readonly HashSet<string> AllowedItems = new(StringComparer.Ordinal)
     {
-        "commandExecution", "fileChange", "dynamicToolCall", "collabAgentToolCall", "subAgentActivity", "webSearch", "imageView", "imageGeneration",
+        "userMessage", "agentMessage", "reasoning", "plan", "contextCompaction", "functionCallOutput", "sleep", "mcpToolCall", "webSearch",
     };
 
     private readonly string _workingDirectory;
@@ -313,6 +319,15 @@ public sealed partial class CodexAgentProvider : IAgentProvider
         var executable = _executable ?? throw new AgentProviderException("Codex isn't set up yet. Check it in Settings › Intelligence.", IntelligenceFailure.Tools, AgentProviderState.NotInstalled);
         Directory.CreateDirectory(_workingDirectory);
         var features = await KnownFeaturesAsync(executable, cancellationToken).ConfigureAwait(false);
+
+        // Without the list nothing can be switched off, and an answer would run with Codex's own tools.
+        if (token is not null && !features.Contains("shell_tool") && !features.Contains("unified_exec"))
+        {
+            throw new AgentProviderException(
+                "DashyNMS couldn't confirm it can switch off Codex's own tools, so Codex wasn't asked. Update Codex, then try again.",
+                IntelligenceFailure.Tools, AgentProviderState.Unavailable);
+        }
+
         var servers = ConfiguredMcpServers(CodexHome());
         var environment = new Dictionary<string, string?> { [TokenVariable] = token?.Token };
         var process = AgentProcess.Start(executable, Arguments(features, servers, token?.Endpoint, webSearch), _workingDirectory, environment);
@@ -511,6 +526,16 @@ public sealed partial class CodexAgentProvider : IAgentProvider
         }
     }
 
+    /// <summary>
+    /// Codex's answer when a thread it's asked to resume no longer exists - a
+    /// temporary chat after a restart, or cleared history - as opposed to an
+    /// error about the model, the account or Codex itself.
+    /// </summary>
+    internal static bool IsMissingThread(string? message) => message is not null
+        && (message.Contains("not found", StringComparison.OrdinalIgnoreCase) || message.Contains("no thread", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("unknown thread", StringComparison.OrdinalIgnoreCase) || message.Contains("does not exist", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("no rollout", StringComparison.OrdinalIgnoreCase));
+
     internal static string Digest(string provider, string identity)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(provider + "\n" + identity)))[..32].ToLowerInvariant();
 
@@ -532,6 +557,9 @@ public sealed partial class CodexAgentProvider : IAgentProvider
         private readonly ILogger _logger;
         private readonly object _sync = new();
         private Turn? _turn;
+
+        /// <summary>Turns stopped or failed before Codex finished them, whose late events are dropped.</summary>
+        private readonly HashSet<string> _finishedTurns = new(StringComparer.Ordinal);
 
         public Server(AgentProcess process, AgentToolSession? tools, bool webSearch, ILogger logger)
         {
@@ -582,10 +610,12 @@ public sealed partial class CodexAgentProvider : IAgentProvider
                 var input = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = (request.Preamble ?? string.Empty) + request.Question });
                 var start = new JsonObject { ["threadId"] = thread, ["input"] = input, ["model"] = request.Model };
                 if (request.Effort is { } effort) start["effort"] = effort;
-                var started = await Rpc.RequestAsync("turn/start", start, cancellationToken).WaitAsync(RequestTimeout, cancellationToken).ConfigureAwait(false);
-                turn.TurnId = started?["turn"]?["id"]?.ToString();
-
+                // Stop is wired up before the turn starts, and the start itself isn't abandoned, so a turn
+                // stopped while starting is still interrupted once Codex says which turn it is.
                 using var stop = cancellationToken.Register(() => _ = InterruptAsync(turn));
+                var started = await Rpc.RequestAsync("turn/start", start, CancellationToken.None).WaitAsync(RequestTimeout).ConfigureAwait(false);
+                turn.TurnId = started?["turn"]?["id"]?.ToString();
+                if (cancellationToken.IsCancellationRequested) _ = InterruptAsync(turn);
                 var exited = Rpc.Completion;
                 var finished = await Task.WhenAny(turn.Completed, exited).ConfigureAwait(false);
                 if (finished != turn.Completed)
@@ -605,6 +635,9 @@ public sealed partial class CodexAgentProvider : IAgentProvider
                 lock (_sync)
                 {
                     if (ReferenceEquals(_turn, turn)) _turn = null;
+
+                    // A stopped turn can still send events; they're dropped rather than given to the next question.
+                    if (turn.TurnId is { } id && !turn.CompletedNormally) _finishedTurns.Add(id);
                 }
             }
         }
@@ -627,10 +660,15 @@ public sealed partial class CodexAgentProvider : IAgentProvider
                     var resumed = await Rpc.RequestAsync("thread/resume", settings, cancellationToken).WaitAsync(RequestTimeout, cancellationToken).ConfigureAwait(false);
                     return resumed?["thread"]?["id"]?.ToString() ?? existing;
                 }
-                catch (JsonRpcException)
+                catch (JsonRpcException ex) when (IsMissingThread(ex.Message))
                 {
                     // Gone - a temporary chat's thread after a restart, or a cleared Codex history.
                     throw new AgentProviderException("Codex no longer has this conversation.", IntelligenceFailure.Model) { SessionLost = true };
+                }
+                catch (JsonRpcException)
+                {
+                    // Anything else keeps the thread: the next question tries it again.
+                    throw new AgentProviderException("Codex couldn't continue this conversation just now. Try again.", IntelligenceFailure.Model);
                 }
             }
 
@@ -676,8 +714,12 @@ public sealed partial class CodexAgentProvider : IAgentProvider
         private Task OnNotificationAsync(string method, JsonNode? parameters)
         {
             Turn? turn;
-            lock (_sync) turn = _turn;
-            if (turn is null) return Task.CompletedTask;
+            lock (_sync)
+            {
+                turn = _turn;
+                if (turn is null || !BelongsTo(turn, parameters)) return Task.CompletedTask;
+            }
+
             switch (method)
             {
                 case "item/agentMessage/delta":
@@ -731,13 +773,33 @@ public sealed partial class CodexAgentProvider : IAgentProvider
             return Task.CompletedTask;
         }
 
-        /// <summary>A Codex tool, or another MCP server's, starting in a DashyNMS chat ends the turn: nothing of its may run.</summary>
+        /// <summary>
+        /// Whether an event is this turn's: one naming another thread, or a turn
+        /// that's already finished, is left over from an earlier question.
+        /// </summary>
+        private bool BelongsTo(Turn turn, JsonNode? parameters)
+        {
+            var thread = parameters?["threadId"]?.ToString();
+            if (thread is not null && turn.ThreadId is not null && thread != turn.ThreadId) return false;
+            var id = parameters?["turnId"]?.ToString() ?? parameters?["turn"]?["id"]?.ToString();
+            if (id is null) return true;
+            if (_finishedTurns.Contains(id)) return false;
+            return turn.TurnId is null || id == turn.TurnId;
+        }
+
+        /// <summary>Anything but a message, reasoning, or a call to DashyNMS's tools in a DashyNMS chat ends the turn: nothing else may run.</summary>
         private void CheckItem(Turn turn, JsonNode? item)
         {
             var type = item?["type"]?.ToString();
             var server = item?["server"]?.ToString();
-            if (type is null || type == "webSearch" && WebSearch) return;
-            if (!(ForbiddenItems.Contains(type) || type == "mcpToolCall" && server != BridgeServerName && !IsResourceLookup(server, item?["tool"]?.ToString()))) return;
+            if (type is null) return;
+            var allowed = type switch
+            {
+                "webSearch" => WebSearch,
+                "mcpToolCall" => server == BridgeServerName || IsResourceLookup(server, item?["tool"]?.ToString()),
+                _ => AllowedItems.Contains(type),
+            };
+            if (allowed) return;
             _logger.LogWarning("Intelligence: Codex started a {ItemType} item ({Server} {Tool}), which DashyNMS doesn't allow; the turn was stopped", type, server ?? "no server", item?["tool"]?.ToString() ?? "-");
             turn.Fail(new AgentProviderException(
                 "Codex tried to use one of its own tools, which DashyNMS doesn't allow in Intelligence chats, so the answer was stopped. Try asking again.",
@@ -837,6 +899,9 @@ public sealed partial class CodexAgentProvider : IAgentProvider
             if (!IsOpen) return;
             lock (_messages) _messages.Add(text);
         }
+
+        /// <summary>Codex said it finished, rather than being stopped or failing.</summary>
+        public bool CompletedNormally => _completed.Task.IsCompletedSuccessfully;
 
         public void Complete() => _completed.TrySetResult();
 

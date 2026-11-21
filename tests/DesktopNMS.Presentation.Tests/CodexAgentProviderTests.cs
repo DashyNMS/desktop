@@ -178,4 +178,12 @@ public sealed class CodexAgentProviderTests
     [Fact]
     public void A_missing_config_file_means_no_servers_to_switch_off()
         => Assert.Empty(CodexAgentProvider.ConfiguredMcpServers(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))));
+
+    [Theory]
+    [InlineData("thread not found: example", true)]
+    [InlineData("no rollout found for thread id", true)]
+    [InlineData("model is not available on this account", false)]
+    [InlineData("rate limit reached", false)]
+    public void Only_a_missing_thread_counts_as_a_lost_conversation(string message, bool lost)
+        => Assert.Equal(lost, CodexAgentProvider.IsMissingThread(message));
 }
