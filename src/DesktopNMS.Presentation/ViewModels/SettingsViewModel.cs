@@ -190,6 +190,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         SelectIntegrationsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Integrations);
         SelectGraylogSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Graylog);
         SelectIntelligenceSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Intelligence);
+        SelectIntelligenceProvidersSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.IntelligenceProviders);
         SelectMapsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Maps);
         ResetMapTileUrlCommand = new RelayCommand(() => MapTileUrl = null);
         SelectAboutSectionCommand = new RelayCommand(() =>
@@ -204,6 +205,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => CanInstallUpdate && !IsCheckingForUpdates && !_isInstallingUpdate);
         _updates.ReadyUpdateChanged += OnReadyUpdateChanged;
         Intelligence.Models.CollectionChanged += OnIntelligenceModelsChanged;
+        IntelligenceProviders = new IntelligenceProvidersViewModel(Intelligence, _draft, _windows);
         ViewLatestReleaseCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri(_latestRelease!.HtmlUrl!)),
             () => _latestRelease?.HtmlUrl is not null);
@@ -302,6 +304,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public RelayCommand SelectIntelligenceSectionCommand { get; }
 
+    public RelayCommand SelectIntelligenceProvidersSectionCommand { get; }
+
     public RelayCommand SelectMapsSectionCommand { get; }
 
     public RelayCommand SelectAboutSectionCommand { get; }
@@ -327,6 +331,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsIntegrationsSectionSelected));
                 OnPropertyChanged(nameof(IsGraylogSectionSelected));
                 OnPropertyChanged(nameof(IsIntelligenceSectionSelected));
+                OnPropertyChanged(nameof(IsIntelligenceProvidersSectionSelected));
                 OnPropertyChanged(nameof(IsMapsSectionSelected));
                 OnPropertyChanged(nameof(IsAboutSectionSelected));
                 OnPropertyChanged(nameof(IsServerInformationSectionSelected));
@@ -368,6 +373,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     public bool IsGraylogSectionSelected => SelectedSection == SettingsSection.Graylog;
 
     public bool IsIntelligenceSectionSelected => SelectedSection == SettingsSection.Intelligence;
+
+    public bool IsIntelligenceProvidersSectionSelected => SelectedSection == SettingsSection.IntelligenceProviders;
 
     public bool IsMapsSectionSelected => SelectedSection == SettingsSection.Maps;
 
@@ -1572,6 +1579,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         MobileSignIn.Detach();
         _updates.ReadyUpdateChanged -= OnReadyUpdateChanged;
         Intelligence.Models.CollectionChanged -= OnIntelligenceModelsChanged;
+        IntelligenceProviders.Detach(_store.Current);
     }
 
     /// <summary>
@@ -2075,6 +2083,37 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>Use the custom personality below (#608); off keeps the text.</summary>
+    public bool IntelligencePersonalityEnabled
+    {
+        get => _draft.IntelligencePersonalityEnabled;
+        set
+        {
+            if (_draft.IntelligencePersonalityEnabled == value) return;
+            _draft.IntelligencePersonalityEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>How Dashy should sound, as typed - cleaned only when it's sent.</summary>
+    public string IntelligencePersonality
+    {
+        get => _draft.IntelligencePersonality;
+        set
+        {
+            value ??= string.Empty;
+            if (value.Length > Core.Intelligence.IntelligencePersonality.MaxLength) value = value[..Core.Intelligence.IntelligencePersonality.MaxLength];
+            if (_draft.IntelligencePersonality == value) return;
+            _draft.IntelligencePersonality = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IntelligencePersonalityCount));
+        }
+    }
+
+    public int IntelligencePersonalityLimit => Core.Intelligence.IntelligencePersonality.MaxLength;
+
+    public string IntelligencePersonalityCount => $"{IntelligencePersonality.Length} / {IntelligencePersonalityLimit}";
+
     public bool IntelligenceColourStatusIndicators
     {
         get => _draft.IntelligenceColourStatusIndicators;
@@ -2162,6 +2201,9 @@ public sealed partial class SettingsViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>Settings › Providers (#316): the provider list and the chosen provider's details.</summary>
+    public IntelligenceProvidersViewModel IntelligenceProviders { get; }
 
     /// <summary>The Intelligence page's account controls - the live ChatGPT connection, not part of the draft.</summary>
     public IntelligenceViewModel Intelligence { get; }

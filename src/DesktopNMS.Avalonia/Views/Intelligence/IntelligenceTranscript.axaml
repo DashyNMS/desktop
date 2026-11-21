@@ -75,6 +75,22 @@
                                 <SelectableTextBlock Text="{Binding Text}" FontSize="14" TextWrapping="Wrap" />
                             </Border>
 
+                            <!-- The chat changing hands: a quiet divider naming from and to, so each answer's provider is clear. -->
+                            <Grid ColumnDefinitions="*,Auto,*" IsVisible="{Binding IsHandoff}" Margin="0,2,0,0"
+                                  AutomationProperties.Name="{Binding HandoffText}">
+                                <Border Height="1" Background="{DynamicResource BorderBrush}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="12,0" VerticalAlignment="Center">
+                                    <fi:SymbolIcon Symbol="ArrowSwap" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                    <TextBlock Text="Agent changed" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                    <intel:ProviderIcon Provider="{Binding Handoff.FromProvider, FallbackValue={x:Null}}" Size="13" Margin="6,0,0,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Handoff.FromModel, FallbackValue=''}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <fi:SymbolIcon Symbol="ArrowRight" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                    <intel:ProviderIcon Provider="{Binding Handoff.ToProvider, FallbackValue={x:Null}}" Size="13" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Handoff.ToModel, FallbackValue=''}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <Border Grid.Column="2" Height="1" Background="{DynamicResource BorderBrush}" VerticalAlignment="Center" />
+                            </Grid>
+
                             <!-- Intelligence: what it looked up, then the answer as formatted text. -->
                             <Border Classes="answer" Classes.conversational="{Binding IsConversational}" IsVisible="{Binding IsAssistant}">
                                 <StackPanel>

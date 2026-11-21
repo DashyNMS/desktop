@@ -1,10 +1,15 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:views="using:DesktopNMS.Views"
+             xmlns:intel="using:DesktopNMS.Views.Intelligence"
+             xmlns:fi="using:FluentIcons.Avalonia"
              x:Class="DesktopNMS.Views.Intelligence.IntelligenceComposer"
              x:DataType="vm:IntelligenceComposerViewModel">
 
-    <!-- The question box with the model, detail and Ask/Stop beneath it, as chat apps have it (#327). -->
+    <!-- The question box with the model, detail and Ask/Stop beneath it, as chat apps have it (#327).
+         The model picker (#316) is one slim button: a flyout with a tab per provider, a search,
+         the models, one line about the provider, and the model's reasoning levels. -->
     <UserControl.Styles>
         <!-- Keep the current choices readable while an answer runs. -->
         <Style Selector="ComboBox.chatOption:disabled /template/ Border#Background">
@@ -17,6 +22,52 @@
         <Style Selector="ComboBox.chatOption:disabled /template/ PathIcon#DropDownGlyph">
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
             <Setter Property="Opacity" Value="0.6" />
+        </Style>
+        <!-- The picker button sits with the detail picker: same height, same frame. -->
+        <Style Selector="Button.modelPicker">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10,5,8,5" />
+            <Setter Property="MinHeight" Value="32" />
+        </Style>
+        <Style Selector="Button.modelPicker:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <!-- Provider tabs: the open one is filled with the accent tint. -->
+        <Style Selector="Button.providerTab">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.providerTab.open">
+            <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Button.providerTab.open /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <!-- A model row: the chosen one carries a tick, not a fill. -->
+        <Style Selector="Button.modelRow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="8,7" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <!-- Reasoning levels share the segmented control's look, narrower to fit five in the picker. -->
+        <Style Selector="RadioButton.navTab /template/ Border#Root">
+            <Setter Property="Padding" Value="4,6" />
         </Style>
         <!-- The box is the card; the TextBox inside has no frame of its own. -->
         <Style Selector="TextBox#QuestionBox, TextBox#QuestionBox:pointerover, TextBox#QuestionBox:focus">
@@ -50,8 +101,99 @@
                 <WrapPanel HorizontalAlignment="Left">
                     <StackPanel Margin="0,0,8,0">
                         <TextBlock Text="Model" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4" />
-                        <ComboBox Classes="chatOption" ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" DisplayMemberBinding="{ReflectionBinding DisplayName}"
-                                  MinWidth="150" IsEnabled="{Binding CanChangeChat}" AutomationProperties.Name="Model for this chat" ToolTip.Tip="Which ChatGPT model answers" />
+                        <Button Name="ModelPickerButton" Classes="modelPicker" MinWidth="150" IsEnabled="{Binding CanChangeChat}"
+                                AutomationProperties.Name="Model for this chat" ToolTip.Tip="{Binding SelectedProviderName, StringFormat='Answered by {0}', FallbackValue='Which provider and model answer'}">
+                            <DockPanel>
+                                <fi:SymbolIcon DockPanel.Dock="Right" Symbol="ChevronDown" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <intel:ProviderIcon Provider="{Binding SelectedProviderId}" DockPanel.Dock="Left"
+                                               Size="14" Margin="0,0,7,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="{Binding ModelButtonText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />
+                            </DockPanel>
+                            <Button.Flyout>
+                                <Flyout Placement="TopEdgeAlignedLeft" Opening="OnPickerOpening">
+                                    <Border Width="320" Padding="6,4">
+                                        <StackPanel Spacing="6">
+                                            <!-- A tab per provider that can answer now; setting one up is Settings' job. -->
+                                            <ItemsControl ItemsSource="{Binding AvailableProviders}" IsVisible="{Binding HasProviderTabs}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="4" /></ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:IntelligenceProviderViewModel">
+                                                        <Button Classes="providerTab" Classes.open="{Binding IsPickerTab}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:IntelligenceComposerViewModel)DataContext).ShowProviderCommand}"
+                                                                CommandParameter="{Binding}" ToolTip.Tip="{Binding Name}" AutomationProperties.Name="{Binding Name}">
+                                                            <intel:ProviderIcon Provider="{Binding Id}" Size="16" />
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <TextBox Classes="search" Text="{Binding ModelSearch}" PlaceholderText="Search models…"
+                                                     AutomationProperties.Name="Search models" />
+
+                                            <ScrollViewer MaxHeight="220" HorizontalScrollBarVisibility="Disabled">
+                                                <ItemsControl ItemsSource="{Binding PickerModels}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:IntelligenceModelOption">
+                                                            <Button Classes="modelRow" Click="OnModelChosen"
+                                                                    Command="{Binding $parent[ItemsControl].((vm:IntelligenceComposerViewModel)DataContext).SelectModelCommand}"
+                                                                    CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name}" ToolTip.Tip="{Binding Description}">
+                                                                <DockPanel>
+                                                                    <fi:SymbolIcon DockPanel.Dock="Right" Symbol="Checkmark" FontSize="13" VerticalAlignment="Center"
+                                                                                   Foreground="{DynamicResource AccentBrush}" Margin="8,0,2,0">
+                                                                        <fi:SymbolIcon.IsVisible>
+                                                                            <MultiBinding Converter="{x:Static views:Converters.AreEqual}">
+                                                                                <Binding />
+                                                                                <Binding Path="$parent[ItemsControl].((vm:IntelligenceComposerViewModel)DataContext).SelectedModel" />
+                                                                            </MultiBinding>
+                                                                        </fi:SymbolIcon.IsVisible>
+                                                                    </fi:SymbolIcon>
+                                                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                                </DockPanel>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                            <TextBlock Classes="subtle" FontSize="12" Margin="8,0" Text="No models match." IsVisible="{Binding !HasPickerModels}" />
+
+                                            <!-- The tab's provider in one line: what it can't do, or its usage. -->
+                                            <StackPanel Margin="8,2,8,0" Spacing="2" IsVisible="{Binding HasPickerNote}">
+                                                <TextBlock Classes="subtle" FontSize="12" TextWrapping="Wrap" Text="{Binding PickerNote}" />
+                                                <Button Classes="link" Padding="0" FontSize="12" Content="Provider settings" Command="{Binding OpenProviderSettingsCommand}"
+                                                        HorizontalAlignment="Left" Click="OnModelChosen" />
+                                            </StackPanel>
+
+                                            <!-- Reasoning for the open tab's model, where it has levels to choose. -->
+                                            <StackPanel Spacing="6" Margin="0,4,0,2" IsVisible="{Binding HasEfforts}">
+                                                <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="2,0" />
+                                                <DockPanel Margin="8,2,8,0">
+                                                    <TextBlock DockPanel.Dock="Right" Classes="subtle" FontSize="12" Text="{Binding ReasoningModel.Name, FallbackValue=''}" />
+                                                    <TextBlock Text="Reasoning" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                </DockPanel>
+                                                <Border Classes="navTabTrack" HorizontalAlignment="Stretch">
+                                                    <ItemsControl ItemsSource="{Binding Efforts}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:IntelligenceComposerViewModel+EffortOption">
+                                                                <RadioButton Classes="navTab" Content="{Binding ShortName}" IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                                                             GroupName="ReasoningLevel" FontSize="12" HorizontalAlignment="Stretch" Click="OnModelChosen"
+                                                                             Command="{Binding $parent[ItemsControl].((vm:IntelligenceComposerViewModel)DataContext).SelectEffortCommand}"
+                                                                             CommandParameter="{Binding Key}" AutomationProperties.Name="{Binding Name, StringFormat='Reasoning: {0}'}" />
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </Border>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
                     </StackPanel>
                     <StackPanel>
                         <TextBlock Text="Detail" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4" />

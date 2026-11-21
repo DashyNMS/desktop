@@ -23,8 +23,23 @@ internal interface IIntelligenceChatHost
 
     bool SingleChatMode { get; }
 
-    /// <summary>The ChatGPT account and LibreNMS server the chats belong to, or null when either is missing.</summary>
+    /// <summary>
+    /// Where a new chat is saved: its provider's account and the LibreNMS
+    /// server, or null when either is missing.
+    /// </summary>
     string? ChatScope { get; }
+
+    /// <summary>
+    /// Every provider that can answer, with the account and server its chats
+    /// are saved under (#316). The list shows all of them together; a provider
+    /// that signs out takes its chats with it, so nobody sees another account's chats.
+    /// </summary>
+    IReadOnlyDictionary<string, string> ChatScopes => ChatScope is { } scope
+        ? new Dictionary<string, string> { [Core.Configuration.AppSettings.IntelligenceProviderChatGpt] = scope }
+        : new Dictionary<string, string>();
+
+    /// <summary>Where the open conversation belongs now - its provider may have changed since it was loaded.</summary>
+    string? ScopeForOpenChat => ChatScope;
 
     string? ErrorText { get; set; }
 
@@ -41,7 +56,7 @@ internal interface IIntelligenceChatHost
 }
 
 /// <summary>
-/// The Intelligence chat list (#327): saved chats for this account and network,
+/// The Intelligence chat list (#327): saved chats for each signed-in provider account and this network,
 /// grouped by when they were last used, with pin, rename and delete, and their
 /// persistence - saved shortly after a change and written off the UI thread.
 /// </summary>
@@ -62,6 +77,7 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
     private readonly IUiTimer _groupingTimer = UiThread.CreateTimer(TimeSpan.FromMinutes(1));
     private DateTimeOffset _lastSave = DateTimeOffset.MinValue;
     private string? _scope;
+    private IReadOnlyList<string> _scopes = Array.Empty<string>();
     private bool _singleChatMode;
     private IntelligenceChatItemViewModel? _selectedChat;
     private bool _isRenamingChat;
@@ -108,10 +124,10 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
         DeleteChatCommand = new RelayCommand(DeleteChat, _ => CanManageChats && SelectedChat is not null);
         PinChatCommand = new RelayCommand(parameter =>
         {
-            if (!CanManageChats || parameter is not IntelligenceChatItemViewModel chat || _scope is null || !Chats.Contains(chat)) return;
+            if (!CanManageChats || parameter is not IntelligenceChatItemViewModel chat || chat.Scope is null || !Chats.Contains(chat)) return;
             chat.Data.IsPinned = !chat.Data.IsPinned;
             chat.Refresh();
-            if (!IsReadOnly) _writer.Save(_scope, Snapshot(chat.Data), makeActive: false);
+            if (!IsReadOnly) _writer.Save(chat.Scope, Snapshot(chat.Data), makeActive: false);
             Sort();
         }, _ => CanManageChats);
         _saveTimer.Tick += (_, _) => SaveActive();
@@ -186,13 +202,15 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
     }
 
     /// <summary>
-    /// Loads the chats for the current account and network, when they've
+    /// Loads the chats for the signed-in accounts and this network, when they've
     /// changed or none is open - after sign-in, a server change, or an answer.
     /// </summary>
     public void EnsureScope()
     {
         var scope = _host.ChatScope;
-        if (scope == _scope && _singleChatMode == _host.SingleChatMode && (scope is null || SelectedChat is not null)) return;
+        var scopes = _host.ChatScopes.Values.Distinct(StringComparer.Ordinal).OrderBy(s => s, StringComparer.Ordinal).ToList();
+        if (scope is not null && !scopes.Contains(scope)) scopes.Add(scope);
+        if (scope == _scope && scopes.SequenceEqual(_scopes) && _singleChatMode == _host.SingleChatMode && (scope is null || SelectedChat is not null)) return;
         _saveTimer.Stop();
         if (_host.IsBusy) { _host.CancelAnswer(); return; }
         SaveActive();
@@ -203,6 +221,7 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
         _selectedChat = null;
         Chats.Clear();
         _scope = scope;
+        _scopes = scopes;
         _singleChatMode = _host.SingleChatMode;
         IsReadOnly = false;
         Guid? activeId = null;
@@ -211,15 +230,21 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
         {
             if (scope is not null && !_singleChatMode)
             {
-                var saved = _store.Load(scope);
-                activeId = saved.ActiveId;
-                foreach (var chat in saved.Chats) Chats.Add(new(chat));
-                foreach (var file in saved.Unreadable ?? Array.Empty<string>())
+                // The chat open last time is the default provider's, or the newest open one elsewhere.
+                foreach (var each in scopes.OrderByDescending(s => s == scope))
                 {
-                    _logger.LogWarning("Intelligence: saved chat {File} could not be read and was skipped", file);
+                    var saved = _store.Load(each);
+                    activeId ??= saved.ActiveId;
+                    foreach (var chat in saved.Chats) Chats.Add(new(chat, each));
+                    foreach (var file in saved.Unreadable ?? Array.Empty<string>())
+                    {
+                        _logger.LogWarning("Intelligence: saved chat {File} could not be read and was skipped", file);
+                    }
+
+                    unreadable += saved.Unreadable?.Count ?? 0;
                 }
 
-                unreadable = saved.Unreadable?.Count ?? 0;
+                Sort();
             }
         }
         catch (Exception ex)
@@ -269,10 +294,33 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
             if (draft != SelectedChat) SelectedChat = draft;
             return;
         }
-        var chat = new IntelligenceChatItemViewModel(_host.NewChat());
+        var chat = new IntelligenceChatItemViewModel(_host.NewChat(), _scope);
         Chats.Insert(0, chat);
         SelectedChat = chat;
         Sort();
+    }
+
+    /// <summary>
+    /// The open chat now belongs to another provider (#316): it's saved under
+    /// that provider's account from here on, and no longer under the old one.
+    /// </summary>
+    public void MoveSelected()
+    {
+        if (_host.IsBusy || SelectedChat is not { } item || _host.ScopeForOpenChat is not { } scope || item.Scope == scope) return;
+        var previous = item.Scope;
+        item.Scope = scope;
+        if (_singleChatMode || IsReadOnly) return;
+        if (previous is null)
+        {
+            SaveActive();
+            return;
+        }
+
+        // One queued step, so the old copy goes only once the new one is written.
+        _saveTimer.Stop();
+        _host.Capture(item.Data);
+        item.Refresh();
+        _writer.Move(previous, scope, Snapshot(item.Data));
     }
 
     /// <summary>Names a chat from its first question, unless it's been renamed.</summary>
@@ -303,7 +351,7 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
     public void SaveActive(bool recordActivity = false)
     {
         _saveTimer.Stop();
-        if (IsChangingChat || _singleChatMode || _host.SingleChatMode || _scope is null || SelectedChat is not { } item) return;
+        if (IsChangingChat || _singleChatMode || _host.SingleChatMode || _scope is null || SelectedChat is not { } item || item.Scope is null) return;
         var chat = item.Data;
         _host.Capture(chat);
 
@@ -314,7 +362,7 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
         if (IsReadOnly) return;
 
         // Serialised, encrypted and written off the UI thread (#321).
-        _writer.Save(_scope, Snapshot(chat));
+        _writer.Save(item.Scope, Snapshot(chat));
         Sort();
     }
 
@@ -363,6 +411,9 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
         IsPinned = chat.IsPinned,
         UpdatedAt = chat.UpdatedAt,
         Model = chat.Model,
+        Provider = chat.Provider,
+        Effort = chat.Effort,
+        ProviderSession = chat.ProviderSession,
         ReplyStyle = chat.ReplyStyle,
         Outfit = chat.Outfit,
         Draft = chat.Draft,
@@ -376,11 +427,15 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
     {
         if (!CanManageChats) return;
         var chat = parameter as IntelligenceChatItemViewModel ?? SelectedChat;
-        if (chat is null || _scope is null || !Chats.Contains(chat)) return;
-        var scope = _scope;
-        if (!_windows.Confirm("Delete chat?", $"Delete '{chat.Title}' and its saved messages from this PC?", "Delete", destructive: true)) return;
-        if (_scope != scope || !Chats.Contains(chat)) return;
-        if (!IsReadOnly) _writer.Delete(_scope, chat.Data.Id);
+        if (chat is null || chat.Scope is null || !Chats.Contains(chat)) return;
+        var scope = chat.Scope;
+        // An agent's own record of the conversation is in its folder, which DashyNMS doesn't manage.
+        var agentRecord = chat.Data.ProviderSession is not null && chat.Data.Provider is { } provider && provider != DesktopNMS.Core.Configuration.AppSettings.IntelligenceProviderChatGpt
+            ? " The agent that answered keeps its own record of the conversation in its own folder."
+            : string.Empty;
+        if (!_windows.Confirm("Delete chat?", $"Delete '{chat.Title}' and its saved messages from this PC?{agentRecord}", "Delete", destructive: true)) return;
+        if (chat.Scope != scope || !Chats.Contains(chat)) return;
+        if (!IsReadOnly) _writer.Delete(scope, chat.Data.Id);
         var wasSelected = ReferenceEquals(chat, SelectedChat);
         if (wasSelected) _selectedChat = null;
         Chats.Remove(chat);

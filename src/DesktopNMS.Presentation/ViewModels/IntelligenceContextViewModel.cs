@@ -134,6 +134,33 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
 
     public bool HasAlerts => Alerts.Count > 0;
 
+    /// <summary>
+    /// An alert - or one fault of an alert - as the last alert poll saw it,
+    /// for naming a marker no lookup named: its rule, without the severity the
+    /// badge already shows, and its severity.
+    /// </summary>
+    internal IntelligenceInlineReference? CachedAlert(int id)
+    {
+        if ((_alerts.FirstOrDefault(a => a.Id == id && a.Source == AlertSource.Fault) ?? _alerts.FirstOrDefault(a => a.Id == id)) is not { } alert) return null;
+        var (label, tone) = alert.Severity switch
+        {
+            AlertSeverity.Critical => ("Critical", "critical"),
+            AlertSeverity.Warning => ("Warning", "warning"),
+            AlertSeverity.Ok => ("OK", "up"),
+            _ => ("Unknown", "unknown"),
+        };
+        var rule = alert.RuleName is { Length: > 0 } name ? name.Trim() : "Alert";
+        foreach (var separator in new[] { " - ", " – ", " — " })
+        {
+            if (rule.StartsWith(label + separator, StringComparison.OrdinalIgnoreCase)) rule = rule[(label.Length + separator.Length)..].Trim();
+        }
+
+        return new IntelligenceInlineReference("alert:" + id, rule, label, tone, _lastAlertRefresh ?? DateTimeOffset.UtcNow, "Alert from DashyNMS's alert list")
+        {
+            Object = new(alert.Source == AlertSource.Fault ? "fault" : "alert", id, alert.DeviceId),
+        };
+    }
+
     public bool HasOpenNetworkAlerts => _alerts.Any(alert => alert.State != AlertState.Recovered);
 
     public bool HasLookedAt => LookedAt.Count > 0;
