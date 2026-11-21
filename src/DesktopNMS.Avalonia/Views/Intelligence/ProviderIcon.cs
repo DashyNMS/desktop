@@ -12,9 +12,10 @@ namespace DesktopNMS.Views.Intelligence;
 /// A provider's mark (#316) in the model picker, the Intelligence tab and
 /// Settings: OpenAI's for ChatGPT, whether it connects directly or through
 /// Codex - only one of those is ever offered - Claude's for Claude Code,
-/// GitHub Copilot's and Gemini's, so each is recognisable at a glance. The marks are Simple Icons' 24-unit paths
-/// (simple-icons 15.22.0, CC0); they belong to OpenAI and Anthropic and name
-/// only the provider that answers.
+/// GitHub Copilot's and Gemini's, so each is recognisable at a glance. The
+/// marks are Simple Icons' 24-unit paths (simple-icons 15.22.0, CC0); they
+/// belong to OpenAI, Anthropic, GitHub and Google and name only the provider
+/// that answers.
 /// </summary>
 public sealed class ProviderIcon : ContentControl
 {

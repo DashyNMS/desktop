@@ -168,9 +168,9 @@
                 <StackPanel>
                     <TextBlock Text="Before you ask" Classes="heading" />
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,8"
-                               Text="Your questions, and what DashyNMS looks up to answer them - device names, addresses, alerts, ports and log lines from your network - are sent to the company behind the provider that answers: OpenAI for ChatGPT and Codex, Anthropic for Claude Code. It's processed under your own plan or account with them." />
+                               Text="Your questions, and what DashyNMS looks up to answer them - device names, addresses, alerts, ports and log lines from your network - are sent to the company behind the provider that answers: OpenAI for ChatGPT and Codex, Anthropic for Claude Code, GitHub for Copilot (which passes it on to the chosen model's maker) and Google for Gemini. It's processed under your own plan or account with them." />
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,8"
-                               Text="Codex and Claude Code run on this computer with your existing sign-in. DashyNMS gives them only its read-only network tools, and they keep their own record of each conversation on this computer." />
+                               Text="Codex, Claude Code, Copilot and Gemini run on this computer with your existing sign-in. DashyNMS gives them only its read-only network tools, and they keep their own record of each conversation on this computer." />
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,16"
                                Text="Passwords, tokens and SNMP communities are never sent. Config backups are summarised unless you choose otherwise in Settings › Intelligence. Web search can check public information; search terms may be sent to search providers. You can turn it off in Settings. You'll see this again only if what's sent changes." />
                     <Button Classes="primary" HorizontalAlignment="Left" Padding="16,8" Command="{Binding AcceptConsentCommand}"><TextBlock Text="OK, continue" /></Button>
