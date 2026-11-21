@@ -217,6 +217,26 @@ public sealed class CopilotAgentProviderTests
         Assert.Null(await AgentProcess.ReadFrameAsync(stream));
     }
 
+    [Fact]
+    public void A_missing_session_in_the_event_stream_is_lost_only_when_resuming()
+    {
+        var line = JsonNode.Parse("""{"type":"session.error","data":{"errorType":"session","message":"Session not found"}}""")!.AsObject();
+
+        Assert.True(CopilotAgentProvider.Read(line, new CopilotAgentProvider.StreamState("session-1") { Resumed = true }, new Listener())!.SessionLost);
+        Assert.False(CopilotAgentProvider.Read(line, new CopilotAgentProvider.StreamState(null), new Listener())!.SessionLost);
+    }
+
+    [Fact]
+    public void A_quota_with_a_sliver_left_is_not_used_up()
+    {
+        var usage = CopilotAgentProvider.Usage(JsonNode.Parse("""
+            {"quotaSnapshots":{"chat":{"isUnlimitedEntitlement":false,"entitlementRequests":200,"remainingPercentage":0.04,"usageAllowedWithExhaustedQuota":false,"overageAllowedWithExhaustedQuota":false}}}
+            """));
+
+        Assert.Equal(100, usage!.Windows[0].UsedPercent);
+        Assert.False(usage.LimitReached);
+    }
+
     private sealed class Listener : IIntelligenceListener
     {
         public List<string> Text { get; } = new();

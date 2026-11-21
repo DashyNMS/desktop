@@ -57,9 +57,13 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
     private readonly ILogger _logger;
     private readonly object _sync = new();
     private readonly HashSet<AgentProcess> _running = new();
+
+    /// <summary>Counts retirements: a question that started before one never launches its process after it.</summary>
+    private int _generation;
     private string? _executable;
     private IReadOnlyList<AgentModel> _models = Array.Empty<AgentModel>();
     private AgentUsage? _usage;
+    private string? _accountKey;
 
     /// <param name="workingDirectory">An empty folder of DashyNMS's own for Copilot to run in, so it never sees a project.</param>
     public CopilotAgentProvider(string workingDirectory, ILogger logger)
@@ -96,7 +100,15 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
             {
                 var auth = await rpc.RequestAsync("account.getCurrentAuth", new JsonObject(), ct).ConfigureAwait(false);
                 var status = Status(executable, version, auth);
-                if (status.State == AgentProviderState.SignedOut) return status;
+                lock (_sync)
+                {
+                    // Another account's allowance is never shown as this one's.
+                    if (status.AccountKey != _accountKey) _usage = null;
+                    _accountKey = status.AccountKey;
+                }
+
+                // Signed out, or MCP off for the account: that reason is the one to show, not whatever listing models says.
+                if (status.State != AgentProviderState.Ready) return status;
 
                 // Whether the account has Copilot at all: listing its models is refused when it doesn't.
                 // The account call's own plan fields lag a sign-up, so they aren't relied on.
@@ -224,8 +236,9 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
                 : null;
             DateTimeOffset? resets = DateTimeOffset.TryParse(snapshot["resetDate"]?.ToString(), out var date) ? date : null;
             windows.Add(new AgentUsageWindow(QuotaLabel(key), used, resets));
+            // From the unrounded figure: 99.96% left isn't used up.
             var carriesOn = Flag(snapshot, "usageAllowedWithExhaustedQuota") || Flag(snapshot, "overageAllowedWithExhaustedQuota");
-            if (used >= 100 && !carriesOn) reached = true;
+            if (snapshot["remainingPercentage"] is JsonValue left && left.TryGetValue<double>(out var exact) && exact <= 0 && !carriesOn) reached = true;
         }
 
         return windows.Count == 0 ? null : new AgentUsage(windows, DateTimeOffset.UtcNow, reached);
@@ -242,6 +255,8 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
 
     public async Task<AgentTurnResult> AskAsync(AgentTurn turn, AgentToolSession tools, IIntelligenceListener listener, CancellationToken cancellationToken)
     {
+        int generation;
+        lock (_sync) generation = _generation;
         var executable = _executable ?? throw new AgentProviderException("GitHub Copilot isn't set up yet. Check it in Settings › Providers.",
             IntelligenceFailure.Tools, AgentProviderState.NotInstalled);
         Directory.CreateDirectory(_workingDirectory);
@@ -253,10 +268,23 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
         {
             await PrivateFiles.WriteAsync(mcp, McpConfiguration(tools.Endpoint, tools.Token).ToJsonString(), cancellationToken).ConfigureAwait(false);
             var process = AgentProcess.Start(executable, Arguments(turn, mcp, UserServers()), _workingDirectory);
-            lock (_sync) _running.Add(process);
+            bool retired;
+            lock (_sync)
+            {
+                retired = generation != _generation;
+                if (!retired) _running.Add(process);
+            }
+
+            if (retired)
+            {
+                // Retired while this question was getting ready: nothing of it runs.
+                await process.DisposeAsync().ConfigureAwait(false);
+                throw new OperationCanceledException();
+            }
+
             try
             {
-                var stream = new StreamState(turn.Session);
+                var stream = new StreamState(turn.Session) { Resumed = turn.Session is not null && !turn.Temporary };
                 try
                 {
                     return await RunAsync(process, turn, stream, listener, cancellationToken).ConfigureAwait(false);
@@ -399,7 +427,7 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
                 return null;
 
             case "session.error":
-                return Failure(data?["message"]?.ToString(), data?["errorType"]?.ToString(), resumed: false);
+                return Failure(data?["message"]?.ToString(), data?["errorType"]?.ToString(), stream.Resumed);
 
             case "assistant.message_delta" when ParentTool(data) is null:
                 if (data?["deltaContent"]?.ToString() is { Length: > 0 } text) listener.OnText(text);
@@ -478,7 +506,11 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
     public async Task RetireAsync()
     {
         List<AgentProcess> running;
-        lock (_sync) running = _running.ToList();
+        lock (_sync)
+        {
+            _generation++;
+            running = _running.ToList();
+        }
         foreach (var process in running) await process.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -568,6 +600,9 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
     internal sealed class StreamState(string? session)
     {
         public string? Session { get; set; } = session;
+
+        /// <summary>The question continues a saved session, so a missing session means it was lost.</summary>
+        public bool Resumed { get; init; }
 
         public string? Answer { get; set; }
 

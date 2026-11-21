@@ -181,6 +181,7 @@ public sealed class CodexAgentProviderTests
 
     [Theory]
     [InlineData("thread not found: example", true)]
+    [InlineData("model not found: example-model", false)]
     [InlineData("no rollout found for thread id", true)]
     [InlineData("model is not available on this account", false)]
     [InlineData("rate limit reached", false)]

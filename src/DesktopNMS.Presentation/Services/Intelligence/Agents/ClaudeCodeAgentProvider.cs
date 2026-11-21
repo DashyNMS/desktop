@@ -70,6 +70,9 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
     private readonly ILogger _logger;
     private readonly object _sync = new();
     private readonly HashSet<AgentProcess> _running = new();
+
+    /// <summary>Counts retirements: a question that started before one never launches its process after it.</summary>
+    private int _generation;
     private string? _executable;
     private AgentUsage? _usage;
 
@@ -149,6 +152,8 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
 
     public async Task<AgentTurnResult> AskAsync(AgentTurn turn, AgentToolSession tools, IIntelligenceListener listener, CancellationToken cancellationToken)
     {
+        int generation;
+        lock (_sync) generation = _generation;
         var executable = _executable ?? throw new AgentProviderException("Claude Code isn't set up yet. Check it in Settings › Providers.",
             IntelligenceFailure.Tools, AgentProviderState.NotInstalled);
         Directory.CreateDirectory(_workingDirectory);
@@ -162,7 +167,20 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
             await PrivateFiles.WriteAsync(mcp, McpConfiguration(tools.Endpoint).ToJsonString(), cancellationToken).ConfigureAwait(false);
             var environment = new Dictionary<string, string?> { [TokenVariable] = tools.Token };
             var process = AgentProcess.Start(executable, Arguments(turn, instructions, mcp), _workingDirectory, environment);
-            lock (_sync) _running.Add(process);
+            bool retired;
+            lock (_sync)
+            {
+                retired = generation != _generation;
+                if (!retired) _running.Add(process);
+            }
+
+            if (retired)
+            {
+                // Retired while this question was getting ready: nothing of it runs.
+                await process.DisposeAsync().ConfigureAwait(false);
+                throw new OperationCanceledException();
+            }
+
             try
             {
                 return await RunAsync(process, turn, listener, cancellationToken).ConfigureAwait(false);
@@ -349,7 +367,7 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
 
     /// <summary>
     /// Claude Code's own account of the session it started: only DashyNMS's
-    /// tools, and DashyNMS's server connected. Anything else and it isn't asked.
+    /// tools, and DashyNMS's server connected. Anything else and the answer is stopped as soon as Claude Code reports it.
     /// </summary>
     private static AgentProviderException? CheckSession(JsonObject init, bool webSearch)
     {
@@ -357,7 +375,7 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
         if (tools.Any(t => !IsBridgeTool(t) && !(webSearch && t == WebSearchTool)))
         {
             return new AgentProviderException(
-                "Claude Code started with tools of its own, which DashyNMS doesn't allow in Intelligence chats, so it wasn't asked. Update Claude Code, then try again.",
+                "Claude Code started with tools of its own, which DashyNMS doesn't allow in Intelligence chats, so the answer was stopped. Update Claude Code, then try again.",
                 IntelligenceFailure.Tools);
         }
 
@@ -365,7 +383,7 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
         if (bridge?["status"]?.ToString() != "connected" || !tools.Any(IsBridgeTool))
         {
             return new AgentProviderException(
-                "Claude Code couldn't reach DashyNMS's network tools, so it wasn't asked to answer. Try again; if it keeps happening, restart DashyNMS.",
+                "Claude Code couldn't reach DashyNMS's network tools, so the answer was stopped. Try again; if it keeps happening, restart DashyNMS.",
                 IntelligenceFailure.Tools);
         }
 
@@ -447,7 +465,11 @@ public sealed partial class ClaudeCodeAgentProvider : IAgentProvider
     public async Task RetireAsync()
     {
         List<AgentProcess> running;
-        lock (_sync) running = _running.ToList();
+        lock (_sync)
+        {
+            _generation++;
+            running = _running.ToList();
+        }
         foreach (var process in running) await process.DisposeAsync().ConfigureAwait(false);
     }
 

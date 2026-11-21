@@ -531,10 +531,16 @@ public sealed partial class CodexAgentProvider : IAgentProvider
     /// temporary chat after a restart, or cleared history - as opposed to an
     /// error about the model, the account or Codex itself.
     /// </summary>
-    internal static bool IsMissingThread(string? message) => message is not null
-        && (message.Contains("not found", StringComparison.OrdinalIgnoreCase) || message.Contains("no thread", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("unknown thread", StringComparison.OrdinalIgnoreCase) || message.Contains("does not exist", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("no rollout", StringComparison.OrdinalIgnoreCase));
+    internal static bool IsMissingThread(string? message)
+    {
+        if (message is null) return false;
+        var aboutThread = message.Contains("thread", StringComparison.OrdinalIgnoreCase) || message.Contains("rollout", StringComparison.OrdinalIgnoreCase)
+                          || message.Contains("conversation", StringComparison.OrdinalIgnoreCase);
+        var missing = message.Contains("not found", StringComparison.OrdinalIgnoreCase) || message.Contains("does not exist", StringComparison.OrdinalIgnoreCase)
+                      || message.Contains("no such", StringComparison.OrdinalIgnoreCase) || message.Contains("unknown", StringComparison.OrdinalIgnoreCase)
+                      || message.StartsWith("no ", StringComparison.OrdinalIgnoreCase);
+        return aboutThread && missing;
+    }
 
     internal static string Digest(string provider, string identity)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(provider + "\n" + identity)))[..32].ToLowerInvariant();
@@ -613,7 +619,19 @@ public sealed partial class CodexAgentProvider : IAgentProvider
                 // Stop is wired up before the turn starts, and the start itself isn't abandoned, so a turn
                 // stopped while starting is still interrupted once Codex says which turn it is.
                 using var stop = cancellationToken.Register(() => _ = InterruptAsync(turn));
-                var started = await Rpc.RequestAsync("turn/start", start, CancellationToken.None).WaitAsync(RequestTimeout).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                JsonNode? started;
+                try
+                {
+                    started = await Rpc.RequestAsync("turn/start", start, CancellationToken.None).WaitAsync(RequestTimeout).ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    // A turn that may have started but can't be named can't be stopped: the server goes, and the next question starts a fresh one.
+                    _ = DisposeAsync().AsTask();
+                    throw new AgentProviderException("Codex didn't start answering. Try again.", IntelligenceFailure.Model);
+                }
+
                 turn.TurnId = started?["turn"]?["id"]?.ToString();
                 if (cancellationToken.IsCancellationRequested) _ = InterruptAsync(turn);
                 var exited = Rpc.Completion;

@@ -41,7 +41,10 @@ public sealed class JsonRpcConnection : IAsyncDisposable
     /// <summary>Completes when the agent's output ends - it exited or was killed.</summary>
     public Task Completion => _reading;
 
-    public bool IsClosed => _reading.IsCompleted;
+    public bool IsClosed => Volatile.Read(ref _closed) || _reading.IsCompleted;
+
+    /// <summary>Set before pending requests are failed, so one registered after that point fails too rather than waiting forever.</summary>
+    private bool _closed;
 
     public async Task<JsonNode?> RequestAsync(string method, JsonNode? parameters, CancellationToken cancellationToken)
     {
@@ -54,6 +57,9 @@ public sealed class JsonRpcConnection : IAsyncDisposable
             // Always present, if only as null: some servers refuse a request without it.
             var message = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["method"] = method, ["params"] = parameters };
             await _process.WriteLineAsync(message.ToJsonString(), cancellationToken).ConfigureAwait(false);
+
+            // The reader may have stopped between the check above and the write: nobody would answer.
+            if (IsClosed) answer.TrySetException(new AgentProviderException("The agent stopped unexpectedly.", Core.Intelligence.IntelligenceFailure.Model));
             return await answer.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -125,6 +131,7 @@ public sealed class JsonRpcConnection : IAsyncDisposable
         }
         finally
         {
+            Volatile.Write(ref _closed, true);
             foreach (var pending in _pending.Values)
             {
                 pending.TrySetException(new AgentProviderException("The agent stopped unexpectedly.", Core.Intelligence.IntelligenceFailure.Model));

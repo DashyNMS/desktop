@@ -72,6 +72,9 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
     private readonly ILogger _logger;
     private readonly object _sync = new();
     private readonly HashSet<AgentProcess> _running = new();
+
+    /// <summary>Counts retirements: a question that started before one never launches its process after it.</summary>
+    private int _generation;
     private string? _executable;
     private IReadOnlyList<AgentModel> _models = Array.Empty<AgentModel>();
 
@@ -162,6 +165,8 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
 
     public async Task<AgentTurnResult> AskAsync(AgentTurn turn, AgentToolSession tools, IIntelligenceListener listener, CancellationToken cancellationToken)
     {
+        int generation;
+        lock (_sync) generation = _generation;
         var executable = _executable ?? throw new AgentProviderException("Gemini isn't set up yet. Check it in Settings › Providers.",
             IntelligenceFailure.Tools, AgentProviderState.NotInstalled);
         var workspace = Path.Combine(_workingDirectory, Guid.NewGuid().ToString("N"));
@@ -174,7 +179,20 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
             await PrivateFiles.WriteAsync(Path.Combine(workspace, ".agents", "mcp_config.json"), McpConfiguration(tools.Endpoint, tools.Token).ToJsonString(), cancellationToken).ConfigureAwait(false);
             await PrivateFiles.WriteAsync(settings, SessionSettings(workspace, UserServers()).ToJsonString(), cancellationToken).ConfigureAwait(false);
             var process = AgentProcess.Start(executable, Arguments(turn, settings), workspace);
-            lock (_sync) _running.Add(process);
+            bool retired;
+            lock (_sync)
+            {
+                retired = generation != _generation;
+                if (!retired) _running.Add(process);
+            }
+
+            if (retired)
+            {
+                // Retired while this question was getting ready: nothing of it runs.
+                await process.DisposeAsync().ConfigureAwait(false);
+                throw new OperationCanceledException();
+            }
+
             try
             {
                 return await RunAsync(process, turn, stream, listener, cancellationToken).ConfigureAwait(false);
@@ -412,7 +430,11 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
     public async Task RetireAsync()
     {
         List<AgentProcess> running;
-        lock (_sync) running = _running.ToList();
+        lock (_sync)
+        {
+            _generation++;
+            running = _running.ToList();
+        }
         foreach (var process in running) await process.DisposeAsync().ConfigureAwait(false);
     }
 

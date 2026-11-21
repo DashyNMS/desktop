@@ -192,8 +192,19 @@ public sealed partial class AgentProcess : IAsyncDisposable
             // Left to the system; nothing more can be done from here.
         }
 
+        // The pipes are closed explicitly: a worker the launcher left behind can hold them open,
+        // and the readers would otherwise wait on them. The write lock isn't disposed - a write
+        // still waiting for it fails on the closed input instead.
+        try
+        {
+            _process.StandardOutput.Dispose();
+            _process.StandardError.Dispose();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException)
+        {
+        }
+
         _process.Dispose();
-        _writing.Dispose();
     }
 
     private async Task ReadOutputAsync()

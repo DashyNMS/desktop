@@ -199,6 +199,10 @@ public sealed class AgentToolSession : IDisposable
             return ToolResult("The question was stopped, so this lookup didn't finish.", isError: true);
         }
 
+        // A lookup that finished after its question closed - stopped, retired or replaced - takes its
+        // network data nowhere: the agent gets the same refusal as a call made outside a question.
+        if (!turn.IsCurrent || _disposed) return ToolResult(NoQuestion, isError: true);
+
         var content = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = outcome.Text });
         foreach (var image in outcome.Images)
         {
