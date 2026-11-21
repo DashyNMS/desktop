@@ -202,6 +202,38 @@ public sealed class IntelligenceAgentProviderTests
     }
 
     [Fact]
+    public async Task A_ready_provider_stays_ready_and_offered_while_it_is_checked_again()
+    {
+        var (model, agent, _, _) = await CreateAsync();
+        using var _ = model;
+        var provider = model.Providers.Single(p => p.Id == agent.Id);
+        agent.CheckGate = new TaskCompletionSource();
+
+        var check = provider.CheckAsync(CancellationToken.None);
+
+        Assert.True(provider.IsReady);
+        Assert.True(provider.IsChecking);
+        Assert.Contains(model.Composer.AvailableProviders, p => p.Id == agent.Id);
+        agent.CheckGate.SetResult();
+        await check;
+        Assert.False(provider.IsChecking);
+    }
+
+    [Fact]
+    public async Task Turning_Intelligence_on_later_looks_for_the_agents()
+    {
+        var (model, agent, _, _) = await CreateAsync(check: false);
+        using var _ = model;
+        Assert.Equal(AgentProviderState.Checking, model.Providers.Single(p => p.Id == agent.Id).State);
+
+        Settings.Current.IntelligenceEnabled = true;
+        Settings.Save();
+        for (var i = 0; i < 500 && model.Providers.Single(p => p.Id == agent.Id).State == AgentProviderState.Checking; i++) await Task.Delay(10);
+
+        Assert.Equal(AgentProviderState.Ready, model.Providers.Single(p => p.Id == agent.Id).State);
+    }
+
+    [Fact]
     public async Task A_custom_personality_goes_with_the_question_and_is_shown_only_while_on()
     {
         var (model, agent, _, _) = await CreateAsync();
@@ -391,7 +423,7 @@ public sealed class IntelligenceAgentProviderTests
         await Task.Delay(20);
     }
 
-    private static async Task<(IntelligenceViewModel Model, FakeAgent Agent, Store Store, Windows Windows)> CreateAsync(bool ready = true, bool second = false, bool secondHasEfforts = true, bool webSearch = false, string id = "agent", ChatGptCredentials? credentials = null)
+    private static async Task<(IntelligenceViewModel Model, FakeAgent Agent, Store Store, Windows Windows)> CreateAsync(bool ready = true, bool second = false, bool secondHasEfforts = true, bool webSearch = false, string id = "agent", ChatGptCredentials? credentials = null, bool check = true)
     {
         var settings = new TestSettings();
         Settings = settings;
@@ -412,7 +444,7 @@ public sealed class IntelligenceAgentProviderTests
             windows.Proxy, devices, client, settings,
             new AlertMonitor(client, null!, settings, null!, devices, NullLogger<AlertMonitor>.Instance), store,
             NullLogger<IntelligenceViewModel>.Instance, agents: agents);
-        await model.CheckAgentsAsync();
+        if (check) await model.CheckAgentsAsync();
         return (model, agent, store, windows);
     }
 
@@ -428,10 +460,16 @@ public sealed class IntelligenceAgentProviderTests
         public string Company => "Example Ltd";
         public AgentCapabilities Capabilities => new(WebSearch: true, Images: true, Usage: true);
 
-        public Task<AgentProviderStatus> CheckAsync(string? executablePath, CancellationToken cancellationToken)
-            => Task.FromResult(Ready
+        /// <summary>When set, a check waits for it - to see the provider while it's being checked.</summary>
+        public TaskCompletionSource? CheckGate { get; set; }
+
+        public async Task<AgentProviderStatus> CheckAsync(string? executablePath, CancellationToken cancellationToken)
+        {
+            if (CheckGate is { } gate) await gate.Task;
+            return Ready
                 ? new AgentProviderStatus(AgentProviderState.Ready, "agent", "1.0", "account-digest", "Signed in as someone@example.net")
-                : new AgentProviderStatus(AgentProviderState.SignedOut, "agent", "1.0"));
+                : new AgentProviderStatus(AgentProviderState.SignedOut, "agent", "1.0");
+        }
 
         public Task<IReadOnlyList<AgentModel>> ListModelsAsync(CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<AgentModel>>([new AgentModel(id + "-model", id == "agent" ? "Agent model" : "Second model",

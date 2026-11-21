@@ -112,6 +112,19 @@ public partial class SettingsWindow : Window
     private void OnProviderRowPressed(object? sender, PointerPressedEventArgs e)
     {
         if (e.Source is Visual { } source && source.FindAncestorOfType<Button>(includeSelf: true) is not null) return;
+        SelectProvider(sender);
+    }
+
+    /// <summary>Enter or Space chooses a focused provider row, as a click does.</summary>
+    private void OnProviderRowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.Enter or Key.Space) || !ReferenceEquals(e.Source, sender)) return;
+        SelectProvider(sender);
+        e.Handled = true;
+    }
+
+    private void SelectProvider(object? sender)
+    {
         if (sender is Control { DataContext: IntelligenceProviderEntryViewModel entry } && DataContext is SettingsViewModel settings)
         {
             settings.IntelligenceProviders.Selected = entry;

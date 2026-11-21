@@ -42,13 +42,7 @@ public sealed class IntelligenceProvidersViewModel : ObservableObject
             All.Add(new IntelligenceProviderEntryViewModel(this, provider.Id, provider.Name, Requirement(provider.Id)));
         }
 
-        foreach (var provider in intelligence.Providers)
-        {
-            ((INotifyPropertyChanged)provider).PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName == nameof(IntelligenceProviderViewModel.Status)) Refresh();
-            };
-        }
+        foreach (var provider in intelligence.Providers) ((INotifyPropertyChanged)provider).PropertyChanged += OnProviderChanged;
 
         AddCommand = new RelayCommand(() => IsAdding = true);
         CancelAddCommand = new RelayCommand(() => IsAdding = false);
@@ -114,6 +108,23 @@ public sealed class IntelligenceProvidersViewModel : ObservableObject
     }
 
     internal IntelligenceViewModel Intelligence => _intelligence;
+
+    private void OnProviderChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IntelligenceProviderViewModel.Status)) Refresh();
+    }
+
+    /// <summary>
+    /// Settings is closing: stops following the live providers - Settings is
+    /// opened afresh each time, and the providers outlive it - and puts back
+    /// any provider checked with an executable that wasn't applied.
+    /// </summary>
+    /// <param name="saved">The settings as saved now, after any Apply.</param>
+    internal void Detach(AppSettings saved)
+    {
+        foreach (var provider in _intelligence.Providers) ((INotifyPropertyChanged)provider).PropertyChanged -= OnProviderChanged;
+        foreach (var entry in All) entry.Detach(saved);
+    }
 
     /// <summary>Opens a provider's install page in the browser.</summary>
     internal void Open(Uri page) => _windows?.OpenUrl(page);
@@ -236,6 +247,9 @@ public sealed class IntelligenceProviderEntryViewModel : ObservableObject
     /// <summary>The card's label for what choosing it does.</summary>
     public string ActionText => IsListed ? "Added" : IsInstalled ? "Add" : "Install";
 
+    /// <summary>The card as a screen reader announces it: what choosing it does, and to which provider.</summary>
+    public string ActionName => IsListed ? $"{Name}, added" : IsInstalled ? $"Add {Name}" : $"Install {Name}";
+
     /// <summary>The provider's own install instructions, for the ones that run on this computer.</summary>
     public Uri? InstallPage => Id switch
     {
@@ -349,6 +363,14 @@ public sealed class IntelligenceProviderEntryViewModel : ObservableObject
 
     private readonly Dictionary<string, IntelligenceAgentSettingsViewModel> _agents = new(StringComparer.Ordinal);
 
+    internal void Detach(AppSettings saved)
+    {
+        foreach (var (id, agent) in _agents)
+        {
+            agent.Detach(saved.IntelligenceProviders.TryGetValue(id, out var chosen) ? chosen.ExecutablePath : null);
+        }
+    }
+
     private IntelligenceAgentSettingsViewModel AgentFor(IntelligenceProviderViewModel route)
     {
         if (!_agents.TryGetValue(route.Id, out var agent))
@@ -366,7 +388,7 @@ public sealed class IntelligenceProviderEntryViewModel : ObservableObject
                  {
                      nameof(Connection), nameof(UsesSignIn), nameof(UsesCodex), nameof(Route), nameof(Agent), nameof(IsAgentRoute),
                      nameof(StatusLine), nameof(IsReady), nameof(VersionText), nameof(Models), nameof(HasModels), nameof(ModelsSummary),
-                     nameof(IsListed), nameof(CanAdd), nameof(AddNote), nameof(IsInstalled), nameof(ShowAdd), nameof(ShowInstall), nameof(ActionText),
+                     nameof(IsListed), nameof(CanAdd), nameof(AddNote), nameof(IsInstalled), nameof(ShowAdd), nameof(ShowInstall), nameof(ActionText), nameof(ActionName),
                  })
         {
             OnPropertyChanged(name);

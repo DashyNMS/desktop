@@ -1579,6 +1579,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         MobileSignIn.Detach();
         _updates.ReadyUpdateChanged -= OnReadyUpdateChanged;
         Intelligence.Models.CollectionChanged -= OnIntelligenceModelsChanged;
+        IntelligenceProviders.Detach(_store.Current);
     }
 
     /// <summary>

@@ -9,7 +9,7 @@ using DesktopNMS.Infrastructure;
 namespace DesktopNMS.ViewModels;
 
 /// <summary>
-/// One agent provider's card in Settings › Intelligence (#316): where it
+/// One agent provider's details in Settings › Providers (#316): where it
 /// stands and how to fix it, which executable to use, and the model and
 /// reasoning a new chat starts with. The choices are part of Settings'
 /// draft, saved with everything else; the status is the live provider's.
@@ -27,16 +27,41 @@ public sealed class IntelligenceAgentSettingsViewModel : ObservableObject
         {
             if (Provider.SetupCommandText is { } command) UiPlatform.Clipboard.SetText(command);
         }, () => Provider.HasSetupCommand);
-        CheckCommand = new AsyncRelayCommand(() => Provider.CheckAsync(CancellationToken.None, ExecutablePath), () => !Provider.IsChecking);
-        ((INotifyPropertyChanged)Provider).PropertyChanged += (_, e) =>
+        CheckCommand = new AsyncRelayCommand(() =>
         {
-            if (e.PropertyName == nameof(IntelligenceProviderViewModel.Status))
-            {
-                CopySetupCommand.RaiseCanExecuteChanged();
-                CheckCommand.RaiseCanExecuteChanged();
-            }
-        };
-        Provider.Models.CollectionChanged += (_, _) => RaiseDefaults();
+            // A path that isn't saved yet is checked on the live provider; Detach puts the saved one back if it's never applied.
+            _checkedUnsaved |= !string.Equals(ExecutablePath, _savedPath, StringComparison.Ordinal);
+            return Provider.CheckAsync(CancellationToken.None, ExecutablePath);
+        }, () => !Provider.IsChecking);
+        _savedPath = ExecutablePath;
+        ((INotifyPropertyChanged)Provider).PropertyChanged += OnProviderChanged;
+        Provider.Models.CollectionChanged += OnModelsChanged;
+    }
+
+    private readonly string? _savedPath;
+    private bool _checkedUnsaved;
+
+    private void OnProviderChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(IntelligenceProviderViewModel.Status) or nameof(IntelligenceProviderViewModel.IsChecking))
+        {
+            CopySetupCommand.RaiseCanExecuteChanged();
+            CheckCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    private void OnModelsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => RaiseDefaults();
+
+    /// <summary>
+    /// Settings is closing: stops following the live provider, and if an
+    /// executable was checked but never applied, checks the saved one again
+    /// so the provider is back as it was.
+    /// </summary>
+    internal void Detach(string? appliedPath)
+    {
+        ((INotifyPropertyChanged)Provider).PropertyChanged -= OnProviderChanged;
+        Provider.Models.CollectionChanged -= OnModelsChanged;
+        if (_checkedUnsaved && string.Equals(appliedPath, _savedPath, StringComparison.Ordinal)) _ = Provider.CheckAsync(CancellationToken.None);
     }
 
     /// <summary>

@@ -27,6 +27,11 @@
         <!-- Settings › Providers (#316): the list's rows, the detail's sections and compact switches. -->
         <Style Selector="Border.providerRow">
             <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.providerRow:focus-visible">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
         </Style>
         <Style Selector="Border.providerRow:pointerover">
             <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
@@ -864,7 +869,8 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:IntelligenceProviderEntryViewModel">
                                                     <Border Classes="providerRow" Classes.selected="{Binding IsSelected}" CornerRadius="6" Padding="8,8,6,8" Margin="0,0,0,2"
-                                                            Cursor="Hand" PointerPressed="OnProviderRowPressed">
+                                                            Cursor="Hand" PointerPressed="OnProviderRowPressed" KeyDown="OnProviderRowKeyDown" Focusable="True"
+                                                            AutomationProperties.Name="{Binding Name}" AutomationProperties.HelpText="{Binding StatusLine}">
                                                         <Grid ColumnDefinitions="Auto,*,Auto">
                                                             <intel:ProviderIcon Provider="{Binding IconId}" Size="16" VerticalAlignment="Top" Margin="0,2,8,0" />
                                                             <StackPanel Grid.Column="1">
@@ -1174,7 +1180,7 @@
                             <DataTemplate x:DataType="vm:IntelligenceProviderEntryViewModel">
                                 <Button Margin="0,0,8,8" Padding="12,10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                         VerticalContentAlignment="Center" Command="{Binding ChooseCommand}" ToolTip.Tip="{Binding AddNote}"
-                                        AutomationProperties.Name="{Binding Name}">
+                                        AutomationProperties.Name="{Binding ActionName}">
                                     <Grid ColumnDefinitions="Auto,*,Auto">
                                         <intel:ProviderIcon Provider="{Binding IconId}" Size="16" VerticalAlignment="Top" Margin="0,2,10,0" />
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">

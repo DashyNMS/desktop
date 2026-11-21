@@ -93,7 +93,7 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
 
     public RelayCommand SelectEffortCommand { get; }
 
-    /// <summary>Opens Settings › Intelligence from the picker's provider note.</summary>
+    /// <summary>Opens Settings › Providers from the picker's provider note.</summary>
     public RelayCommand? OpenProviderSettingsCommand { get; internal set; }
 
     public string Question

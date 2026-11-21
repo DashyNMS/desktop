@@ -117,6 +117,9 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
                 _ = DisconnectAsync();
             }
 
+            // Turned on after starting with Intelligence off: the agents haven't been looked for yet.
+            if (current.IntelligenceEnabled && !_agentsChecked) _ = CheckAgentsAsync();
+
             RefreshOffered();
             OnPropertyChanged(nameof(HasReadyProvider));
             OnPropertyChanged(nameof(NeedsProvider));
@@ -303,7 +306,14 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     public IntelligenceProviderViewModel? ChatProvider => Providers.FirstOrDefault(p => p.Id == _chatProvider);
 
     /// <summary>Checks each agent's installation and sign-in, together.</summary>
-    public Task CheckAgentsAsync() => Task.WhenAll(Providers.Where(p => p.IsAgent).Select(p => p.CheckAsync(CancellationToken.None)));
+    public Task CheckAgentsAsync()
+    {
+        _agentsChecked = true;
+        return Task.WhenAll(Providers.Where(p => p.IsAgent).Select(p => p.CheckAsync(CancellationToken.None)));
+    }
+
+    /// <summary>The agents have been looked for at least once since the app started.</summary>
+    private bool _agentsChecked;
 
     /// <summary>Every default a new chat starts with, as one value to compare.</summary>
     private static string Defaults(AppSettings settings) => string.Join("\n",
@@ -854,7 +864,8 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     {
         foreach (var session in _agentTools.Values) session.Dispose();
         _agentTools.Clear();
-        await Task.WhenAll(Providers.Where(p => p.Agent is not null).Select(p => p.Agent!.RetireAsync())).ConfigureAwait(true);
+        // Nothing after this needs the UI thread, and Dispose waits on it from there.
+        await Task.WhenAll(Providers.Where(p => p.Agent is not null).Select(p => p.Agent!.RetireAsync())).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -900,7 +911,25 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
 
         // A chat switched away from while it ran keeps its session in its own save, not this one.
         if (ReferenceEquals(chat, Chats.SelectedChat)) _providerSession = result.Session;
-        provider.Usage = result.Usage ?? await agent.ReadUsageAsync(CancellationToken.None).ConfigureAwait(true) ?? provider.Usage;
+        if (result.Usage is { } reported) provider.Usage = reported;
+        else _ = RefreshUsageAsync(provider, agent);
+    }
+
+    /// <summary>
+    /// Usage for a provider that doesn't report it with the answer - Copilot
+    /// asks its CLI separately - read after the answer is in, so the question
+    /// box isn't held up, and never failing the answer.
+    /// </summary>
+    private async Task RefreshUsageAsync(IntelligenceProviderViewModel provider, IAgentProvider agent)
+    {
+        try
+        {
+            if (await agent.ReadUsageAsync(CancellationToken.None).ConfigureAwait(true) is { } usage) provider.Usage = usage;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("Intelligence: reading {Provider} usage failed ({ErrorType})", provider.Id, ex.GetType().Name);
+        }
     }
 
     /// <summary>The provider's bridge session, opened on first use and kept until the agents retire.</summary>

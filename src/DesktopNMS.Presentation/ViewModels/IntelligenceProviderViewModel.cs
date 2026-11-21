@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 namespace DesktopNMS.ViewModels;
 
 /// <summary>
-/// One Intelligence provider as the picker and Settings › Intelligence show it
+/// One Intelligence provider as the picker and Settings › Providers show it
 /// (#316): whether it can answer, why not and what to do about it, its models
 /// and its usage. ChatGPT's state comes from IntelligenceViewModel's own
 /// sign-in; an agent's from checking its installation through
@@ -150,7 +150,10 @@ public sealed class IntelligenceProviderViewModel : ObservableObject
     /// <summary>Signed in, with an account to keep its chats under.</summary>
     public bool IsReady => IsChatGpt ? _status.State == AgentProviderState.Ready : _status.IsReady;
 
-    public bool IsChecking => _status.State == AgentProviderState.Checking;
+    public bool IsChecking => _status.State == AgentProviderState.Checking || _running > 0;
+
+    /// <summary>Checks under way - a ready provider stays ready while it's checked again.</summary>
+    private int _running;
 
     public string StatusText => _status.State switch
     {
@@ -257,7 +260,12 @@ public sealed class IntelligenceProviderViewModel : ObservableObject
     {
         if (Agent is null) return;
         var check = Interlocked.Increment(ref _checks);
-        Status = AgentProviderStatus.Checking;
+
+        // A ready provider keeps its state, account and models while it's checked again: showing it
+        // as checking would take it out of the picker and its chats out of the list, and stop an answer.
+        if (!Status.IsReady) Status = AgentProviderStatus.Checking;
+        _running++;
+        OnPropertyChanged(nameof(IsChecking));
         AgentProviderStatus status;
         IReadOnlyList<AgentModel> models = Array.Empty<AgentModel>();
         AgentUsage? usage = null;
@@ -272,6 +280,7 @@ public sealed class IntelligenceProviderViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
+            Finished();
             return;
         }
         catch (Exception ex)
@@ -281,10 +290,17 @@ public sealed class IntelligenceProviderViewModel : ObservableObject
             status = new AgentProviderStatus(AgentProviderState.Unavailable, Detail: $"DashyNMS couldn't check {Name}. Make sure it runs in a terminal, then choose Check again.");
         }
 
+        Finished();
         if (check != Volatile.Read(ref _checks)) return;
         ReplaceModels(models.Select(m => IntelligenceModelOption.FromAgent(Id, m)));
         Usage = usage;
         Status = status;
+    }
+
+    private void Finished()
+    {
+        _running--;
+        OnPropertyChanged(nameof(IsChecking));
     }
 
     internal void ReplaceModels(IEnumerable<IntelligenceModelOption> models)
