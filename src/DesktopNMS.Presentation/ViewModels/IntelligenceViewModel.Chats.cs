@@ -77,6 +77,7 @@ public sealed partial class IntelligenceViewModel : IIntelligenceChatHost
             {
                 var restored = IntelligenceMessageViewModel.Restore(message);
                 restored.SeedInlineReferences(Messages.Where(item => item.IsAssistant).Reverse().SelectMany(item => item.InlineReferences));
+                restored.NameDevices(CachedDevice);
                 Messages.Add(restored);
             }
         Composer.Question = chat?.Draft ?? string.Empty;

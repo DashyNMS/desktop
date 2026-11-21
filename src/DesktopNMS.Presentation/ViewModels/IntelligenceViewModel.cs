@@ -408,6 +408,21 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         Messages.Add(IntelligenceMessageViewModel.ForHandoff(new IntelligenceHandoff(fromProvider, fromModel, to.Provider, to.Name)));
     }
 
+    /// <summary>
+    /// A device as the app's device list last saw it, for naming a marker no
+    /// lookup named. Its state is the list's, and says so.
+    /// </summary>
+    internal IntelligenceInlineReference? CachedDevice(int deviceId)
+    {
+        if (_devices.Get(deviceId) is not { } device) return null;
+        var state = device.Disabled || device.Ignore ? "Disabled" : device.Status ? "Up" : "Down";
+        return new IntelligenceInlineReference("device:" + deviceId, _settings.Current.DeviceNameStyle.Resolve(device, device.Hostname), state,
+            state == "Up" ? "up" : state == "Down" ? "down" : "unknown", _devices.LastRefreshed ?? DateTimeOffset.UtcNow, "Device status from DashyNMS's device list")
+        {
+            Object = new("device", deviceId),
+        };
+    }
+
     private string ProviderName(string provider) => Providers.FirstOrDefault(p => p.Id == provider)?.DisplayName ?? provider;
 
     public ObservableCollection<IntelligenceMessageViewModel> Messages { get; } = new();
@@ -995,6 +1010,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         public void OnText(string delta) => _owner._dispatcher.InvokeAsync(() =>
         {
             _answer.Text += delta;
+            if (delta.Contains(']')) _answer.NameDevices(_owner.CachedDevice);
             if (!string.IsNullOrWhiteSpace(delta)) _timing.FirstResponse();
             _owner.Chats.SaveWhileStreaming();
         });
@@ -1002,6 +1018,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         public void OnAnswerCompleted(string text) => _owner._dispatcher.InvokeAsync(() =>
         {
             _answer.Text = text;
+            _answer.NameDevices(_owner.CachedDevice);
             if (!string.IsNullOrWhiteSpace(text)) _timing.FirstResponse();
         });
 

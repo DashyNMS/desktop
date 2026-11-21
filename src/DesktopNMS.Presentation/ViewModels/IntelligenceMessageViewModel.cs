@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text.RegularExpressions;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Infrastructure;
 
@@ -182,6 +183,29 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
             _priorReferences.TryAdd(reference.Key, reference with { Status = "", Tone = "unknown", Detail = "Name verified earlier in this chat; current status not supplied by this reply" });
         }
         OnPropertyChanged(nameof(InlineReferences));
+    }
+
+    private static readonly Regex DeviceMarker = new(@"\[\[device:(\d{1,9})\]\]", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Names each device marker no lookup in this chat named, from the app's
+    /// own device list, so an answer never shows a bare "Device 442" - a
+    /// device that only appeared in an event log or outage has no status card.
+    /// </summary>
+    /// <param name="lookup">The device as the app last saw it, or null when it isn't in the list.</param>
+    public void NameDevices(Func<int, IntelligenceInlineReference?> lookup)
+    {
+        var added = false;
+        foreach (Match match in DeviceMarker.Matches(_text))
+        {
+            var key = "device:" + match.Groups[1].Value;
+            if (_inlineReferences.ContainsKey(key) || _priorReferences.ContainsKey(key) || _priorReferences.Count >= 2000) continue;
+            if (!int.TryParse(match.Groups[1].Value, out var id) || lookup(id) is not { } reference) continue;
+            _priorReferences[key] = reference;
+            added = true;
+        }
+
+        if (added) OnPropertyChanged(nameof(InlineReferences));
     }
 
     public void AddStatusCard(IntelligenceStatusCard card)
