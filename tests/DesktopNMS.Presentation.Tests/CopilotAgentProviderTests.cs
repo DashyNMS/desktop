@@ -18,12 +18,13 @@ public sealed class CopilotAgentProviderTests
         """);
 
     [Fact]
-    public void An_account_with_Copilot_is_ready_with_a_digest_for_its_chats()
+    public void A_signed_in_account_is_ready_with_a_digest_for_its_chats()
     {
-        var status = CopilotAgentProvider.Status("copilot", "1.0.114", Auth("""{"access_type_sku":"free_limited_copilot","chat_enabled":true,"is_mcp_enabled":true,"copilot_plan":"free"}"""));
+        var status = CopilotAgentProvider.Status("copilot", "1.0.114", Auth("""{"access_type_sku":"no_access","chat_enabled":false,"is_mcp_enabled":true,"copilot_plan":"individual"}"""));
 
+        // The plan fields lag a sign-up, so they neither block nor name a plan.
         Assert.True(status.IsReady);
-        Assert.Equal("Signed in as someone (GitHub Copilot Free)", status.AccountText);
+        Assert.Equal("Signed in as someone (GitHub)", status.AccountText);
         Assert.DoesNotContain("someone", status.AccountKey);
     }
 
@@ -32,23 +33,13 @@ public sealed class CopilotAgentProviderTests
         => Assert.Equal(AgentProviderState.SignedOut, CopilotAgentProvider.Status("copilot", "1", JsonNode.Parse("""{"authInfo":null}""")).State);
 
     [Fact]
-    public void An_account_without_Copilot_is_unavailable_and_says_how_to_get_it()
+    public void MCP_turned_off_for_the_account_is_unavailable_and_says_where_to_turn_it_on()
     {
-        var status = CopilotAgentProvider.Status("copilot", "1", Auth("""{"access_type_sku":"no_access","chat_enabled":false,"can_signup_for_limited":true,"is_mcp_enabled":false,"copilot_plan":"individual"}"""));
+        var status = CopilotAgentProvider.Status("copilot", "1", Auth("""{"chat_enabled":true,"is_mcp_enabled":false}"""));
 
         Assert.Equal(AgentProviderState.Unavailable, status.State);
-        Assert.Contains("Copilot Free", status.Detail);
-        Assert.Equal("Signed in as someone (GitHub)", status.AccountText);
+        Assert.Contains("github.com/settings/copilot/features", status.Detail);
         Assert.NotNull(status.AccountKey);
-    }
-
-    [Fact]
-    public void MCP_turned_off_for_the_account_is_unavailable()
-    {
-        var status = CopilotAgentProvider.Status("copilot", "1", Auth("""{"access_type_sku":"business","chat_enabled":true,"is_mcp_enabled":false}"""));
-
-        Assert.Equal(AgentProviderState.Unavailable, status.State);
-        Assert.Contains("MCP servers", status.Detail);
     }
 
     [Fact]
@@ -79,6 +70,7 @@ public sealed class CopilotAgentProviderTests
             {"quotaSnapshots":{
               "premium_interactions":{"isUnlimitedEntitlement":false,"remainingPercentage":25,"resetDate":"2026-12-01T00:00:00Z","usageAllowedWithExhaustedQuota":false,"overageAllowedWithExhaustedQuota":false},
               "chat":{"isUnlimitedEntitlement":true,"remainingPercentage":100},
+              "premium_extra":{"isUnlimitedEntitlement":false,"entitlementRequests":0,"remainingPercentage":0},
               "completions":{"isUnlimitedEntitlement":false,"remainingPercentage":50}}}
             """));
 
@@ -92,7 +84,7 @@ public sealed class CopilotAgentProviderTests
     public void An_exhausted_quota_that_stops_work_is_a_reached_limit()
     {
         var usage = CopilotAgentProvider.Usage(JsonNode.Parse("""
-            {"quotaSnapshots":{"premium_interactions":{"isUnlimitedEntitlement":false,"remainingPercentage":0,"usageAllowedWithExhaustedQuota":false,"overageAllowedWithExhaustedQuota":false}}}
+            {"quotaSnapshots":{"premium_interactions":{"isUnlimitedEntitlement":false,"entitlementRequests":300,"remainingPercentage":0,"usageAllowedWithExhaustedQuota":false,"overageAllowedWithExhaustedQuota":false}}}
             """));
 
         Assert.True(usage!.LimitReached);

@@ -96,7 +96,10 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
             {
                 var auth = await rpc.RequestAsync("account.getCurrentAuth", new JsonObject(), ct).ConfigureAwait(false);
                 var status = Status(executable, version, auth);
-                if (status.State != AgentProviderState.Ready) return status;
+                if (status.State == AgentProviderState.SignedOut) return status;
+
+                // Whether the account has Copilot at all: listing its models is refused when it doesn't.
+                // The account call's own plan fields lag a sign-up, so they aren't relied on.
                 try
                 {
                     var models = Models(await rpc.RequestAsync("models.list", new JsonObject(), ct).ConfigureAwait(false));
@@ -105,7 +108,7 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
                 }
                 catch (JsonRpcException ex) when (IsRefusal(ex.Message))
                 {
-                    return status with { State = AgentProviderState.Unavailable, Detail = NoAccessDetail(canSignUp: false) };
+                    return status with { State = AgentProviderState.Unavailable, Detail = NoAccessDetail };
                 }
             }, cancellationToken).ConfigureAwait(false);
         }
@@ -133,50 +136,25 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
         var login = auth["login"]?.ToString();
         var type = auth["type"]?.ToString();
         var key = CodexAgentProvider.Digest("copilot", string.Join("|", host, login, type));
-        var text = login is { Length: > 0 }
-            ? $"Signed in as {login} (GitHub{(PlanName(auth["copilotUser"]?["copilot_plan"]?.ToString()) is { } plan ? " Copilot " + plan : string.Empty)})"
-            : "Signed in with a GitHub token";
+        var text = login is { Length: > 0 } ? $"Signed in as {login} (GitHub)" : "Signed in with a GitHub token";
         var ready = new AgentProviderStatus(AgentProviderState.Ready, executable, version, key, text);
 
-        // Only what the account call says outright counts: a field it leaves out never blocks.
-        if (auth["copilotUser"] is not JsonObject user) return ready;
-        if (user["access_type_sku"]?.ToString() == "no_access" || user["chat_enabled"] is JsonValue chat && chat.TryGetValue<bool>(out var enabled) && !enabled)
-        {
-            // The plan field still names a plan when there's no access, so it isn't shown.
-            var canSignUp = user["can_signup_for_limited"] is JsonValue s && s.TryGetValue<bool>(out var signUp) && signUp;
-            return ready with
-            {
-                State = AgentProviderState.Unavailable,
-                AccountText = login is { Length: > 0 } ? $"Signed in as {login} (GitHub)" : text,
-                Detail = NoAccessDetail(canSignUp),
-            };
-        }
-
-        if (user["is_mcp_enabled"] is JsonValue mcp && mcp.TryGetValue<bool>(out var mcpEnabled) && !mcpEnabled)
+        // MCP off is what the CLI enforces - it warns and drops DashyNMS's server - so it's
+        // shown before the first question rather than after it. A field left out never blocks.
+        if (auth["copilotUser"]?["is_mcp_enabled"] is JsonValue mcp && mcp.TryGetValue<bool>(out var mcpEnabled) && !mcpEnabled)
         {
             return ready with
             {
                 State = AgentProviderState.Unavailable,
-                Detail = "MCP servers are turned off for this GitHub account, and DashyNMS's network tools reach Copilot as one. If an organisation manages your Copilot, ask an administrator to allow MCP servers in Copilot CLI, then choose Check again.",
+                Detail = "MCP servers are turned off for this Copilot account, and DashyNMS's network tools reach Copilot as one. Turn on \"MCP servers in Copilot\" at github.com/settings/copilot/features - or, if an organisation manages your Copilot, ask an administrator to allow them - then choose Check again.",
             };
         }
 
         return ready;
     }
 
-    private static string NoAccessDetail(bool canSignUp) => canSignUp
-        ? "This GitHub account doesn't have Copilot yet. Sign up for Copilot Free, or another plan, at github.com/settings/copilot, then choose Check again."
-        : "This GitHub account can't use Copilot CLI. Check its plan at github.com/settings/copilot - or ask your organisation's administrator to allow Copilot CLI - then choose Check again.";
-
-    private static string? PlanName(string? plan) => plan switch
-    {
-        "free" => "Free",
-        "individual" => "Pro",
-        "individual_pro" => "Pro+",
-        "business" => "Business",
-        "enterprise" => "Enterprise",
-        _ => null,
-    };
+    private const string NoAccessDetail =
+        "This GitHub account can't use Copilot yet. Sign up for Copilot Free, or another plan, at github.com/settings/copilot - or, if an organisation manages your Copilot, ask an administrator to allow Copilot CLI - then choose Check again.";
 
     /// <summary>
     /// The account's models from <c>models.list</c>: those its policy hasn't
@@ -238,6 +216,9 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
         {
             if (value is not JsonObject snapshot || key == "completions") continue;
             if (snapshot["isUnlimitedEntitlement"] is JsonValue u && u.TryGetValue<bool>(out var unlimited) && unlimited) continue;
+
+            // A plan without the allowance - Free has no premium requests - lists it as zero, not as used up.
+            if (snapshot["entitlementRequests"] is JsonValue e && e.TryGetValue<double>(out var entitled) && entitled <= 0) continue;
             double? used = snapshot["remainingPercentage"] is JsonValue r && r.TryGetValue<double>(out var remaining)
                 ? Math.Round(Math.Clamp(100 - remaining, 0, 100), 1)
                 : null;
