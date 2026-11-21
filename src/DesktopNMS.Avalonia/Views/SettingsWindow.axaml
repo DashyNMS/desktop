@@ -956,22 +956,27 @@
                                         <TextBlock Classes="subtle" Margin="0,2,0,0" Text="{Binding Route.UsageText, FallbackValue=''}" />
                                     </StackPanel>
 
-                                    <!-- Which models the picker shows, and what new chats start with. -->
+                                    <!-- What new chats start with. -->
                                     <StackPanel IsVisible="{Binding HasModels}" Classes="providerSection">
-                                        <DockPanel>
-                                            <TextBlock DockPanel.Dock="Right" Classes="subtle" FontSize="12" Text="{Binding ModelsSummary}" VerticalAlignment="Center" />
-                                            <TextBlock Text="Models" FontWeight="SemiBold" />
-                                        </DockPanel>
-                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,8" IsVisible="{Binding IsAgentRoute}">
+                                        <TextBlock Text="Default setup" FontWeight="SemiBold" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0" IsVisible="{Binding IsAgentRoute}">
                                             <ComboBox ItemsSource="{Binding Agent.Provider.Models, FallbackValue={x:Null}}" SelectedValue="{Binding Agent.DefaultModel, FallbackValue={x:Null}}"
                                                       SelectedValueBinding="{ReflectionBinding Id}" DisplayMemberBinding="{ReflectionBinding Name}" Width="190" AutomationProperties.Name="Default model" ToolTip.Tip="What new chats start with" />
                                             <ComboBox ItemsSource="{Binding Agent.DefaultEfforts, FallbackValue={x:Null}}" SelectedIndex="{Binding Agent.DefaultEffortIndex, FallbackValue=-1}"
                                                       DisplayMemberBinding="{ReflectionBinding Value}" Width="160"
                                                       IsVisible="{Binding Agent.HasDefaultEfforts, FallbackValue=False}" AutomationProperties.Name="Default reasoning" ToolTip.Tip="How much new chats reason" />
                                         </StackPanel>
-                                        <ComboBox Margin="0,8,0,8" IsVisible="{Binding UsesSignIn}" ItemsSource="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.Models}"
+                                        <ComboBox Margin="0,8,0,0" IsVisible="{Binding UsesSignIn}" ItemsSource="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.Models}"
                                                   SelectedValue="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).IntelligenceModel}" SelectedValueBinding="{ReflectionBinding Slug}"
                                                   DisplayMemberBinding="{ReflectionBinding DisplayName}" Width="190" AutomationProperties.Name="Default model" ToolTip.Tip="What new chats start with" />
+                                    </StackPanel>
+
+                                    <!-- Which models the picker shows. -->
+                                    <StackPanel IsVisible="{Binding HasModels}" Classes="providerSection">
+                                        <DockPanel Margin="0,0,0,6">
+                                            <TextBlock DockPanel.Dock="Right" Classes="subtle" FontSize="12" Text="{Binding ModelsSummary}" VerticalAlignment="Center" />
+                                            <TextBlock Text="Available models" FontWeight="SemiBold" />
+                                        </DockPanel>
                                         <ItemsControl ItemsSource="{Binding Models}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:IntelligenceProviderEntryViewModel+ModelSwitch">
