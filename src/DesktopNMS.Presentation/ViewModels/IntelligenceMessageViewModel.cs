@@ -185,22 +185,23 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         OnPropertyChanged(nameof(InlineReferences));
     }
 
-    private static readonly Regex DeviceMarker = new(@"\[\[device:(\d{1,9})\]\]", RegexOptions.CultureInvariant);
+    private static readonly Regex ObjectMarker = new(@"\[\[(device|alert):(\d{1,9})\]\]", RegexOptions.CultureInvariant);
 
     /// <summary>
-    /// Names each device marker no lookup in this chat named, from the app's
-    /// own device list, so an answer never shows a bare "Device 442" - a
-    /// device that only appeared in an event log or outage has no status card.
+    /// Names each device and alert marker no lookup in this chat named, from
+    /// the app's own device and alert lists, so an answer never shows a bare
+    /// "Device 442" or "Alert 501" - one that only appeared in an event log or
+    /// outage history has no status card.
     /// </summary>
-    /// <param name="lookup">The device as the app last saw it, or null when it isn't in the list.</param>
-    public void NameDevices(Func<int, IntelligenceInlineReference?> lookup)
+    /// <param name="lookup">The object ("device" or "alert", and its ID) as the app last saw it, or null when it isn't listed.</param>
+    public void NameObjects(Func<string, int, IntelligenceInlineReference?> lookup)
     {
         var added = false;
-        foreach (Match match in DeviceMarker.Matches(_text))
+        foreach (Match match in ObjectMarker.Matches(_text))
         {
-            var key = "device:" + match.Groups[1].Value;
+            var key = match.Groups[1].Value + ":" + match.Groups[2].Value;
             if (_inlineReferences.ContainsKey(key) || _priorReferences.ContainsKey(key) || _priorReferences.Count >= 2000) continue;
-            if (!int.TryParse(match.Groups[1].Value, out var id) || lookup(id) is not { } reference) continue;
+            if (!int.TryParse(match.Groups[2].Value, out var id) || lookup(match.Groups[1].Value, id) is not { } reference) continue;
             _priorReferences[key] = reference;
             added = true;
         }

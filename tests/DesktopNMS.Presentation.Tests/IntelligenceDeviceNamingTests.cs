@@ -5,8 +5,8 @@ using Xunit;
 namespace DesktopNMS.Presentation.Tests;
 
 /// <summary>
-/// Device markers no lookup named take their name from the app's device list,
-/// so an answer never shows a bare "Device 442".
+/// Device and alert markers no lookup named take their names from the app's
+/// own lists, so an answer never shows a bare "Device 442" or "Alert 501".
 /// </summary>
 public sealed class IntelligenceDeviceNamingTests
 {
@@ -20,7 +20,7 @@ public sealed class IntelligenceDeviceNamingTests
         var message = IntelligenceMessageViewModel.Assistant();
         message.Text = "[[device:442]] came back online.";
 
-        message.NameDevices(Cached);
+        message.NameObjects((kind, id) => kind == "device" ? Cached(id) : null);
 
         Assert.Equal("edge-rtr-01.example.net (Up) came back online.", IntelligenceInlineMarkup.ToReadableText(message.Text, message.InlineReferences));
     }
@@ -33,7 +33,7 @@ public sealed class IntelligenceDeviceNamingTests
             new[] { new IntelligenceStatusRow("core-sw-01.example.net", "Test location", "Down", "down", DeviceId: 442) }));
         message.Text = "[[device:442]] is down.";
 
-        message.NameDevices(Cached);
+        message.NameObjects((kind, id) => kind == "device" ? Cached(id) : null);
 
         Assert.StartsWith("core-sw-01.example.net", IntelligenceInlineMarkup.ToReadableText(message.Text, message.InlineReferences));
     }
@@ -43,7 +43,7 @@ public sealed class IntelligenceDeviceNamingTests
     {
         var message = IntelligenceMessageViewModel.Assistant();
         message.Text = "[[device:442]] came back online.";
-        message.NameDevices(Cached);
+        message.NameObjects((kind, id) => kind == "device" ? Cached(id) : null);
 
         var restored = IntelligenceMessageViewModel.Restore(message.Save());
 
@@ -56,8 +56,21 @@ public sealed class IntelligenceDeviceNamingTests
         var message = IntelligenceMessageViewModel.Assistant();
         message.Text = "[[device:7]] is quiet.";
 
-        message.NameDevices(Cached);
+        message.NameObjects((kind, id) => kind == "device" ? Cached(id) : null);
 
         Assert.Empty(message.InlineReferences);
+    }
+
+    [Fact]
+    public void An_unnamed_alert_marker_is_named_from_the_alert_list()
+    {
+        var message = IntelligenceMessageViewModel.Assistant();
+        message.Text = "Raised by [[alert:501]].";
+
+        message.NameObjects((kind, id) => kind == "alert" && id == 501
+            ? new("alert:501", "Device Down! Due to no ICMP response.", "Critical", "critical", DateTimeOffset.UtcNow, "Alert from DashyNMS's alert list")
+            : null);
+
+        Assert.Equal("Raised by Device Down! Due to no ICMP response. (Critical).", IntelligenceInlineMarkup.ToReadableText(message.Text, message.InlineReferences));
     }
 }
