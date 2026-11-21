@@ -13,7 +13,9 @@ namespace DesktopNMS.Services.Intelligence.Agents;
 
 /// <summary>
 /// One running agent process (#332): started with exactly these arguments,
-/// talking newline-delimited JSON over stdio, with no console window. Its
+/// talking newline-delimited JSON over stdio - or, for an agent that frames
+/// its messages with Content-Length headers as LSP does, one message per
+/// "line" - with no console window. Its
 /// output lines are read as they arrive; its error output is kept only as a
 /// short tail in memory, never logged, since it can carry account or network
 /// detail. Disposing it kills the process and anything it started.
@@ -28,11 +30,13 @@ public sealed partial class AgentProcess : IAsyncDisposable
     private readonly Queue<string> _stderr = new();
     private readonly SemaphoreSlim _writing = new(1, 1);
     private readonly TaskCompletionSource<int> _exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly bool _framed;
     private int _disposed;
 
-    private AgentProcess(Process process)
+    private AgentProcess(Process process, bool framed)
     {
         _process = process;
+        _framed = framed;
     }
 
     /// <summary>Completes with the exit code when the process ends, however it ends.</summary>
@@ -53,9 +57,10 @@ public sealed partial class AgentProcess : IAsyncDisposable
     /// the usual install locations ahead on PATH, since a desktop app's PATH
     /// often lacks the shell's.
     /// </summary>
+    /// <param name="framed">Messages carry Content-Length headers both ways instead of ending at a newline.</param>
     /// <exception cref="AgentProviderException">It couldn't be started.</exception>
     public static AgentProcess Start(string executable, IEnumerable<string> arguments, string workingDirectory,
-        IReadOnlyDictionary<string, string?>? environment = null, bool redirectInput = true)
+        IReadOnlyDictionary<string, string?>? environment = null, bool redirectInput = true, bool framed = false)
     {
         var args = arguments.ToList();
         var info = new ProcessStartInfo(executable)
@@ -89,7 +94,7 @@ public sealed partial class AgentProcess : IAsyncDisposable
         }
 
         var process = new Process { StartInfo = info, EnableRaisingEvents = true };
-        var started = new AgentProcess(process);
+        var started = new AgentProcess(process, framed);
         process.Exited += (_, _) => started.OnExited();
         try
         {
@@ -102,7 +107,7 @@ public sealed partial class AgentProcess : IAsyncDisposable
                 Core.Intelligence.IntelligenceFailure.Tools, AgentProviderState.NotInstalled);
         }
 
-        _ = started.ReadOutputAsync();
+        _ = framed ? started.ReadFramesAsync() : started.ReadOutputAsync();
         _ = started.ReadErrorsAsync();
         if (process.HasExited) started.OnExited();
         return started;
@@ -124,15 +129,25 @@ public sealed partial class AgentProcess : IAsyncDisposable
         }
     }
 
-    /// <summary>Writes one line to the process's input - a JSON message, or a prompt.</summary>
+    /// <summary>Writes one line to the process's input - a JSON message, or a prompt - or one framed message.</summary>
     public async Task WriteLineAsync(string line, CancellationToken cancellationToken)
     {
         await _writing.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (HasExited) throw new IOException("The agent has exited.");
-            await _process.StandardInput.WriteAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
-            await _process.StandardInput.WriteAsync("\n".AsMemory(), cancellationToken).ConfigureAwait(false);
+            if (_framed)
+            {
+                var header = $"Content-Length: {Encoding.UTF8.GetByteCount(line)}\r\n\r\n";
+                await _process.StandardInput.WriteAsync(header.AsMemory(), cancellationToken).ConfigureAwait(false);
+                await _process.StandardInput.WriteAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await _process.StandardInput.WriteAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
+                await _process.StandardInput.WriteAsync("\n".AsMemory(), cancellationToken).ConfigureAwait(false);
+            }
+
             await _process.StandardInput.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -215,6 +230,74 @@ public sealed partial class AgentProcess : IAsyncDisposable
         {
             _lines.Writer.TryComplete();
         }
+    }
+
+    /// <summary>Content-Length framed output: each message's body becomes one "line".</summary>
+    private async Task ReadFramesAsync()
+    {
+        try
+        {
+            var stream = _process.StandardOutput.BaseStream;
+            while (await ReadFrameAsync(stream).ConfigureAwait(false) is { } message)
+            {
+                if (message.Length > 0) _lines.Writer.TryWrite(message);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+        {
+            // The process went away mid-message.
+        }
+        finally
+        {
+            _lines.Writer.TryComplete();
+        }
+    }
+
+    /// <summary>Reads one framed message, or null at the end of the output. A message too large to keep is drained and comes back empty.</summary>
+    internal static async Task<string?> ReadFrameAsync(Stream stream)
+    {
+        var length = -1;
+        var header = new StringBuilder();
+        var one = new byte[1];
+        while (true)
+        {
+            if (await stream.ReadAsync(one).ConfigureAwait(false) == 0) return null;
+            if (one[0] != (byte)'\n')
+            {
+                if (header.Length < 1024) header.Append((char)one[0]);
+                continue;
+            }
+
+            var text = header.ToString().TrimEnd('\r');
+            header.Clear();
+            if (text.Length == 0)
+            {
+                if (length >= 0) break;
+                continue;
+            }
+
+            var colon = text.IndexOf(':');
+            if (colon > 0 && text[..colon].Trim().Equals("Content-Length", StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(text[(colon + 1)..].Trim(), out var parsed) && parsed >= 0)
+            {
+                length = parsed;
+            }
+        }
+
+        var body = new byte[Math.Min(length, MaxLineChars)];
+        await stream.ReadExactlyAsync(body).ConfigureAwait(false);
+        if (length <= MaxLineChars) return Encoding.UTF8.GetString(body);
+
+        // Larger than anything DashyNMS reads from an agent: dropped rather than kept in memory.
+        var left = length - body.Length;
+        while (left > 0)
+        {
+            var read = await stream.ReadAsync(body.AsMemory(0, Math.Min(body.Length, left))).ConfigureAwait(false);
+            if (read == 0) return null;
+            left -= read;
+        }
+
+        return string.Empty;
     }
 
     private async Task ReadErrorsAsync()

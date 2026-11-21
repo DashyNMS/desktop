@@ -15,7 +15,7 @@ public sealed class JsonRpcException(int code, string message) : Exception(messa
 
 /// <summary>
 /// JSON-RPC 2.0 over an <see cref="AgentProcess"/>'s stdio, one message per
-/// line (#332): requests matched to their answers, notifications and the
+/// line or Content-Length frame (#332): requests matched to their answers, notifications and the
 /// agent's own requests handed to the owner as they arrive, in order.
 /// </summary>
 public sealed class JsonRpcConnection : IAsyncDisposable
