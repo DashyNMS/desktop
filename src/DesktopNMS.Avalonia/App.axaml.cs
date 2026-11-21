@@ -81,7 +81,7 @@ public partial class App : Application
         var args = desktop.Args ?? [];
         if (!MacUpdateInstallation.CanStartDuringUpdate())
         {
-            desktop.Shutdown(); return;
+            ExitBeforeStarting(desktop); return;
         }
 
         // Demo mode (DemoMode): the whole app on an example network, in its own
@@ -109,7 +109,7 @@ public partial class App : Application
             if (!_instance.TryClaim(() => Dispatcher.UIThread.Post(ShowMainOrSignIn)))
             {
                 _instance.SignalExisting(); _instance.Dispose(); _instance = null;
-                desktop.Shutdown(); return;
+                ExitBeforeStarting(desktop); return;
             }
         }
 
@@ -783,6 +783,16 @@ public partial class App : Application
             _logger?.LogError(ex, "Couldn't start DashyNMS again for the demo");
         }
     }
+
+    /// <summary>
+    /// Leaves before the main loop has run: a second copy, or a launch during an update.
+    /// Shutting down here, inside OnFrameworkInitializationCompleted, would stop the
+    /// dispatcher before Avalonia starts its main loop, which then throws
+    /// "the Dispatcher shut down" and aborts the process. Queued instead, the shutdown
+    /// runs as the loop's first job and the process exits normally.
+    /// </summary>
+    private static void ExitBeforeStarting(IClassicDesktopStyleApplicationLifetime desktop)
+        => Dispatcher.UIThread.Post(() => desktop.Shutdown(), DispatcherPriority.Send);
 
     private static void WaitForExit(int processId)
     {
