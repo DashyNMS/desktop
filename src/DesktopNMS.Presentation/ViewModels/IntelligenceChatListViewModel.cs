@@ -310,8 +310,10 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
         var previous = item.Scope;
         item.Scope = scope;
         if (_singleChatMode || IsReadOnly) return;
-        if (previous is not null) _writer.Delete(previous, item.Data.Id);
+
+        // Saved under its new scope first: if the app stops in between, the chat is in both rather than neither.
         SaveActive();
+        if (previous is not null) _writer.Delete(previous, item.Data.Id);
     }
 
     /// <summary>Names a chat from its first question, unless it's been renamed.</summary>
@@ -420,7 +422,11 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
         var chat = parameter as IntelligenceChatItemViewModel ?? SelectedChat;
         if (chat is null || chat.Scope is null || !Chats.Contains(chat)) return;
         var scope = chat.Scope;
-        if (!_windows.Confirm("Delete chat?", $"Delete '{chat.Title}' and its saved messages from this PC?", "Delete", destructive: true)) return;
+        // An agent's own record of the conversation is in its folder, which DashyNMS doesn't manage.
+        var agentRecord = chat.Data.ProviderSession is not null && chat.Data.Provider is { } provider && provider != DesktopNMS.Core.Configuration.AppSettings.IntelligenceProviderChatGpt
+            ? " The agent that answered keeps its own record of the conversation in its own folder."
+            : string.Empty;
+        if (!_windows.Confirm("Delete chat?", $"Delete '{chat.Title}' and its saved messages from this PC?{agentRecord}", "Delete", destructive: true)) return;
         if (chat.Scope != scope || !Chats.Contains(chat)) return;
         if (!IsReadOnly) _writer.Delete(scope, chat.Data.Id);
         var wasSelected = ReferenceEquals(chat, SelectedChat);
