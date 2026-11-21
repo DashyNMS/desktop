@@ -8,7 +8,7 @@
              x:DataType="vm:IntelligenceViewModel">
 
     <!-- Intelligence: ask about the network, answered with the user's own
-         ChatGPT plan, Codex or Claude Code using DashyNMS's read-only network tools. The account
+         ChatGPT plan or an agent on this computer using DashyNMS's read-only network tools. The account
          lives in Settings › Intelligence, not here. The context sidebar on
          the right becomes a drawer when the window is narrow. -->
     <UserControl.Styles>
@@ -136,7 +136,7 @@
                 <StackPanel>
                     <TextBlock Text="Ask about your network" Classes="heading" />
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,16"
-                               Text="Ask what's alerting, how a device is doing, where an address is plugged in or what changed overnight. Intelligence answers with your own ChatGPT plan, or with Codex or Claude Code on this computer, looking things up with read-only tools. It can't change anything." />
+                               Text="Ask what's alerting, how a device is doing, where an address is plugged in or what changed overnight. Intelligence answers with your own ChatGPT plan, or with Codex, Claude Code, GitHub Copilot or Gemini on this computer, looking things up with read-only tools. It can't change anything." />
                     <Button Classes="primary" HorizontalAlignment="Left" Padding="16,8" Command="{Binding ConnectCommand}"><TextBlock Text="Continue with ChatGPT" /></Button>
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,8,0,0" Text="Needs ChatGPT Plus or Pro. Your browser opens to sign in, and DashyNMS never sees your password." />
 

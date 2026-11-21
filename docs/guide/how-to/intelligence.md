@@ -79,8 +79,8 @@ When a provider stops on a limit, the answer says so. Try again after it resets,
 DashyNMS starts Codex, Claude Code, Copilot and Gemini in a locked-down session of its own:
 
 - Their own tools are kept out: no shell commands, file edits, web browsing, plugins or sub-agents. Codex, Claude Code and Copilot have them switched off. Antigravity's can't be switched off, so DashyNMS refuses them with rules for that session only and stops the answer if one gets through.
-- Web search is on only while **Allow web search** is. Claude Code can search but not open pages itself, so nothing from your network can be passed to a website in an address.
-- Your MCP servers, hooks, skills and settings files are left out of these chats. DashyNMS doesn't change your agents' configuration. Gemini still reads your global Antigravity rules files, if you have any.
+- Web search is on only while **Allow web search** is. Claude Code can search but not open pages itself, so nothing from your network can be passed to a website in an address. Antigravity's search can't be switched off, so with web search off DashyNMS stops a Gemini answer as soon as it starts searching.
+- Your MCP servers, hooks and skills are left out of these chats, and DashyNMS doesn't change your agents' configuration. Codex still reads the rest of its own configuration, such as a custom model provider, and Gemini reads your global Antigravity rules files, if you have any.
 - They can reach only DashyNMS's read-only network tools, through a private connection on this computer. Your LibreNMS, Graylog and Unimus credentials stay in DashyNMS.
 - They run in an empty folder of DashyNMS's own, so they never see your projects.
 
@@ -90,10 +90,10 @@ If an agent tries to use anything else, DashyNMS stops the answer and says so.
 
 Your questions, and what DashyNMS looks up to answer them, go to the company behind the provider: OpenAI for ChatGPT and Codex, Anthropic for Claude Code, GitHub for Copilot (which passes them on to the chosen model's maker) and Google for Gemini. That includes device names, addresses, alerts, ports and log lines, and your personality description if you've set one. Passwords, tokens and SNMP communities are never sent. Config backups are summarised unless you choose otherwise in **Settings › Intelligence**.
 
-DashyNMS keeps saved chats encrypted on this computer. The agents also keep their own record of each saved chat in their own folders, as they do for any conversation. **Single chat mode** keeps one temporary chat:
+DashyNMS keeps saved chats encrypted on this computer. The agents also keep their own record of each saved chat in their own folders, as they do for any conversation, and deleting a chat in DashyNMS leaves that record where it is. **Single chat mode** keeps one temporary chat:
 
 - With ChatGPT and Claude Code, nothing from it is kept on disk.
-- With Copilot and Gemini, DashyNMS deletes their record of it once each answer is in.
+- With Copilot and Gemini, DashyNMS deletes their record of it once each answer is in, if it can.
 - With Codex, its thread lasts only while Codex is running.
 
 See [Where DashyNMS keeps your data](../reference/your-data.md) and the [privacy notice](../../../PRIVACY.md).
