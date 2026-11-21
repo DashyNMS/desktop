@@ -205,7 +205,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => CanInstallUpdate && !IsCheckingForUpdates && !_isInstallingUpdate);
         _updates.ReadyUpdateChanged += OnReadyUpdateChanged;
         Intelligence.Models.CollectionChanged += OnIntelligenceModelsChanged;
-        IntelligenceProviders = new IntelligenceProvidersViewModel(Intelligence, _draft);
+        IntelligenceProviders = new IntelligenceProvidersViewModel(Intelligence, _draft, _windows);
         ViewLatestReleaseCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri(_latestRelease!.HtmlUrl!)),
             () => _latestRelease?.HtmlUrl is not null);

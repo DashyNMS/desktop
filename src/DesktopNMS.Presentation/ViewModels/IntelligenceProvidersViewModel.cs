@@ -26,13 +26,15 @@ public sealed class IntelligenceProvidersViewModel : ObservableObject
 {
     private readonly AppSettings _draft;
     private readonly IntelligenceViewModel _intelligence;
+    private readonly Services.IWindowService? _windows;
     private IntelligenceProviderEntryViewModel? _selected;
     private bool _isAdding;
 
-    internal IntelligenceProvidersViewModel(IntelligenceViewModel intelligence, AppSettings draft)
+    internal IntelligenceProvidersViewModel(IntelligenceViewModel intelligence, AppSettings draft, Services.IWindowService? windows = null)
     {
         _intelligence = intelligence;
         _draft = draft;
+        _windows = windows;
         var chatGpt = new IntelligenceProviderEntryViewModel(this, AppSettings.IntelligenceProviderChatGpt, "ChatGPT", "Plus or Pro: sign in, or use Codex");
         All = [chatGpt];
         foreach (var provider in intelligence.Providers.Where(p => p.IsAgent && p.Id != AppSettings.IntelligenceProviderCodex))
@@ -94,7 +96,8 @@ public sealed class IntelligenceProvidersViewModel : ObservableObject
         set
         {
             if (!SetProperty(ref _selected, value)) return;
-            foreach (var entry in Listed) entry.IsSelected = ReferenceEquals(entry, value);
+            // Every provider, listed or not: one off the list for a moment keeps no stale selection.
+            foreach (var entry in All) entry.IsSelected = ReferenceEquals(entry, value);
         }
     }
 
@@ -111,6 +114,9 @@ public sealed class IntelligenceProvidersViewModel : ObservableObject
     }
 
     internal IntelligenceViewModel Intelligence => _intelligence;
+
+    /// <summary>Opens a provider's install page in the browser.</summary>
+    internal void Open(Uri page) => _windows?.OpenUrl(page);
 
     internal AppSettings Draft => _draft;
 
@@ -132,8 +138,10 @@ public sealed class IntelligenceProvidersViewModel : ObservableObject
         var listed = All.Where(e =>
         {
             var added = _draft.IntelligenceProviders.TryGetValue(e.Id, out var chosen) ? chosen.Added : null;
+            // A provider being checked again stays where it was until the check says otherwise.
             return added ?? (e.Id == AppSettings.IntelligenceProviderChatGpt
-                             || e.Route?.State is AgentProviderState.Ready or AgentProviderState.SignedOut or AgentProviderState.Unavailable);
+                             || e.Route?.State is AgentProviderState.Ready or AgentProviderState.SignedOut or AgentProviderState.Unavailable
+                             || e.Route?.State is AgentProviderState.Checking && Listed.Contains(e));
         }).ToList();
         for (var i = Listed.Count - 1; i >= 0; i--)
         {
@@ -141,7 +149,10 @@ public sealed class IntelligenceProvidersViewModel : ObservableObject
         }
 
         foreach (var entry in listed.Where(e => !Listed.Contains(e))) Listed.Insert(Math.Min(listed.IndexOf(entry), Listed.Count), entry);
-        foreach (var entry in All) entry.Raise();
+        foreach (var entry in All)
+        {
+            entry.Raise();
+        }
         OnPropertyChanged(nameof(Addable));
         OnPropertyChanged(nameof(HasAddable));
         AddCommand.RaiseCanExecuteChanged();
@@ -180,6 +191,11 @@ public sealed class IntelligenceProviderEntryViewModel : ObservableObject
         Name = name;
         Requirement = requirement;
         RemoveCommand = new RelayCommand(() => _owner.Remove(this));
+        ChooseCommand = new RelayCommand(() =>
+        {
+            if (ShowAdd) _owner.AddProviderCommand.Execute(this);
+            else if (ShowInstall && InstallPage is { } page) _owner.Open(page);
+        });
         UseSignInCommand = new RelayCommand(() => Connection = AppSettings.IntelligenceConnectionSignIn);
         UseCodexCommand = new RelayCommand(() => Connection = AppSettings.IntelligenceConnectionCodex);
     }
@@ -210,6 +226,33 @@ public sealed class IntelligenceProviderEntryViewModel : ObservableObject
     };
 
     public RelayCommand RemoveCommand { get; }
+
+    /// <summary>
+    /// Add provider's card: adds the provider when it's installed, opens its
+    /// install page when it isn't, and does nothing once it's in the list.
+    /// </summary>
+    public RelayCommand ChooseCommand { get; }
+
+    /// <summary>The card's label for what choosing it does.</summary>
+    public string ActionText => IsListed ? "Added" : IsInstalled ? "Add" : "Install";
+
+    /// <summary>The provider's own install instructions, for the ones that run on this computer.</summary>
+    public Uri? InstallPage => Id switch
+    {
+        AppSettings.IntelligenceProviderClaudeCode => new Uri("https://code.claude.com/docs/en/setup"),
+        AppSettings.IntelligenceProviderCopilot => new Uri("https://docs.github.com/copilot/how-tos/copilot-cli"),
+        AppSettings.IntelligenceProviderGemini => new Uri("https://antigravity.google"),
+        _ => null,
+    };
+
+    /// <summary>Installed on this computer, or needs no install - ChatGPT signs in from DashyNMS.</summary>
+    public bool IsInstalled => IsChatGpt || Route is { State: not AgentProviderState.NotInstalled and not AgentProviderState.Checking };
+
+    /// <summary>Add provider shows Add: installed, and not in the list yet.</summary>
+    public bool ShowAdd => CanAdd && IsInstalled;
+
+    /// <summary>Add provider shows Install: not installed yet, and not in the list.</summary>
+    public bool ShowInstall => CanAdd && !IsInstalled;
 
     public RelayCommand UseSignInCommand { get; }
 
@@ -323,7 +366,7 @@ public sealed class IntelligenceProviderEntryViewModel : ObservableObject
                  {
                      nameof(Connection), nameof(UsesSignIn), nameof(UsesCodex), nameof(Route), nameof(Agent), nameof(IsAgentRoute),
                      nameof(StatusLine), nameof(IsReady), nameof(VersionText), nameof(Models), nameof(HasModels), nameof(ModelsSummary),
-                     nameof(IsListed), nameof(CanAdd), nameof(AddNote),
+                     nameof(IsListed), nameof(CanAdd), nameof(AddNote), nameof(IsInstalled), nameof(ShowAdd), nameof(ShowInstall), nameof(ActionText),
                  })
         {
             OnPropertyChanged(name);

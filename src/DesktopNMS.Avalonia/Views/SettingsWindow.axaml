@@ -37,6 +37,16 @@
         <Style Selector="StackPanel.providerSection">
             <Setter Property="Margin" Value="0,0,0,14" />
         </Style>
+        <!-- Add provider's action tags: accent for Add and Install, plain once added. -->
+        <Style Selector="Border.actionTag TextBlock.actionText">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Border.actionTag.added">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.actionTag.added TextBlock.actionText">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
         <Style Selector="ToggleSwitch.compact">
             <Setter Property="OnContent" Value="" />
             <Setter Property="OffContent" Value="" />
@@ -1130,7 +1140,7 @@
 
         <!-- Add provider (#316): over the whole window, every provider DashyNMS supports with what each needs. -->
         <Border Grid.Row="0" Grid.RowSpan="2" Background="#99000000" IsVisible="{Binding IntelligenceProviders.IsAdding}" ZIndex="20">
-            <Border Classes="card" MaxWidth="460" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="18">
+            <Border Classes="card" MaxWidth="600" Margin="24" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="18">
                 <StackPanel>
                     <TextBlock Text="Add provider" FontSize="16" FontWeight="SemiBold" />
                     <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,2,0,12" Text="Answers come from your own plan with the provider." />
@@ -1140,16 +1150,25 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:IntelligenceProviderEntryViewModel">
-                                <Button Margin="0,0,8,8" Padding="12,10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Left" VerticalContentAlignment="Center" IsEnabled="{Binding CanAdd}"
-                                        Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).IntelligenceProviders.AddProviderCommand}" CommandParameter="{Binding}"
-                                        ToolTip.Tip="{Binding Name, StringFormat='{}{0} is already in your list'}" ToolTip.IsEnabled="{Binding IsListed}">
-                                    <Grid ColumnDefinitions="Auto,*" Opacity="{Binding IsListed, Converter={x:Static views:Converters.DimWhen}}">
+                                <Button Margin="0,0,8,8" Padding="12,10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                        VerticalContentAlignment="Center" Command="{Binding ChooseCommand}" ToolTip.Tip="{Binding AddNote}"
+                                        AutomationProperties.Name="{Binding Name}">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
                                         <intel:ProviderIcon Provider="{Binding IconId}" Size="16" VerticalAlignment="Top" Margin="0,2,10,0" />
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                                             <TextBlock Text="{Binding AddNote}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" IsVisible="{Binding CanAdd}" />
-                                            <TextBlock Text="Added" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" IsVisible="{Binding IsListed}" />
                                         </StackPanel>
+                                        <!-- What choosing the card does: add it, open its install page, or nothing once it's added. -->
+                                        <Border Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0" CornerRadius="10" Padding="8,2"
+                                                Background="{DynamicResource AccentSubtleBrush}" Classes.added="{Binding IsListed}" Classes="actionTag">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <fi:SymbolIcon Symbol="Add" FontSize="11" IsVisible="{Binding ShowAdd}" Foreground="{DynamicResource AccentBrush}" />
+                                                <fi:SymbolIcon Symbol="Open" FontSize="11" IsVisible="{Binding ShowInstall}" Foreground="{DynamicResource AccentBrush}" />
+                                                <fi:SymbolIcon Symbol="Checkmark" FontSize="11" IsVisible="{Binding IsListed}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <TextBlock Text="{Binding ActionText}" FontSize="11" FontWeight="SemiBold" Classes="actionText" />
+                                            </StackPanel>
+                                        </Border>
                                     </Grid>
                                 </Button>
                             </DataTemplate>
