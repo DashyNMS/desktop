@@ -297,6 +297,9 @@ public sealed class IntelligenceProviderViewModel : ObservableObject
         Status = status;
     }
 
+    /// <summary>A different executable is a different agent: it's offered again only once its own check finishes.</summary>
+    internal void MarkUnchecked() => Status = AgentProviderStatus.Checking;
+
     private void Finished()
     {
         _running--;

@@ -185,7 +185,7 @@ public sealed class IntelligenceMessageViewModel : ObservableObject
         OnPropertyChanged(nameof(InlineReferences));
     }
 
-    private static readonly Regex ObjectMarker = new(@"\[\[(device|alert):(\d{1,9})\]\]", RegexOptions.CultureInvariant);
+    private static readonly Regex ObjectMarker = new(@"\[\[(device|alert):([1-9]\d{0,8})\]\]", RegexOptions.CultureInvariant);
 
     /// <summary>
     /// Names each device and alert marker no lookup in this chat named, from

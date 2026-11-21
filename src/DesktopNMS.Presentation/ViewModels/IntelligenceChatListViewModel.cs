@@ -310,10 +310,17 @@ public sealed class IntelligenceChatListViewModel : ObservableObject, IDisposabl
         var previous = item.Scope;
         item.Scope = scope;
         if (_singleChatMode || IsReadOnly) return;
+        if (previous is null)
+        {
+            SaveActive();
+            return;
+        }
 
-        // Saved under its new scope first: if the app stops in between, the chat is in both rather than neither.
-        SaveActive();
-        if (previous is not null) _writer.Delete(previous, item.Data.Id);
+        // One queued step, so the old copy goes only once the new one is written.
+        _saveTimer.Stop();
+        _host.Capture(item.Data);
+        item.Refresh();
+        _writer.Move(previous, scope, Snapshot(item.Data));
     }
 
     /// <summary>Names a chat from its first question, unless it's been renamed.</summary>

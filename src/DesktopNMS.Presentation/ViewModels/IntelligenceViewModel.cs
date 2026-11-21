@@ -134,6 +134,9 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
             var chosen = Executables(current);
             foreach (var provider in Providers.Where(p => p.IsAgent && chosen.GetValueOrDefault(p.Id) != executables.GetValueOrDefault(p.Id)))
             {
+                // Not ready until the new executable's own account is known: a question in between
+                // could otherwise run under another account than the chat's.
+                provider.MarkUnchecked();
                 _ = provider.Agent!.RetireAsync().ContinueWith(_ => _dispatcher.InvokeAsync(() => provider.CheckAsync(CancellationToken.None)), TaskScheduler.Default);
             }
 
@@ -617,10 +620,18 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
 
             _credentials = credentials;
 
-            // Signing in puts ChatGPT back in Settings' provider list if it had been removed.
-            if (ProviderSettings(AppSettings.IntelligenceProviderChatGpt) is { Added: false } removed)
+            // Signing in puts ChatGPT back in Settings' provider list if it had been removed, and makes
+            // signing in its connection: choosing to sign in is choosing that route over Codex.
+            if (!_settings.Current.IntelligenceProviders.TryGetValue(AppSettings.IntelligenceProviderChatGpt, out var chatGpt))
             {
-                removed.Added = true;
+                chatGpt = new IntelligenceProviderSettings();
+                _settings.Current.IntelligenceProviders[AppSettings.IntelligenceProviderChatGpt] = chatGpt;
+            }
+
+            if (chatGpt.Added == false || chatGpt.Connection is { } connection && connection != AppSettings.IntelligenceConnectionSignIn)
+            {
+                chatGpt.Added = true;
+                chatGpt.Connection = AppSettings.IntelligenceConnectionSignIn;
                 _settings.Save();
             }
 

@@ -73,4 +73,15 @@ public sealed class IntelligenceDeviceNamingTests
 
         Assert.Equal("Raised by Device Down! Due to no ICMP response. (Critical).", IntelligenceInlineMarkup.ToReadableText(message.Text, message.InlineReferences));
     }
+
+    [Fact]
+    public void A_zero_padded_id_is_not_a_marker_and_is_left_alone()
+    {
+        var message = IntelligenceMessageViewModel.Assistant();
+        message.Text = "[[device:0442]] came back online.";
+
+        message.NameObjects((kind, id) => kind == "device" ? Cached(id) : null);
+
+        Assert.Empty(message.InlineReferences);
+    }
 }
