@@ -79,7 +79,7 @@ def nightly_notes(text, tag, commit, repository):
 
 
 def edge_notes(base, tag, commit, repository):
-    since = newest_tag("v[0-9]*", edge=True)
+    since = newest_tag("v[0-9]*-edge.*", edge=True) or newest_tag("v[0-9]*")
     changes = f" [Changes since {since}](https://github.com/{repository}/compare/{since}...{tag})." if since else ""
     return (f"A build of {commit[:7]}, for testing a change: it may not work. "
             f"[Release notes](https://github.com/{repository}/blob/{commit}/docs/releases/{base}.md).{changes}\n")
