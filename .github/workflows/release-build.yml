@@ -125,7 +125,9 @@ jobs:
         run: |
           # An old publish can be re-run after a newer release, so it's only the
           # latest if nothing released outranks it.
-          newest=$({ gh release list --exclude-drafts --exclude-pre-releases --limit 200 --json tagName --jq '.[].tagName'; echo "$TAG"; } | sort -V | tail -n 1)
+          # On its own line, so failing to list them stops here.
+          published=$(gh release list --exclude-drafts --exclude-pre-releases --limit 200 --json tagName --jq '.[].tagName')
+          newest=$(printf '%s\n%s\n' "$published" "$TAG" | sort -V | tail -n 1)
           latest=$([ "$newest" = "$TAG" ] && echo true || echo false)
           mkdir installers
           mv dist/*.exe dist/*.dmg dist/*.AppImage installers/
