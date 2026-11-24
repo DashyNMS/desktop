@@ -57,6 +57,12 @@ public sealed record PortsLayoutOption(string Value, string Label)
     public override string ToString() => Label;
 }
 
+/// <summary>A choice in Settings → Updates → Update channel (#620), with what choosing it means.</summary>
+public sealed record UpdateChannelOption(UpdateChannel Value, string Label, string Description)
+{
+    public override string ToString() => Label;
+}
+
 /// <summary>A choice in Settings → Window and start-up → Default map.</summary>
 public sealed record DefaultMapOption(string Value, string Label)
 {
@@ -1402,27 +1408,36 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public string CurrentVersionText => $"Version {_updates.CurrentVersion}";
 
-    /// <summary>
-    /// Also treat GitHub pre-release ("preview") tags as an available update.
-    /// Re-checks immediately on toggle - like the accent colour swatch above,
-    /// this does not wait for Save so flipping it and seeing the effect is
-    /// one action, not two.
-    /// </summary>
-    public bool IncludePreviewBuilds
+    public IReadOnlyList<UpdateChannelOption> UpdateChannelOptions { get; } = new[]
     {
-        get => _draft.IncludePreviewBuilds;
+        new UpdateChannelOption(UpdateChannel.Stable, "Stable", "Finished releases. Best for most people."),
+        new UpdateChannelOption(UpdateChannel.Nightly, "Nightly", "A build each night there are changes, as well as releases. Newer features, and sometimes new problems."),
+        new UpdateChannelOption(UpdateChannel.Edge, "Edge", "A build of every change, as well as releases. For testing: it may not work."),
+    };
+
+    /// <summary>
+    /// Which builds count as an available update. Re-checks immediately on
+    /// change - like the accent colour swatch above, this does not wait for
+    /// Save so choosing one and seeing the effect is one action, not two.
+    /// </summary>
+    public UpdateChannelOption SelectedUpdateChannel
+    {
+        get => UpdateChannelOptions.FirstOrDefault(o => o.Value == _draft.UpdateChannel) ?? UpdateChannelOptions[0];
         set
         {
-            if (_draft.IncludePreviewBuilds == value)
+            if (value is null || _draft.UpdateChannel == value.Value)
             {
                 return;
             }
 
-            _draft.IncludePreviewBuilds = value;
+            _draft.UpdateChannel = value.Value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(UpdateChannelDescription));
             _ = CheckForUpdatesAsync(notifyIfNewer: false);
         }
     }
+
+    public string UpdateChannelDescription => SelectedUpdateChannel.Description;
 
     public bool DownloadUpdatesAutomatically
     {
@@ -1490,7 +1505,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         InstallUpdateCommand.RaiseCanExecuteChanged();
         UpdateStatusText = "Checking for updates...";
 
-        var result = await _updates.CheckAsync(notifyIfNewer, IncludePreviewBuilds).ConfigureAwait(true);
+        var result = await _updates.CheckAsync(notifyIfNewer, SelectedUpdateChannel.Value).ConfigureAwait(true);
 
         _latestRelease = result.LatestRelease;
         IsNewerVersionAvailable = result.IsNewerVersionAvailable;
@@ -1514,7 +1529,12 @@ public sealed partial class SettingsViewModel : ObservableObject
             return null;
         }
 
-        var what = release.Prerelease ? $"Preview {release.TagName}" : $"Version {release.TagName}";
+        var what = ReleaseVersion.ChannelOf(release.Version) switch
+        {
+            UpdateChannel.Edge => $"Edge build {release.Version}",
+            UpdateChannel.Nightly => $"Nightly build {release.Version}",
+            _ => $"Version {release.Version}",
+        };
         return IsUpdateReady
             ? $"{what} is downloaded and ready to install."
             : _updates.InstallationError is { Length: > 0 } reason ? reason
@@ -1527,7 +1547,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>The newest version found is downloaded and verified - "Restart to update" shows.</summary>
     public bool IsUpdateReady => _updates.ReadyUpdate is { } ready
-                                 && (_latestRelease is null || ready.Version == _latestRelease.TagName);
+                                 && (_latestRelease is null || ready.Version == _latestRelease.Version);
     public bool CanInstallUpdate => _updates.CanInstallUpdate && (IsNewerVersionAvailable || IsUpdateReady);
     public string UpdateActionText => IsUpdateReady ? _updates.UpdateActionText
         : "Download and " + _updates.UpdateActionText.ToLowerInvariant();

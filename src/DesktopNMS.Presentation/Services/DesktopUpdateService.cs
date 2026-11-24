@@ -112,46 +112,40 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
     public event EventHandler? InstallStarted;
     internal Task WhenIdle { get { lock (_gate) return _preparing; } }
 
-    public async Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, bool? includePreviewBuildsOverride = null,
+    public async Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, UpdateChannel? channelOverride = null,
         CancellationToken cancellationToken = default)
     {
         if (_demo.IsActive || _lifetime.IsCancellationRequested) return new(true, null, false);
         var generation = Interlocked.Increment(ref _checkGeneration);
-        var previews = includePreviewBuildsOverride ?? _settings.Current.IncludePreviewBuilds;
+        var channel = channelOverride ?? _settings.Current.UpdateChannel;
+        var previews = channel != UpdateChannel.Stable;
         var timing = _metrics.Begin(MetricArea.UpdateCheck, null, previews, DeliveryMode);
         var outcome = MetricOutcome.Failed;
         string? target = null;
         try
         {
+            bool Unoffered(string? version) => version is not null && !UpdateChannels.Offers(channel, version);
             lock (_gate)
             {
-                if (!previews && (_readyPreview || _latestRelease?.Prerelease == true || _operation?.Release.Prerelease == true))
+                // Whatever the last channel found goes as soon as this one wouldn't offer it.
+                if (Unoffered(_ready?.Version) || Unoffered(_latestRelease?.Version) || Unoffered(_operation?.Release.Version))
                 {
                     _operation?.Cancellation.Cancel();
                     _wantedVersion = null; _latestRelease = null; _ready = null; _readyAsset = null;
                     ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
-            GitHubRelease? release;
-            if (previews)
-            {
-                var releases = await _releases.GetReleasesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-                release = releases.Where(r => !r.Draft && !string.IsNullOrWhiteSpace(r.TagName))
-                    .OrderByDescending(r => r.TagName, Comparer<string?>.Create(ReleaseVersion.Compare)).FirstOrDefault();
-            }
-            else release = await _releases.GetLatestReleaseAsync(cancellationToken).ConfigureAwait(false);
+            var release = await UpdateChannels.FindAsync(_releases, channel, cancellationToken).ConfigureAwait(false);
             if (release is null) return new(false, null, false);
-            target = release.TagName;
+            target = release.Version;
             outcome = MetricOutcome.Success;
-            if (release.Draft || (!previews && release.Prerelease) || string.IsNullOrWhiteSpace(release.TagName))
-                return new(true, null, false);
-            var newer = ReleaseVersion.IsNewer(release.TagName, CurrentVersion);
-            if (timing.IsCurrent) _metrics.Begin(MetricArea.UpdateAvailability, release.TagName, previews, DeliveryMode)
+            var newer = UpdateChannels.IsUpdate(release.Version, CurrentVersion, channel);
+            if (timing.IsCurrent) _metrics.Begin(MetricArea.UpdateAvailability, release.Version, previews, DeliveryMode)
                 .Complete(newer ? MetricOutcome.Available : MetricOutcome.Current);
             lock (_gate)
             {
                 if (_lifetime.IsCancellationRequested || generation != Volatile.Read(ref _checkGeneration)) return new(true, release, newer);
-                var version = newer ? release.TagName : null;
+                var version = newer ? release.Version : null;
                 if (_wantedVersion != version)
                 {
                     _operation?.Cancellation.Cancel();
@@ -175,7 +169,7 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
     private void StartPreparation(GitHubRelease release, bool notify, bool manual)
     {
         if (_lifetime.IsCancellationRequested || _operation is { } pending
-            && !pending.Cancellation.IsCancellationRequested && pending.Release.TagName == release.TagName
+            && !pending.Cancellation.IsCancellationRequested && pending.Release.Version == release.Version
             && (!manual || pending.Manual)) return;
         _operation?.Cancellation.Cancel();
         var operation = new Preparation(release, manual, CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token));
@@ -203,7 +197,7 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         var release = operation.Release;
         var token = operation.Cancellation.Token;
         bool ready;
-        lock (_gate) ready = _ready?.Version == release.TagName;
+        lock (_gate) ready = _ready?.Version == release.Version;
         try
         {
             var asset = (operation.Manual || DownloadsAutomatically) && _installation.Runtime is { } runtime
@@ -213,11 +207,11 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
                 lock (_gate)
                 {
                     token.ThrowIfCancellationRequested();
-                    if (_wantedVersion != release.TagName) return;
+                    if (_wantedVersion != release.Version) return;
                     operation.Downloading = true;
                 }
                 ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
-                var download = _metrics.Begin(MetricArea.UpdateDownload, release.TagName, release.Prerelease,
+                var download = _metrics.Begin(MetricArea.UpdateDownload, release.Version, release.Prerelease,
                     operation.Manual ? MetricMode.Manual : MetricMode.Automatic);
                 string path;
                 try
@@ -227,7 +221,7 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
                     path = await DownloadAsync(asset, token).ConfigureAwait(false);
                     lock (_gate) operation.Stage = UpdateStage.Preparing;
                     SetInstallProgress(UpdateStage.Preparing);
-                    await _installation.PrepareAsync(path, release.TagName!, token).ConfigureAwait(false);
+                    await _installation.PrepareAsync(path, release.Version!, token).ConfigureAwait(false);
                     download.Complete(MetricOutcome.Success);
                 }
                 catch (OperationCanceledException) { download.Complete(MetricOutcome.Cancelled); throw; }
@@ -235,10 +229,10 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
                 lock (_gate)
                 {
                     token.ThrowIfCancellationRequested();
-                    if (_wantedVersion != release.TagName) return;
+                    if (_wantedVersion != release.Version) return;
                     _readyAsset = asset;
                     _readyPreview = release.Prerelease;
-                    _ready = new(release.TagName!, path, UpdateReleases.ReleasePageUrl(release.TagName!));
+                    _ready = new(release.Version!, path, UpdateReleases.ReleasePageUrl(release.Version!));
                     ready = true;
                 }
                 ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
@@ -249,10 +243,10 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
         {
             lock (_gate)
             {
-                if (_operation == operation && _wantedVersion == release.TagName && !token.IsCancellationRequested)
+                if (_operation == operation && _wantedVersion == release.Version && !token.IsCancellationRequested)
                     InstallationError = ex is IOException ? ex.Message : null;
             }
-            _logger.LogWarning(ex, "Could not prepare desktop update {Version}", release.TagName);
+            _logger.LogWarning(ex, "Could not prepare desktop update {Version}", release.Version);
         }
         finally
         {
@@ -262,13 +256,13 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
             }
             ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
         }
-        lock (_gate) { if (token.IsCancellationRequested || _wantedVersion != release.TagName) return; }
-        if (!notify || _settings.Current.LastNotifiedUpdateVersion == release.TagName) return;
+        lock (_gate) { if (token.IsCancellationRequested || _wantedVersion != release.Version) return; }
+        if (!notify || _settings.Current.LastNotifiedUpdateVersion == release.Version) return;
         try
         {
-            await _announcements.ShowAsync($"DashyNMS {release.TagName} is {(ready ? "ready to install" : "available")}",
+            await _announcements.ShowAsync($"DashyNMS {release.Version} is {(ready ? "ready to install" : "available")}",
                 ready ? _installation.ActionText : "Open Settings, Updates to view the release and installation instructions.", ready).ConfigureAwait(false);
-            _settings.Current.LastNotifiedUpdateVersion = release.TagName;
+            _settings.Current.LastNotifiedUpdateVersion = release.Version;
             _settings.SaveQuietly();
         }
         catch (Exception ex) { _logger.LogWarning(ex, "Could not announce a desktop update"); }
@@ -299,7 +293,7 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
             lock (_gate)
             {
                 ready = _ready; asset = _readyAsset;
-                target = ready?.Version ?? _latestRelease?.TagName;
+                target = ready?.Version ?? _latestRelease?.Version;
                 readyPreview = ready is not null ? _readyPreview : _latestRelease?.Prerelease == true;
             }
             install = _metrics.Begin(MetricArea.UpdateInstall, target, readyPreview, MetricMode.Manual);

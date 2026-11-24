@@ -32,6 +32,20 @@ A shorter interval asks LibreNMS for data more often. It does not make LibreNMS 
 
 See [platform differences](../reference/platform-differences.md) for the behaviour on your operating system.
 
+## Choose an update channel
+
+1. Open **Settings → Updates**.
+2. Under **Update preferences**, choose an **Update channel**. DashyNMS checks it straight away.
+3. Choose **Apply** to keep it.
+
+| Channel | What you're offered |
+| --- | --- |
+| **Stable** | Finished releases. The default, and best for most people. |
+| **Nightly** | A build each night there are changes, as well as releases. Newer features, and sometimes new problems. |
+| **Edge** | A build of every change, as well as releases. For testing: it may not work. |
+
+Your settings stay as they are when you switch. Moving from Nightly or Edge to Stable doesn't go back a version: you keep the build you have until a newer release. To go back sooner, install the release over it from the [releases page](https://github.com/DashyNMS/desktop/releases).
+
 ## Sign in DashyNMS Mobile
 
 1. Open **Settings → Server**.

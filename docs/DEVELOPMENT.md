@@ -556,6 +556,16 @@ GitHub's size and SHA-256 before the platform installer receives it. Downloads
 never start an installation without the user's update action. Linux packages
 managed by a package manager keep their notification-only behaviour.
 
+### Update channels
+
+Settings, Updates chooses Stable (the default), Nightly or Edge
+(`AppSettings.UpdateChannel`, #620). Core's `UpdateChannels` finds the channel's
+newest release and decides whether it's an update, so `DesktopUpdateService`
+only prepares and installs it. A release is named by `GitHubRelease.Version`,
+never its tag, because every edge build shares the `v0.0.0-edge` tag. Choosing a
+channel checks it at once and drops anything already found that it wouldn't
+offer. People who had **Include preview builds** on are on Nightly.
+
 ### What's New after an upgrade
 
 Nightly and release packages embed `docs/releases/<full-version>.md`, which the

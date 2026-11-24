@@ -43,13 +43,13 @@ public interface IUpdateCheckService
     /// settings), shows a toast once.
     /// </summary>
     /// <param name="notifyIfNewer">Show a toast for a not-yet-notified newer release.</param>
-    /// <param name="includePreviewBuildsOverride">
-    /// When set, overrides <c>AppSettings.IncludePreviewBuilds</c> for this one
-    /// check instead of reading the saved setting - used by the Settings
-    /// dialog so toggling the checkbox and checking again reflects
-    /// immediately, without needing Save first.
+    /// <param name="channelOverride">
+    /// When set, overrides <c>AppSettings.UpdateChannel</c> for this one check
+    /// instead of reading the saved setting - used by the Settings dialog so
+    /// choosing a channel shows what it offers straight away, without needing
+    /// Save first.
     /// </param>
-    Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, bool? includePreviewBuildsOverride = null, CancellationToken cancellationToken = default);
+    Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, UpdateChannel? channelOverride = null, CancellationToken cancellationToken = default);
 
     /// <summary>A newer version, downloaded and verified, waiting to be installed - null until there is one.</summary>
     ReadyUpdate? ReadyUpdate { get; }
@@ -84,6 +84,8 @@ public sealed record ReadyUpdate(string Version, string InstallerPath, string? R
 /// <summary>Where a version's release notes live.</summary>
 public static class UpdateReleases
 {
+    /// <summary>Every edge build shares one release, so its page is that tag's rather than the version's.</summary>
     public static string ReleasePageUrl(string version) =>
-        "https://github.com/DashyNMS/desktop/releases/tag/" + (version.StartsWith('v') ? version : "v" + version);
+        "https://github.com/DashyNMS/desktop/releases/tag/" + (ReleaseVersion.ChannelOf(version) == UpdateChannel.Edge ? UpdateChannels.EdgeTag
+            : version.StartsWith('v') ? version : "v" + version);
 }

@@ -57,6 +57,7 @@ public sealed class BundledWhatsNewTests
     [InlineData("2.0.0")]
     [InlineData("2.0.0-preview.pr.544.86.1")]
     [InlineData("2.0.0-preview.ci.123.1")]
+    [InlineData("2.0.0-edge.123")]
     [InlineData("2.0.0-dev.local")]
     [InlineData("unexpected-version")]
     public void Other_releases_and_development_versions_do_not_show_preview_11_notes(string running)
@@ -68,6 +69,7 @@ public sealed class BundledWhatsNewTests
     [Theory]
     [InlineData("2.0.0-preview.pr.544.86.1")]
     [InlineData("2.0.0-preview.ci.123.1")]
+    [InlineData("2.0.0-edge.123")]
     [InlineData("2.0.0-dev.local")]
     public void Development_builds_do_not_parse_published_notes(string version)
         => Assert.Null(BundledWhatsNew.ParseRelease(version, Markdown));

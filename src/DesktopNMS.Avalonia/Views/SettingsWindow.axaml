@@ -1103,7 +1103,10 @@
                                 <CheckBox Content="Download updates automatically" IsChecked="{Binding DownloadUpdatesAutomatically}"
                                           IsVisible="{Binding CanDownloadUpdates}" />
                                 <TextBlock Text="{Binding DownloadUpdatesDescription}" Classes="subtle" TextWrapping="Wrap" />
-                                <CheckBox Content="Include preview builds" IsChecked="{Binding IncludePreviewBuilds}" />
+                                <TextBlock Text="Update channel" />
+                                <ComboBox ItemsSource="{Binding UpdateChannelOptions}" SelectedItem="{Binding SelectedUpdateChannel}"
+                                          DisplayMemberBinding="{ReflectionBinding Label}" MinWidth="140" AutomationProperties.Name="Update channel" />
+                                <TextBlock Text="{Binding UpdateChannelDescription}" Classes="subtle" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
                     </StackPanel>

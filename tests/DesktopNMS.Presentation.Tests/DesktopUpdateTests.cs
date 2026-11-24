@@ -262,10 +262,41 @@ public sealed class DesktopUpdateTests : IDisposable
         var preview = Release("2.0.0-preview.10", runtime); preview.Prerelease = true;
         _releases.All = new[] { preview };
         using var service = Create(currentVersion: developmentVersion);
-        Assert.True((await service.CheckAsync(false, includePreviewBuildsOverride: true)).IsNewerVersionAvailable);
+        Assert.True((await service.CheckAsync(false, UpdateChannel.Nightly)).IsNewerVersionAvailable);
         await service.WhenIdle;
         Assert.Equal("v2.0.0-preview.10", service.ReadyUpdate?.Version);
         Assert.EndsWith(runtime + ".dmg", service.ReadyUpdate!.InstallerPath);
+    }
+
+    [Theory]
+    [InlineData("2.0.0-edge.3", "2.0.0-edge.4", UpdateChannel.Edge, true)]
+    [InlineData("2.0.0-nightly.9", "2.0.0-edge.4", UpdateChannel.Edge, true)]
+    [InlineData("2.0.0-edge.4", "2.0.0-edge.4", UpdateChannel.Edge, false)]
+    [InlineData("2.0.0-preview.20", "2.0.0-edge.4", UpdateChannel.Nightly, false)]
+    [InlineData("1.1.0", "2.0.0-edge.4", UpdateChannel.Stable, false)]
+    public async Task Edge_builds_come_from_the_rolling_release_and_only_on_edge(string running, string edge, UpdateChannel channel, bool offered)
+    {
+        _releases.Latest = Release("1.0.0");
+        _releases.All = new[] { _releases.Edge = EdgeRelease(edge), Release("1.0.0") };
+        using var service = Create(currentVersion: running);
+        Assert.Equal(offered, (await service.CheckAsync(false, channel)).IsNewerVersionAvailable);
+        await service.WhenIdle;
+        Assert.Equal(offered ? "v" + edge : null, service.ReadyUpdate?.Version);
+        if (offered) Assert.EndsWith("/releases/tag/v0.0.0-edge", service.ReadyUpdate!.ReleaseUrl);
+    }
+
+    [Fact]
+    public async Task Leaving_edge_clears_its_build_and_offers_the_nightly()
+    {
+        var nightly = Release("2.0.0-nightly.2"); nightly.Prerelease = true;
+        _releases.Latest = Release("1.1.0");
+        _releases.Edge = EdgeRelease("2.0.0-edge.40");
+        _releases.All = new[] { _releases.Edge, nightly };
+        using var service = Create(currentVersion: "2.0.0-edge.39");
+        await service.CheckAsync(false, UpdateChannel.Edge); await service.WhenIdle;
+        Assert.Equal("v2.0.0-edge.40", service.ReadyUpdate!.Version);
+        await service.CheckAsync(false, UpdateChannel.Nightly); await service.WhenIdle;
+        Assert.Equal("v2.0.0-nightly.2", service.ReadyUpdate!.Version);
     }
 
     [Fact]
@@ -345,11 +376,11 @@ public sealed class DesktopUpdateTests : IDisposable
         var preview = Release("2.2.0-preview.1"); preview.Prerelease = true;
         _releases.All = new[] { preview };
         using var service = Create();
-        await service.CheckAsync(false, includePreviewBuildsOverride: true);
+        await service.CheckAsync(false, UpdateChannel.Nightly);
         var preparing = service.WhenIdle;
         await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         _releases.Latest = Release("2.0.0");
-        await service.CheckAsync(false, includePreviewBuildsOverride: false);
+        await service.CheckAsync(false, UpdateChannel.Stable);
         held.SetResult(); await preparing;
         Assert.Null(service.ReadyUpdate); Assert.False(await service.InstallAsync());
     }
@@ -395,10 +426,10 @@ public sealed class DesktopUpdateTests : IDisposable
         var preview = Release("2.2.0-preview.1"); preview.Prerelease = true;
         _releases.All = new[] { Release("2.1.0"), preview };
         using var service = Create();
-        await service.CheckAsync(false, true); await service.WhenIdle;
+        await service.CheckAsync(false, UpdateChannel.Nightly); await service.WhenIdle;
         Assert.Equal(preview.TagName, service.ReadyUpdate!.Version);
         _releases.Latest = null;
-        Assert.False((await service.CheckAsync(false, false)).Succeeded);
+        Assert.False((await service.CheckAsync(false, UpdateChannel.Stable)).Succeeded);
         Assert.Null(service.ReadyUpdate);
     }
 
@@ -409,7 +440,7 @@ public sealed class DesktopUpdateTests : IDisposable
         var preview = Release("2.2.0-preview.1"); preview.Prerelease = true;
         _releases.All = new[] { Release("2.1.0"), preview };
         using var service = Create();
-        await service.CheckAsync(false, true);
+        await service.CheckAsync(false, UpdateChannel.Nightly);
         await service.WhenIdle.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.True(await service.InstallAsync().WaitAsync(TimeSpan.FromSeconds(10)));
         Assert.Equal(preview.TagName, service.ReadyUpdate!.Version);
@@ -423,10 +454,10 @@ public sealed class DesktopUpdateTests : IDisposable
         var preview = Release("2.2.0-preview.1"); preview.Prerelease = true;
         _releases.All = new[] { preview };
         using var service = Create();
-        await service.CheckAsync(false, true);
+        await service.CheckAsync(false, UpdateChannel.Nightly);
         await service.WhenIdle.WaitAsync(TimeSpan.FromSeconds(10));
         _releases.Latest = null;
-        Assert.False((await service.CheckAsync(false, false)).Succeeded);
+        Assert.False((await service.CheckAsync(false, UpdateChannel.Stable)).Succeeded);
         _settings.Current.DownloadUpdatesAutomatically = true;
         _settings.Save();
         await service.WhenIdle.WaitAsync(TimeSpan.FromSeconds(10));
@@ -550,8 +581,17 @@ public sealed class DesktopUpdateTests : IDisposable
             Digest = "sha256:" + Convert.ToHexString(SHA256.HashData(Package)),
             BrowserDownloadUrl = UpdatePackage.DownloadPrefix + "v" + version + "/" + name } } };
     }
+    private static GitHubRelease EdgeRelease(string version)
+    {
+        var release = Release(version);
+        release.Prerelease = true; release.Name = version; release.TagName = UpdateChannels.EdgeTag;
+        release.Assets[0].BrowserDownloadUrl = UpdatePackage.DownloadPrefix + UpdateChannels.EdgeTag + "/" + release.Assets[0].Name;
+        return release;
+    }
     private sealed class Releases : IGitHubReleaseService
     {
+        public GitHubRelease? Edge;
+        public Task<GitHubRelease?> GetReleaseByTagAsync(string tag, CancellationToken cancellationToken = default) => Task.FromResult(tag == UpdateChannels.EdgeTag ? Edge : null);
         public GitHubRelease? Latest = Release("2.1.0"); public IReadOnlyList<GitHubRelease> All = Array.Empty<GitHubRelease>(); public int Calls;
         public Func<Task<GitHubRelease?>>? ReadLatest;
         public Task<GitHubRelease?> GetLatestReleaseAsync(CancellationToken cancellationToken = default) { Calls++; return ReadLatest?.Invoke() ?? Task.FromResult(Latest); }
