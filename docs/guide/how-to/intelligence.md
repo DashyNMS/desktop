@@ -78,7 +78,7 @@ Separately from your plan, DashyNMS limits what Intelligence asks of your own se
 
 Two kinds of question can need more than one lookup on a large network, and the answer says when they do:
 
-- **Sensors across the whole network** ("is anything running hot?"), when your LibreNMS account isn't allowed the network-wide sensor list. Devices are then read one by one for about 20 seconds at a time, alerting ones first. Ask again within a few minutes to carry on. A LibreNMS admin can give your account the **global read** role or, on versions with custom roles, one with the `sensor.view` permission, so one lookup covers everything.
+- **Sensors across the whole network** ("is anything running hot?"), when your LibreNMS account isn't allowed the network-wide sensor list. Devices are then read one by one for about 20 seconds at a time, alerting ones first. Ask again within a few minutes to carry on. A LibreNMS admin can give your account the **global read** role or, on versions with custom roles, one with the `sensor.view` permission, so one lookup covers every device your account can see.
 - **Events over a long time** on a busy network. Asking for one kind of event, a device, a group or a location reaches much further back. When part of the time still couldn't be read, the answer says which part.
 
 ## What the agents can do here
