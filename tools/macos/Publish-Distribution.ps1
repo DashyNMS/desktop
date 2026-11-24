@@ -87,7 +87,7 @@ try {
     Invoke-MacTool xcrun @('stapler','validate',$App) -Operation ValidateTicket | Out-Null
     Invoke-MacTool spctl @('--assess','--type','execute','--verbose=2',$App) -Operation AssessTrust | Out-Null
 
-    Invoke-MacTool hdiutil @('create','-volname','DashyNMS','-srcfolder',$ImageDirectory,'-format','UDZO',$DiskImage) -Operation CreateDiskImage | Out-Null
+    Invoke-MacTool hdiutil @('create','-volname','DashyNMS','-srcfolder',$ImageDirectory,'-size',(Get-MacDiskImageSize $ImageDirectory),'-format','UDZO',$DiskImage) -Operation CreateDiskImage | Out-Null
     Invoke-MacTool codesign @('--force','--sign',$signingIdentity,'--keychain',$keychain,'--timestamp',$DiskImage) -Operation SignCode | Out-Null
     Submit-Notarisation $DiskImage
     Invoke-MacTool xcrun @('stapler','staple',$DiskImage) -Operation StapleTicket | Out-Null

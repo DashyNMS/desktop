@@ -135,7 +135,8 @@ try {
             Update-McpVersionHash -Executable "$mac/mcp/$mcpName" -Metadata "$resources/mcp/version.json"
             codesign --force --sign - $app; Check-Native 'Sign app bundle'
             codesign --verify --deep --strict $app; Check-Native 'Verify app signature'
-            hdiutil create -volname DashyNMS -srcfolder $image -format UDZO $diskImage; Check-Native 'Create disk image'
+            . "$PSScriptRoot/macos/Distribution-Common.ps1"
+            hdiutil create -volname DashyNMS -srcfolder $image -size (Get-MacDiskImageSize $image) -format UDZO $diskImage; Check-Native 'Create disk image'
         }
     }
     else {

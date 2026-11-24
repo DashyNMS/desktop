@@ -175,6 +175,9 @@ try {
     Require ([array]::IndexOf($calls,$searchListWrites[1]) -lt [array]::IndexOf($calls,$deleteCall)) 'The temporary keychain was deleted before restoring its search list.'
     $submissions = @($calls | Where-Object { $_.Tool -eq 'xcrun' -and $_.Arguments[1] -eq 'submit' })
     Require ($submissions.Count -eq 2) 'App and disk image must both be notarised.'
+    $create = @($calls | Where-Object { $_.Tool -eq 'hdiutil' })[0]
+    $size = $create.Arguments[[array]::IndexOf($create.Arguments, '-size') + 1]
+    Require ($create.Arguments -contains '-size' -and $size -match '^\d+m$' -and [int]$size.TrimEnd('m') -ge 64) 'The disk image must be made big enough for the app, not left to a guess.'
     Require (@(Get-ChildItem $scratch -Directory -Filter 'dashynms-signing-*').Count -eq 0) 'Successful signing left credential files.'
     foreach ($failure in @('codesign','xcrun','security','xcrun notarytool submit','xcrun stapler staple',
         'hdiutil','security delete-keychain','notary-rejected')) {

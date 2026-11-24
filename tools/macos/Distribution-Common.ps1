@@ -134,3 +134,11 @@ function Invoke-MacTool(
     }
     return $result
 }
+
+# The size to make a disk image of a folder, in hdiutil's own terms. Left to
+# itself, hdiutil guesses, and has guessed too little for the app's large
+# executables ("No space left on device"). The room spare compresses to nothing.
+function Get-MacDiskImageSize([string]$Folder) {
+    $bytes = (Get-ChildItem -LiteralPath $Folder -Recurse -File -Force | Measure-Object -Property Length -Sum).Sum
+    return "$([Math]::Ceiling($bytes / 1MB * 1.2) + 64)m"
+}
