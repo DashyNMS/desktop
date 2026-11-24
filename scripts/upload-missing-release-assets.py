@@ -4,12 +4,12 @@ Usage: upload-missing-release-assets.py <tag> <directory or files...>
 Existing files must match the local bytes, including SHA256SUMS. A rebuilt signed
 archive may differ; reject that retry instead of breaking the published manifest.
 """
+import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
-import sys
 
 
 def sha256(path):
@@ -42,7 +42,11 @@ def plan_uploads(folder, assets, download):
 
 
 def main():
-    tag, *paths = sys.argv[1:]
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('tag')
+    parser.add_argument('paths', nargs='+', help='a directory, or files')
+    args = parser.parse_args()
+    tag, paths = args.tag, args.paths
     # By id: a draft can't be read by its tag, and it's how the first edge release starts.
     identity = subprocess.check_output(
         ['gh', 'release', 'view', tag, '--json', 'databaseId', '--jq', '.databaseId'], text=True).strip()
