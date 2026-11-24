@@ -10,7 +10,7 @@ try {
     $notes = Join-Path $root "docs/releases/$baseVersion.md"
     $env:DASHYNMS_EXPECTED_RELEASE_NOTES = $notes
     dotnet test tests/DesktopNMS.Presentation.Tests -c Release "-p:Version=$version" -p:RequireReleaseNotes=true --filter FullyQualifiedName~BundledWhatsNewTests
-    if ($LASTEXITCODE -ne 0) { throw 'The release build did not embed the version's notes.' }
+    if ($LASTEXITCODE -ne 0) { throw 'The release build did not embed the notes for its version.' }
     $missing = '0.0.0-nightly.999999'
     if (Test-Path 'docs/releases/0.0.0.md') { throw 'The negative test requires a missing release notes file.' }
     $output = dotnet build src/DesktopNMS.Presentation -c Release --no-restore "-p:Version=$missing" -p:RequireReleaseNotes=true 2>&1

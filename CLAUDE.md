@@ -2,7 +2,7 @@
 
 Avalonia/.NET 9 desktop client for LibreNMS on Windows, macOS and Linux. `src/DesktopNMS.Avalonia` is the app; `src/DesktopNMS.Presentation` holds the view models and services with no UI framework in them (plain net9.0). UI and platform-specific adapters stay in the Avalonia project behind interfaces. The WPF project has been retired. Namespaces remain `DesktopNMS`, and XAML refers to Presentation types with `;assembly=DesktopNMS.Presentation`. The shared code (`DesktopNMS.Core`) lives in
 [DashyNMS/core](https://github.com/DashyNMS/core) and comes in as the `DashyNMS.Core`
-package, pinned to an edge package between releases (`Directory.Build.props`). Make Core changes
+package, pinned to a nightly or edge package between releases (`Directory.Build.props`). Make Core changes
 there, and set `DASHYNMS_LOCAL_CORE` to build against a local checkout.
 Building, layout and storage are covered in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 

@@ -577,7 +577,7 @@ payload, queue, cancellation and consent tests.
 
 ### Update download preference
 
-Settings, About has a **Download updates automatically** preference. It defaults
+Settings, Updates has a **Download updates automatically** preference. It defaults
 to on. Applying an off value keeps release checks and notifications enabled but
 stops automatic package downloads, including a download already in progress.
 Verified packages already cached remain available for an explicit update.

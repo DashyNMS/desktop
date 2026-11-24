@@ -260,7 +260,7 @@ public sealed class DesktopUpdateTests : IDisposable
     {
         _installation.Runtime = runtime;
         var preview = Release("2.0.0-preview.10", runtime); preview.Prerelease = true;
-        _releases.All = new[] { preview };
+        _releases.All = new[] { preview }; _releases.Latest = Release("1.1.0", runtime);
         using var service = Create(currentVersion: developmentVersion);
         Assert.True((await service.CheckAsync(false, UpdateChannel.Nightly)).IsNewerVersionAvailable);
         await service.WhenIdle;
@@ -444,7 +444,8 @@ public sealed class DesktopUpdateTests : IDisposable
         await service.WhenIdle.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.True(await service.InstallAsync().WaitAsync(TimeSpan.FromSeconds(10)));
         Assert.Equal(preview.TagName, service.ReadyUpdate!.Version);
-        Assert.Equal(1, _releases.Calls);
+        // The check's own two reads, the recent releases and the latest; installing adds none.
+        Assert.Equal(2, _releases.Calls);
     }
 
     [Fact]

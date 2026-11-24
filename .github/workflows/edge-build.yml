@@ -38,6 +38,7 @@ jobs:
 
   ci:
     name: CI
+    needs: version
     uses: ./.github/workflows/ci.yml
 
   packages:
