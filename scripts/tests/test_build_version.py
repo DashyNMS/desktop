@@ -81,6 +81,20 @@ class BuildVersionTests(unittest.TestCase):
         self.assertIn("docs/releases/2.0.0.md", text)
         self.assertNotIn("Something to notice", text)
 
+    def test_an_edge_build_compares_with_the_last_edge_even_after_a_nightly(self):
+        self.git("tag", "v2.0.0-edge.6")
+        os.environ["GIT_COMMITTER_DATE"] = "2090-01-01T00:00:00Z"
+        self.addCleanup(os.environ.pop, "GIT_COMMITTER_DATE")
+        self.commit("fix: later")
+        self.git("tag", "v2.0.0-nightly.1")
+        self.run_script("edge", "--notes", "out/notes.md")
+        self.assertIn("compare/v2.0.0-edge.6...v2.0.0-edge.7", (self.root / "out/notes.md").read_text())
+
+    def test_the_first_edge_build_compares_with_the_last_build_of_any_kind(self):
+        self.git("tag", "v2.0.0-nightly.1")
+        self.run_script("edge", "--notes", "out/notes.md")
+        self.assertIn("compare/v2.0.0-nightly.1...v2.0.0-edge.7", (self.root / "out/notes.md").read_text())
+
     def test_a_release_is_the_notes_themselves(self):
         self.git("tag", "v2.0.0")
         self.run_script("release", "--tag", "v2.0.0", "--notes", "out/notes.md")
