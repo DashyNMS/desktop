@@ -83,7 +83,19 @@ try {
     dotnet test tests/DesktopNMS.Presentation.Tests -c Release @notesOptions --filter 'FullyQualifiedName~McpBundleTests|FullyQualifiedName~BundledWhatsNewTests'
     if ($LASTEXITCODE -ne 0) { throw 'Packaged network tools or exact release notes verification failed.' }
 } finally {
-    if ($mounted) { hdiutil detach $mount | Out-Null }
+    if ($mounted) {
+        # Something can hold the image open for a moment after the app and the
+        # network tools exit. That says nothing about the package, so it's
+        # retried, then forced, and never fails one that has been verified.
+        foreach ($attempt in 1..5) {
+            if ($attempt -lt 5) { hdiutil detach $mount 2>&1 | Out-Null }
+            else { hdiutil detach $mount -force 2>&1 | Out-Null }
+            if ($LASTEXITCODE -eq 0) { break }
+            Start-Sleep -Seconds 3
+        }
+        if ($LASTEXITCODE -ne 0) { Write-Warning 'Could not unmount the verified disk image.' }
+        $global:LASTEXITCODE = 0
+    }
     Remove-Item Env:DASHYNMS_TEST_MCP -ErrorAction SilentlyContinue
     $env:DASHYNMS_EXPECTED_RELEASE_NOTES = $previousExpectedNotes
     Pop-Location
