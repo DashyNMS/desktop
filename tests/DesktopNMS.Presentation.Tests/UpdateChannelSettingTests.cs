@@ -38,7 +38,7 @@ public sealed class UpdateChannelSettingTests
         await Until(() => !dialog.IsCheckingForUpdates);
         var status = dialog.UpdateStatusText;
 
-        _checks[UpdateChannel.Edge].SetResult(new(true, new GitHubRelease { TagName = UpdateChannels.EdgeTag, Name = "2.0.0-edge.9" }, true));
+        _checks[UpdateChannel.Edge].SetResult(new(true, new GitHubRelease { TagName = "v2.0.0-edge.9" }, true));
         await Task.Delay(200);
 
         Assert.False(dialog.IsNewerVersionAvailable);

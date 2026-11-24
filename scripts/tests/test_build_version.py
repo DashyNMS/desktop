@@ -54,7 +54,7 @@ class BuildVersionTests(unittest.TestCase):
     def test_a_nightly_is_a_copy_of_the_notes_with_a_link_to_what_changed(self):
         self.git("tag", "v2.0.0-preview.20")
         self.commit("fix: later")
-        self.git("tag", "v0.0.0-edge")
+        self.git("tag", "v2.0.0-edge.6")
         self.run_script("nightly", "--notes", "out/notes.md")
         text = (self.root / "out/notes.md").read_text()
         self.assertTrue(text.startswith("## New\n\n- Something to notice.\n"))
@@ -68,6 +68,18 @@ class BuildVersionTests(unittest.TestCase):
         self.git("tag", "v1.9.0")
         self.run_script("nightly", "--notes", "out/notes.md")
         self.assertIn("compare/v1.9.0...", (self.root / "out/notes.md").read_text())
+
+    def test_an_edge_build_links_to_the_notes_and_what_changed_since_the_last_one(self):
+        self.git("tag", "v2.0.0-nightly.1")
+        os.environ["GIT_COMMITTER_DATE"] = "2090-01-01T00:00:00Z"
+        self.addCleanup(os.environ.pop, "GIT_COMMITTER_DATE")
+        self.commit("fix: later")
+        self.git("tag", "v2.0.0-edge.6")
+        self.run_script("edge", "--notes", "out/notes.md")
+        text = (self.root / "out/notes.md").read_text()
+        self.assertIn("compare/v2.0.0-edge.6...v2.0.0-edge.7", text)
+        self.assertIn("docs/releases/2.0.0.md", text)
+        self.assertNotIn("Something to notice", text)
 
     def test_a_release_is_the_notes_themselves(self):
         self.git("tag", "v2.0.0")

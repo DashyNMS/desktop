@@ -1538,11 +1538,11 @@ public sealed partial class SettingsViewModel : ObservableObject
             return null;
         }
 
-        var what = ReleaseVersion.ChannelOf(release.Version) switch
+        var what = ReleaseVersion.ChannelOf(release.TagName) switch
         {
-            UpdateChannel.Edge => $"Edge build {release.Version}",
-            UpdateChannel.Nightly => $"Nightly build {release.Version}",
-            _ => $"Version {release.Version}",
+            UpdateChannel.Edge => $"Edge build {release.TagName}",
+            UpdateChannel.Nightly => $"Nightly build {release.TagName}",
+            _ => $"Version {release.TagName}",
         };
         return IsUpdateReady
             ? $"{what} is downloaded and ready to install."
@@ -1556,7 +1556,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>The newest version found is downloaded and verified - "Restart to update" shows.</summary>
     public bool IsUpdateReady => _updates.ReadyUpdate is { } ready
-                                 && (_latestRelease is null || ready.Version == _latestRelease.Version);
+                                 && (_latestRelease is null || ready.Version == _latestRelease.TagName);
     public bool CanInstallUpdate => _updates.CanInstallUpdate && (IsNewerVersionAvailable || IsUpdateReady);
     public string UpdateActionText => IsUpdateReady ? _updates.UpdateActionText
         : "Download and " + _updates.UpdateActionText.ToLowerInvariant();

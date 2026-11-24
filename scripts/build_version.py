@@ -51,11 +51,10 @@ def store_build(now=None):
     return int((now - datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc)).total_seconds() // 60)
 
 
-def newest_tag(pattern):
-    """The newest tag matching a pattern on this branch's history, by commit."""
+def newest_tag(pattern, edge=False):
+    """The newest tag on this branch's history, by commit. Edge builds aren't what people are given notes from."""
     tags = git("tag", "--list", pattern, "--merged", "HEAD", "--sort=-creatordate").splitlines()
-    # The rolling edge tag marks nothing anyone was given notes for.
-    return next((tag for tag in tags if tag != "v0.0.0-edge"), None)
+    return next((tag for tag in tags if edge or "-edge" not in tag), None)
 
 
 def release_notes(base):
@@ -77,6 +76,13 @@ def nightly_notes(text, tag, commit, repository):
     since = newest_tag("v[0-9]*")
     changes = f" [Changes since {since}](https://github.com/{repository}/compare/{since}...{tag})." if since else ""
     return f"{text}\n---\n\nNightly build of {commit[:7]}.{changes}\n"
+
+
+def edge_notes(base, tag, commit, repository):
+    since = newest_tag("v[0-9]*", edge=True)
+    changes = f" [Changes since {since}](https://github.com/{repository}/compare/{since}...{tag})." if since else ""
+    return (f"A build of {commit[:7]}, for testing a change: it may not work. "
+            f"[Release notes](https://github.com/{repository}/blob/{commit}/docs/releases/{base}.md).{changes}\n")
 
 
 def main():
@@ -109,7 +115,9 @@ def main():
         # By hand is asking for one, so only the schedule is skipped.
         changed = os.environ.get("GITHUB_EVENT_NAME") != "schedule" or last is None or git("rev-parse", f"{last}^{{commit}}") != commit
     if args.notes:
-        body = nightly_notes(text, f"v{version}", commit, os.environ.get("GITHUB_REPOSITORY", "")) if args.channel == "nightly" else text
+        repository = os.environ.get("GITHUB_REPOSITORY", "")
+        body = {"edge": lambda: edge_notes(base, f"v{version}", commit, repository),
+                "nightly": lambda: nightly_notes(text, f"v{version}", commit, repository)}.get(args.channel, lambda: text)()
         args.notes.parent.mkdir(parents=True, exist_ok=True)
         args.notes.write_text(body, encoding="utf-8", newline="\n")
 

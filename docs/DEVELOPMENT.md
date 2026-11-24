@@ -77,7 +77,7 @@ Every DashyNMS repository builds the same way.
 | Workflow | When | Version | Publishes |
 | --- | --- | --- | --- |
 | **CI** (`ci.yml`) | every pull request, and first in each build below | none | nothing |
-| **Edge build** (`edge-build.yml`) | every commit to `main` | `2.0.0-edge.<build>` | installers on the rolling `v0.0.0-edge` prerelease |
+| **Edge build** (`edge-build.yml`) | every commit to `main` | `2.0.0-edge.<build>` | a prerelease |
 | **Nightly build** (`nightly-build.yml`) | 00:00 UTC (GitHub may start it late) if `main` changed since the last nightly, or by hand | `2.0.0-nightly.<build>` | a prerelease |
 | **Release build** (`release-build.yml`) | a tag `v2.0.0` is pushed | `2.0.0` | that release's installers |
 | **CodeQL**, **Dependency submission** and **Wiki** | as their names say | none | nothing, nothing and the wiki |
@@ -88,10 +88,9 @@ upgrades pass. `<build>` is the workflow's run number, so don't rename a
 build's file without raising `<Version>` at the same time. If one fails part
 way, run it again by hand for a new number.
 
-**Edge** has one release whose files each build replaces, with the build's
-version as its title. Its tag is `v0.0.0-edge` because apps from before the
-update channels read every tag as a version, and this one has to rank below
-whatever they're running. A build that finishes late never replaces a newer one.
+Apps from before the update channels read `v2.0.0-edge.N` and
+`v2.0.0-nightly.N` as the finished 2.0.0, so someone on a preview may be offered
+an edge build first. From there they're on Nightly.
 
 **Nightly** builds replace the numbered previews.
 
@@ -135,7 +134,7 @@ Every DashyNMS repository writes its release notes the same way. **`docs/release
 | Build | Notes |
 | --- | --- |
 | CI | fails if the file is missing, empty or has other headings |
-| Edge | the rolling release links to the file at its commit |
+| Edge | a tag and prerelease with links to the file and to the changes since the last edge build |
 | Nightly | a tag and prerelease with a copy of the file, and a link to the changes since the last build |
 | Release | the last step creates the release with the file as its notes |
 | What's New | every package embeds the file, so the app shows the same growing list |
@@ -593,8 +592,7 @@ managed by a package manager keep their notification-only behaviour.
 Settings, Updates chooses Stable (the default), Nightly or Edge
 (`AppSettings.UpdateChannel`, #620). Core's `UpdateChannels` finds the channel's
 newest release and decides whether it's an update, so `DesktopUpdateService`
-only prepares and installs it. A release is named by `GitHubRelease.Version`,
-never its tag, because every edge build shares the `v0.0.0-edge` tag. Choosing a
+only prepares and installs it. Choosing a
 channel checks it at once and drops anything already found that it wouldn't
 offer. People who had **Include preview builds** on are on Nightly.
 
@@ -830,7 +828,6 @@ docs/
   releases/                 The notes for each version, embedded and published by the builds
 scripts/                    What the workflows and packaging run
   build_version.py          Versions and notes, the same in every repository
-  publish-edge.sh           The rolling edge release
   Publish-Package.ps1       Installers; Publish-Mcp.ps1 for the bundled network tools
   Publish-Dev.ps1           Versioned Windows builds of your own
   Render-Screenshots.ps1    Demo screenshot tour

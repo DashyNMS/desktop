@@ -84,8 +84,6 @@ public sealed record ReadyUpdate(string Version, string InstallerPath, string? R
 /// <summary>Where a version's release notes live.</summary>
 public static class UpdateReleases
 {
-    /// <summary>Every edge build shares one release, so its page is that tag's rather than the version's.</summary>
     public static string ReleasePageUrl(string version) =>
-        "https://github.com/DashyNMS/desktop/releases/tag/" + (ReleaseVersion.ChannelOf(version) == UpdateChannel.Edge ? UpdateChannels.EdgeTag
-            : version.StartsWith('v') ? version : "v" + version);
+        "https://github.com/DashyNMS/desktop/releases/tag/" + (version.StartsWith('v') ? version : "v" + version);
 }
