@@ -38,6 +38,10 @@ public sealed partial class McpToolHost
             values.Add(new("LIBRENMS_TRUSTED_CERTS", string.Join(",", connection.TrustedCertificates)));
         }
 
+        // Never an earlier answer in place of one that failed (mcp#39): a chat's
+        // status cards, starters and Spotlight show a result as true now.
+        values.Add(new("MCP_LAST_KNOWN_GOOD", "off"));
+
         // Settings › Intelligence: full (redacted) config text, a summary
         // ("did it change, when and by how much"), or nothing from Unimus.
         values.Add(new("MCP_CONFIG_TEXT", ConfigText(settings)));

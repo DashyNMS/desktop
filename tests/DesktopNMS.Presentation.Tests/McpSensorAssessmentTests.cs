@@ -111,6 +111,11 @@ public sealed class McpSensorAssessmentTests
         Assert.Matches("^[0-9A-F]{64}$", first);
     }
 
+    /// <summary>A chat's cards show a result as true now, so the server must never give one from before (mcp#39).</summary>
+    [Fact]
+    public void The_bundled_tools_are_told_never_to_answer_from_an_earlier_result()
+        => Assert.Equal("off", Assert.Single(McpToolHost.ToolSettings(Connection, new AppSettings(), () => null, () => null), p => p.Key == "MCP_LAST_KNOWN_GOOD").Value);
+
     public static TheoryData<string, Action<AppSettings>> Scenarios => new()
     {
         { "defaults", _ => { } },
