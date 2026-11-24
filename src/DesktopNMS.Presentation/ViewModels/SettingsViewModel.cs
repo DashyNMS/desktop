@@ -1499,13 +1499,22 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>About's trademark line - Core's, so both apps say the same.</summary>
     public string Trademarks => DesktopNMS.Core.Licences.OpenSourceNotices.Trademarks;
 
+    private int _updateCheck;
+
     private async Task CheckForUpdatesAsync(bool notifyIfNewer)
     {
+        // Choosing another channel starts a check without waiting for the last
+        // one, whose answer is then about a channel that's no longer chosen.
+        var check = ++_updateCheck;
         IsCheckingForUpdates = true;
         InstallUpdateCommand.RaiseCanExecuteChanged();
         UpdateStatusText = "Checking for updates...";
 
         var result = await _updates.CheckAsync(notifyIfNewer, SelectedUpdateChannel.Value).ConfigureAwait(true);
+        if (check != _updateCheck)
+        {
+            return;
+        }
 
         _latestRelease = result.LatestRelease;
         IsNewerVersionAvailable = result.IsNewerVersionAvailable;

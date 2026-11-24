@@ -111,7 +111,7 @@ Then raise `<Version>`, so later edge and nightly builds rank above the release.
 If it fails there's no release:
 
 - **Nothing on `main` has to change:** run **Release build** by hand with the tag.
-- **It needs a fix:** the tag has to be on `main`'s newest commit, so merge the fix, delete the tag (`git push --delete origin v2.0.0`) and push it again.
+- **It needs a fix:** the tag has to be on `main`'s newest commit, so merge the fix, then move the tag: `git push --delete origin v2.0.0`, `git fetch origin`, `git tag -f v2.0.0 origin/main` and `git push origin v2.0.0`.
 
 A release that was partly attached keeps the files it has, and is only finished
 with files that match: otherwise re-run the failed job of the run that started it.

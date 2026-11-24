@@ -51,11 +51,11 @@ if (-not $package.Contains("environment: `${{ inputs.sign && startsWith(matrix.r
     throw 'Only signed macOS packages may use the signing environment.'
 }
 $policyStep = $package.IndexOf('Validate the source before using credentials')
-$firstSecret = $package.IndexOf('${{ inputs.sign && secrets.')
+$firstSecret = $package.IndexOf('${{ inputs.sign && startsWith(matrix.runtime, ''osx-'') && secrets.')
 if ($policyStep -lt 0 -or $firstSecret -lt $policyStep) { throw 'The signing policy must run before any credential is used.' }
 $secretNames = @('MACOS_CERTIFICATE_BASE64','MACOS_CERTIFICATE_PASSWORD','MACOS_SIGNING_IDENTITY','APPLE_API_KEY','APPLE_API_KEY_ID','APPLE_API_ISSUER_ID')
 foreach ($secret in $secretNames) {
-    if (-not $package.Contains('          ' + $secret + ': ${{ inputs.sign && secrets.' + $secret + " || '' }}")) {
+    if (-not $package.Contains('          ' + $secret + ': ${{ inputs.sign && startsWith(matrix.runtime, ''osx-'') && secrets.' + $secret + " || '' }}")) {
         throw "packages.yml gives $secret to a package that isn't signed."
     }
 }

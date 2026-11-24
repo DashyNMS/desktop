@@ -41,6 +41,11 @@ class ReleaseAssetsTests(unittest.TestCase):
             [{'name': 'archive.zip', 'id': 1}], lambda _: b'original archive')
         self.assertEqual(missing, [self.folder / 'SHA256SUMS'])
 
+    def test_files_can_be_named_one_by_one(self):
+        missing = assets.plan_uploads([self.folder / 'archive.zip'], [], lambda _: b'')
+        self.assertEqual(missing, [self.folder / 'archive.zip'])
+        self.assertEqual(2, len(assets.plan_uploads([self.folder], [], lambda _: b'')))
+
     def test_a_complete_matching_release_needs_no_upload(self):
         existing = [self.asset(p.name, p.read_bytes()) for p in self.folder.iterdir()]
         self.assertEqual(assets.plan_uploads(self.folder, existing, lambda _: b''), [])

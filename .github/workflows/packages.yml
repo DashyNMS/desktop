@@ -164,12 +164,12 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ needs.version.outputs.value }}
           SIGN: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') }}
-          MACOS_CERTIFICATE_BASE64: ${{ inputs.sign && secrets.MACOS_CERTIFICATE_BASE64 || '' }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ inputs.sign && secrets.MACOS_CERTIFICATE_PASSWORD || '' }}
-          MACOS_SIGNING_IDENTITY: ${{ inputs.sign && secrets.MACOS_SIGNING_IDENTITY || '' }}
-          APPLE_API_KEY: ${{ inputs.sign && secrets.APPLE_API_KEY || '' }}
-          APPLE_API_KEY_ID: ${{ inputs.sign && secrets.APPLE_API_KEY_ID || '' }}
-          APPLE_API_ISSUER_ID: ${{ inputs.sign && secrets.APPLE_API_ISSUER_ID || '' }}
+          MACOS_CERTIFICATE_BASE64: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') && secrets.MACOS_CERTIFICATE_BASE64 || '' }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') && secrets.MACOS_CERTIFICATE_PASSWORD || '' }}
+          MACOS_SIGNING_IDENTITY: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') && secrets.MACOS_SIGNING_IDENTITY || '' }}
+          APPLE_API_KEY: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') && secrets.APPLE_API_KEY || '' }}
+          APPLE_API_KEY_ID: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') && secrets.APPLE_API_KEY_ID || '' }}
+          APPLE_API_ISSUER_ID: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') && secrets.APPLE_API_ISSUER_ID || '' }}
         run: ./scripts/Publish-Package.ps1 -Runtime '${{ matrix.runtime }}' -Version $env:PACKAGE_VERSION -InnoCompiler $env:INNO_COMPILER -MacOSDistribution:($env:SIGN -eq 'true')
       - name: Verify the finished package
         shell: pwsh

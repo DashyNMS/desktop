@@ -18,9 +18,11 @@ permissions:
   contents: read
   packages: read
 
+# One at a time, in order, so an older release is never marked the latest again.
 concurrency:
-  group: release-build-${{ inputs.tag || github.ref_name }}
+  group: release-build
   cancel-in-progress: false
+  queue: max
 
 jobs:
   # Builds run from main, the only branch that may sign and publish.
@@ -125,7 +127,7 @@ jobs:
           mv dist/*.exe dist/*.dmg dist/*.AppImage installers/
           if gh release view "$TAG" >/dev/null 2>&1; then
             python3 scripts/upload-missing-release-assets.py "$TAG" installers
-            gh release edit "$TAG" --title "$VERSION" --notes-file notes/notes.md --draft=false --latest
+            gh release edit "$TAG" --title "$VERSION" --notes-file notes/notes.md --draft=false --prerelease=false --latest
           else
             gh release create "$TAG" installers/* --verify-tag --title "$VERSION" --notes-file notes/notes.md --latest
           fi

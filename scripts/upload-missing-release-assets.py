@@ -1,6 +1,6 @@
 """Complete a release upload without replacing assets or mixing different builds.
 
-Usage: upload-missing-release-assets.py <tag> <directory>
+Usage: upload-missing-release-assets.py <tag> <directory or files...>
 Existing files must match the local bytes, including SHA256SUMS. A rebuilt signed
 archive may differ; reject that retry instead of breaking the published manifest.
 """
@@ -17,11 +17,15 @@ def sha256(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+def files_in(paths):
+    return sorted(paths[0].iterdir()) if len(paths) == 1 and paths[0].is_dir() else list(paths)
+
+
 def plan_uploads(folder, assets, download):
     existing = {asset['name']: asset for asset in assets}
     missing = []
     # Validate the whole set before uploading anything.
-    for path in sorted(folder.iterdir()):
+    for path in files_in([folder] if isinstance(folder, Path) else folder):
         if not path.is_file():
             raise ValueError(f'Expected a release file: {path}')
         asset = existing.get(path.name)
@@ -38,16 +42,19 @@ def plan_uploads(folder, assets, download):
 
 
 def main():
-    tag, directory = sys.argv[1:]
+    tag, *paths = sys.argv[1:]
+    # By id: a draft can't be read by its tag, and it's how the first edge release starts.
+    identity = subprocess.check_output(
+        ['gh', 'release', 'view', tag, '--json', 'databaseId', '--jq', '.databaseId'], text=True).strip()
     release = json.loads(subprocess.check_output(
-        ['gh', 'api', f"repos/{os.environ['GH_REPO']}/releases/tags/{tag}"]))
+        ['gh', 'api', f"repos/{os.environ['GH_REPO']}/releases/{identity}"]))
 
     def download(asset):
         return subprocess.check_output(['gh', 'api',
             f"repos/{os.environ['GH_REPO']}/releases/assets/{asset['id']}",
             '-H', 'Accept: application/octet-stream'])
 
-    missing = plan_uploads(Path(directory), release['assets'], download)
+    missing = plan_uploads([Path(path) for path in paths], release['assets'], download)
     if missing:
         subprocess.run(['gh', 'release', 'upload', tag, *map(str, missing)], check=True)
 
