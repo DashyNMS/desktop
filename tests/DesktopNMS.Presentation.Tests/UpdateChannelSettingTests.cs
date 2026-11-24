@@ -100,12 +100,18 @@ public sealed class UpdateChannelSettingTests
 
     private sealed class Settings(AppSettings current) : ISettingsStore
     {
-        public AppSettings Current { get; } = current;
+        public AppSettings Current { get; private set; } = current;
         public event EventHandler<AppSettings>? Changed;
         public AppSettings Load() => Current;
         public void Save() => Changed?.Invoke(this, Current);
         public void SaveQuietly()
         {
+        }
+
+        public void Replace(AppSettings settings)
+        {
+            Current = settings;
+            Save();
         }
     }
 }
