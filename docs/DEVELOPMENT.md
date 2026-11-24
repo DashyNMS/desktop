@@ -599,7 +599,9 @@ in `BUILD.txt`, `version.json` and `third-party/`. That folder holds the
 licence and notice files of every package the executable carries, collected
 by the MCP repo's own `collect-dependency-notices.py` with an `inventory.json`
 of package hashes, and the .NET runtime pack's licence and third-party notices.
-Build-only packages ship nothing and are left out. The **Native network tools**
+Build-only packages ship nothing and are left out. The server is built without
+its HTTP transport (`McpHttpTransport=false`), so the bundle has stdio only and
+no ASP.NET Core. The **Native network tools**
 CI workflow runs a real stdio handshake, then offers and calls each of the 24
 allowlisted tools against the demo on every target, and checks those files.
 

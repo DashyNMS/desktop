@@ -51,16 +51,18 @@ try {
     # single-file apps on Apple silicon can crash when starting a child process
     # with redirected output (dotnet/runtime#123324).
     $compression = if ($Runtime.StartsWith('osx-')) { 'false' } else { 'true' }
+    # Without the HTTP transport: the app only uses stdio, so ASP.NET Core would
+    # be installer weight, and a way to open a port that nothing here needs.
     # Resolve the MCP repo's .NET 10 global.json rather than the desktop SDK.
     dotnet publish (Join-Path $source 'src\DashyNMS.Mcp\DashyNMS.Mcp.csproj') `
         -c Release -r $Runtime --self-contained true `
         -p:PublishSingleFile=true $nativeLibraries "-p:EnableCompressionInSingleFile=$compression" `
-        -p:DebugType=none "-p:SourceRevisionId=$commit" `
+        -p:McpHttpTransport=false -p:DebugType=none "-p:SourceRevisionId=$commit" `
         -o $output --nologo -v quiet
     if ($LASTEXITCODE -ne 0) { throw "Publishing the MCP server failed." }
     $version = dotnet msbuild (Join-Path $source 'src/DashyNMS.Mcp/DashyNMS.Mcp.csproj') `
         -nologo -verbosity:quiet -target:GenerateAssemblyInfo -getProperty:InformationalVersion `
-        -property:Configuration=Release "-property:SourceRevisionId=$commit"
+        -property:Configuration=Release -property:McpHttpTransport=false "-property:SourceRevisionId=$commit"
     if ($LASTEXITCODE -ne 0 -or -not $version -or ($version -join '').Trim() -notmatch '^[0-9A-Za-z][0-9A-Za-z.+_-]{0,199}$') {
         throw 'Could not read the MCP informational version.'
     }
