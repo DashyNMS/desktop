@@ -123,13 +123,17 @@ jobs:
           VERSION: ${{ needs.version.outputs.version }}
           TAG: ${{ needs.version.outputs.tag }}
         run: |
+          # An old publish can be re-run after a newer release, so it's only the
+          # latest if nothing released outranks it.
+          newest=$({ gh release list --exclude-drafts --exclude-pre-releases --limit 200 --json tagName --jq '.[].tagName'; echo "$TAG"; } | sort -V | tail -n 1)
+          latest=$([ "$newest" = "$TAG" ] && echo true || echo false)
           mkdir installers
           mv dist/*.exe dist/*.dmg dist/*.AppImage installers/
           if gh release view "$TAG" >/dev/null 2>&1; then
             python3 scripts/upload-missing-release-assets.py "$TAG" installers
-            gh release edit "$TAG" --title "$VERSION" --notes-file notes/notes.md --draft=false --prerelease=false --latest
+            gh release edit "$TAG" --title "$VERSION" --notes-file notes/notes.md --draft=false --prerelease=false --latest="$latest"
           else
-            gh release create "$TAG" installers/* --verify-tag --title "$VERSION" --notes-file notes/notes.md --latest
+            gh release create "$TAG" installers/* --verify-tag --title "$VERSION" --notes-file notes/notes.md --latest="$latest"
           fi
 
   sentry:
