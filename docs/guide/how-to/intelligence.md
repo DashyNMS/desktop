@@ -74,6 +74,8 @@ Under the question box, DashyNMS shows the chat's usage as the provider reported
 
 When a provider stops on a limit, the answer says so. Try again after it resets, or choose another provider.
 
+Separately from your plan, DashyNMS limits what Intelligence asks of your own servers: at most 8 requests at a time to each of LibreNMS, Unimus and Graylog. A question that needs more lookups waits its turn, so it can take a little longer on a busy network.
+
 ## What the agents can do here
 
 DashyNMS starts Codex, Claude Code, Copilot and Gemini in a locked-down session of its own:
