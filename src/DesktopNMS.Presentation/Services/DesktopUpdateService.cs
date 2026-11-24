@@ -112,40 +112,35 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
     public event EventHandler? InstallStarted;
     internal Task WhenIdle { get { lock (_gate) return _preparing; } }
 
-    public async Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, bool? includePreviewBuildsOverride = null,
+    public async Task<UpdateCheckResult> CheckAsync(bool notifyIfNewer, UpdateChannel? channelOverride = null,
         CancellationToken cancellationToken = default)
     {
         if (_demo.IsActive || _lifetime.IsCancellationRequested) return new(true, null, false);
         var generation = Interlocked.Increment(ref _checkGeneration);
-        var previews = includePreviewBuildsOverride ?? _settings.Current.IncludePreviewBuilds;
+        var channel = channelOverride ?? _settings.Current.UpdateChannel;
+        var previews = channel != UpdateChannel.Stable;
         var timing = _metrics.Begin(MetricArea.UpdateCheck, null, previews, DeliveryMode);
         var outcome = MetricOutcome.Failed;
         string? target = null;
         try
         {
+            bool Unoffered(string? version) => version is not null && !UpdateChannels.Offers(channel, version);
             lock (_gate)
             {
-                if (!previews && (_readyPreview || _latestRelease?.Prerelease == true || _operation?.Release.Prerelease == true))
+                // Whatever the last channel found goes as soon as this one wouldn't offer it,
+                // unless a newer check has already started: what's found now is that one's.
+                if (generation == Volatile.Read(ref _checkGeneration) && (Unoffered(_ready?.Version) || Unoffered(_latestRelease?.TagName) || Unoffered(_operation?.Release.TagName)))
                 {
                     _operation?.Cancellation.Cancel();
                     _wantedVersion = null; _latestRelease = null; _ready = null; _readyAsset = null;
                     ReadyUpdateChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
-            GitHubRelease? release;
-            if (previews)
-            {
-                var releases = await _releases.GetReleasesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-                release = releases.Where(r => !r.Draft && !string.IsNullOrWhiteSpace(r.TagName))
-                    .OrderByDescending(r => r.TagName, Comparer<string?>.Create(ReleaseVersion.Compare)).FirstOrDefault();
-            }
-            else release = await _releases.GetLatestReleaseAsync(cancellationToken).ConfigureAwait(false);
+            var release = await UpdateChannels.FindAsync(_releases, channel, cancellationToken).ConfigureAwait(false);
             if (release is null) return new(false, null, false);
             target = release.TagName;
             outcome = MetricOutcome.Success;
-            if (release.Draft || (!previews && release.Prerelease) || string.IsNullOrWhiteSpace(release.TagName))
-                return new(true, null, false);
-            var newer = ReleaseVersion.IsNewer(release.TagName, CurrentVersion);
+            var newer = UpdateChannels.IsUpdate(release.TagName, CurrentVersion, channel);
             if (timing.IsCurrent) _metrics.Begin(MetricArea.UpdateAvailability, release.TagName, previews, DeliveryMode)
                 .Complete(newer ? MetricOutcome.Available : MetricOutcome.Current);
             lock (_gate)

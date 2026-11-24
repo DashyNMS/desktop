@@ -11,7 +11,7 @@ DashyNMS runs on macOS 13 Ventura or later. There's a separate download for Appl
 3. Eject the disk image, then open DashyNMS from Applications.
 4. The first time, macOS asks whether you want to open an app downloaded from the internet. Choose **Open**.
 
-Apple has checked release and preview downloads, so that's the only question macOS asks. Apple hasn't checked development builds from GitHub Actions. If macOS says it can't check that build for malicious software, open **System Settings → Privacy & Security**, scroll down, and choose **Open Anyway** next to DashyNMS.
+Apple has checked every stable, nightly and edge download, so that's the only question macOS asks.
 
 Run DashyNMS from your Applications folder, not straight from the disk image. Keep the whole app together, because the network tools it uses are inside it.
 

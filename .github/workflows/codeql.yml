@@ -2,42 +2,61 @@ name: CodeQL
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
   schedule:
-    # 03:17 UTC every Monday - an off-peak, deliberately non-round time.
+    # 03:17 UTC every Monday: off-peak, and deliberately not on the hour.
     - cron: "17 3 * * 1"
 
 permissions:
   contents: read
-  security-events: write
-  packages: read
-
-# DashyNMS.Core comes from GitHub Packages (see nuget.config).
-env:
-  DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   analyze:
-    # Include the Windows notification adapter in the real build CodeQL analyses.
-    runs-on: windows-latest
+    name: Analyze (${{ matrix.language }})
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, python]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          dotnet-version: "9.0.x"
+          persist-credentials: false
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: "/language:${{ matrix.language }}"
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+  # Built on Windows, to include the notification adapter in what's analysed.
+  csharp:
+    name: Analyze (csharp)
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: read # DashyNMS.Core (see nuget.config)
+    env:
+      DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           languages: csharp
-
+          build-mode: manual
       - name: Build
-        run: dotnet build DesktopNMS.sln -c Release
-
-      - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v4
+        run: dotnet build DashyNMS.Desktop.slnx -c Release
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: "/language:csharp"

@@ -18,16 +18,13 @@
   <!--
     DesktopNMS.Core lives in DashyNMS/core (#248) and comes in as the
     DashyNMS.Core package from GitHub Packages - see nuget.config and
-    docs/DEVELOPMENT.md. Pinned to a development build of core's main
-    (x.y.z-ci.N) between Core releases. The app gets it through this project.
+    docs/DEVELOPMENT.md. Pinned in Directory.Build.props. The app gets it
+    through this project.
 
     To build against a local checkout of DashyNMS/core instead - for a Core
     change and an app change together - set DASHYNMS_LOCAL_CORE to that
     checkout's folder (an environment variable or -p:DASHYNMS_LOCAL_CORE=...).
   -->
-  <PropertyGroup>
-    <DashyNMSCoreVersion>2.0.0-ci.84</DashyNMSCoreVersion>
-  </PropertyGroup>
   <ItemGroup Condition="'$(DASHYNMS_LOCAL_CORE)' == ''">
     <PackageReference Include="DashyNMS.Core" Version="$(DashyNMSCoreVersion)" />
   </ItemGroup>
@@ -55,11 +52,12 @@
     <Using Include="DesktopNMS.Infrastructure" />
   </ItemGroup>
 
-  <!-- Published packages embed the same exact-version file that GitHub publishes.
-       Routine/debug development builds do not fall back to a stable or cumulative changelog. -->
+  <!-- Packages embed docs/releases/<version>.md, the one growing set of notes for the
+       version being built, which GitHub's nightlies and releases publish too. Local
+       builds embed none. -->
   <PropertyGroup>
-    <PublishedNotesVersion>$([System.Text.RegularExpressions.Regex]::IsMatch('$(Version)', '^\d+\.\d+\.\d+(-preview\.\d+)?$'))</PublishedNotesVersion>
-    <ReleaseNotesFile>$(MSBuildThisFileDirectory)..\..\docs\releases\$(Version).md</ReleaseNotesFile>
+    <PublishedNotesVersion>$([System.Text.RegularExpressions.Regex]::IsMatch('$(Version)', '^\d+\.\d+\.\d+(-(nightly|edge)\.\d+)?$'))</PublishedNotesVersion>
+    <ReleaseNotesFile>$(MSBuildThisFileDirectory)..\..\docs\releases\$(Version.Split('-')[0]).md</ReleaseNotesFile>
     <HasReleaseNotes Condition="'$(Configuration)' == 'Release' and '$(PublishedNotesVersion)' == 'True' and Exists('$(ReleaseNotesFile)')">true</HasReleaseNotes>
   </PropertyGroup>
   <ItemGroup Condition="'$(HasReleaseNotes)' == 'true'">
@@ -67,7 +65,7 @@
     <AssemblyMetadata Include="ReleaseNotesVersion" Value="$(Version)" />
   </ItemGroup>
   <Target Name="RequireExactReleaseNotes" BeforeTargets="PrepareForBuild" Condition="'$(RequireReleaseNotes)' == 'true'">
-    <Error Condition="'$(HasReleaseNotes)' != 'true'" Text="Missing exact release notes: docs/releases/$(Version).md" />
+    <Error Condition="'$(HasReleaseNotes)' != 'true'" Text="Missing release notes: docs/releases/$(Version.Split('-')[0]).md" />
   </Target>
 
 </Project>

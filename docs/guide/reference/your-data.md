@@ -63,4 +63,4 @@ To remove everything, for example after uninstalling:
 
 On Windows, the uninstaller offers to remove your data for you.
 
-Development builds from GitHub Actions keep their data apart from the release, in an `avalonia` folder inside the Windows location, so trying one doesn't touch your normal settings.
+Edge, nightly and stable builds share this data, so switching between them keeps your settings.

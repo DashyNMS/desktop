@@ -1,0 +1,83 @@
+name: Sentry
+
+# Records a nightly or a release in Sentry under the name the app reports (its
+# informational version, `X.Y.Z[-nightly.N]+<commit>`). Called by the nightly
+# and release builds; by hand to record one again.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+    secrets:
+      SENTRY_AUTH_TOKEN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Published release tag to record in Sentry (vX.Y.Z or vX.Y.Z-nightly.N)'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  sentry:
+    if: github.repository == 'DashyNMS/desktop'
+    runs-on: ubuntu-latest
+    steps:
+      # Sentry reads the release's commit from HEAD, so check out the tag
+      # itself rather than the branch a manual run starts from.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - name: Name the release and find the previous one
+        id: release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          $pattern = '^v(\d+\.\d+\.\d+(-(preview|nightly)\.\d+)?)$'
+          if (-not ($env:RELEASE_TAG -cmatch $pattern)) { throw "Unexpected release tag '$env:RELEASE_TAG'." }
+          $version = $Matches[1]
+          $commit = git rev-parse --verify "refs/tags/$env:RELEASE_TAG^{commit}"
+          if ($LASTEXITCODE -ne 0) { throw "Tag $env:RELEASE_TAG was not found." }
+          "name=$version+$($commit.Trim())" >> $env:GITHUB_OUTPUT
+          "commit=$($commit.Trim())" >> $env:GITHUB_OUTPUT
+          # The commits since the previous published release, by version
+          # rather than by when Sentry recorded it, so releases can be recorded
+          # or re-recorded in any order. A tag without a published release
+          # never reached users, so its commits belong to the next release.
+          [string[]]$published = gh release list --repo $env:GITHUB_REPOSITORY --limit 1000 --exclude-drafts --json tagName --jq '.[].tagName'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not list the published releases.' }
+          [string[]]$ordered = git -c versionsort.suffix=-preview -c versionsort.suffix=-nightly tag --list 'v*' --sort=v:refname
+          $index = [array]::IndexOf($ordered, $env:RELEASE_TAG)
+          if ($index -lt 0) { throw "Tag $env:RELEASE_TAG was not found." }
+          $previous = $ordered[0..$index] | Where-Object { $_ -cne $env:RELEASE_TAG -and $_ -cmatch $pattern -and $published -ccontains $_ } | Select-Object -Last 1
+          if ($previous) {
+            $previousCommit = git rev-parse --verify "refs/tags/$previous^{commit}"
+            if ($LASTEXITCODE -ne 0) { throw "Tag $previous was not found." }
+            "previous_commit=$($previousCommit.Trim())" >> $env:GITHUB_OUTPUT
+            Write-Host "Commits from $previous to $env:RELEASE_TAG."
+          }
+      - name: Create and finalise the Sentry release
+        uses: getsentry/action-release@e6703d0b00208e0b3687ba660d18ab5af7892821 # v3
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        with:
+          release: ${{ steps.release.outputs.name }}
+          # Links the commits between the two tags through Sentry's GitHub
+          # integration. The first release has no previous one, so Sentry
+          # takes its default count instead.
+          set_commits: ${{ steps.release.outputs.previous_commit && 'manual' || 'auto' }}
+          repo: ${{ github.repository }}
+          commit: ${{ steps.release.outputs.commit }}
+          previous_commit: ${{ steps.release.outputs.previous_commit }}
+          ignore_missing: true

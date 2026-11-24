@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj" />
+    <Project Path="src/DesktopNMS.Presentation/DesktopNMS.Presentation.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DesktopNMS.Avalonia.Tests/DesktopNMS.Avalonia.Tests.csproj" />
+    <Project Path="tests/DesktopNMS.Presentation.Tests/DesktopNMS.Presentation.Tests.csproj" />
+  </Folder>
+</Solution>
