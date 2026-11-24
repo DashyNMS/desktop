@@ -76,6 +76,11 @@ When a provider stops on a limit, the answer says so. Try again after it resets,
 
 Separately from your plan, DashyNMS limits what Intelligence asks of your own servers: at most 8 requests at a time to each of LibreNMS, Unimus and Graylog. A question that needs more lookups waits its turn, so it can take a little longer on a busy network.
 
+Two kinds of question can need more than one lookup on a large network, and the answer says when they do:
+
+- **Sensors across the whole network** ("is anything running hot?"), when your LibreNMS account isn't allowed the network-wide sensor list. Devices are then read one by one for about 20 seconds at a time, alerting ones first. Ask again within a few minutes to carry on. A LibreNMS admin can give your account the **global read** role or, on versions with custom roles, one with the `sensor.view` permission, so one lookup covers everything.
+- **Events over a long time** on a busy network. Asking for one kind of event, a device, a group or a location reaches much further back. When part of the time still couldn't be read, the answer says which part.
+
 ## What the agents can do here
 
 DashyNMS starts Codex, Claude Code, Copilot and Gemini in a locked-down session of its own:
