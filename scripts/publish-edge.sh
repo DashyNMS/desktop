@@ -32,7 +32,9 @@ fi
 old=$(gh release view "$tag" --json assets --jq '.assets[].name')
 gh release upload "$tag" "$@" --clobber
 gh release edit "$tag" --title "$version" --prerelease --latest=false \
-  --notes "The newest build of \`main\`, from \`$commit\`. It's replaced by every change and may not work: choose a nightly build or a release unless you're testing a change."
+  --notes "The newest build of \`main\`, from \`$commit\`. It's replaced by every change and may not work: choose a nightly build or a release unless you're testing a change.
+
+What's in it: [release notes](https://github.com/$GH_REPO/blob/$commit/docs/releases/${version%%-*}.md)."
 gh api -X PATCH "repos/$GH_REPO/git/refs/tags/$tag" -f sha="$commit" -F force=true --silent
 
 new=$(for file in "$@"; do basename "$file"; done)

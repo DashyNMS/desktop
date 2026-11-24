@@ -48,7 +48,7 @@ jobs:
       - name: Test UI input routing
         run: dotnet test tests/DesktopNMS.Avalonia.Tests -c Debug --no-build
 
-      - name: Verify exact embedded release notes
+      - name: Verify the embedded release notes
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/Test-BundledReleaseNotes.ps1
@@ -66,7 +66,7 @@ jobs:
           swiftc scripts/macos/LoginItem.swift -o "$RUNNER_TEMP/dashynms-login"
 
   scripts:
-    name: Build scripts
+    name: Build scripts and release notes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -74,6 +74,8 @@ jobs:
           persist-credentials: false
       - name: Test the build and guide scripts
         run: python3 -B -m unittest discover -s scripts/tests -v
+      - name: Check this version's release notes
+        run: python3 scripts/build_version.py check
       - name: Test the signing policy and release gates
         shell: pwsh
         run: |

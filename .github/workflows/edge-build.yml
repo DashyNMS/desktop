@@ -11,6 +11,12 @@ permissions:
   contents: read
   packages: read
 
+# One at a time, in order, so a later commit's files are never replaced by an earlier one's.
+concurrency:
+  group: edge-build
+  cancel-in-progress: false
+  queue: max
+
 jobs:
   version:
     name: Version
@@ -56,9 +62,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    concurrency:
-      group: edge-release
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

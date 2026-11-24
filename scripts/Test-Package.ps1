@@ -77,9 +77,9 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'The desktop launcher is invalid.' }
     }
     $env:DASHYNMS_TEST_MCP=(Resolve-Path $executable).Path
-    $requiresNotes = $Version -match '^\d+\.\d+\.\d+(-(preview|nightly)\.\d+)?$'
+    $requiresNotes = $Version -match '^\d+\.\d+\.\d+(-(nightly|edge)\.\d+)?$'
     [string[]]$notesOptions = @("-p:Version=$Version", "-p:RequireReleaseNotes=$($requiresNotes.ToString().ToLowerInvariant())")
-    $env:DASHYNMS_EXPECTED_RELEASE_NOTES = if ($requiresNotes) { Join-Path $root "docs/releases/$Version.md" } else { $null }
+    $env:DASHYNMS_EXPECTED_RELEASE_NOTES = if ($requiresNotes) { Join-Path $root "docs/releases/$(($Version -split '-')[0]).md" } else { $null }
     dotnet test tests/DesktopNMS.Presentation.Tests -c Release @notesOptions --filter 'FullyQualifiedName~McpBundleTests|FullyQualifiedName~BundledWhatsNewTests'
     if ($LASTEXITCODE -ne 0) { throw 'Packaged network tools or exact release notes verification failed.' }
 } finally {

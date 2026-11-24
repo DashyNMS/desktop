@@ -41,7 +41,7 @@ try {
         # 11). DashyNMS does that at startup when it reads the Keychain key.
         @('-p:PublishSingleFile=true','-p:IncludeNativeLibrariesForSelfExtract=false','-p:EnableCompressionInSingleFile=false')
     } else { @('-p:PublishSingleFile=false') }
-    $requireNotes = $Version -match '^\d+\.\d+\.\d+(-(preview|nightly)\.\d+)?$'
+    $requireNotes = $Version -match '^\d+\.\d+\.\d+(-(nightly|edge)\.\d+)?$'
     dotnet publish src/DesktopNMS.Avalonia -c Release -r $Runtime --self-contained true -m:1 `
         "-p:Version=$Version" "-p:RequireReleaseNotes=$($requireNotes.ToString().ToLowerInvariant())" @bundleOptions -p:DebugType=embedded -o $publish --nologo
     Check-Native 'Publish'
@@ -92,7 +92,7 @@ try {
         Check-Native 'Compile update helper'
         # This is a public identifier, not a credential. Distribution hosts also
         # derive trust from their own Developer ID signature; ad-hoc dev builds
-        # need an explicit pin to test upgrading to a signed preview.
+        # need an explicit pin to test upgrading to a signed nightly.
         $updateTeam = $env:MACOS_UPDATE_TEAM_ID
         if ($MacOSDistribution -and $env:MACOS_SIGNING_IDENTITY -match '\(([A-Z0-9]{10})\)$') { $updateTeam = $Matches[1] }
         if ($updateTeam -and $updateTeam -notmatch '^[A-Z0-9]{10}$') { throw 'Invalid public macOS update team identifier.' }

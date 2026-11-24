@@ -1,12 +1,12 @@
 name: Release build
 
-# Publishing a GitHub release (tag v<version>, on main's newest commit) builds
-# it. The release goes back to being a draft while that happens, and is
-# published again when everything in it is ready. If a build fails it stays a
-# draft: fix it, then run this by hand with the tag.
+# Pushing a tag v<version> on main's newest commit builds that release. The last
+# step creates the GitHub release, with its notes from docs/releases, so nobody
+# sees one before it's finished. If it fails there's no release: see "Builds and
+# releases" in docs/DEVELOPMENT.md.
 on:
-  release:
-    types: [published]
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
   workflow_dispatch:
     inputs:
       tag:
@@ -19,26 +19,24 @@ permissions:
   packages: read
 
 concurrency:
-  group: release-build-${{ inputs.tag || github.event.release.tag_name }}
+  group: release-build-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  hold:
-    name: Hold the release
-    if: github.event_name == 'release' && !github.event.release.prerelease && github.repository == 'DashyNMS/desktop'
+  # Builds run from main, the only branch that may sign and publish.
+  start:
+    name: Build it from main
+    if: github.event_name == 'push' && github.repository == 'DashyNMS/desktop'
     runs-on: ubuntu-latest
     permissions:
       actions: write
-      contents: write
     steps:
-      - name: Make it a draft and build it from main
+      - name: Run this workflow on main
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.event.release.tag_name }}
-        run: |
-          gh release edit "$TAG" --draft
-          gh workflow run release-build.yml --ref main -f tag="$TAG"
+          TAG: ${{ github.ref_name }}
+        run: gh workflow run release-build.yml --ref main -f tag="$TAG"
 
   version:
     name: Version
@@ -58,41 +56,22 @@ jobs:
         id: version
         env:
           TAG: ${{ inputs.tag }}
-        run: python3 scripts/build_version.py release --tag "$TAG"
-
-  # What the release says is what the app shows as What's New.
-  notes:
-    name: Release notes
-    needs: version
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # a draft is only readable with this
-    steps:
-      - name: Read the release's notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ needs.version.outputs.tag }}
-        run: |
-          gh release view "$TAG" --json body --jq .body > notes.md
-          if ! grep -q '^## ' notes.md; then
-            echo "::error::Write the release's notes first, under ## headings."
-            exit 1
-          fi
+        run: python3 scripts/build_version.py release --tag "$TAG" --notes artifacts/notes.md
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-notes
-          path: notes.md
+          path: artifacts/notes.md
+          if-no-files-found: error
           retention-days: 14
 
   ci:
     name: CI
-    needs: [version, notes]
+    needs: version
     uses: ./.github/workflows/ci.yml
 
   packages:
     name: Packages
-    needs: [version, notes, ci]
+    needs: [version, ci]
     uses: ./.github/workflows/packages.yml
     secrets:
       MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
@@ -105,7 +84,6 @@ jobs:
       version: ${{ needs.version.outputs.version }}
       commit: ${{ needs.version.outputs.commit }}
       sign: true
-      notes: true
 
   publish:
     name: Publish
@@ -129,15 +107,28 @@ jobs:
           VERSION: ${{ needs.version.outputs.version }}
           COMMIT: ${{ needs.version.outputs.commit }}
         run: ./scripts/Test-ReleaseArtifacts.ps1 -Directory dist -Version $env:VERSION -Commit $env:COMMIT
-      # Build records and checksums stay in the Actions artifacts.
-      - name: Attach the installers and publish the release
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-notes
+          path: notes
+      # Only the installers: build records and checksums stay in the Actions
+      # artifacts. If someone made the release on GitHub along with the tag,
+      # finish that one.
+      - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
           TAG: ${{ needs.version.outputs.tag }}
         run: |
-          gh release upload "$TAG" dist/*.exe dist/*.dmg dist/*.AppImage --clobber
-          gh release edit "$TAG" --draft=false --latest
+          mkdir installers
+          mv dist/*.exe dist/*.dmg dist/*.AppImage installers/
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            python3 scripts/upload-missing-release-assets.py "$TAG" installers
+            gh release edit "$TAG" --title "$VERSION" --notes-file notes/notes.md --draft=false --latest
+          else
+            gh release create "$TAG" installers/* --verify-tag --title "$VERSION" --notes-file notes/notes.md --latest
+          fi
 
   sentry:
     name: Sentry

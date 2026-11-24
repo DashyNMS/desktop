@@ -52,11 +52,12 @@
     <Using Include="DesktopNMS.Infrastructure" />
   </ItemGroup>
 
-  <!-- Published packages embed the same exact-version file that GitHub publishes.
-       Edge and local builds do not fall back to a stable or cumulative changelog. -->
+  <!-- Packages embed docs/releases/<version>.md, the one growing set of notes for the
+       version being built, which GitHub's nightlies and releases publish too. Local
+       builds embed none. -->
   <PropertyGroup>
-    <PublishedNotesVersion>$([System.Text.RegularExpressions.Regex]::IsMatch('$(Version)', '^\d+\.\d+\.\d+(-(preview|nightly)\.\d+)?$'))</PublishedNotesVersion>
-    <ReleaseNotesFile>$(MSBuildThisFileDirectory)..\..\docs\releases\$(Version).md</ReleaseNotesFile>
+    <PublishedNotesVersion>$([System.Text.RegularExpressions.Regex]::IsMatch('$(Version)', '^\d+\.\d+\.\d+(-(nightly|edge)\.\d+)?$'))</PublishedNotesVersion>
+    <ReleaseNotesFile>$(MSBuildThisFileDirectory)..\..\docs\releases\$(Version.Split('-')[0]).md</ReleaseNotesFile>
     <HasReleaseNotes Condition="'$(Configuration)' == 'Release' and '$(PublishedNotesVersion)' == 'True' and Exists('$(ReleaseNotesFile)')">true</HasReleaseNotes>
   </PropertyGroup>
   <ItemGroup Condition="'$(HasReleaseNotes)' == 'true'">
@@ -64,7 +65,7 @@
     <AssemblyMetadata Include="ReleaseNotesVersion" Value="$(Version)" />
   </ItemGroup>
   <Target Name="RequireExactReleaseNotes" BeforeTargets="PrepareForBuild" Condition="'$(RequireReleaseNotes)' == 'true'">
-    <Error Condition="'$(HasReleaseNotes)' != 'true'" Text="Missing exact release notes: docs/releases/$(Version).md" />
+    <Error Condition="'$(HasReleaseNotes)' != 'true'" Text="Missing release notes: docs/releases/$(Version.Split('-')[0]).md" />
   </Target>
 
 </Project>

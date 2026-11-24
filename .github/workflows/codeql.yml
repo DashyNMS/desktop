@@ -10,11 +10,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
-
-# DashyNMS.Core comes from GitHub Packages (see nuget.config).
-env:
-  DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   analyze:
@@ -22,37 +17,46 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Built on Windows, to include the notification adapter in what's analysed.
-          - language: csharp
-            build-mode: manual
-            runner: windows-latest
-          - language: actions
-            build-mode: none
-            runner: ubuntu-latest
-          - language: python
-            build-mode: none
-            runner: ubuntu-latest
-    runs-on: ${{ matrix.runner }}
+        language: [actions, python]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
       security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - if: matrix.build-mode == 'manual'
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # Built on Windows, to include the notification adapter in what's analysed.
+  csharp:
+    name: Analyze (csharp)
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: read # DashyNMS.Core (see nuget.config)
+    env:
+      DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: global.json
       - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+          languages: csharp
+          build-mode: manual
       - name: Build
-        if: matrix.build-mode == 'manual'
         run: dotnet build DashyNMS.Desktop.slnx -c Release
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
-          category: "/language:${{ matrix.language }}"
+          category: "/language:csharp"

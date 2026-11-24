@@ -38,11 +38,11 @@ public sealed class BundledWhatsNewTests
     }
 
     [Theory]
-    [InlineData("2.0.0-preview.10", "2.0.0-preview.9")]
-    [InlineData("2.0.0-preview.11", "2.0.0-preview.10")]
-    [InlineData("2.0.0", "2.0.0-preview.11")]
+    [InlineData("2.0.0-nightly.10", "2.0.0-nightly.9")]
+    [InlineData("2.0.0-nightly.11", "2.0.0-nightly.10")]
+    [InlineData("2.0.0", "2.0.0-nightly.11")]
     [InlineData("2.1.0", "2.0.0")]
-    [InlineData("2.0.0-preview.11", null)]
+    [InlineData("2.0.0-nightly.11", null)]
     public void A_new_exact_release_is_due_until_dismissed(string version, string? previouslyShown)
     {
         var notes = BundledWhatsNew.ParseRelease(version, Markdown);
@@ -53,32 +53,48 @@ public sealed class BundledWhatsNewTests
     }
 
     [Theory]
-    [InlineData("2.0.0-preview.10")]
+    [InlineData("2.0.0-nightly.10")]
     [InlineData("2.0.0")]
     [InlineData("2.0.0-preview.pr.544.86.1")]
     [InlineData("2.0.0-preview.ci.123.1")]
     [InlineData("2.0.0-edge.123")]
     [InlineData("2.0.0-dev.local")]
     [InlineData("unexpected-version")]
-    public void Other_releases_and_development_versions_do_not_show_preview_11_notes(string running)
+    public void Other_releases_and_development_versions_do_not_show_nightly_11_notes(string running)
     {
-        var notes = BundledWhatsNew.ParseRelease("2.0.0-preview.11", Markdown);
+        var notes = BundledWhatsNew.ParseRelease("2.0.0-nightly.11", Markdown);
         Assert.False(BundledWhatsNew.IsDue(notes, running, null));
     }
 
     [Theory]
     [InlineData("2.0.0-preview.pr.544.86.1")]
-    [InlineData("2.0.0-preview.ci.123.1")]
-    [InlineData("2.0.0-edge.123")]
+    [InlineData("2.0.0-preview.20")]
     [InlineData("2.0.0-dev.local")]
     public void Development_builds_do_not_parse_published_notes(string version)
         => Assert.Null(BundledWhatsNew.ParseRelease(version, Markdown));
 
     [Fact]
+    public void An_edge_build_has_its_notes_in_settings_without_announcing_them()
+    {
+        var notes = BundledWhatsNew.ParseRelease("2.0.0-edge.123", Markdown);
+        Assert.True(BundledWhatsNew.Matches(notes, "2.0.0-edge.123+commit"));
+        Assert.False(BundledWhatsNew.IsDue(notes, "2.0.0-edge.123", null));
+    }
+
+    [Fact]
+    public void The_same_growing_list_is_due_again_after_the_next_nightly()
+    {
+        var grown = Markdown + "## Fixed\n- **Something else.** Also better.\n";
+        var notes = BundledWhatsNew.ParseRelease("2.0.0-nightly.12", grown)!;
+        Assert.True(BundledWhatsNew.IsDue(notes, "2.0.0-nightly.12", "2.0.0-nightly.11"));
+        Assert.Equal(2, notes.Count);
+    }
+
+    [Fact]
     public void Offline_notes_include_the_exact_changes_without_empty_download_tabs()
     {
-        var notes = BundledWhatsNew.ParseRelease("2.0.0-preview.11", Markdown)!;
-        Assert.Equal("2.0.0-preview.11", notes.Version);
+        var notes = BundledWhatsNew.ParseRelease("2.0.0-nightly.11", Markdown)!;
+        Assert.Equal("2.0.0-nightly.11", notes.Version);
         var section = Assert.Single(notes.Sections);
         Assert.Equal("Changed", section.Name);
         var item = Assert.Single(section.Items);
@@ -89,17 +105,17 @@ public sealed class BundledWhatsNewTests
     [Fact]
     public void Manual_reopening_does_not_depend_on_automatic_seen_state()
     {
-        var notes = BundledWhatsNew.ParseRelease("2.0.0-preview.11", Markdown)!;
+        var notes = BundledWhatsNew.ParseRelease("2.0.0-nightly.11", Markdown)!;
         Assert.False(BundledWhatsNew.IsDue(notes, notes.Version, notes.Version));
-        var model = new WhatsNewViewModel(notes, new Uri("https://example.net/releases/preview.11"), _ => { });
-        Assert.Contains("2.0.0-preview.11", model.Title);
+        var model = new WhatsNewViewModel(notes, new Uri("https://example.net/releases/nightly.11"), _ => { });
+        Assert.Contains("2.0.0-nightly.11", model.Title);
         Assert.Single(model.Tabs);
     }
 
     [Fact]
     public void Automatic_presentation_waits_for_readiness_and_coalesces_requests()
     {
-        var notes = BundledWhatsNew.ParseRelease("2.0.0-preview.11", Markdown)!;
+        var notes = BundledWhatsNew.ParseRelease("2.0.0-nightly.11", Markdown)!;
         var presenter = new ReleaseNotesPresenter();
         var ready = false; string? seen = null; var shown = 0;
         var queued = new Queue<Action>();
@@ -115,7 +131,7 @@ public sealed class BundledWhatsNewTests
     [Fact]
     public void Dismissal_elsewhere_cancels_an_already_queued_announcement()
     {
-        var notes = BundledWhatsNew.ParseRelease("2.0.0-preview.11", Markdown)!;
+        var notes = BundledWhatsNew.ParseRelease("2.0.0-nightly.11", Markdown)!;
         string? seen = null; Action pending = null!; var shown = 0;
         new ReleaseNotesPresenter().TrySchedule(notes, notes.Version, () => seen, () => true, action => pending = action, () => shown++);
         seen = notes.Version;
@@ -125,7 +141,7 @@ public sealed class BundledWhatsNewTests
     [Fact]
     public void A_failed_dialog_can_be_scheduled_again_without_marking_the_version_seen()
     {
-        var notes = BundledWhatsNew.ParseRelease("2.0.0-preview.11", Markdown)!;
+        var notes = BundledWhatsNew.ParseRelease("2.0.0-nightly.11", Markdown)!;
         var presenter = new ReleaseNotesPresenter();
         var queued = new Queue<Action>();
         string? seen = null; var attempts = 0;

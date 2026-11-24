@@ -78,8 +78,8 @@ Every DashyNMS repository builds the same way.
 | --- | --- | --- | --- |
 | **CI** (`ci.yml`) | every pull request, and first in each build below | none | nothing |
 | **Edge build** (`edge-build.yml`) | every commit to `main` | `2.0.0-edge.<build>` | installers on the rolling `v0.0.0-edge` prerelease |
-| **Nightly build** (`nightly-build.yml`) | 00:00 UTC if `main` changed since the last nightly, or by hand | `2.0.0-nightly.<build>` | a prerelease, with notes from the commits |
-| **Release build** (`release-build.yml`) | a GitHub release is published | `2.0.0` | that release's installers |
+| **Nightly build** (`nightly-build.yml`) | 00:00 UTC (GitHub may start it late) if `main` changed since the last nightly, or by hand | `2.0.0-nightly.<build>` | a prerelease |
+| **Release build** (`release-build.yml`) | a tag `v2.0.0` is pushed | `2.0.0` | that release's installers |
 | **CodeQL**, **Dependency submission** and **Wiki** | as their names say | none | nothing, nothing and the wiki |
 
 The three builds call `packages.yml` ([Packages](#packages)) and sign the macOS
@@ -93,20 +93,54 @@ version as its title. Its tag is `v0.0.0-edge` because apps from before the
 update channels read every tag as a version, and this one has to rank below
 whatever they're running. A build that finishes late never replaces a newer one.
 
-**Nightly** notes are written by `scripts/build_version.py` from the `feat`,
-`fix` and `perf` commits since the last nightly, so a commit's subject is what
-people read. They replace the numbered previews, whose hand-written notes stay
-in `docs/releases`.
+**Nightly** builds replace the numbered previews.
 
-**A release:** publish a GitHub release on `main`'s newest commit, tagged
-`v<version>` to match `<Version>` in `Directory.Build.props`, with its notes
-under `##` headings. It goes back to being a draft while it builds, and is
-published again once the installers are attached, so nobody is offered a
-release without them. If something fails it stays a draft: fix it, then run
-**Release build** by hand with the tag. Then raise `<Version>`, so later edge
-and nightly builds rank above the release.
+**Releasing:** check that `docs/releases/<version>.md` reads well, then tag `main`'s newest commit and push only the tag:
+
+```bash
+git tag v2.0.0 origin/main && git push origin v2.0.0
+```
+
+The tag has to match `<Version>` in `Directory.Build.props`. Don't create the
+release on GitHub first, because everyone watching would be told about an empty
+one: the build creates it at the end, with its installers and
+[notes](#release-notes), so nobody is offered a release without them. A release
+needs Core pinned to a release too, or the build stops before making anything.
+Then raise `<Version>`, so later edge and nightly builds rank above the release.
+
+If it fails there's no release:
+
+- **Nothing on `main` has to change:** run **Release build** by hand with the tag.
+- **It needs a fix:** the tag has to be on `main`'s newest commit, so merge the fix, delete the tag (`git push --delete origin v2.0.0`) and push it again.
+
+A release that was partly attached keeps the files it has, and is only finished
+with files that match: otherwise re-run the failed job of the run that started it.
 
 Nightlies and releases are recorded in Sentry by `sentry.yml`.
+
+### Release notes
+
+Every DashyNMS repository writes its release notes the same way. **`docs/releases/<version>.md` is the one set of notes for the version in `Directory.Build.props`.** It covers everything since the last release and grows as changes merge. Nothing else is written by hand: not a GitHub release's text, and not a file for each nightly.
+
+**In the pull request that makes the change:**
+
+- If a user of this repository would notice it, add or update its line in that file. A `feat`, `fix` or `perf` nearly always needs one. `ci`, `test`, `docs`, `chore`, `refactor` and dependency updates don't, unless someone would notice.
+- Put it under `## Breaking`, `## New`, `## Changed` or `## Fixed`, in that order, as a list item: `- **What it's about:** what's different now, in plain words (#NN).` Other headings fail CI.
+- Say what's true of the release as a whole. If a later change alters or undoes something that hasn't been released, edit its line rather than adding another. A fix to something that has never been released has no line.
+- Breaking changes say what the reader has to do.
+- Never edit a released version's file. Never put download tables, filenames or build numbers in it: they differ for each build.
+
+**What the builds do with it:**
+
+| Build | Notes |
+| --- | --- |
+| CI | fails if the file is missing, empty or has other headings |
+| Edge | the rolling release links to the file at its commit |
+| Nightly | a tag and prerelease with a copy of the file, and a link to the changes since the last build |
+| Release | the last step creates the release with the file as its notes |
+| What's New | every package embeds the file, so the app shows the same growing list |
+
+**Raising `<Version>`:** the same pull request adds `docs/releases/<new version>.md` with its first line, because CI won't pass without it.
 
 For a local portable Windows build, publish the pinned MCP source first
 (requires .NET 10), then:
@@ -368,7 +402,7 @@ check, availability, download/preparation, installation launch and target startu
 Availability and target-startup outcomes are count-only. Version dimensions
 `update.source` / `update.target` strip a leading v and build metadata and accept
 only validated version strings up to 32 characters; otherwise they are unknown.
-`update.channel` is stable/preview. Check/availability channel describes the
+`update.channel` is stable/preview, where preview is any nightly or edge build. Check/availability channel describes the
 selected policy; download/install channel describes the selected target release.
 Platform/release remain the shared context. These dimensions participate in
 aggregation keys so different targets/channels never merge.
@@ -497,11 +531,9 @@ address becomes assembly metadata in the app. No authentication token is needed
 to build or send reports. A build without a valid HTTPS address disables sharing
 and its prompt.
 
-Each published GitHub release, stable or preview, is recorded in Sentry by
-`.github/workflows/sentry-release.yml` under the name the app reports:
-`X.Y.Z[-preview.N]+<full commit>`. A release published by hand raises the
-release event; the preview build calls the workflow after it publishes, because
-releases made with the workflow token raise no event. To record an earlier
+Each nightly and release is recorded in Sentry by `sentry.yml`, which their
+builds call, under the name the app reports:
+`X.Y.Z[-nightly.N]+<full commit>`. To record an earlier
 release, run the workflow by hand with its tag. It needs the secret
 `SENTRY_AUTH_TOKEN` (an organisation token, which also carries the EU region)
 and the variables `SENTRY_ORG` and `SENTRY_PROJECT`. Each release lists the
@@ -568,12 +600,12 @@ offer. People who had **Include preview builds** on are on Nightly.
 
 ### What's New after an upgrade
 
-Nightly and release packages embed `docs/releases/<full-version>.md`, which the
-build writes from the notes it publishes. Each release and nightly has its own
-identity, including the suffix. Edge and local builds do not fall back to
-another release's notes. The package builder requires an exact notes file for
-published-version packages, and package verification checks the parsed embedded
-notes. The app can show them offline.
+Packages embed `docs/releases/<version>.md`, the [notes](#release-notes) GitHub
+publishes, so What's New is one list that grows until the version is released.
+It's shown once after each release and each nightly, and Settings always has it.
+Edge builds come with every change, so theirs is only in Settings. Local builds
+carry none. The package builder refuses to build without the notes, and package
+verification checks the parsed embedded ones. The app can show them offline.
 
 Automatic presentation waits for a connected, visible main window with sign-in
 finished. The queued UI callback checks readiness and the saved version again.
@@ -710,7 +742,7 @@ source revisions first, and attaches only the app downloads.
 On the matching native host, with that runtime's MCP bundle built first:
 
 ```powershell
-./scripts/Publish-Package.ps1 -Runtime osx-arm64 -Version 2.0.0-preview.1
+./scripts/Publish-Package.ps1 -Runtime osx-arm64 -Version 2.0.0-nightly.1
 ```
 
 Windows also needs `-InnoCompiler <path-to-ISCC.exe>`. Output goes under
@@ -795,9 +827,9 @@ src/
     Services/               Windows, tray, notifications and startup adapters
 docs/
   guide/                    The user guide, copied to the wiki
-  releases/                 Past previews' notes; builds add their own here to embed
+  releases/                 The notes for each version, embedded and published by the builds
 scripts/                    What the workflows and packaging run
-  build_version.py          Versions and nightly notes, the same in every repository
+  build_version.py          Versions and notes, the same in every repository
   publish-edge.sh           The rolling edge release
   Publish-Package.ps1       Installers; Publish-Mcp.ps1 for the bundled network tools
   Publish-Dev.ps1           Versioned Windows builds of your own
@@ -852,7 +884,7 @@ Delete `token.dat` to force a fresh sign-in. Delete the folder to reset
 completely.
 
 Local builds on Windows keep their own data in `avalonia\` inside that
-folder. Windows release and preview builds reuse the existing 1.x profile.
+folder. Windows release, nightly and edge builds reuse the existing 1.x profile.
 Every macOS and Linux build uses `~/Library/Application Support/DashyNMS/avalonia`
 on macOS and `~/.config/DashyNMS/avalonia` on Linux (or under
 `$XDG_CONFIG_HOME`). The user guide's
@@ -1024,8 +1056,8 @@ feat(intelligence): choose how much detail answers give
 refactor(intelligence): split the chat list and composer out of the view model
 test(core): run the locked-file reset test on Windows only
 build: bump the version to 2.0.0
-ci: build the bundled MCP server in preview and release builds
-docs: What's New for 2.0.0-preview.3
+ci: build the bundled MCP server in nightly and release builds
+docs: the user guide covers update channels
 ```
 
 Commits on a branch use the same format. They disappear in the squash, so only
@@ -1068,7 +1100,7 @@ Issues are labelled by kind: `bug`, `Feature`, `enhancement`, `UI/UX`,
 
 ### macOS Relaunch updates
 
-The shared update service continues to select stable/preview releases and the
+The shared update service selects the [update channel](#update-channels)'s release for the
 running process architecture, honour the download preference, and verify the
 GitHub asset URL, size and SHA-256. On macOS, `dashynms-update` then stages a
 complete bundle in a private `.DashyNMS-update-<UUID>` folder beside the installed
@@ -1081,7 +1113,7 @@ other locations and destinations without atomic exchange support are refused.
 The helper does not elevate, modify Gatekeeper settings or strip quarantine.
 An administrator-managed installation retains its manual installation route.
 
-The updater requires the exact `DashyNMSReleaseVersion` (including preview suffix),
+The updater requires the exact `DashyNMSReleaseVersion` (including the nightly or edge suffix),
 bundle identifier, matching native architecture, Developer ID Application
 signature from the installed app's team, Apple notarisation and Gatekeeper
 acceptance. It also verifies the bundled MCP executable against its sealed
@@ -1133,22 +1165,20 @@ from an older, unrelated installation is refused. A successful update keeps its
 previous bundle. Older confirmed transactions are removed only after a subsequent
 update confirms startup; incomplete transactions are retained for investigation.
 
-Development packages remain ad-hoc signed. To test a dev-to-preview upgrade,
-set the public `MACOS_UPDATE_TEAM_ID` repository variable (or environment variable
+Packages from pull requests and local builds are ad-hoc signed. To test upgrading
+one to a signed nightly, set the public `MACOS_UPDATE_TEAM_ID` repository variable (or environment variable
 for a local package build) to the Developer ID team's ten-character identifier.
 It can be read from `codesign --display --verbose=4` on a trusted distribution
-bundle (`TeamIdentifier`). No signing private key is needed for the dev build.
+bundle (`TeamIdentifier`). No signing private key is needed for the local build.
 An unpinned ad-hoc build refuses to learn a publisher from its download. The
 protected distribution build also embeds the team derived from its configured
 signing identity. Both source and target must contain this updater; older public
 builds still use the manual DMG route for their first upgrade.
 
-Install the updater-enabled dev bundle in a supported location, opt into previews,
-and upgrade to the upcoming signed preview on Intel and Apple Silicon. Check
+Install that build in a supported location, choose Nightly, and upgrade to a
+signed nightly on Intel and Apple silicon. Check
 settings/sign-ins, native MCP version, tray/login preferences, one restart and
 #509's release-notes behaviour. Repeat with automatic downloads disabled, an
 interrupted download, invalid signature/version/architecture, failed launch,
 shutdown timeout and an unwritable destination. Native atomic replacement and
-injected restart/recovery failures run in CI on both architectures. This feature
-is deliberately omitted from the upcoming preview's public notes; public mention
-is deferred until preview 11 after the real upgrade has been verified.
+injected restart/recovery failures run in CI on both architectures.

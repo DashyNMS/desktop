@@ -9,19 +9,27 @@ using DesktopNMS.Infrastructure;
 
 namespace DesktopNMS.ViewModels;
 
-/// <summary>Exact release notes embedded from docs/releases; development builds carry no published-release notes.</summary>
+/// <summary>
+/// The version's release notes, embedded from docs/releases: one list that
+/// grows until the version is released. Local builds carry none.
+/// </summary>
 public static class BundledWhatsNew
 {
-    private static readonly Regex PublishedVersion = new(@"^\d+\.\d+\.\d+(-(preview|nightly)\.\d+)?$", RegexOptions.CultureInvariant);
+    private static readonly Regex PublishedVersion = new(@"^\d+\.\d+\.\d+(-(nightly|edge)\.\d+)?$", RegexOptions.CultureInvariant);
+    private static readonly Regex AnnouncedVersion = new(@"^\d+\.\d+\.\d+(-nightly\.\d+)?$", RegexOptions.CultureInvariant);
     private static readonly Lazy<WhatsNewNotes?> Notes = new(Load);
 
     public static WhatsNewNotes? Current => Notes.Value;
 
     public static WhatsNewNotes? ForVersion(string version) => Matches(Current, version) ? Current : null;
 
-    /// <summary>Desktop previews have their own identity; Core's older stable-only policy remains unchanged for other consumers.</summary>
+    /// <summary>
+    /// Whether to show the notes unasked: once after each release and each
+    /// nightly, when the list has grown. Edge builds come with every change,
+    /// so theirs wait in Settings.
+    /// </summary>
     public static bool IsDue(WhatsNewNotes? notes, string currentVersion, string? shownVersion) =>
-        Matches(notes, currentVersion) && !string.Equals(Normalise(shownVersion), Normalise(currentVersion), StringComparison.OrdinalIgnoreCase);
+        Matches(notes, currentVersion) && AnnouncedVersion.IsMatch(Normalise(currentVersion)) && !string.Equals(Normalise(shownVersion), Normalise(currentVersion), StringComparison.OrdinalIgnoreCase);
 
     public static bool Matches(WhatsNewNotes? notes, string version) => notes is not null
         && PublishedVersion.IsMatch(Normalise(version))

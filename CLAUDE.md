@@ -21,6 +21,7 @@ Building, layout and storage are covered in [docs/DEVELOPMENT.md](docs/DEVELOPME
   - A breaking change to the settings format or Core's public API: `feat(core)!: …`.
 - Branch commits use the same format.
 - Issue titles use the same form too, worded as the result the fixing PR delivers. Epics end with `(epic)`.
+- Release notes: a change users would notice adds or updates its line in `docs/releases/<version>.md` (the `<Version>` in `Directory.Build.props`) in the same PR. The app embeds it as What's New. Never write a GitHub release's notes by hand. Read [Release notes](docs/DEVELOPMENT.md#release-notes) first.
 - No AI attribution or `Co-Authored-By` lines in commits, PRs or release notes.
 - The full standard and more examples are under
   [Commits, pull requests and issues](docs/DEVELOPMENT.md#commits-pull-requests-and-issues) in the development docs.
