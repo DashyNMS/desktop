@@ -127,8 +127,9 @@ public sealed class DesktopUpdateService : IUpdateCheckService, IDisposable
             bool Unoffered(string? version) => version is not null && !UpdateChannels.Offers(channel, version);
             lock (_gate)
             {
-                // Whatever the last channel found goes as soon as this one wouldn't offer it.
-                if (Unoffered(_ready?.Version) || Unoffered(_latestRelease?.TagName) || Unoffered(_operation?.Release.TagName))
+                // Whatever the last channel found goes as soon as this one wouldn't offer it,
+                // unless a newer check has already started: what's found now is that one's.
+                if (generation == Volatile.Read(ref _checkGeneration) && (Unoffered(_ready?.Version) || Unoffered(_latestRelease?.TagName) || Unoffered(_operation?.Release.TagName)))
                 {
                     _operation?.Cancellation.Cancel();
                     _wantedVersion = null; _latestRelease = null; _ready = null; _readyAsset = null;

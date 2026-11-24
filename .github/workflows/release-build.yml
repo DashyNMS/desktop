@@ -122,7 +122,14 @@ jobs:
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.version.outputs.version }}
           TAG: ${{ needs.version.outputs.tag }}
+          COMMIT: ${{ needs.version.outputs.commit }}
         run: |
+          # A re-run keeps its old packages, and the tag may have moved to a fix since.
+          tagged=$(gh api "repos/$GH_REPO/commits/refs/tags/$TAG" --jq .sha)
+          if [ "$tagged" != "$COMMIT" ]; then
+            echo "::error::$TAG is now $tagged, and these packages are of $COMMIT. Run the release build again by hand."
+            exit 1
+          fi
           # An old publish can be re-run after a newer release, so it's only the
           # latest if nothing released outranks it.
           # On its own line, so failing to list them stops here.
