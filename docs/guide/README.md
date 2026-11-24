@@ -10,7 +10,7 @@ Find an alert, check a device, follow its traffic and keep the information you n
 
 ![DashyNMS dashboard with alerts, device status, pinned sensors and traffic](../screenshots/dashboard.png)
 
-These pages cover DashyNMS 2.0 for Windows, macOS and Linux. While 2.0 is in preview, download a preview release to follow along. Some controls depend on your LibreNMS permissions and the data your server collects.
+These pages cover DashyNMS 2.0 for Windows, macOS and Linux. Until 2.0 is released, download a nightly build to follow along. Some controls depend on your LibreNMS permissions and the data your server collects.
 
 ## Start here
 

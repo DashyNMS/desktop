@@ -12,7 +12,7 @@ namespace DesktopNMS.Demo;
 
 /// <summary>
 /// Walks the demo through the main screens and saves each window as a PNG
-/// (<c>--demo --screenshots &lt;folder&gt;</c>, via tools/Render-Screenshots.ps1)
+/// (<c>--demo --screenshots &lt;folder&gt;</c>, via scripts/Render-Screenshots.ps1)
 /// - the real views, rendered from the example network, so the README and
 /// release screenshots never show anyone's real devices (#243, #250, from the
 /// WPF app's ScreenshotTour).

@@ -1,7 +1,7 @@
 <# Verify all installers and their internal build records before publication. #>
 param(
     [Parameter(Mandatory)][string]$Directory,
-    [Parameter(Mandatory)][ValidatePattern('^\d+\.\d+\.\d+(-preview\.\d+)?$')][string]$Version,
+    [Parameter(Mandatory)][ValidatePattern('^\d+\.\d+\.\d+(-(edge|nightly)\.\d+)?$')][string]$Version,
     [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$Commit
 )
 $ErrorActionPreference = 'Stop'

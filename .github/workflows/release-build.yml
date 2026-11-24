@@ -1,66 +1,99 @@
 name: Release build
 
+# Publishing a GitHub release (tag v<version>, on main's newest commit) builds
+# it. The release goes back to being a draft while that happens, and is
+# published again when everything in it is ready. If a build fails it stays a
+# draft: fix it, then run this by hand with the tag.
 on:
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Published stable release tag at this master commit (vX.Y.Z)'
+        description: "The release's tag (vX.Y.Z)"
         type: string
         required: true
-
-concurrency:
-  group: release-build-${{ inputs.tag || github.event.release.tag_name }}
-  cancel-in-progress: false
 
 permissions:
   contents: read
   packages: read
 
+concurrency:
+  group: release-build-${{ inputs.tag || github.event.release.tag_name }}
+  cancel-in-progress: false
+
 jobs:
-  dispatch:
-    if: github.event_name == 'release' && github.event.release.prerelease == false && github.repository == 'DashyNMS/desktop'
+  hold:
+    name: Hold the release
+    if: github.event_name == 'release' && !github.event.release.prerelease && github.repository == 'DashyNMS/desktop'
     runs-on: ubuntu-latest
     permissions:
       actions: write
+      contents: write
     steps:
-      - name: Run signing from the protected master branch
+      - name: Make it a draft and build it from main
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh workflow run release-build.yml --repo DashyNMS/desktop --ref master -f tag="$RELEASE_TAG"
-  prepare:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && github.repository == 'DashyNMS/desktop'
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release edit "$TAG" --draft
+          gh workflow run release-build.yml --ref main -f tag="$TAG"
+
+  version:
+    name: Version
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'DashyNMS/desktop'
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.release.outputs.version }}
-      tag: ${{ steps.release.outputs.tag }}
-      commit: ${{ steps.release.outputs.commit }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      commit: ${{ steps.version.outputs.commit }}
+      changed: ${{ steps.version.outputs.changed }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
           fetch-depth: 0
-          fetch-tags: true
           persist-credentials: false
-      - name: Require a published stable release
+      - name: Work out the version
+        id: version
+        env:
+          TAG: ${{ inputs.tag }}
+        run: python3 scripts/build_version.py release --tag "$TAG"
+
+  # What the release says is what the app shows as What's New.
+  notes:
+    name: Release notes
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # a draft is only readable with this
+    steps:
+      - name: Read the release's notes
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag }}
-        shell: pwsh
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
         run: |
-          $release = gh release view $env:RELEASE_TAG --repo DashyNMS/desktop --json isDraft,isPrerelease | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0 -or $release.isDraft -or $release.isPrerelease) { throw 'A published stable release is required.' }
-      - name: Validate stable version and source commit
-        id: release
-        shell: pwsh
-        env:
-          RELEASE_TAG: ${{ inputs.tag }}
-        run: ./tools/Prepare-ReleaseWorkflow.ps1 -Tag $env:RELEASE_TAG
+          gh release view "$TAG" --json body --jq .body > notes.md
+          if ! grep -q '^## ' notes.md; then
+            echo "::error::Write the release's notes first, under ## headings."
+            exit 1
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-notes
+          path: notes.md
+          retention-days: 14
+
+  ci:
+    name: CI
+    needs: [version, notes]
+    uses: ./.github/workflows/ci.yml
+
   packages:
-    needs: prepare
-    uses: ./.github/workflows/package-build.yml
+    name: Packages
+    needs: [version, notes, ci]
+    uses: ./.github/workflows/packages.yml
     secrets:
       MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -69,38 +102,48 @@ jobs:
       APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
       APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
     with:
-      version: ${{ needs.prepare.outputs.version }}
-      source_commit: ${{ needs.prepare.outputs.commit }}
-      distribution: true
+      version: ${{ needs.version.outputs.version }}
+      commit: ${{ needs.version.outputs.commit }}
+      sign: true
+      notes: true
+
   publish:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && github.repository == 'DashyNMS/desktop'
-    needs: [prepare, packages]
+    name: Publish
+    needs: [version, packages]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.prepare.outputs.commit }}
-      - uses: actions/download-artifact@v8
+          ref: ${{ needs.version.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: package-*
           path: dist
           merge-multiple: true
-      - name: Verify every release asset
+      - name: Verify every package
         shell: pwsh
         env:
-          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
-        run: ./tools/Test-PreviewArtifacts.ps1 -Directory dist -Version $env:RELEASE_VERSION -Commit $env:RELEASE_COMMIT
-      - name: Attach verified installers to the published release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ needs.prepare.outputs.tag }}
-          fail_on_unmatched_files: true
-          files: |
-            dist/DashyNMS-Setup-${{ needs.prepare.outputs.version }}.exe
-            dist/DashyNMS-${{ needs.prepare.outputs.version }}-osx-x64.dmg
-            dist/DashyNMS-${{ needs.prepare.outputs.version }}-osx-arm64.dmg
-            dist/DashyNMS-${{ needs.prepare.outputs.version }}-linux-x64.AppImage
-            dist/DashyNMS-${{ needs.prepare.outputs.version }}-linux-arm64.AppImage
+          VERSION: ${{ needs.version.outputs.version }}
+          COMMIT: ${{ needs.version.outputs.commit }}
+        run: ./scripts/Test-ReleaseArtifacts.ps1 -Directory dist -Version $env:VERSION -Commit $env:COMMIT
+      # Build records and checksums stay in the Actions artifacts.
+      - name: Attach the installers and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          gh release upload "$TAG" dist/*.exe dist/*.dmg dist/*.AppImage --clobber
+          gh release edit "$TAG" --draft=false --latest
+
+  sentry:
+    name: Sentry
+    needs: [version, publish]
+    uses: ./.github/workflows/sentry.yml
+    secrets:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+    with:
+      tag: ${{ needs.version.outputs.tag }}

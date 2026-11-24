@@ -9,8 +9,8 @@
     Needs the .NET 10 SDK.
 
 .EXAMPLE
-    ./tools/Publish-Mcp.ps1 -Source ..\mcp
-    ./tools/Publish-Mcp.ps1 -Source ..\mcp -Ref v1.1.0
+    ./scripts/Publish-Mcp.ps1 -Source ..\mcp
+    ./scripts/Publish-Mcp.ps1 -Source ..\mcp -Ref v1.1.0
 #>
 param(
     # A checkout of https://github.com/DashyNMS/mcp.

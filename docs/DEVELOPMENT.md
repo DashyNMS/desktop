@@ -11,8 +11,8 @@ for reporting a security problem. Bugs and ideas are welcome as
 ## Requirements
 
 - Windows 10 1809 (build 17763) or later, macOS 13 or later, or Linux with a desktop session.
-- [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) to build.
-  `winget install Microsoft.DotNet.SDK.9`, or install Visual Studio with the
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) to build, and the .NET 9 runtime to run and test.
+  `winget install Microsoft.DotNet.SDK.10 Microsoft.DotNet.Runtime.9`, or install Visual Studio with the
   **.NET desktop development** workload on Windows. Install the .NET SDK directly on macOS or Linux.
 - A LibreNMS instance with the API enabled, and a token from
   **Settings, API, API Access**.
@@ -45,7 +45,7 @@ implementation detail with no user visibility); the product itself — the
 window title, tray icon, installed exe, Start Menu entry — is DashyNMS.
 
 ```bash
-dotnet build DesktopNMS.sln
+dotnet build DashyNMS.Desktop.slnx
 ```
 
 
@@ -57,7 +57,7 @@ dotnet run --project src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj
 ```
 
 The same commands build and run the app on macOS and Linux. Install the
-.NET 9 SDK from Microsoft's packages or your distribution, and set
+.NET 10 SDK from Microsoft's packages or your distribution, and set
 `DASHYNMS_PACKAGES_TOKEN` (see [Core](#core)) in the shell first. On Linux, the
 app needs a desktop session, and these packages for everything to work:
 
@@ -68,34 +68,58 @@ app needs a desktop session, and these packages for everything to work:
 
 On macOS, `dotnet run` starts the app outside a bundle, so native
 notifications and the login item aren't available. Build a `.dmg` with
-[Native packages](#native-packages) to try them.
+[Packages](#packages) to try them.
 
-### Development builds
+### Builds and releases
 
-After a pull request successfully merges into `master`, the **Development build**
-Actions run produces Windows x64 Setup, macOS Intel/Apple Silicon DMGs, and Linux
-x64/ARM64 AppImages. It builds the merged commit and runs the same package
-verification and Windows upgrade checks used for previews. Closing an unmerged
-PR does not build installers; PR creation and updates do not trigger this workflow.
-Download the appropriate `package-<runtime>` artifact within seven days.
-No tags or GitHub releases are created. Builds use a unique
-`<version>-preview.pr.<PR>.<run>.<attempt>` version. They do not use distribution
-signing credentials or notarisation; macOS uses local ad-hoc signatures.
-Native packages and Native network tools keep their existing triggers and behavior,
-including the 30-day retention for Native packages artifacts.
+Every DashyNMS repository builds the same way.
+
+| Workflow | When | Version | Publishes |
+| --- | --- | --- | --- |
+| **CI** (`ci.yml`) | every pull request, and first in each build below | none | nothing |
+| **Edge build** (`edge-build.yml`) | every commit to `main` | `2.0.0-edge.<build>` | installers on the rolling `v0.0.0-edge` prerelease |
+| **Nightly build** (`nightly-build.yml`) | 00:00 UTC if `main` changed since the last nightly, or by hand | `2.0.0-nightly.<build>` | a prerelease, with notes from the commits |
+| **Release build** (`release-build.yml`) | a GitHub release is published | `2.0.0` | that release's installers |
+| **CodeQL**, **Dependency submission** and **Wiki** | as their names say | none | nothing, nothing and the wiki |
+
+The three builds call `packages.yml` ([Packages](#packages)) and sign the macOS
+packages. Nothing is published until CI, all five packages and the Windows
+upgrades pass. `<build>` is the workflow's run number, so don't rename a
+build's file without raising `<Version>` at the same time. If one fails part
+way, run it again by hand for a new number.
+
+**Edge** has one release whose files each build replaces, with the build's
+version as its title. Its tag is `v0.0.0-edge` because apps from before the
+update channels read every tag as a version, and this one has to rank below
+whatever they're running. A build that finishes late never replaces a newer one.
+
+**Nightly** notes are written by `scripts/build_version.py` from the `feat`,
+`fix` and `perf` commits since the last nightly, so a commit's subject is what
+people read. They replace the numbered previews, whose hand-written notes stay
+in `docs/releases`.
+
+**A release:** publish a GitHub release on `main`'s newest commit, tagged
+`v<version>` to match `<Version>` in `Directory.Build.props`, with its notes
+under `##` headings. It goes back to being a draft while it builds, and is
+published again once the installers are attached, so nobody is offered a
+release without them. If something fails it stays a draft: fix it, then run
+**Release build** by hand with the tag. Then raise `<Version>`, so later edge
+and nightly builds rank above the release.
+
+Nightlies and releases are recorded in Sentry by `sentry.yml`.
 
 For a local portable Windows build, publish the pinned MCP source first
 (requires .NET 10), then:
 
 ```powershell
-./tools/Publish-Dev.ps1
+./scripts/Publish-Dev.ps1
 ```
 
 This runs the Presentation and headless Avalonia UI input tests and publishes to a new versioned folder beneath
 `artifacts/dev`. Previous builds remain available. For cross-platform installers,
-see [Native packages](#native-packages).
+see [Packages](#packages).
 
-Windows release and preview builds use the existing `%APPDATA%/DashyNMS`
+Windows release, nightly and edge builds use the existing `%APPDATA%/DashyNMS`
 profile from 1.x, including its DPAPI-encrypted secrets. Debug and `-dev.*`
 builds retain the isolated `avalonia` subfolder. macOS and Linux keep their
 existing Avalonia profile path. Each profile has one background instance;
@@ -497,7 +521,7 @@ Core repository:
 | Stack trace root | Repository | Branch | Source root |
 |---|---|---|---|
 | `src/DesktopNMS.Core/` | `DashyNMS/core` | `main` | `src/DesktopNMS.Core/` |
-| `src/` | `DashyNMS/desktop` | `master` | `src/` |
+| `src/` | `DashyNMS/desktop` | `main` | `src/` |
 
 Sentry only links out to GitHub; it fetches no source. Core links open `main`
 rather than the pinned package version, so their lines can drift, and suspect
@@ -534,9 +558,9 @@ managed by a package manager keep their notification-only behaviour.
 
 ### What's New after an upgrade
 
-Desktop packages embed `docs/releases/<full-version>.md`, the same file used for
-the published release. Each stable release and numbered preview has its own
-identity, including the preview suffix. Development builds do not fall back to
+Nightly and release packages embed `docs/releases/<full-version>.md`, which the
+build writes from the notes it publishes. Each release and nightly has its own
+identity, including the suffix. Edge and local builds do not fall back to
 another release's notes. The package builder requires an exact notes file for
 published-version packages, and package verification checks the parsed embedded
 notes. The app can show them offline.
@@ -564,9 +588,9 @@ gh auth refresh -s read:packages
 $env:DASHYNMS_PACKAGES_TOKEN = gh auth token
 ```
 
-The version is pinned in `src/DesktopNMS.Presentation/DesktopNMS.Presentation.csproj`
-(`DashyNMSCoreVersion`); the app gets Core through that project. Between Core releases it's a development build of
-core's `main`: every merge there publishes `x.y.z-ci.N`. Pin the one this app
+The version is pinned in `Directory.Build.props` (`DashyNMSCoreVersion`). Between
+Core releases it's an edge package of core's `main`: every commit there
+publishes `x.y.z-edge.N` (`x.y.z-ci.N` before those). Pin the one this app
 needs, and move to a release before shipping.
 
 To change Core and the app together, build against a local checkout of
@@ -574,11 +598,11 @@ DashyNMS/core instead of the package:
 
 ```powershell
 $env:DASHYNMS_LOCAL_CORE = "C:\path\to\core"
-dotnet build DesktopNMS.sln
+dotnet build DashyNMS.Desktop.slnx
 ```
 
-Run Core's tests there (`dotnet test DashyNMS.Core.sln`), merge the Core change,
-then pin this app to the development build it produces.
+Run Core's tests there (`dotnet test DashyNMS.Core.slnx`), merge the Core change,
+then pin this app to the edge package it produces.
 
 To produce a single self-contained `.exe`:
 
@@ -587,7 +611,7 @@ the MCP server (requires the .NET 10 SDK alongside .NET 9, and Python 3 for
 its dependency notices):
 
 ```powershell
-./tools/Publish-Mcp.ps1 -Source ../mcp
+./scripts/Publish-Mcp.ps1 -Source ../mcp
 ```
 
 The tools are published under `artifacts/mcp/<runtime>`. `-Runtime` accepts
@@ -601,8 +625,8 @@ by the MCP repo's own `collect-dependency-notices.py` with an `inventory.json`
 of package hashes, and the .NET runtime pack's licence and third-party notices.
 Build-only packages ship nothing and are left out. The server is built without
 its HTTP transport (`McpHttpTransport=false`), so the bundle has stdio only and
-no ASP.NET Core. The **Native network tools**
-CI workflow runs a real stdio handshake, then offers and calls each of the 24
+no ASP.NET Core. Every package build
+runs a real stdio handshake, then offers and calls each of the 24
 allowlisted tools against the demo on every target, and checks those files.
 
 Then publish the desktop app:
@@ -615,11 +639,10 @@ This publishes a self-contained, single-file Windows x64 app, so
 `publish/DashyNMS.exe` runs on a machine with no .NET installed.
 The accompanying `publish/mcp` folder contains the self-contained network
 tools, their licence and the source commit in `BUILD.txt`. Keep it beside the
-app. The installer requires the MCP executable; preview and release workflows
+app. The installer requires the MCP executable; the package builds
 fetch an exact MCP commit, build it first and verify the bundled files before
-packaging. The pin is in `dev-build.yml`, `mcp-bundle.yml` and both jobs of
-`package-build.yml`; update them together, to a commit whose dependency
-licences the collector accepts.
+packaging. The pin is `DashyNMSMcpRevision` in `Directory.Build.props`; move it to
+a commit whose dependency licences the collector accepts.
 
 The app passes the server only documented environment settings: the
 connection, Unimus and Graylog, the config-text policy and Settings › Health
@@ -665,47 +688,36 @@ runs `DashyNMS.exe --uninstall` to remove the notification registration. It
 then asks whether to remove `%APPDATA%\DashyNMS` and `%LOCALAPPDATA%\DashyNMS`
 too, defaulting to keep. A silent uninstall (`/VERYSILENT`) always keeps them.
 
-### Native packages
+### Packages
 
-The **Native packages** Actions workflow builds Windows x64 Setup, macOS
-Intel/Apple Silicon `.dmg`, and Linux x64/ARM64 AppImage artifacts. Run it
-manually with a version, or leave the version blank for a CI preview. Changes
-to the package builder also run it on pull requests. It uploads artifacts for
-30 days, with SHA-256 files and source revisions, without creating a release
-or tag. The manual **Preview build** workflow calls this same package workflow,
-including the Windows upgrade checks, then publishes all five native packages
-as a GitHub prerelease. Stable releases use the same five-platform packaging flow.
-
-Before running **Preview build** on `master`, write and review
-`docs/releases/<version>.md` for the next numbered preview (for example
-`2.0.0-preview.5.md`). The workflow derives that number from existing preview
-tags and fails if the notes are missing or empty. It publishes those exact notes
-and creates the tag only after all package and upgrade checks pass. It also
-checks all five packages' checksums, versions and source revisions before
-publishing. GitHub releases attach only the app downloads; checksum sidecars
-and build records remain in the Actions artifacts for verification. Merging a PR does not publish a preview; dispatch the workflow
-manually when the notes and build are ready.
+`packages.yml` builds and checks Windows x64 Setup, macOS Intel and Apple silicon
+`.dmg`, and Linux x64 and ARM64 AppImages, and runs the Windows upgrade checks. The edge, nightly and release builds call it and publish
+what it made; pull requests that change packaging or move a pin run it unsigned,
+as `2.0.0-edge.0`. Artifacts are kept for 14 days, with SHA-256 files and
+source revisions. Publishing checks all five packages' checksums, versions and
+source revisions first, and attaches only the app downloads.
 
 On the matching native host, with that runtime's MCP bundle built first:
 
 ```powershell
-./tools/Publish-Package.ps1 -Runtime osx-arm64 -Version 2.0.0-preview.1
+./scripts/Publish-Package.ps1 -Runtime osx-arm64 -Version 2.0.0-preview.1
 ```
 
 Windows also needs `-InnoCompiler <path-to-ISCC.exe>`. Output goes under
 `artifacts/packages/<version>/<runtime>`, with fresh staging directories for
 each version. The macOS bundle includes the notification bridge, login helper,
-icon and native network tools. Development Mac packages use ad-hoc signatures;
-preview and stable distribution packages use Developer ID signing and Apple
+icon and native network tools. Mac packages from pull requests use ad-hoc signatures;
+edge, nightly and release packages use Developer ID signing and Apple
 notarisation. Windows signing is tracked in #109. Linux packages use
 checksum-pinned AppImage build tools and runtime.
 
 ### macOS distribution signing
 
-Only the **Preview build** and **Release build** workflows dispatched on
-`master` can request the `DashyNMS_MacOS` environment. Its required reviewer
-approves the Intel and Apple Silicon signing jobs. Ordinary pull-request, push
-and **Native packages** runs use ad-hoc signing without that environment.
+Only the edge, nightly and release builds of `main` can use the
+`DashyNMS_MacOS` environment, which is limited to that branch. There's no
+approval: whatever reaches `main` is signed. `scripts/Test-MacOSWorkflowPolicy.ps1`
+refuses any other workflow, event, branch or commit before a credential is used.
+Pull requests use ad-hoc signing without the environment.
 
 The environment holds six secrets: `MACOS_CERTIFICATE_BASE64`,
 `MACOS_CERTIFICATE_PASSWORD`, `MACOS_SIGNING_IDENTITY`, `APPLE_API_KEY`,
@@ -713,7 +725,7 @@ The environment holds six secrets: `MACOS_CERTIFICATE_BASE64`,
 its private key. The App Store Connect credentials use a team API key.
 
 The temporary keychain includes the public Apple Developer ID G1 and G2
-intermediates bundled under `tools/macos/certificates`. The packager requires
+intermediates bundled under `scripts/macos/certificates`. The packager requires
 exactly one valid identity matching `MACOS_SIGNING_IDENTITY`, then signs with
 that certificate's fingerprint. It reports missing or untrusted identities
 before signing. Code-signing failures include bounded native diagnostics with
@@ -727,13 +739,6 @@ submits the app and disk image to Apple, staples the accepted tickets, and check
 Gatekeeper acceptance before producing release checksums. The temporary signing
 keychain and credential files are removed on success or failure. A failed
 signing or notarisation step prevents publication.
-
-For a stable release, create its numeric version tag on the current `master`
-commit and publish the corresponding GitHub release. The release event dispatches
-the build on `master`; the tagged commit must match that run's source commit and
-the version in `Directory.Build.props`. To retry, dispatch **Release build** on
-`master` with the existing stable tag. It attaches the five verified installers
-to that release, without checksum sidecars or build manifests.
 
 To check an installed download on a Mac, run:
 
@@ -750,7 +755,7 @@ These checks use macOS tools and do not require an in-app verification page.
 The protected Intel signing job blocks outbound UDP port 443 on its disposable
 runner to make Apple's ticket requests use HTTPS over TCP. This follows
 [GitHub's workaround for Intel runner connection failures](https://github.com/actions/runner-images/issues/14924).
-Apple Silicon and routine package builds do not change their network policy.
+Apple silicon and unsigned package builds do not change their network policy.
 Signature, ticket and Gatekeeper checks still have to pass before publication.
 
 CI verifies the finished installer, mounted DMG or extracted AppImage, then
@@ -778,11 +783,17 @@ src/
     Themes/                 Dark/light palette and styles
     Infrastructure/         UI dispatch, dialogs, theme and window placement
     Services/               Windows, tray, notifications and startup adapters
-docs/releases/              Exact-version release notes embedded by Presentation
-tools/
-  Publish-Dev.ps1           Versioned Windows development builds
-  Publish-Mcp.ps1           Bundled Intelligence network tools
-  Render-Screenshots.ps1   Demo screenshot tour
+docs/
+  guide/                    The user guide, copied to the wiki
+  releases/                 Past previews' notes; builds add their own here to embed
+scripts/                    What the workflows and packaging run
+  build_version.py          Versions and nightly notes, the same in every repository
+  publish-edge.sh           The rolling edge release
+  Publish-Package.ps1       Installers; Publish-Mcp.ps1 for the bundled network tools
+  Publish-Dev.ps1           Versioned Windows builds of your own
+  Render-Screenshots.ps1    Demo screenshot tour
+  macos/                    Signing, and the Swift helpers the app bundles
+tools/                      Programs: probes run by CI, and generators run by hand
 installer/
   DashyNMS.iss              Windows installer
 ```
@@ -830,7 +841,7 @@ Everything lives under `%APPDATA%\DashyNMS`:
 Delete `token.dat` to force a fresh sign-in. Delete the folder to reset
 completely.
 
-Development builds on Windows keep their own data in `avalonia\` inside that
+Local builds on Windows keep their own data in `avalonia\` inside that
 folder. Windows release and preview builds reuse the existing 1.x profile.
 Every macOS and Linux build uses `~/Library/Application Support/DashyNMS/avalonia`
 on macOS and `~/.config/DashyNMS/avalonia` on Linux (or under
@@ -920,7 +931,7 @@ behaviour it describes.
 
 The **User guide wiki** workflow copies it to the
 [repository wiki](https://github.com/DashyNMS/desktop/wiki) whenever the
-guide changes on `master`. `tools/Publish-WikiGuide.py` names each page after
+guide changes on `main`. `scripts/Publish-WikiGuide.py` names each page after
 its first heading, turns `README.md` into Home, rewrites links between guide
 files as wiki links and other repository links as GitHub links, and builds the
 sidebar from the order of `README.md`'s links, grouped under its level-two
@@ -937,13 +948,13 @@ stops with a notice.
 To preview the pages locally:
 
 ```bash
-python3 tools/Publish-WikiGuide.py docs/guide /tmp/wiki --repository DashyNMS/desktop
+python3 scripts/Publish-WikiGuide.py docs/guide /tmp/wiki --repository DashyNMS/desktop
 ```
 
 ## Commits, pull requests and issues
 
-Every change goes through a branch and a pull request into `master`, one issue
-per PR, and is squash-merged. The PR title becomes the commit on `master`, so
+Every change goes through a branch and a pull request into `main`, one issue
+per PR, and is squash-merged. The PR title becomes the commit on `main`, so
 the title is what the history reads like.
 
 PR titles, commit messages and **issue titles** follow

@@ -2,8 +2,8 @@
 .SYNOPSIS
     Tests and publishes a versioned Windows Avalonia development build.
 .EXAMPLE
-    ./tools/Publish-Mcp.ps1 -Source artifacts/mcp-dev-source
-    ./tools/Publish-Dev.ps1
+    ./scripts/Publish-Mcp.ps1 -Source artifacts/mcp-dev-source
+    ./scripts/Publish-Dev.ps1
 #>
 param([string]$Version)
 
@@ -22,7 +22,7 @@ try {
     }
     foreach ($file in @('dashynms-mcp.exe', 'LICENSE', 'NOTICES.md', 'BUILD.txt', 'third-party/inventory.json')) {
         if (-not (Test-Path "artifacts/mcp/win-x64/$file" -PathType Leaf)) {
-            throw "Missing artifacts/mcp/win-x64/$file. Run tools/Publish-Mcp.ps1 -Runtime win-x64 first."
+            throw "Missing artifacts/mcp/win-x64/$file. Run scripts/Publish-Mcp.ps1 -Runtime win-x64 first."
         }
     }
     $output = Join-Path $root "artifacts/dev/$Version/win-x64"

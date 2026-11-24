@@ -11,8 +11,8 @@
     with DashyNMS already open.
 
 .EXAMPLE
-    ./tools/Render-Screenshots.ps1
-    ./tools/Render-Screenshots.ps1 -OutputPath C:\temp\shots
+    ./scripts/Render-Screenshots.ps1
+    ./scripts/Render-Screenshots.ps1 -OutputPath C:\temp\shots
 #>
 param(
     [string]$OutputPath = (Join-Path $PSScriptRoot '..\docs\screenshots'),

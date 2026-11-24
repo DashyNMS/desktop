@@ -46,7 +46,7 @@ Check that `secret-tool` is installed and your desktop's Secret Service keyring 
 
 ## Report a problem
 
-1. Note the DashyNMS version, operating system and whether this is a preview build.
+1. Note the DashyNMS version, operating system and whether this is a nightly or edge build.
 2. Write the steps that reproduce the problem, what you expected and what happened.
 3. Open **Settings → Diagnostics → Open log folder** and inspect the log for the time of the problem.
 4. Remove credentials and private network details from any excerpt or screenshot you share.

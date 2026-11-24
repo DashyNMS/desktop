@@ -1,8 +1,8 @@
 function Assert-MacOSDistribution {
     if (-not $IsMacOS) { throw 'Developer ID distribution requires macOS.' }
-    if ($env:GITHUB_ACTIONS -ne 'true' -or $env:GITHUB_REF -ne 'refs/heads/master' -or
-        $env:GITHUB_EVENT_NAME -ne 'workflow_dispatch') {
-        throw 'Developer ID distribution requires a manually dispatched master build.'
+    if ($env:GITHUB_ACTIONS -ne 'true' -or $env:GITHUB_REF -ne 'refs/heads/main' -or
+        $env:GITHUB_EVENT_NAME -notin @('push','schedule','workflow_dispatch')) {
+        throw 'Developer ID distribution requires a build of main.'
     }
     foreach ($name in @('MACOS_CERTIFICATE_BASE64','MACOS_CERTIFICATE_PASSWORD','MACOS_SIGNING_IDENTITY',
         'APPLE_API_KEY','APPLE_API_KEY_ID','APPLE_API_ISSUER_ID')) {

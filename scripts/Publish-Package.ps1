@@ -41,7 +41,7 @@ try {
         # 11). DashyNMS does that at startup when it reads the Keychain key.
         @('-p:PublishSingleFile=true','-p:IncludeNativeLibrariesForSelfExtract=false','-p:EnableCompressionInSingleFile=false')
     } else { @('-p:PublishSingleFile=false') }
-    $requireNotes = $Version -match '^\d+\.\d+\.\d+(-preview\.\d+)?$'
+    $requireNotes = $Version -match '^\d+\.\d+\.\d+(-(preview|nightly)\.\d+)?$'
     dotnet publish src/DesktopNMS.Avalonia -c Release -r $Runtime --self-contained true -m:1 `
         "-p:Version=$Version" "-p:RequireReleaseNotes=$($requireNotes.ToString().ToLowerInvariant())" @bundleOptions -p:DebugType=embedded -o $publish --nologo
     Check-Native 'Publish'
@@ -84,11 +84,11 @@ try {
         Copy-Item "$publish/mcp/LICENSE","$publish/mcp/NOTICES.md","$publish/mcp/BUILD.txt","$publish/mcp/version.json","$publish/mcp/third-party" "$resources/mcp" -Recurse
         Copy-Item "$publish/LICENSE","$publish/BUILD.txt" $resources
         $architecture=if ($Runtime -eq 'osx-arm64') { 'arm64' } else { 'x86_64' }
-        swiftc -swift-version 5 -parse-as-library -target "$architecture-apple-macos13" -emit-library tools/macos/Notifications.swift -o "$mac/libdashynms-notifications.dylib"
+        swiftc -swift-version 5 -parse-as-library -target "$architecture-apple-macos13" -emit-library scripts/macos/Notifications.swift -o "$mac/libdashynms-notifications.dylib"
         Check-Native 'Compile notifications'
-        swiftc -target "$architecture-apple-macos13" tools/macos/LoginItem.swift -o "$mac/dashynms-login"
+        swiftc -target "$architecture-apple-macos13" scripts/macos/LoginItem.swift -o "$mac/dashynms-login"
         Check-Native 'Compile login helper'
-        swiftc -swift-version 5 -parse-as-library -target "$architecture-apple-macos13" tools/macos/Update.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker tools/macos/UpdateInfo.plist -o "$mac/dashynms-update"
+        swiftc -swift-version 5 -parse-as-library -target "$architecture-apple-macos13" scripts/macos/Update.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker scripts/macos/UpdateInfo.plist -o "$mac/dashynms-update"
         Check-Native 'Compile update helper'
         # This is a public identifier, not a credential. Distribution hosts also
         # derive trust from their own Developer ID signature; ad-hoc dev builds

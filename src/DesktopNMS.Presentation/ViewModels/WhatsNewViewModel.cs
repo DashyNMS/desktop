@@ -12,7 +12,7 @@ namespace DesktopNMS.ViewModels;
 /// <summary>Exact release notes embedded from docs/releases; development builds carry no published-release notes.</summary>
 public static class BundledWhatsNew
 {
-    private static readonly Regex PublishedVersion = new(@"^\d+\.\d+\.\d+(-preview\.\d+)?$", RegexOptions.CultureInvariant);
+    private static readonly Regex PublishedVersion = new(@"^\d+\.\d+\.\d+(-(preview|nightly)\.\d+)?$", RegexOptions.CultureInvariant);
     private static readonly Lazy<WhatsNewNotes?> Notes = new(Load);
 
     public static WhatsNewNotes? Current => Notes.Value;

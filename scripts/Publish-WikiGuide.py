@@ -7,7 +7,7 @@ people read it. Each guide file becomes a page named after its first heading
 between guide files become wiki links, links to other repository files become
 GitHub links, and a sidebar lists the pages in the order README.md links them.
 
-    Publish-WikiGuide.py <guide folder> <output folder> --repository OWNER/NAME [--branch master]
+    Publish-WikiGuide.py <guide folder> <output folder> --repository OWNER/NAME [--branch main]
 
 The output folder's Markdown pages are replaced, so pass a wiki clone or an
 empty folder. Nested guide folders are supported; Home headings group the sidebar.
@@ -134,7 +134,7 @@ def main():
     parser.add_argument("guide", type=pathlib.Path)
     parser.add_argument("output", type=pathlib.Path)
     parser.add_argument("--repository", required=True)
-    parser.add_argument("--branch", default="master")
+    parser.add_argument("--branch", default="main")
     arguments = parser.parse_args()
 
     output, errors = convert(arguments.guide, arguments.repository, arguments.branch)

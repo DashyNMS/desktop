@@ -10,7 +10,7 @@ function Require([bool]$Condition, [string]$Message) { if (-not $Condition) { th
 try {
     New-Item $scratch -ItemType Directory | Out-Null
     $env:GITHUB_ACTIONS = 'true'
-    $env:GITHUB_REF = 'refs/heads/master'
+    $env:GITHUB_REF = 'refs/heads/main'
     $env:GITHUB_EVENT_NAME = 'workflow_dispatch'
     $env:RUNNER_TEMP = $scratch
     $env:MACOS_CERTIFICATE_BASE64 = [Convert]::ToBase64String([byte[]]@(1,2,3))
@@ -106,7 +106,7 @@ try {
         try { Assert-MacOSDistribution } catch { $rejected = $true }
         Require $rejected "Signing accepted $invalidRef."
     }
-    $env:GITHUB_REF = 'refs/heads/master'
+    $env:GITHUB_REF = 'refs/heads/main'
     $env:GITHUB_EVENT_NAME = 'pull_request'
     $rejected = $false
     try { Assert-MacOSDistribution } catch { $rejected = $true }

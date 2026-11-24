@@ -1,22 +1,22 @@
-name: User guide wiki
+name: Wiki
 
 # The user guide is written in docs/guide, where it's reviewed with the code
 # it describes, and copied to the repository wiki for people to read (#257).
 # Pull requests only check that every link in the guide resolves.
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths:
       - docs/guide/**
-      - tools/Publish-WikiGuide.py
-      - tools/tests/test_publish_wiki_guide.py
+      - scripts/Publish-WikiGuide.py
+      - scripts/tests/test_publish_wiki_guide.py
       - .github/workflows/wiki.yml
   pull_request:
-    branches: [master]
+    branches: [main]
     paths:
       - docs/guide/**
-      - tools/Publish-WikiGuide.py
-      - tools/tests/test_publish_wiki_guide.py
+      - scripts/Publish-WikiGuide.py
+      - scripts/tests/test_publish_wiki_guide.py
       - .github/workflows/wiki.yml
   workflow_dispatch:
 
@@ -33,21 +33,21 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Test wiki publishing
-        run: python3 -B -m unittest discover -s tools/tests -v
+        run: python3 -B -m unittest discover -s scripts/tests -v
       - name: Convert to wiki pages
-        run: python3 tools/Publish-WikiGuide.py docs/guide "$RUNNER_TEMP/wiki" --repository "$GITHUB_REPOSITORY"
+        run: python3 scripts/Publish-WikiGuide.py docs/guide "$RUNNER_TEMP/wiki" --repository "$GITHUB_REPOSITORY"
 
   publish:
     name: Publish to the wiki
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # Pushing to the wiki's own Git repository.
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # The wiki has a Git repository only once it's turned on in the
       # repository settings and has a first page, so until then this stops
@@ -66,7 +66,7 @@ jobs:
 
       - name: Convert to wiki pages
         if: steps.clone.outputs.ready == 'true'
-        run: python3 tools/Publish-WikiGuide.py docs/guide "$RUNNER_TEMP/wiki" --repository "$GITHUB_REPOSITORY" --branch master
+        run: python3 scripts/Publish-WikiGuide.py docs/guide "$RUNNER_TEMP/wiki" --repository "$GITHUB_REPOSITORY" --branch main
 
       - name: Push the changes
         if: steps.clone.outputs.ready == 'true'

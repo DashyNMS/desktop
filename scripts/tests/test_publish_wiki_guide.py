@@ -30,14 +30,14 @@ class NestedGuideTests(unittest.TestCase):
         path.write_text(text)
 
     def convert(self):
-        return wiki.convert(self.guide, "example/desktop", "master")
+        return wiki.convert(self.guide, "example/desktop", "main")
 
     def test_nested_links_assets_and_sidebar_sections(self):
         output, errors = self.convert()
         self.assertEqual([], errors)
         self.assertIn("[Help](Help#connection)", output["Find-a-device.md"])
         self.assertIn("[Find](Find-a-device)", output["Help.md"])
-        self.assertIn("https://raw.githubusercontent.com/example/desktop/master/docs/screen.png", output["Find-a-device.md"])
+        self.assertIn("https://raw.githubusercontent.com/example/desktop/main/docs/screen.png", output["Find-a-device.md"])
         self.assertLess(output["_Sidebar.md"].index("**Tasks**"), output["_Sidebar.md"].index("[Find a device]"))
         self.assertLess(output["_Sidebar.md"].index("**Help**"), output["_Sidebar.md"].index("- [Help]"))
 

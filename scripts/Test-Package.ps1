@@ -77,7 +77,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'The desktop launcher is invalid.' }
     }
     $env:DASHYNMS_TEST_MCP=(Resolve-Path $executable).Path
-    $requiresNotes = $Version -match '^\d+\.\d+\.\d+(-preview\.\d+)?$'
+    $requiresNotes = $Version -match '^\d+\.\d+\.\d+(-(preview|nightly)\.\d+)?$'
     [string[]]$notesOptions = @("-p:Version=$Version", "-p:RequireReleaseNotes=$($requiresNotes.ToString().ToLowerInvariant())")
     $env:DASHYNMS_EXPECTED_RELEASE_NOTES = if ($requiresNotes) { Join-Path $root "docs/releases/$Version.md" } else { $null }
     dotnet test tests/DesktopNMS.Presentation.Tests -c Release @notesOptions --filter 'FullyQualifiedName~McpBundleTests|FullyQualifiedName~BundledWhatsNewTests'

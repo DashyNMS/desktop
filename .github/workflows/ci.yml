@@ -1,18 +1,19 @@
-name: Build and test
+name: CI
 
-# The required status check for master: every PR (yours or a contributor's)
-# has to build and pass tests before it can merge. Kept separate from
-# codeql.yml so a security-scan slowdown or finding never blocks a plain
-# merge gate.
+# Every pull request. Edge, nightly and release builds call it too, so nothing
+# is published from a commit that hasn't passed. "CI result" is the required
+# check; CodeQL is separate, so a slow scan never holds up a merge.
 on:
-  push:
-    branches: [master]
   pull_request:
-    branches: [master]
+  workflow_call:
 
 permissions:
   contents: read
   packages: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 # DashyNMS.Core comes from GitHub Packages (see nuget.config).
 env:
@@ -20,6 +21,66 @@ env:
   DASHYNMS_SENTRY_DSN: ${{ vars.SENTRY_DSN }}
 
 jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The .NET 9 runtime as well, which the app targets.
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 9.0.x
+
+      - name: Build
+        run: dotnet build DashyNMS.Desktop.slnx -c Debug
+
+      - name: Test
+        run: dotnet test tests/DesktopNMS.Presentation.Tests -c Debug --no-build
+
+      - name: Test UI input routing
+        run: dotnet test tests/DesktopNMS.Avalonia.Tests -c Debug --no-build
+
+      - name: Verify exact embedded release notes
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/Test-BundledReleaseNotes.ps1
+
+      - name: Verify fatal-error persistence and restart delivery
+        run: dotnet run --project tools/CrashReportingProbe -c Release
+
+      - name: Verify session health across clean exit, managed crash and forced termination
+        run: dotnet run --project tools/SessionHealthProbe -c Release
+
+      - name: Compile the macOS notification bridge and login-item helper
+        if: runner.os == 'macOS'
+        run: |
+          swiftc -swift-version 5 -parse-as-library -target "$(uname -m)-apple-macos13" -emit-library scripts/macos/Notifications.swift -o "$RUNNER_TEMP/libdashynms-notifications.dylib"
+          swiftc scripts/macos/LoginItem.swift -o "$RUNNER_TEMP/dashynms-login"
+
+  scripts:
+    name: Build scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the build and guide scripts
+        run: python3 -B -m unittest discover -s scripts/tests -v
+      - name: Test the signing policy and release gates
+        shell: pwsh
+        run: |
+          ./scripts/Test-MacOSWorkflow.ps1
+          ./scripts/Test-ReleaseArtifactsGate.ps1
+          ./scripts/macos/Test-Distribution.ps1
+
   web-sign-in-browser:
     name: Sign-in browser (${{ matrix.os }})
     strategy:
@@ -29,10 +90,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
-          dotnet-version: '9.0.x'
+          global-json-file: global.json
+          dotnet-version: 9.0.x
       - name: Install Linux browser dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0 libwebkit2gtk-4.1-0 libsoup-3.0-0
@@ -51,81 +113,21 @@ jobs:
         os: [macos-15-intel, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Compile the shipping updater
-        run: swiftc -swift-version 5 -parse-as-library -target "$(uname -m)-apple-macos13" tools/macos/Update.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker tools/macos/UpdateInfo.plist -o "$RUNNER_TEMP/dashynms-update"
+        run: swiftc -swift-version 5 -parse-as-library -target "$(uname -m)-apple-macos13" scripts/macos/Update.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker scripts/macos/UpdateInfo.plist -o "$RUNNER_TEMP/dashynms-update"
       - name: Test native replacement and recovery
         run: |
-          swiftc -swift-version 5 -D UPDATE_TESTS -parse-as-library tools/macos/Update.swift tools/macos/UpdateTests.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker tools/macos/UpdateInfo.plist -o "$RUNNER_TEMP/update-tests"
+          swiftc -swift-version 5 -D UPDATE_TESTS -parse-as-library scripts/macos/Update.swift scripts/macos/UpdateTests.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker scripts/macos/UpdateInfo.plist -o "$RUNNER_TEMP/update-tests"
           "$RUNNER_TEMP/update-tests"
 
-  build-and-test:
-    name: Build and test
-    runs-on: windows-latest
+  result:
+    name: CI result
+    if: always()
+    needs: [test, scripts, web-sign-in-browser, macos-update]
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: "9.0.x"
-
-      - name: Build
-        run: dotnet build DesktopNMS.sln -c Debug
-
-      - name: Test
-        run: dotnet test tests/DesktopNMS.Presentation.Tests -c Debug --no-build
-
-      - name: Test UI input routing
-        run: dotnet test tests/DesktopNMS.Avalonia.Tests -c Debug --no-build
-
-      - name: Verify exact embedded release notes
-        shell: pwsh
-        run: ./tools/Test-BundledReleaseNotes.ps1
-
-      - name: Verify fatal-error persistence and restart delivery
-        run: dotnet run --project tools/CrashReportingProbe -c Release
-
-      - name: Verify session health across clean exit, managed crash and forced termination
-        run: dotnet run --project tools/SessionHealthProbe -c Release
-
-  # The cross-platform app (#153) and the shared projects it brings in build
-  # on macOS and Linux too. Windows builds it above, with the solution.
-  avalonia:
-    name: Avalonia (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: "9.0.x"
-
-      - name: Build
-        run: dotnet build src/DesktopNMS.Avalonia -c Debug
-
-      - name: Test
-        run: dotnet test tests/DesktopNMS.Presentation.Tests -c Debug
-
-      - name: Test UI input routing
-        run: dotnet test tests/DesktopNMS.Avalonia.Tests -c Debug
-
-      - name: Verify fatal-error persistence and restart delivery
-        run: dotnet run --project tools/CrashReportingProbe -c Release
-
-      - name: Verify session health across clean exit, managed crash and forced termination
-        run: dotnet run --project tools/SessionHealthProbe -c Release
-
-      - name: Compile the macOS notification bridge
-        if: runner.os == 'macOS'
-        run: swiftc -swift-version 5 -parse-as-library -target "$(uname -m)-apple-macos13" -emit-library tools/macos/Notifications.swift -o "$RUNNER_TEMP/libdashynms-notifications.dylib"
-      - name: Compile the macOS login-item helper
-        if: runner.os == 'macOS'
-        run: swiftc tools/macos/LoginItem.swift -o "$RUNNER_TEMP/dashynms-login"
+      - name: Require every job
+        env:
+          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: test "$FAILED" = false

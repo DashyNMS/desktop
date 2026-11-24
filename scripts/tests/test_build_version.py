@@ -1,0 +1,89 @@
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+
+SCRIPT = Path(__file__).resolve().parents[1] / "build_version.py"
+
+
+class BuildVersionTests(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.root = Path(folder.name)
+        self.git("init", "--quiet", "-b", "main")
+        (self.root / "Directory.Build.props").write_text("<Project><PropertyGroup><Version>2.0.0</Version></PropertyGroup></Project>")
+        self.commit("feat(start): the first commit")
+
+    def git(self, *args):
+        subprocess.run(("git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", *args),
+                       cwd=self.root, check=True, capture_output=True)
+
+    def commit(self, subject):
+        (self.root / "file").write_text(subject)
+        self.git("add", "-A")
+        self.git("commit", "--quiet", "-m", subject)
+
+    def run_script(self, *args, event="push", number="7"):
+        env = {k: v for k, v in os.environ.items() if k != "GITHUB_OUTPUT"}
+        env.update(GITHUB_RUN_NUMBER=number, GITHUB_EVENT_NAME=event, GITHUB_REPOSITORY="DashyNMS/example")
+        result = subprocess.run((sys.executable, str(SCRIPT), *args), cwd=self.root, env=env, capture_output=True, text=True)
+        self.error = result.stderr
+        return dict(line.split("=", 1) for line in result.stdout.splitlines()) if result.returncode == 0 else None
+
+    def test_edge_and_nightly_are_numbered_by_run(self):
+        self.assertEqual("2.0.0-edge.7", self.run_script("edge")["version"])
+        self.assertEqual("v2.0.0-nightly.8", self.run_script("nightly", number="8")["tag"])
+
+    def test_the_schedule_skips_a_commit_that_already_has_a_nightly(self):
+        self.assertEqual("true", self.run_script("nightly", event="schedule")["changed"])
+        self.git("tag", "v2.0.0-nightly.3")
+        self.assertEqual("false", self.run_script("nightly", event="schedule")["changed"])
+        self.assertEqual("true", self.run_script("nightly", event="workflow_dispatch")["changed"])
+        self.commit("ci: something")
+        self.assertEqual("true", self.run_script("nightly", event="schedule")["changed"])
+
+    def test_notes_list_what_people_would_notice_since_the_last_build(self):
+        self.git("tag", "v2.0.0-preview.20")
+        self.commit("fix(alerts)!: acknowledging keeps the filter (#12)")
+        self.commit("ci: not for people")
+        self.commit("Bump something")
+        self.run_script("nightly", "--notes", "out/notes.md")
+        text = (self.root / "out/notes.md").read_text()
+        self.assertIn("releases/tag/v2.0.0-preview.20", text)
+        self.assertIn("## Fixed\n\n- **Breaking:** Acknowledging keeps the filter (#12)", text)
+        self.assertNotIn("not for people", text)
+        self.assertNotIn("Bump", text)
+        self.assertNotIn("first commit", text)
+
+    def test_the_edge_tag_is_not_a_build_to_list_changes_from(self):
+        self.git("tag", "v1.0.0")
+        self.commit("feat: something new")
+        self.git("tag", "v0.0.0-edge")
+        self.run_script("nightly", "--notes", "out/notes.md")
+        self.assertIn("releases/tag/v1.0.0", (self.root / "out/notes.md").read_text())
+
+    def test_a_release_must_be_the_props_version_on_this_commit(self):
+        self.git("tag", "v2.0.0")
+        self.git("tag", "v3.0.0")
+        self.assertEqual("2.0.0", self.run_script("release", "--tag", "v2.0.0")["version"])
+        for tag in ("v3.0.0", "v2.0.0-nightly.1", "v9.9.9"):
+            self.assertIsNone(self.run_script("release", "--tag", tag), tag)
+        self.commit("fix: later")
+        self.assertIsNone(self.run_script("release", "--tag", "v2.0.0"))
+        self.assertIn("newest commit", self.error)
+
+    def test_store_build_numbers_are_past_the_ones_already_used(self):
+        build = int(self.run_script("edge")["store_build"])
+        self.assertGreater(build, 400_000)
+        self.assertLess(build, 2_000_000_000)
+
+    def test_a_prerelease_base_version_is_refused(self):
+        (self.root / "Directory.Build.props").write_text("<Project><PropertyGroup><Version>2.0.0-dev</Version></PropertyGroup></Project>")
+        self.assertIsNone(self.run_script("edge"))
+
+
+if __name__ == "__main__":
+    unittest.main()
