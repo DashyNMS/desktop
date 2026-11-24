@@ -129,7 +129,13 @@ jobs:
     needs: [test, scripts, web-sign-in-browser, macos-update]
     runs-on: ubuntu-latest
     steps:
+      # Only success counts: a job no runner ever took is neither a failure nor
+      # cancelled here. A pull request runs every job; a build that calls this
+      # may skip the ones it does itself.
       - name: Require every job
         env:
-          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: test "$FAILED" = false
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$RESULTS"
+          jq -e --arg event "$GITHUB_EVENT_NAME" \
+            'all(.[]; .result == "success" or (.result == "skipped" and $event != "pull_request"))' <<<"$RESULTS" >/dev/null
