@@ -2,6 +2,12 @@
 
 Start with the section closest to what you see. Keep the error message and the time it happened; both help distinguish an app problem from a server or network problem.
 
+## Find help in the app
+
+Choose **Help** in the sidebar, or press **F1** on a page or in Settings. Use **Search help** (**Ctrl+F**, or **Cmd+F** on macOS) to find a word. **Alt+Left** and **Alt+Right** go back and forward (**Cmd+[** and **Cmd+]** on macOS). **Help** on the sign-in window opens it before you've signed in.
+
+The foot of the contents list says which version the help describes. Help comes with the app, so it works without an internet connection.
+
 ## Cannot connect to LibreNMS
 
 1. Open the same server address in your browser on this computer. If it fails there too, check your network, VPN and server availability.

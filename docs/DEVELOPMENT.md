@@ -824,7 +824,7 @@ src/
     Infrastructure/         UI dispatch, dialogs, theme and window placement
     Services/               Windows, tray, notifications and startup adapters
 docs/
-  guide/                    The user guide, copied to the wiki
+  guide/                    The user guide: the app's Help, and copied to the wiki
   releases/                 The notes for each version, embedded and published by the builds
 scripts/                    What the workflows and packaging run
   build_version.py          Versions and notes, the same in every repository
@@ -984,6 +984,20 @@ The wiki has to be turned on under **Settings → Features → Wikis** and given
 a first page before the workflow can push to it. Until then the publish job
 stops with a notice.
 
+**The app's Help (#604) shows these pages too.** `DesktopNMS.Presentation` embeds
+`docs/guide` and the PNGs in `docs/screenshots`, so Help always describes the
+version it's built into. Core's `HelpGuide` reads them, works out links and
+images and searches; `HelpBlocks` reads a page's Markdown and `HelpPageView`
+draws it with the app's own styles. Raw HTML isn't shown, so use simple
+Markdown, wiki-safe links and images with alt text. `HelpTopics` says which page explains
+each tab and Settings section. Tests hold every page's links, images and
+descriptions, and every topic, to the guide, so a renamed page or heading fails
+CI until `HelpTopics` follows.
+
+Help requests nothing but this version's public guide pages, from
+`raw.githubusercontent.com` when it's first opened (Core's `HelpGuideService`),
+and nothing in the demo.
+
 To preview the pages locally:
 
 ```bash
@@ -1020,7 +1034,7 @@ type(scope): what changes, as the user would notice it
   | `revert` | Undoing an earlier change |
 
 - **scope** is the area of the app, in lower case:
-  - Screens: `dashboard`, `alerts`, `devices`, `device-details`, `logs`,
+  - Screens: `help`, `dashboard`, `alerts`, `devices`, `device-details`, `logs`,
     `graylog`, `maps`, `health`, `neighbours`, `ports`, `wireless`, `apps`,
     `routing`, `graphs`, `rules`, `groups`, `maintenance`, `search`,
     `reports`, `catch-up`, `dependencies` (device dependencies)
