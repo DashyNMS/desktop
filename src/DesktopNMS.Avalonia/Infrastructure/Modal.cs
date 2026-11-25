@@ -12,6 +12,11 @@ namespace DesktopNMS.Infrastructure;
 /// </summary>
 public static class Modal
 {
+    private static int _open;
+
+    /// <summary>Whether any is showing, so the windows under it can't be used.</summary>
+    public static bool IsOpen => _open > 0;
+
     /// <summary>Shows <paramref name="window"/> over <paramref name="owner"/> (or on its own) and returns once it's closed.</summary>
     public static void Show(Window window, Window? owner)
     {
@@ -28,7 +33,15 @@ public static class Modal
             window.Show();
         }
 
-        Dispatcher.UIThread.MainLoop(closed.Token);
+        _open++;
+        try
+        {
+            Dispatcher.UIThread.MainLoop(closed.Token);
+        }
+        finally
+        {
+            _open--;
+        }
     }
 
     /// <summary>Waits for <paramref name="task"/> - a file picker, say - while the UI keeps running.</summary>

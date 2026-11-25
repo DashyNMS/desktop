@@ -69,6 +69,7 @@ public sealed class TrayViewModel : ObservableObject
         DevicesCommand = Raise(() => DevicesRequested);
         RefreshCommand = new RelayCommand(() => Run(RefreshRequested), () => IsSignedIn);
         SettingsCommand = Raise(() => SettingsRequested);
+        HelpCommand = Raise(() => HelpRequested);
         SignInOrOutCommand = Raise(() => SignInOrOutRequested);
         ExitCommand = Raise(() => ExitRequested);
         InstallUpdateCommand = Raise(() => InstallUpdateRequested);
@@ -94,6 +95,8 @@ public sealed class TrayViewModel : ObservableObject
 
     public event EventHandler? SettingsRequested;
 
+    public event EventHandler? HelpRequested;
+
     /// <summary>Sign out while signed in, Sign in… while not.</summary>
     public event EventHandler? SignInOrOutRequested;
 
@@ -118,6 +121,8 @@ public sealed class TrayViewModel : ObservableObject
     public RelayCommand RefreshCommand { get; }
 
     public RelayCommand SettingsCommand { get; }
+
+    public RelayCommand HelpCommand { get; }
 
     public RelayCommand SignInOrOutCommand { get; }
 

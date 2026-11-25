@@ -77,6 +77,9 @@
             </Button>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="Checking…" Classes="subtle" VerticalAlignment="Center" Margin="0,0,4,0" IsVisible="{Binding IsBusy}" />
+                <Button Classes="link" VerticalAlignment="Center" Margin="0,0,6,0" Command="{Binding HelpCommand}" AutomationProperties.Name="Help with signing in">
+                    <TextBlock Text="Help" />
+                </Button>
                 <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
                 <Button Content="Connect" Command="{Binding ConnectCommand}" Classes="primary" IsDefault="True" IsVisible="{Binding ShowsTokenEntry}" />
             </StackPanel>

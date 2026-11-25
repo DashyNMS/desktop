@@ -62,6 +62,7 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
                 _windows.ShowMainTab(tab);
             }
         });
+        HelpCommand = new RelayCommand(() => _windows.ShowHelp(new Services.Help.HelpTopic("Getting-started", "try-your-first-everyday-tasks")));
         DismissCommand = new RelayCommand(() =>
         {
             _settings.Current.WelcomeDismissed = true;
@@ -108,6 +109,9 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     public RelayCommand OpenTabCommand { get; }
 
     public RelayCommand DismissCommand { get; }
+
+    /// <summary>The guide's first steps (#604).</summary>
+    public RelayCommand HelpCommand { get; }
 
     public IReadOnlyList<WelcomeStep> Steps
     {

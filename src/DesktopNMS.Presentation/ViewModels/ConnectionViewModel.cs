@@ -68,10 +68,14 @@ public sealed class ConnectionViewModel : ObservableObject
         UseTokenCommand = new RelayCommand(() => SetUsesToken(true));
         UseLibreNmsCommand = new RelayCommand(() => SetUsesToken(false));
         OpenTokensPageCommand = new RelayCommand(OpenTokensPage);
+        HelpCommand = new RelayCommand(() => _windows.ShowHelp(Services.Help.HelpTopics.SignIn));
     }
 
     /// <summary>"Open the API Tokens page" (#261): LibreNMS's page for making a token, in the browser.</summary>
     public RelayCommand OpenTokensPageCommand { get; }
+
+    /// <summary>The guide's page about signing in (#604), in a window of its own.</summary>
+    public RelayCommand HelpCommand { get; }
 
     private void OpenTokensPage()
     {
