@@ -145,7 +145,8 @@
                         <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="12,4,12,6" />
                         <Button Classes="rail" Classes.selected="{Binding IsHelpTabSelected}"
                                 Command="{Binding SelectHelpTabCommand}" IsVisible="{Binding ShowHelpTab}"
-                                ToolTip.Tip="Help (F1 for help with this page)" AutomationProperties.Name="Help">
+                                ToolTip.Tip="Help (F1 for help with this page)" AutomationProperties.Name="Help"
+                                AutomationProperties.HelpText="Press F1 for help with the page you are on">
                             <StackPanel Orientation="Horizontal">
                                 <fi:SymbolIcon Symbol="QuestionCircle" />
                                 <TextBlock Text="Help" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
