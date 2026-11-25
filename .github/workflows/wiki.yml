@@ -1,7 +1,7 @@
 name: Wiki
 
 # The user guide is written in docs/guide, where it's reviewed with the code
-# it describes, and copied to the repository wiki for people to read (#257).
+# it describes, and copied to the repository wiki for people to read (DashyNMS/desktop#257).
 # Pull requests only check that every link in the guide resolves.
 on:
   push:
@@ -23,9 +23,10 @@ on:
 permissions:
   contents: read
 
+# A pull request's check can't take a publish's place in the queue.
 concurrency:
-  group: wiki
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('wiki-check-{0}', github.event.pull_request.number) || 'wiki' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:

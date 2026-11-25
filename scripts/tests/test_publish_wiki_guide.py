@@ -41,6 +41,27 @@ class NestedGuideTests(unittest.TestCase):
         self.assertLess(output["_Sidebar.md"].index("**Tasks**"), output["_Sidebar.md"].index("[Find a device]"))
         self.assertLess(output["_Sidebar.md"].index("**Help**"), output["_Sidebar.md"].index("- [Help]"))
 
+    def test_a_links_title_is_kept_and_its_target_still_checked(self):
+        self.write("how-to/find.md", '# Find a device\n\n[Help](../reference/help.md#connection "Connection help") [Gone](gone.md "Gone")\n')
+        output, errors = self.convert()
+        self.assertIn('[Help](Help#connection "Connection help")', output["Find-a-device.md"])
+        self.assertTrue(any("gone.md" in error for error in errors))
+
+    def test_a_block_is_closed_only_by_its_own_kind_of_fence(self):
+        self.write("how-to/find.md", "# Find a device\n\n````\n```\n[In code](nowhere.md)\n````\n\n[Missing](missing.md)\n")
+        _, errors = self.convert()
+        self.assertEqual(1, len(errors))
+        self.assertIn("missing.md", errors[0])
+
+    def test_a_repeated_heading_has_its_own_anchor(self):
+        self.write("reference/help.md", "# Help\n\n## Connection\n\n## Android\n\n## Android\n")
+        self.write("how-to/find.md", "# Find a device\n\n[One](../reference/help.md#android) [Two](../reference/help.md#android-1)\n")
+        _, errors = self.convert()
+        self.assertEqual([], errors)
+        self.write("how-to/find.md", "# Find a device\n\n[Three](../reference/help.md#android-2)\n")
+        _, errors = self.convert()
+        self.assertEqual(1, len(errors))
+
     def test_missing_nested_anchor_is_rejected(self):
         self.write("reference/help.md", "# Help\n")
         _, errors = self.convert()
