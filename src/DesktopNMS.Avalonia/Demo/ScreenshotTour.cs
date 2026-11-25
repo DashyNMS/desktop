@@ -51,6 +51,9 @@ internal sealed class ScreenshotTour(string folder, MainViewModel main, IWindowS
             await SectionAsync(mainWindow, () => _ = search.SearchForAsync("192.0.2.0/24"), "network-search-list").ConfigureAwait(true);
         }
 
+        // Help (#604), on a page with steps, a table and a picture.
+        await SectionAsync(mainWindow, () => main.OpenHelp(new DesktopNMS.Services.Help.HelpTopic("Use-maps-and-health-readings")), "help").ConfigureAwait(true);
+
         windows.ShowDeviceDetail(fleet.FeaturedDeviceId);
         await SettleAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(true);
         var deviceWindow = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Windows.OfType<DeviceView>().FirstOrDefault();
