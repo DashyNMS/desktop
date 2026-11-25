@@ -23,6 +23,7 @@ import sys
 
 LINK = re.compile(r"(!?)\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)(\s+\"[^\"]*\")?\)")
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
+CODE = re.compile(r"(?<!`)(`+)(?!`).*?[^`]\1(?!`)")
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 
 
@@ -52,10 +53,12 @@ def anchors(headings):
     """Each heading's anchor in order: GitHub numbers the ones that repeat."""
     used = {}
     for heading in headings:
-        anchor = slug(heading)
-        count = used.get(anchor)
-        used[anchor] = 0 if count is None else count + 1
-        yield anchor if count is None else f"{anchor}-{count + 1}"
+        first = anchor = slug(heading)
+        while anchor in used:
+            used[first] += 1
+            anchor = f"{first}-{used[first]}"
+        used[anchor] = 0
+        yield anchor
 
 
 class Page:
@@ -86,6 +89,9 @@ def convert(guide, repository, branch):
     for page in pages.values():
         def rewrite(match):
             image, text, target, title = match.groups(default="")
+            # A link shown as code is an example, not a link.
+            if any(code.start() <= match.start() < code.end() for code in CODE.finditer(match.string)):
+                return match.group(0)
             if re.match(r"^[a-z][a-z0-9+.-]*:", target, re.I):
                 return match.group(0)
             path, _, fragment = target.partition("#")

@@ -58,8 +58,12 @@ jobs:
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" "$RUNNER_TEMP/wiki"; then
+          if git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" "$RUNNER_TEMP/wiki" 2> "$RUNNER_TEMP/clone.log"; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
+          elif ! grep -qi 'repository not found' "$RUNNER_TEMP/clone.log"; then
+            # Anything else is a failure: the guide that was merged isn't on the wiki.
+            sed "s/${TOKEN}/***/g" "$RUNNER_TEMP/clone.log"
+            exit 1
           else
             echo "::notice::The wiki isn't available yet. Turn it on under Settings, Features, Wikis, create any first page, then run this workflow again."
             echo "ready=false" >> "$GITHUB_OUTPUT"

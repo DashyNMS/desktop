@@ -53,9 +53,19 @@ class NestedGuideTests(unittest.TestCase):
         self.assertEqual(1, len(errors))
         self.assertIn("missing.md", errors[0])
 
+    def test_a_link_shown_as_code_is_left_alone_and_code_in_a_link_is_not(self):
+        self.write("how-to/find.md", "# Find a device\n\nWrite `[Example](missing.md)` or see [`help`](../reference/help.md).\n")
+        output, errors = self.convert()
+        self.assertEqual([], errors)
+        self.assertIn("`[Example](missing.md)` or see [`help`](Help)", output["Find-a-device.md"])
+
     def test_a_repeated_heading_has_its_own_anchor(self):
         self.write("reference/help.md", "# Help\n\n## Connection\n\n## Android\n\n## Android\n")
         self.write("how-to/find.md", "# Find a device\n\n[One](../reference/help.md#android) [Two](../reference/help.md#android-1)\n")
+        _, errors = self.convert()
+        self.assertEqual([], errors)
+        self.write("reference/help.md", "# Help\n\n## Connection\n\n## Android\n\n## Android\n\n## Android-1\n")
+        self.write("how-to/find.md", "# Find a device\n\n[Three](../reference/help.md#android-1-1)\n")
         _, errors = self.convert()
         self.assertEqual([], errors)
         self.write("how-to/find.md", "# Find a device\n\n[Three](../reference/help.md#android-2)\n")
