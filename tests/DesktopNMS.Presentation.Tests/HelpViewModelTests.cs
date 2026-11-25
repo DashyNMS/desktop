@@ -209,6 +209,7 @@ public sealed class HelpViewModelTests : IDisposable
     [InlineData("https://github.com/DashyNMS/desktop/wiki/Build-your-dashboard#keep-a-sensor-in-view", "Build-your-dashboard", "keep-a-sensor-in-view")]
     [InlineData("https://github.com/DashyNMS/desktop/wiki/Troubleshooting", "Troubleshooting", null)]
     [InlineData("https://github.com/DashyNMS/mobile/wiki/Troubleshooting", null, null)]
+    [InlineData("https://github.com/DashyNMS/desktop/wiki/Written-next-year", null, null)]
     [InlineData("https://github.com/DashyNMS/desktop/wiki/", null, null)]
     [InlineData("https://example.net/DashyNMS/desktop/wiki/Troubleshooting", null, null)]
     [InlineData("http://github.com/DashyNMS/desktop/wiki/Troubleshooting", null, null)]

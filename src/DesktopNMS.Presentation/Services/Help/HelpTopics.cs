@@ -53,7 +53,7 @@ public static class HelpTopics
         _ => new("Change-your-connection-and-desktop-settings"),
     };
 
-    /// <summary>The page of this guide a wiki address names, or null for any other address.</summary>
+    /// <summary>The page of this guide a wiki address names, or null for any other address - such as a page written since.</summary>
     public static HelpTopic? FromAddress(System.Uri address)
     {
         const string wiki = "/DashyNMS/desktop/wiki/";
@@ -64,7 +64,7 @@ public static class HelpTopics
         }
 
         var page = System.Uri.UnescapeDataString(address.AbsolutePath[wiki.Length..]).Trim('/');
-        return page.Length == 0 || page.Contains('/') ? null
+        return page.Length == 0 || page.Contains('/') || !BundledHelp.HasPage(page) ? null
             : new HelpTopic(page, address.Fragment.Length > 1 ? System.Uri.UnescapeDataString(address.Fragment[1..]) : null);
     }
 
