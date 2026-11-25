@@ -1,7 +1,7 @@
 name: Wiki
 
 # The user guide is written in docs/guide, where it's reviewed with the code
-# it describes, and copied to the repository wiki for people to read (#257).
+# it describes, and copied to the repository wiki for people to read (DashyNMS/desktop#257).
 # Pull requests only check that every link in the guide resolves.
 on:
   push:
@@ -23,9 +23,10 @@ on:
 permissions:
   contents: read
 
+# A pull request's check can't take a publish's place in the queue.
 concurrency:
-  group: wiki
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('wiki-check-{0}', github.event.pull_request.number) || 'wiki' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -57,8 +58,12 @@ jobs:
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" "$RUNNER_TEMP/wiki"; then
+          if git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" "$RUNNER_TEMP/wiki" 2> "$RUNNER_TEMP/clone.log"; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
+          elif ! grep -qi 'repository not found' "$RUNNER_TEMP/clone.log"; then
+            # Anything else is a failure: the guide that was merged isn't on the wiki.
+            sed "s/${TOKEN}/***/g" "$RUNNER_TEMP/clone.log"
+            exit 1
           else
             echo "::notice::The wiki isn't available yet. Turn it on under Settings, Features, Wikis, create any first page, then run this workflow again."
             echo "ready=false" >> "$GITHUB_OUTPUT"

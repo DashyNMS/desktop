@@ -3,13 +3,16 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
+using DesktopNMS.Core.Help;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Services;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Demo;
+using DesktopNMS.Services.Help;
 using DesktopNMS.ViewModels;
 using DesktopNMS.Views;
+using DesktopNMS.Views.Help;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -24,6 +27,7 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
     private static readonly string[] ExternalToolSchemes = ["ssh", "telnet", "rdp", "vnc", "http", "https"];
 
     private MainWindow? _mainWindow;
+    private HelpWindow? _helpWindow;
 
     /// <summary>Raised by Exit - the app decides how to close.</summary>
     public event EventHandler? ExitRequested;
@@ -188,6 +192,37 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
         settings.Current.WhatsNewShownVersion = notes.Version;
         settings.SaveQuietly();
         return true;
+    }
+
+    public void ShowHelp(HelpTopic topic)
+    {
+        // The main window, unless something modal is over it or there's no session to show.
+        var blocked = _mainWindow is not { IsVisible: true } || Main.IsSigningIn || Modal.IsOpen;
+        if (!blocked)
+        {
+            Main.OpenHelp(topic);
+            ShowMain();
+            return;
+        }
+
+        if (_helpWindow is not { IsVisible: true } || _helpWindow.DataContext is not HelpViewModel model)
+        {
+            model = new HelpViewModel(services.GetRequiredService<HelpGuideService>(), this, mayRefresh: !services.GetRequiredService<DemoMode>().IsActive);
+            _helpWindow = new HelpWindow(model);
+            WindowPlacementMemory.Attach(_helpWindow, services.GetRequiredService<ISettingsStore>());
+        }
+
+        model.Open(topic);
+        model.OnShown();
+
+        // No owner: closing the dialog it was opened from leaves it to be read.
+        _helpWindow.Show();
+        if (_helpWindow.WindowState == WindowState.Minimized)
+        {
+            _helpWindow.WindowState = WindowState.Normal;
+        }
+
+        _helpWindow.Activate();
     }
 
     public void ShowLicences()

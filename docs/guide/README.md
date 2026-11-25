@@ -10,6 +10,8 @@ Find an alert, check a device, follow its traffic and keep the information you n
 
 ![DashyNMS dashboard with alerts, device status, pinned sensors and traffic](../screenshots/dashboard.png)
 
+You can read this guide in DashyNMS too: choose **Help** in the sidebar, or press **F1** for help with the page you're on.
+
 These pages cover DashyNMS 2.0 for Windows, macOS and Linux. Until 2.0 is released, download a nightly build to follow along. Some controls depend on your LibreNMS permissions and the data your server collects.
 
 ## Start here
@@ -43,6 +45,6 @@ Try **Try the demo** on the sign-in window if you want to explore before connect
 
 - [Troubleshooting](reference/troubleshooting.md): connection failures, missing data, notifications and useful bug reports.
 - [Where DashyNMS keeps your data](reference/your-data.md): saved settings, credentials and how to start again.
-- [Differences between Windows, macOS and Linux](reference/platform-differences.md): tray behaviour, updates and password storage.
+- [Differences between Windows, macOS and Linux](reference/platform-differences.md): tray behaviour, updates and how passwords are kept.
 
 If a task is missing from this guide, [open an issue](https://github.com/DashyNMS/desktop/issues) with what you were trying to do. For a security problem, use the [security reporting instructions](../../SECURITY.md).

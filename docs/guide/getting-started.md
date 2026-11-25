@@ -47,6 +47,7 @@ DashyNMS opens on your dashboard. From here:
 - **Alerts** lists everything that's open right now. A notification appears when an alert fires or clears.
 - **Devices** lists every device on your network. Open one to see its ports, sensors, graphs and event log.
 - **Logs** brings the event log, the alert log and Graylog together.
+- **Help** (the question mark) is this guide, inside the app. Press **F1** on any page for help with it.
 - **Settings** (the gear icon) is where you choose which alerts notify you, the theme, and whether DashyNMS starts when you sign in to your computer.
 
 On Windows and macOS, closing the window leaves DashyNMS running in the notification area or the menu bar, so it can still tell you about new alerts. To quit completely, use the icon there and choose **Exit**, or **Quit DashyNMS** on a Mac. On Linux, closing the window quits DashyNMS. [Differences between Windows, macOS and Linux](reference/platform-differences.md) explains why.

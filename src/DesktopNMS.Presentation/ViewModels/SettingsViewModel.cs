@@ -219,6 +219,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         ShowLicencesCommand = new RelayCommand(() => _windows.ShowLicences());
         ViewReleasesPageCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri("https://github.com/DashyNMS/desktop/releases")));
+        HelpCommand = new RelayCommand(() => _windows.ShowHelp(Services.Help.HelpTopics.For(SelectedSection)));
         ReportBugCommand = new RelayCommand(() => _windows.OpenUrl(ComponentBugReportLink()));
         InitialiseComponentVersions(versionTools);
 
@@ -1387,6 +1388,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Opens a new GitHub issue with the app, Windows and LibreNMS versions filled in (#149) - see <see cref="BugReportLink"/>.</summary>
     public RelayCommand ReportBugCommand { get; }
+
+    /// <summary>The guide's page about the section that's showing (#604).</summary>
+    public RelayCommand HelpCommand { get; }
 
     /// <summary>Opens the log folder in File Explorer (#273).</summary>
     public RelayCommand OpenLogFolderCommand { get; }

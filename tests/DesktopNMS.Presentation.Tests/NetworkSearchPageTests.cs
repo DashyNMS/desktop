@@ -295,6 +295,7 @@ public sealed class NetworkSearchPageTests
         public IReadOnlyList<WidgetCatalogEntry> ShowWidgetPicker(IReadOnlyList<WidgetCatalogEntry> catalog) => Never<IReadOnlyList<WidgetCatalogEntry>>();
         public bool ShowWhatsNew() => false;
         public void ShowLicences() { }
+        public void ShowHelp(DesktopNMS.Services.Help.HelpTopic topic) { }
         public void ShowNeighbour(string viewId, string? name, string? mac = null) { }
         public DesktopNMS.Core.Configuration.NeighbourViewDefinition? ShowNeighbourViewEditor(DesktopNMS.Core.Configuration.NeighbourViewDefinition? existing) => null;
         public void CloseDeviceDetail(int deviceId) { }

@@ -10,6 +10,7 @@ DashyNMS saves:
 - Logs of what DashyNMS did each day, kept for 14 days. They help when you report a problem.
 - Downloaded updates, until they're installed.
 - Map tiles, kept for a week so maps load faster.
+- A copy of the help pages for your version.
 
 The quickest way to find the folder is **Settings → Diagnostics → Open log folder**. Your settings are in the folder above the one that opens.
 

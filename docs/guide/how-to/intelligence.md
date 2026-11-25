@@ -1,6 +1,6 @@
 # Ask about your network with Intelligence
 
-Intelligence answers questions about your network in plain words: what's alerting, how a device is doing, where an address is plugged in or what changed overnight. It looks things up with DashyNMS's read-only network tools, so it can't change anything on your network.
+Intelligence answers questions about your network in plain words: what's alerting, how a device is doing, where an address is plugged in or what changed overnight. It can also answer how-to questions about DashyNMS from its user guides. It looks things up with DashyNMS's read-only network tools, so it can't change anything on your network.
 
 An answer comes from one of these providers, each with your own account:
 

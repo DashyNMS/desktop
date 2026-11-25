@@ -571,7 +571,11 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
 
     public void OpenSource(Uri uri)
     {
-        if (WebSearchCitations.TryGetLink(uri.AbsoluteUri, out var safeUri)) _windows.OpenUrl(safeUri);
+        if (!WebSearchCitations.TryGetLink(uri.AbsoluteUri, out var safeUri)) return;
+
+        // A page of this app's own guide, from a how-to answer, opens here (#604).
+        if (Services.Help.HelpTopics.FromAddress(safeUri) is { } topic) _windows.ShowHelp(topic);
+        else _windows.OpenUrl(safeUri);
     }
 
     public bool IsBusy

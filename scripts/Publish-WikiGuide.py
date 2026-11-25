@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Turn the user guide in docs/guide into GitHub wiki pages (#257).
+"""Turn the user guide in docs/guide into GitHub wiki pages (DashyNMS/desktop#257).
 
 The guide is written and reviewed in the repository; the wiki is only where
 people read it. Each guide file becomes a page named after its first heading
@@ -21,9 +21,10 @@ import posixpath
 import re
 import sys
 
-LINK = re.compile(r"(!?)\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)\)")
+LINK = re.compile(r"(!?)\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)(\s+\"[^\"]*\")?\)")
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
-FENCE = re.compile(r"^\s*(```|~~~)")
+CODE = re.compile(r"(?<![`\\])(`+)(?!`).*?[^`]\1(?!`)")
+FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 
 
 def slug(heading):
@@ -34,13 +35,30 @@ def slug(heading):
 
 def outside_code(lines):
     """Yields (index, line) for lines that aren't inside a fenced code block."""
-    fenced = False
+    opener = None
     for index, line in enumerate(lines):
-        if FENCE.match(line):
-            fenced = not fenced
-            continue
-        if not fenced:
-            yield index, line
+        fence = FENCE.match(line)
+        if opener is None:
+            # ```code``` on one line is inline code, not the start of a block.
+            if fence and not (fence.group(1)[0] == "`" and "`" in fence.group(2)):
+                opener = fence.group(1)
+            else:
+                yield index, line
+        elif fence and fence.group(1)[0] == opener[0] and len(fence.group(1)) >= len(opener) and not fence.group(2).strip():
+            # Only the same mark, at least as long and with nothing after it, closes the block.
+            opener = None
+
+
+def anchors(headings):
+    """Each heading's anchor in order: GitHub numbers the ones that repeat."""
+    used = {}
+    for heading in headings:
+        first = anchor = slug(heading)
+        while anchor in used:
+            used[first] += 1
+            anchor = f"{first}-{used[first]}"
+        used[anchor] = 0
+        yield anchor
 
 
 class Page:
@@ -51,7 +69,7 @@ class Page:
         if self.title is None:
             raise SystemExit(f"{path}: the page needs a '# Title' line, which names its wiki page.")
         self.name = "Home" if path.name == "README.md" else re.sub(r"\s+", "-", re.sub(r"[^\w\- ]", "", self.title).strip())
-        self.anchors = {slug(m.group(2)) for _, line in outside_code(self.lines) if (m := HEADING.match(line))}
+        self.anchors = set(anchors(m.group(2) for _, line in outside_code(self.lines) if (m := HEADING.match(line))))
 
 
 def convert(guide, repository, branch):
@@ -70,7 +88,10 @@ def convert(guide, repository, branch):
 
     for page in pages.values():
         def rewrite(match):
-            image, text, target = match.groups()
+            image, text, target, title = match.groups(default="")
+            # A link shown as code is an example, not a link.
+            if any(code.start() <= match.start() < code.end() for code in CODE.finditer(match.string)):
+                return match.group(0)
             if re.match(r"^[a-z][a-z0-9+.-]*:", target, re.I):
                 return match.group(0)
             path, _, fragment = target.partition("#")
@@ -83,14 +104,19 @@ def convert(guide, repository, branch):
                 linked = pages[guide_target]
                 if fragment and fragment not in linked.anchors:
                     errors.append(f"{page.path.name}: {path} has no heading for #{fragment}")
-                return f"{image}[{text}]({linked.name}{'#' + fragment if fragment else ''})"
+                return f"{image}[{text}]({linked.name}{'#' + fragment if fragment else ''}{title})"
             resolved = (page.path.parent / path).resolve()
             if not resolved.exists() or root not in resolved.parents:
                 errors.append(f"{page.path.name}: {path} isn't a file in the repository")
                 return match.group(0)
             relative = resolved.relative_to(root).as_posix()
             base = f"https://raw.githubusercontent.com/{repository}/{branch}" if image else f"https://github.com/{repository}/blob/{branch}"
-            return f"{image}[{text}]({base}/{relative}{'#' + fragment if fragment else ''})"
+            return f"{image}[{text}]({base}/{relative}{'#' + fragment if fragment else ''}{title})"
+
+        # The wiki page has no title line, so a heading that repeats it would lose the number its links use.
+        headings = [slug(m.group(2)) for _, line in outside_code(page.lines) if (m := HEADING.match(line))]
+        if page.name != "Home" and headings.count(slug(page.title)) > 1:
+            errors.append(f"{page.path.name}: a heading repeats the page's title; give it words of its own")
 
         lines = list(page.lines)
         for index, line in outside_code(page.lines):

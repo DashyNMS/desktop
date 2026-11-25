@@ -38,4 +38,7 @@ public enum MainTab
 
     /// <summary>Network Search: find an endpoint by address, network, MAC or name and see where it's connected (#57).</summary>
     NetworkSearch,
+
+    /// <summary>Help: the user guide for this version, read inside the app (#604).</summary>
+    Help,
 }

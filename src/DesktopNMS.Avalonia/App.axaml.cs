@@ -517,6 +517,15 @@ public partial class App : Application
             windows.ShowMain();
             _mainViewModel.SettingsCommand.Execute(null);
         };
+        tray.HelpRequested += (_, _) =>
+        {
+            if (_mainViewModel?.IsConnected == true)
+            {
+                windows.ShowMain();
+            }
+
+            windows.ShowHelp(DesktopNMS.Services.Help.HelpTopics.Home);
+        };
         tray.SignInOrOutRequested += (_, _) =>
         {
             // The same item reads "Sign in…" while signed out.
@@ -953,6 +962,10 @@ public partial class App : Application
         services.AddSingleton(provider => new IntelligenceChatExporter(provider.GetRequiredService<IIntelligenceChatPdfWriter>()));
         services.AddSingleton<IntelligenceViewModel>();
         services.AddSingleton<NetworkSearchViewModel>();
+        // The user guide for this version (#604). The demo contacts nothing, so its pages are the bundled ones.
+        services.AddSingleton(_ => DesktopNMS.Services.Help.BundledHelp.CreateService(DesktopUpdateService.RunningVersion()));
+        services.AddSingleton(provider => new HelpViewModel(provider.GetRequiredService<DesktopNMS.Core.Help.HelpGuideService>(),
+            provider.GetRequiredService<IWindowService>(), mayRefresh: !demo.IsActive));
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<GroupsViewModel>();
         services.AddSingleton<LocationsViewModel>();

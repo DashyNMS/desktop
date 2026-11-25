@@ -31,6 +31,23 @@ public partial class MainWindow : Window
 
         TitleBarFit.Attach(this, TitleBarContent, left: 19);
 
+        // The menu bar's Help menu on macOS. Windows and Linux have no menu
+        // bar here: Help is in the sidebar, the title bar and the tray's menu.
+        if (OperatingSystem.IsMacOS())
+        {
+            NativeMenu.SetMenu(this, new NativeMenu
+            {
+                new NativeMenuItem("Help")
+                {
+                    Menu = new NativeMenu
+                    {
+                        new NativeMenuItem("DashyNMS Help") { Command = viewModel.SelectHelpTabCommand },
+                        new NativeMenuItem("Help with This Page") { Command = viewModel.HelpForTabCommand },
+                    },
+                },
+            });
+        }
+
         // Ctrl+F (Cmd+F on a Mac) to the showing tab's search box - tunnelling,
         // so it's seen before a focused text box treats it as typing.
         AddHandler(KeyDownEvent, OnFindKeyDown, RoutingStrategies.Tunnel);
@@ -104,6 +121,7 @@ public partial class MainWindow : Window
             { IsGeoMapTabSelected: true } => GeoMapViewControl.FocusSearch,
             { IsGraylogLogsTabSelected: true } => LogsViewControl.FocusSearch,
             { IsNetworkSearchTabSelected: true } => NetworkSearchViewControl.FocusPageFilter,
+            { IsHelpTabSelected: true } => HelpViewControl.FocusSearch,
 
             // The Dashboard has no search box yet.
             _ => null,

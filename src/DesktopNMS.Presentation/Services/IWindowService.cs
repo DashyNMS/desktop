@@ -177,6 +177,12 @@ public interface IWindowService
     /// <summary>Shows the "Edit alert template" dialog for an existing template. Returns true if it was saved.</summary>
     bool ShowEditAlertTemplateDialog(AlertTemplate template);
 
+    /// <summary>
+    /// Opens a page of the user guide (#604): in the main window when it can be
+    /// used, otherwise - signing in, or over a dialog - in a window of its own.
+    /// </summary>
+    void ShowHelp(Help.HelpTopic topic);
+
     /// <summary>Opens a URL in the default browser.</summary>
     void OpenUrl(Uri url);
 
