@@ -134,7 +134,7 @@
 
                 <Panel>
                     <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding !IsSearching}">
-                        <ItemsControl ItemsSource="{Binding Groups}" Margin="10,-6,10,10" AutomationProperties.Name="Contents">
+                        <ItemsControl ItemsSource="{Binding Groups}" Margin="10,0,10,10" AutomationProperties.Name="Contents">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:HelpGroupViewModel">
                                     <StackPanel>
