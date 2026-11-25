@@ -224,7 +224,7 @@ public static partial class HelpBlocks
     private static bool IsTable(IReadOnlyList<string> lines, int i)
         => lines[i].Trim().StartsWith('|') && i + 1 < lines.Count && TableRule().IsMatch(lines[i + 1].Trim());
 
-    private static List<IReadOnlyList<HelpSpan>> Cells(string row)
+    private static IReadOnlyList<IReadOnlyList<HelpSpan>> Cells(string row)
     {
         var inner = row.Trim();
         inner = inner.StartsWith('|') ? inner[1..] : inner;
