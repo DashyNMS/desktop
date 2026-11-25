@@ -308,7 +308,7 @@ public static partial class HelpBlocks
     [GeneratedRegex(@"^!\[((?:\\.|[^\[\]\\])*)\]\(<?((?:[^()\s<>]|\([^()\s<>]{0,200}\))+)>?(?:\s+""[^""]*"")?\)$")]
     private static partial Regex Image();
 
-    [GeneratedRegex(@"^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$")]
+    [GeneratedRegex(@"^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?$")]
     private static partial Regex TableRule();
 
     [GeneratedRegex(@"(?<!\\)\|")]
