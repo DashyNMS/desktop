@@ -33,6 +33,6 @@ If the connection test succeeds but a device has no backup, check that Unimus ha
 
 ## Keep or replace stored credentials
 
-Leave a stored password or token field blank when saving to keep the existing credential. Use **Clear** to remove it. For an internally issued certificate, use the untrusted-certificate option only after checking the certificate shown by the connection test.
+When saving, leave a password or a token blank to keep the one already stored. Use **Clear** to remove it. For an internally issued certificate, use the untrusted-certificate option only after checking the certificate shown by the connection test.
 
 See [where your data is kept](../reference/your-data.md) for local credential storage, and [troubleshooting](../reference/troubleshooting.md) if a connection fails.

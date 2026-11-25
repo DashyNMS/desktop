@@ -45,6 +45,6 @@ Try **Try the demo** on the sign-in window if you want to explore before connect
 
 - [Troubleshooting](reference/troubleshooting.md): connection failures, missing data, notifications and useful bug reports.
 - [Where DashyNMS keeps your data](reference/your-data.md): saved settings, credentials and how to start again.
-- [Differences between Windows, macOS and Linux](reference/platform-differences.md): tray behaviour, updates and password storage.
+- [Differences between Windows, macOS and Linux](reference/platform-differences.md): tray behaviour, updates and how passwords are kept.
 
 If a task is missing from this guide, [open an issue](https://github.com/DashyNMS/desktop/issues) with what you were trying to do. For a security problem, use the [security reporting instructions](../../SECURITY.md).
