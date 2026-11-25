@@ -312,7 +312,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectHelpTabCommand { get; }
 
-    /// <summary>F1 and the title bar's Help: the guide's page about the tab that's showing (#604).</summary>
+    /// <summary>F1: the guide's page about the tab that's showing (#604).</summary>
     public RelayCommand HelpForTabCommand { get; }
 
     public RelayCommand SelectAlertsTabCommand { get; }

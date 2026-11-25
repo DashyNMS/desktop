@@ -32,7 +32,7 @@ public partial class MainWindow : Window
         TitleBarFit.Attach(this, TitleBarContent, left: 19);
 
         // The menu bar's Help menu on macOS. Windows and Linux have no menu
-        // bar here: Help is in the sidebar, the title bar and the tray's menu.
+        // bar here: Help is in the sidebar and the tray's menu.
         if (OperatingSystem.IsMacOS())
         {
             NativeMenu.SetMenu(this, new NativeMenu
