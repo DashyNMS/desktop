@@ -194,7 +194,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectIntelligenceTabCommand = new RelayCommand(() => SelectedTab = MainTab.Intelligence);
         SelectNetworkSearchTabCommand = new RelayCommand(OpenNetworkSearch, () => NetworkSearch is not null);
         SelectHelpTabCommand = new RelayCommand(() => OpenHelp(null), () => Help is not null);
-        HelpForTabCommand = new RelayCommand(() => _windows.ShowHelp(SelectedTab == MainTab.Help ? HelpTopics.Home : HelpTopics.For(SelectedTab)), () => Help is not null);
+        HelpForTabCommand = new RelayCommand(() =>
+        {
+            // Already there: nobody's place in it is lost.
+            if (SelectedTab != MainTab.Help)
+            {
+                _windows.ShowHelp(HelpTopics.For(SelectedTab));
+            }
+        }, () => Help is not null);
         SelectAlertsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Alerts);
         SelectGroupsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Groups);
         SelectLocationsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Locations);

@@ -45,6 +45,9 @@ public static partial class HelpBlocks
     /// <summary>Deeper than any real page nests, so a strange one can't run away.</summary>
     private const int MaxDepth = 8;
 
+    /// <summary>Longer than anyone writes. A page may have been downloaded, and the patterns below cost more the longer the text.</summary>
+    private const int MaxText = 8192;
+
     public static IReadOnlyList<HelpBlock> Read(string? markdown)
         => Read((markdown ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'), 0);
 
@@ -73,7 +76,10 @@ public static partial class HelpBlocks
             }
             else if (Heading().Match(trimmed) is { Success: true } heading)
             {
-                blocks.Add(new HelpHeadingBlock(heading.Groups[1].Length, Spans(heading.Groups[2].Value)));
+                // Closing marks count only after a space, so "C#" keeps its own.
+                var text = heading.Groups[2].Value;
+                var unmarked = text.TrimEnd('#');
+                blocks.Add(new HelpHeadingBlock(heading.Groups[1].Length, Spans(unmarked.EndsWith(' ') ? unmarked.TrimEnd() : text)));
                 i++;
             }
             else if (Rule().IsMatch(trimmed))
@@ -230,6 +236,12 @@ public static partial class HelpBlocks
     internal static List<HelpSpan> Spans(string text)
     {
         var spans = new List<HelpSpan>();
+        if (text.Length > MaxText)
+        {
+            spans.Add(new HelpSpan(text));
+            return spans;
+        }
+
         Add(spans, text, new HelpSpan(string.Empty), 0);
         return spans;
     }
@@ -284,7 +296,7 @@ public static partial class HelpBlocks
 
     private static string Unescape(string text) => Escape().Replace(text, "$1");
 
-    [GeneratedRegex(@"^(#{1,6})\s+(.*?)\s*#*$")]
+    [GeneratedRegex(@"^(#{1,6})\s+(\S.*)$")]
     private static partial Regex Heading();
 
     [GeneratedRegex(@"^(-{3,}|\*{3,}|_{3,})$")]
@@ -293,7 +305,7 @@ public static partial class HelpBlocks
     [GeneratedRegex(@"^( *)([-*+]|\d{1,3}[.)])\s+(\S.*)$")]
     private static partial Regex Item();
 
-    [GeneratedRegex(@"^!\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)\)$")]
+    [GeneratedRegex(@"^!\[((?:\\.|[^\[\]\\])*)\]\(<?((?:[^()\s<>]|\([^()\s<>]{0,200}\))+)>?(?:\s+""[^""]*"")?\)$")]
     private static partial Regex Image();
 
     [GeneratedRegex(@"^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$")]
@@ -302,13 +314,13 @@ public static partial class HelpBlocks
     [GeneratedRegex(@"(?<!\\)\|")]
     private static partial Regex CellBreak();
 
-    [GeneratedRegex(@"(?<!`)(?<tick>`+)(?!`)(?<code>.+?)(?<!`)\k<tick>(?!`)"
-        + @"|!\[(?<image>(?:\\.|[^\]\\])*)\]\([^)\s]+\)"
-        + @"|(?<!\\)\[(?<link>(?:\\.|[^\]\\])+)\]\((?<target>[^)\s]+)\)"
+    [GeneratedRegex(@"(?<!`)(?<tick>`{1,8})(?!`)(?<code>.{1,500}?)(?<!`)\k<tick>(?!`)"
+        + @"|!\[(?<image>(?:\\.|[^\[\]\\])*)\]\(<?(?:[^()\s<>]|\([^()\s<>]{0,200}\))+>?(?:\s+""[^""]*"")?\)"
+        + @"|(?<!\\)\[(?<link>(?:\\.|[^\[\]\\])+)\]\(<?(?<target>(?:[^()\s<>]|\([^()\s<>]{0,200}\))+)>?(?:\s+""[^""]*"")?\)"
         + @"|<(?<address>https?://[^>\s]+)>"
-        + @"|\*\*(?=\S)(?<bold>.+?)(?<=\S)\*\*"
-        + @"|(?<![\w*\\])\*(?=\S)(?<italic>[^*]+?)(?<=\S)\*(?![\w*])"
-        + @"|(?<![\w\\])_(?=\S)(?<italic>[^_]+?)(?<=\S)_(?!\w)")]
+        + @"|\*\*(?=\S)(?<bold>.{1,500}?)(?<=\S)\*\*"
+        + @"|(?<![\w*\\])\*(?=\S)(?<italic>[^*]{1,500}?)(?<=\S)\*(?![\w*])"
+        + @"|(?<![\w\\])_(?=\S)(?<italic>[^_]{1,500}?)(?<=\S)_(?!\w)")]
     private static partial Regex Inline();
 
     [GeneratedRegex(@"\\([\\`*_{}\[\]()#+\-.!|<>~])")]

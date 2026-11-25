@@ -54,7 +54,7 @@ public sealed class HelpViewModelTests : IDisposable
     public void Back_and_forward_follow_where_you_have_been()
     {
         var places = new List<string?>();
-        _help.Navigated += (_, anchor) => places.Add(_help.Page!.Id + "#" + anchor);
+        _help.Navigated += (_, to) => places.Add(_help.Page!.Id + "#" + to.Anchor);
         _help.OnShown();
         _help.Groups[1].Entries[0].OpenCommand.Execute(null);
         _help.Activate("fixes.md#stuck");
@@ -74,6 +74,21 @@ public sealed class HelpViewModelTests : IDisposable
         _help.Open("Widgets", "remove");
         _help.BackCommand.Execute(null);
         Assert.Equal("Widgets#", places[^1]);
+    }
+
+    [Fact]
+    public void Going_back_returns_to_where_the_page_was_read_to()
+    {
+        var offsets = new List<double?>();
+        _help.Navigated += (_, to) => offsets.Add(to.Offset);
+        _help.Open("Widgets");
+        _help.ReadTo(420);
+        _help.Open("Fixes");
+        _help.ReadTo(60);
+        _help.BackCommand.Execute(null);
+        _help.ForwardCommand.Execute(null);
+
+        Assert.Equal([null, null, 420, 60], offsets);
     }
 
     [Fact]

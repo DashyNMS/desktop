@@ -38,6 +38,25 @@ public sealed class HelpPageView : Decorator
     /// <summary>The control at a heading, or the page's title for null.</summary>
     public Control? FindHeading(string? anchor) => _headings.GetValueOrDefault(anchor ?? string.Empty) ?? _headings.GetValueOrDefault(string.Empty);
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (Child is null && Page is not null)
+        {
+            Render();
+        }
+    }
+
+    /// <summary>Its window closed: its pictures go with it. Shown again, it's drawn again.</summary>
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        Child = null;
+        _headings.Clear();
+        _images.ForEach(image => image.Dispose());
+        _images.Clear();
+    }
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -242,11 +261,15 @@ public sealed class HelpPageView : Decorator
 
     private void AddSpans(SelectableTextBlock text, IReadOnlyList<HelpSpan> spans)
     {
+        // Links are controls within the text, so its words are put together for a screen reader.
+        AutomationProperties.SetName(text, string.Concat(spans.Select(span => span.Text)));
         foreach (var span in spans)
         {
-            if (span.Link is { } target && ResolveLink?.Invoke(target) is not HelpBrokenLink)
+            // One that goes nowhere, or that the app won't hand to the system, is only its words.
+            var goes = span.Link is null ? null : ResolveLink?.Invoke(span.Link);
+            if (goes is HelpPageLink or HelpExternalLink { Address.Scheme: "http" or "https" })
             {
-                text.Inlines!.Add(LinkTo(span, target));
+                text.Inlines!.Add(LinkTo(span, span.Link!, goes));
                 continue;
             }
 
@@ -270,7 +293,7 @@ public sealed class HelpPageView : Decorator
         }
     }
 
-    private InlineUIContainer LinkTo(HelpSpan span, string target)
+    private InlineUIContainer LinkTo(HelpSpan span, string target, HelpLink goes)
     {
         var label = new TextBlock { Classes = { "helpLink" }, Text = span.Text, TextWrapping = TextWrapping.Wrap };
         if (span.IsBold)
@@ -280,7 +303,7 @@ public sealed class HelpPageView : Decorator
 
         var button = new Button { Classes = { "link" }, Padding = default, MinHeight = 0, Content = label };
         var name = span.Text;
-        if (ResolveLink?.Invoke(target) is HelpExternalLink external)
+        if (goes is HelpExternalLink external)
         {
             ToolTip.SetTip(button, external.Address.AbsoluteUri);
             name += ", opens in your browser";

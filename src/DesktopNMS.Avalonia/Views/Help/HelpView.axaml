@@ -130,7 +130,7 @@
                          AutomationProperties.Name="Search help" />
                 <TextBlock DockPanel.Dock="Bottom" Text="{Binding ReleaseText}" Classes="subtle" TextWrapping="Wrap" Margin="16,8,12,12" />
                 <TextBlock DockPanel.Dock="Top" Text="{Binding ResultsText}" Classes="subtle" Margin="16,0,12,6"
-                           IsVisible="{Binding IsSearching}" AutomationProperties.LiveSetting="Polite" />
+                           AutomationProperties.LiveSetting="Polite" />
 
                 <Panel>
                     <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding !IsSearching}">
@@ -144,7 +144,7 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:HelpEntryViewModel">
                                                     <Button Classes="settingsNav helpEntry" Classes.selected="{Binding IsSelected}" Command="{Binding OpenCommand}"
-                                                            AutomationProperties.Name="{Binding Title}">
+                                                            AutomationProperties.Name="{Binding Title}" AutomationProperties.ItemStatus="{Binding Status}">
                                                         <TextBlock Text="{Binding Title}" />
                                                     </Button>
                                                 </DataTemplate>
@@ -196,7 +196,7 @@
                 </StackPanel>
             </Border>
 
-            <ScrollViewer x:Name="PageScroller" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding HasPage}">
+            <ScrollViewer x:Name="PageScroller" Grid.Row="1" ScrollChanged="OnPageScrolled" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding HasPage}">
                 <help:HelpPageView x:Name="PageView" Page="{Binding Page}" MaxWidth="820" HorizontalAlignment="Left" Margin="28,24,28,40" />
             </ScrollViewer>
             <TextBlock Grid.Row="1" Text="The user guide couldn't be read." Classes="subtle" HorizontalAlignment="Center" VerticalAlignment="Center"

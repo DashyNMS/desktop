@@ -210,18 +210,18 @@ public sealed class WindowService(IServiceProvider services, ILogger<WindowServi
             model = new HelpViewModel(services.GetRequiredService<HelpGuideService>(), this, mayRefresh: !services.GetRequiredService<DemoMode>().IsActive);
             _helpWindow = new HelpWindow(model);
             WindowPlacementMemory.Attach(_helpWindow, services.GetRequiredService<ISettingsStore>());
-            if (Owner() is { } owner)
-            {
-                _helpWindow.Show(owner);
-            }
-            else
-            {
-                _helpWindow.Show();
-            }
         }
 
         model.Open(topic);
         model.OnShown();
+
+        // No owner: closing the dialog it was opened from leaves it to be read.
+        _helpWindow.Show();
+        if (_helpWindow.WindowState == WindowState.Minimized)
+        {
+            _helpWindow.WindowState = WindowState.Normal;
+        }
+
         _helpWindow.Activate();
     }
 

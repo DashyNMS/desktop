@@ -33,6 +33,16 @@ public sealed class HelpBlocksTests
     }
 
     [Fact]
+    public void Unusual_links_and_headings_read_as_they_do_on_the_wiki()
+    {
+        var spans = HelpBlocks.Spans("[one](a.md \"About a\") [two](<b.md>) [three](c(1).md)");
+
+        Assert.Equal(["a.md", "b.md", "c(1).md"], spans.Select(span => span.Link).OfType<string>());
+        Assert.Equal("Learning C#", Assert.IsType<HelpHeadingBlock>(Assert.Single(HelpBlocks.Read("## Learning C#"))).Text);
+        Assert.Equal("Closed", Assert.IsType<HelpHeadingBlock>(Assert.Single(HelpBlocks.Read("## Closed ##"))).Text);
+    }
+
+    [Fact]
     public void A_list_item_holds_whatever_is_indented_under_it()
     {
         var list = Assert.IsType<HelpListBlock>(Assert.Single(HelpBlocks.Read(

@@ -21,7 +21,7 @@ public sealed class HelpPageViewTests
     private static readonly HelpGuide Guide = HelpGuide.Load(HelpProduct.Desktop, null, new HelpFileSet(new Dictionary<string, byte[]>
     {
         ["docs/guide/README.md"] = Encoding.UTF8.GetBytes(
-            "# Guide\n\nSee [the next page](next.md), [the site](https://example.net/a) and [gone](gone.md).\n\n## Pictures\n\n![A widget](../pic.png)\n\n![Not here](../none.png)\n\n- One\n\n| A | B |\n| --- | --- |\n| 1 | 2 |"),
+            "# Guide\n\nSee [the next page](next.md), [the site](https://example.net/a), [us](mailto:us@example.net) and [gone](gone.md).\n\n## Pictures\n\n![A widget](../pic.png)\n\n![Not here](../none.png)\n\n- One\n\n| A | B |\n| --- | --- |\n| 1 | 2 |"),
         ["docs/guide/next.md"] = Encoding.UTF8.GetBytes("# Next\n\nText."),
         ["docs/pic.png"] = Png,
     }));

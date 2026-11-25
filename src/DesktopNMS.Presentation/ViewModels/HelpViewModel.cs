@@ -9,6 +9,12 @@ using DesktopNMS.Services.Help;
 
 namespace DesktopNMS.ViewModels;
 
+/// <summary>Where to be on the page that's now showing.</summary>
+/// <param name="Anchor">A heading, or null for the top.</param>
+/// <param name="Offset">How far down it was read before, going back or forward to it; it wins over the heading.</param>
+/// <param name="MovesFocus">False when the page only got newer text, so nobody's place is lost.</param>
+public sealed record HelpNavigation(string? Anchor, double? Offset, bool MovesFocus);
+
 /// <summary>A page in the contents list.</summary>
 public sealed class HelpEntryViewModel(HelpContentsEntry entry, Action<string> open) : ObservableObject
 {
@@ -21,8 +27,17 @@ public sealed class HelpEntryViewModel(HelpContentsEntry entry, Action<string> o
     public bool IsSelected
     {
         get => _isSelected;
-        set => SetProperty(ref _isSelected, value);
+        set
+        {
+            if (SetProperty(ref _isSelected, value))
+            {
+                OnPropertyChanged(nameof(Status));
+            }
+        }
     }
+
+    /// <summary>For a screen reader, which doesn't see the highlight.</summary>
+    public string Status => IsSelected ? "Current page" : string.Empty;
 
     public RelayCommand OpenCommand { get; } = new(() => open(entry.PageId));
 }
@@ -67,15 +82,19 @@ public sealed class HelpViewModel : ObservableObject, IDisposable
     private readonly IWindowService _windows;
     private readonly bool _mayRefresh;
     private readonly IUiDispatcher _dispatcher;
-    private readonly List<HelpTopic> _history = [];
+    private readonly List<Place> _history = [];
     private int _at = -1;
     private bool _refreshed;
+    private double _readingOffset;
     private bool _disposed;
     private HelpGuide _guide;
     private HelpPage? _page;
     private string _searchText = string.Empty;
     private IReadOnlyList<HelpGroupViewModel> _groups = [];
     private IReadOnlyList<HelpResultViewModel> _results = [];
+
+    /// <summary>A page that's been read, and how far down.</summary>
+    private sealed record Place(HelpTopic Topic, double Offset = 0);
 
     /// <param name="mayRefresh">Whether pages may be refreshed from GitHub: not in the demo, which contacts nothing.</param>
     public HelpViewModel(HelpGuideService guides, IWindowService windows, bool mayRefresh = true)
@@ -96,8 +115,11 @@ public sealed class HelpViewModel : ObservableObject, IDisposable
         _guides.Changed += OnGuideChanged;
     }
 
-    /// <summary>A page is showing: go to this heading, or the top when null.</summary>
-    public event EventHandler<string?>? Navigated;
+    /// <summary>A page is showing: go to this place on it.</summary>
+    public event EventHandler<HelpNavigation>? Navigated;
+
+    /// <summary>How far down the page has been read, from the view, for coming back to it.</summary>
+    public void ReadTo(double offset) => _readingOffset = offset;
 
     /// <summary>Ctrl+F on the page.</summary>
     public event EventHandler? SearchFocusRequested;
@@ -204,11 +226,13 @@ public sealed class HelpViewModel : ObservableObject, IDisposable
 
         SearchText = string.Empty;
         var topic = new HelpTopic(page.Id, page.FindHeading(anchor)?.Anchor);
-        if (_at < 0 || _history[_at] != topic)
+        if (_at < 0 || _history[_at].Topic != topic)
         {
+            KeepPlace();
+
             // Going somewhere new leaves what Forward had behind.
             _history.RemoveRange(_at + 1, _history.Count - _at - 1);
-            _history.Add(topic);
+            _history.Add(new Place(topic));
             if (_history.Count > MaxHistory)
             {
                 _history.RemoveAt(0);
@@ -217,7 +241,7 @@ public sealed class HelpViewModel : ObservableObject, IDisposable
             _at = _history.Count - 1;
         }
 
-        Show(topic);
+        Show(topic, null, movesFocus: true);
     }
 
     /// <summary>A link in the page was chosen: another page, the browser, or nothing for one that goes nowhere.</summary>
@@ -242,13 +266,23 @@ public sealed class HelpViewModel : ObservableObject, IDisposable
 
     private void Step(int by)
     {
+        KeepPlace();
         _at += by;
         SearchText = string.Empty;
-        Show(_history[_at]);
+        Show(_history[_at].Topic, _history[_at].Offset, movesFocus: true);
     }
 
-    private void Show(HelpTopic topic)
+    private void KeepPlace()
     {
+        if (_at >= 0)
+        {
+            _history[_at] = _history[_at] with { Offset = _readingOffset };
+        }
+    }
+
+    private void Show(HelpTopic topic, double? offset, bool movesFocus)
+    {
+        _readingOffset = offset ?? 0;
         Page = _guide.Find(topic.PageId) ?? _guide.Home;
         foreach (var entry in Groups.SelectMany(group => group.Entries))
         {
@@ -258,7 +292,7 @@ public sealed class HelpViewModel : ObservableObject, IDisposable
         BackCommand.RaiseCanExecuteChanged();
         ForwardCommand.RaiseCanExecuteChanged();
         OpenOnWebCommand.RaiseCanExecuteChanged();
-        Navigated?.Invoke(this, topic.Anchor);
+        Navigated?.Invoke(this, new HelpNavigation(topic.Anchor, offset, movesFocus));
     }
 
     private IReadOnlyList<HelpResultViewModel> Search(string text)
@@ -302,7 +336,7 @@ public sealed class HelpViewModel : ObservableObject, IDisposable
         LoadContents();
         if (_at >= 0)
         {
-            Show(_history[_at]);
+            Show(_history[_at].Topic, _readingOffset, movesFocus: false);
         }
 
         if (IsSearching)

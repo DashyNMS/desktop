@@ -26,14 +26,15 @@ public partial class HelpView : UserControl
 
     protected override void OnDataContextChanged(EventArgs e)
     {
-        base.OnDataContextChanged(e);
         if (_model is not null)
         {
             _model.Navigated -= OnNavigated;
             _model.SearchFocusRequested -= OnSearchFocusRequested;
         }
 
+        // Before the page is bound: drawing it asks the model where its links go.
         _model = DataContext as HelpViewModel;
+        base.OnDataContextChanged(e);
         if (_model is not null)
         {
             _model.Navigated += OnNavigated;
@@ -67,21 +68,23 @@ public partial class HelpView : UserControl
 
     private void OnSearchFocusRequested(object? sender, EventArgs e) => FocusSearch();
 
-    /// <summary>Once the page is laid out: its heading at the top, and focused so a screen reader starts there.</summary>
-    private void OnNavigated(object? sender, string? anchor) => Dispatcher.UIThread.Post(() =>
+    private void OnPageScrolled(object? sender, ScrollChangedEventArgs e) => _model?.ReadTo(PageScroller.Offset.Y);
+
+    /// <summary>Once the page is laid out: where it was left, or its heading at the top, which is focused so a screen reader starts there.</summary>
+    private void OnNavigated(object? sender, HelpNavigation to) => Dispatcher.UIThread.Post(() =>
     {
-        if (PageView.FindHeading(anchor) is not { } heading)
+        if (PageView.FindHeading(to.Anchor) is not { } heading)
         {
             return;
         }
 
-        var top = anchor is null ? null : heading.TranslatePoint(default, PageView);
-        PageScroller.Offset = new Vector(0, top is { } point ? Math.Max(0, point.Y + PageView.Margin.Top - 12) : 0);
-
-        // Not while someone is typing a search.
-        if (!SearchBox.IsFocused && IsEffectivelyVisible)
+        // Not while someone is typing a search. Before scrolling, as focusing brings the heading into view.
+        if (to.MovesFocus && !SearchBox.IsFocused && IsEffectivelyVisible)
         {
             heading.Focus(NavigationMethod.Unspecified);
         }
+
+        var top = to.Anchor is null ? null : heading.TranslatePoint(default, PageView);
+        PageScroller.Offset = new Vector(0, to.Offset ?? (top is { } point ? Math.Max(0, point.Y + PageView.Margin.Top - 12) : 0));
     }, DispatcherPriority.Background);
 }
