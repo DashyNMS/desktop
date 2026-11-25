@@ -59,6 +59,17 @@ class NestedGuideTests(unittest.TestCase):
         self.assertEqual([], errors)
         self.assertIn("`[Example](missing.md)` or see [`help`](Help)", output["Find-a-device.md"])
 
+    def test_escaped_backticks_are_not_code(self):
+        self.write("how-to/find.md", "# Find a device\n\n\\`[Help](../reference/help.md)\\` and \\`[Gone](gone.md)\\`\n")
+        output, errors = self.convert()
+        self.assertIn("[Help](Help)", output["Find-a-device.md"])
+        self.assertEqual(1, len(errors))
+
+    def test_a_heading_that_repeats_the_title_is_rejected(self):
+        self.write("how-to/find.md", "# Find a device\n\n## Find a device\n")
+        _, errors = self.convert()
+        self.assertTrue(any("repeats the page's title" in error for error in errors))
+
     def test_a_repeated_heading_has_its_own_anchor(self):
         self.write("reference/help.md", "# Help\n\n## Connection\n\n## Android\n\n## Android\n")
         self.write("how-to/find.md", "# Find a device\n\n[One](../reference/help.md#android) [Two](../reference/help.md#android-1)\n")

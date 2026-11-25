@@ -23,7 +23,7 @@ import sys
 
 LINK = re.compile(r"(!?)\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)(\s+\"[^\"]*\")?\)")
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
-CODE = re.compile(r"(?<!`)(`+)(?!`).*?[^`]\1(?!`)")
+CODE = re.compile(r"(?<![`\\])(`+)(?!`).*?[^`]\1(?!`)")
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 
 
@@ -112,6 +112,11 @@ def convert(guide, repository, branch):
             relative = resolved.relative_to(root).as_posix()
             base = f"https://raw.githubusercontent.com/{repository}/{branch}" if image else f"https://github.com/{repository}/blob/{branch}"
             return f"{image}[{text}]({base}/{relative}{'#' + fragment if fragment else ''}{title})"
+
+        # The wiki page has no title line, so a heading that repeats it would lose the number its links use.
+        headings = [slug(m.group(2)) for _, line in outside_code(page.lines) if (m := HEADING.match(line))]
+        if page.name != "Home" and headings.count(slug(page.title)) > 1:
+            errors.append(f"{page.path.name}: a heading repeats the page's title; give it words of its own")
 
         lines = list(page.lines)
         for index, line in outside_code(page.lines):
