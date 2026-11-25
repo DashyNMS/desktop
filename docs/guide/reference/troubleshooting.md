@@ -48,7 +48,7 @@ Run **Test connection** in the integration's Settings page. DashyNMS connects fr
 
 ## The app forgets my token on Linux
 
-Check that `secret-tool` is installed and your desktop's keyring (its Secret Service) is running and unlocked. Without a usable keyring, DashyNMS can connect but cannot save the token for the next launch. See [platform differences](platform-differences.md#saved-passwords).
+Check that `secret-tool` is installed and your desktop's keyring is running and unlocked. Without a usable keyring, DashyNMS can connect but cannot save the token for the next launch. See [platform differences](platform-differences.md#saved-passwords).
 
 ## Report a problem
 
