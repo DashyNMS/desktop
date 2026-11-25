@@ -1,0 +1,206 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DesktopNMS.ViewModels"
+             xmlns:help="using:DesktopNMS.Views.Help"
+             xmlns:fi="using:FluentIcons.Avalonia"
+             x:Class="DesktopNMS.Views.Help.HelpView"
+             x:DataType="vm:HelpViewModel">
+
+    <!-- Help (#604): the user guide drawn with the app's own type, colours and
+         spacing. Contents and search on the left, the page beside them. Every
+         colour is a DynamicResource, so a change of theme repaints it. -->
+
+    <UserControl.Styles>
+        <Style Selector="SelectableTextBlock.helpTitle">
+            <Setter Property="FontFamily" Value="{DynamicResource DisplayFont}" />
+            <Setter Property="FontSize" Value="24" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Margin" Value="0,0,0,14" />
+        </Style>
+        <Style Selector="SelectableTextBlock.helpHeading">
+            <Setter Property="FontFamily" Value="{DynamicResource DisplayFont}" />
+            <Setter Property="FontSize" Value="17" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Margin" Value="0,16,0,8" />
+        </Style>
+        <Style Selector="SelectableTextBlock.helpSubheading">
+            <Setter Property="FontFamily" Value="{DynamicResource DisplayFont}" />
+            <Setter Property="FontSize" Value="14.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,12,0,6" />
+        </Style>
+        <Style Selector="SelectableTextBlock.helpBody">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="LineHeight" Value="21" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <Style Selector="Grid.helpList">
+            <Setter Property="Margin" Value="4,0,0,6" />
+        </Style>
+        <Style Selector="TextBlock.helpMarker">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="LineHeight" Value="21" />
+            <Setter Property="MinWidth" Value="20" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <Style Selector="StackPanel.helpItem > SelectableTextBlock.helpBody">
+            <Setter Property="Margin" Value="0,0,0,5" />
+        </Style>
+        <Style Selector="Border.helpCode">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12,9" />
+            <Setter Property="Margin" Value="0,2,0,12" />
+        </Style>
+        <Style Selector="SelectableTextBlock.helpCodeText">
+            <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="LineHeight" Value="18" />
+        </Style>
+        <Style Selector="Border.helpQuote">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderThickness" Value="3,0,0,0" />
+            <Setter Property="Padding" Value="12,2,0,0" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <Style Selector="Border.helpRule">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="Margin" Value="0,10" />
+        </Style>
+        <Style Selector="Border.helpTable">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="ClipToBounds" Value="True" />
+            <Setter Property="Margin" Value="0,2,0,14" />
+        </Style>
+        <Style Selector="Border.helpCell">
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+        </Style>
+        <Style Selector="Border.helpCell.header">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+        </Style>
+        <Style Selector="Border.helpCell.last">
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="SelectableTextBlock.helpCellText">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="LineHeight" Value="19" />
+        </Style>
+        <Style Selector="SelectableTextBlock.helpCellHeading">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Border.helpImage">
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="ClipToBounds" Value="True" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Margin" Value="0,2,0,14" />
+        </Style>
+        <Style Selector="SelectableTextBlock.helpImageText">
+            <Setter Property="FontStyle" Value="Italic" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <Style Selector="TextBlock.helpLink">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="TextDecorations" Value="Underline" />
+        </Style>
+        <Style Selector="Button.helpEntry TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="270,*">
+
+        <!-- ======================= Contents and search ======================= -->
+        <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+            <DockPanel>
+                <TextBox x:Name="SearchBox" DockPanel.Dock="Top" Classes="search" Margin="12,14,12,8"
+                         Text="{Binding SearchText}" PlaceholderText="Search help"
+                         AutomationProperties.Name="Search help" />
+                <TextBlock DockPanel.Dock="Bottom" Text="{Binding ReleaseText}" Classes="subtle" TextWrapping="Wrap" Margin="16,8,12,12" />
+                <TextBlock DockPanel.Dock="Top" Text="{Binding ResultsText}" Classes="subtle" Margin="16,0,12,6"
+                           IsVisible="{Binding IsSearching}" AutomationProperties.LiveSetting="Polite" />
+
+                <Panel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding !IsSearching}">
+                        <ItemsControl ItemsSource="{Binding Groups}" Margin="10,0,10,10" AutomationProperties.Name="Contents">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:HelpGroupViewModel">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Heading}" Classes="section" Margin="14,14,0,6" IsVisible="{Binding HasName}"
+                                                   AutomationProperties.HeadingLevel="2" />
+                                        <ItemsControl ItemsSource="{Binding Entries}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:HelpEntryViewModel">
+                                                    <Button Classes="settingsNav helpEntry" Classes.selected="{Binding IsSelected}" Command="{Binding OpenCommand}"
+                                                            AutomationProperties.Name="{Binding Title}">
+                                                        <TextBlock Text="{Binding Title}" />
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding IsSearching}">
+                        <ItemsControl ItemsSource="{Binding Results}" Margin="10,0,10,10" AutomationProperties.Name="Search results">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:HelpResultViewModel">
+                                    <Button Classes="row" Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding AccessibleName}"
+                                            AutomationProperties.HelpText="{Binding Passage}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Heading}" TextWrapping="Wrap" IsVisible="{Binding HasHeading}" />
+                                            <TextBlock Text="{Binding Passage}" Classes="subtle" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Panel>
+            </DockPanel>
+        </Border>
+
+        <!-- ============================ The page ============================ -->
+        <Grid Grid.Column="1" RowDefinitions="Auto,*">
+            <Border Grid.Row="0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6">
+                <StackPanel Orientation="Horizontal" Spacing="2">
+                    <Button Classes="icon" Width="32" Height="30" Command="{Binding BackCommand}" ToolTip.Tip="Back (Alt+Left)" AutomationProperties.Name="Back">
+                        <fi:SymbolIcon Symbol="ArrowLeft" />
+                    </Button>
+                    <Button Classes="icon" Width="32" Height="30" Command="{Binding ForwardCommand}" ToolTip.Tip="Forward (Alt+Right)" AutomationProperties.Name="Forward">
+                        <fi:SymbolIcon Symbol="ArrowRight" />
+                    </Button>
+                    <Button Classes="icon" Width="32" Height="30" Command="{Binding HomeCommand}" ToolTip.Tip="Help contents" AutomationProperties.Name="Help contents">
+                        <fi:SymbolIcon Symbol="Home" />
+                    </Button>
+                    <Button Classes="icon" Width="32" Height="30" Command="{Binding OpenOnWebCommand}" ToolTip.Tip="Open this page in your browser"
+                            AutomationProperties.Name="Open this page in your browser">
+                        <fi:SymbolIcon Symbol="Open" />
+                    </Button>
+                </StackPanel>
+            </Border>
+
+            <ScrollViewer x:Name="PageScroller" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding HasPage}">
+                <help:HelpPageView x:Name="PageView" Page="{Binding Page}" MaxWidth="820" HorizontalAlignment="Left" Margin="28,24,28,40" />
+            </ScrollViewer>
+            <TextBlock Grid.Row="1" Text="The user guide couldn't be read." Classes="subtle" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsVisible="{Binding !HasPage}" />
+        </Grid>
+    </Grid>
+</UserControl>

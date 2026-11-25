@@ -1,0 +1,14 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:help="using:DesktopNMS.Views.Help"
+        x:Class="DesktopNMS.Views.Help.HelpWindow"
+        x:DataType="vm:HelpViewModel"
+        Title="DashyNMS help"
+        Width="1000" Height="700" MinWidth="680" MinHeight="420"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Help where the main window can't be used: while signing in, or from a dialog (#604). -->
+    <help:HelpView x:Name="Help" />
+</Window>

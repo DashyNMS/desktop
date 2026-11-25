@@ -52,6 +52,16 @@
     <Using Include="DesktopNMS.Infrastructure" />
   </ItemGroup>
 
+  <!-- The user guide and its screenshots, read by the app's Help (#604): exactly what's
+       in the repository for the version being built, so help works offline. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\docs\guide\**\*.md" LogicalName="DesktopNMS.Help/docs/guide/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\docs\screenshots\*.png" LogicalName="DesktopNMS.Help/docs/screenshots/%(Filename)%(Extension)" />
+  </ItemGroup>
+  <Target Name="RequireGuide" BeforeTargets="CoreCompile">
+    <Error Condition="!Exists('..\..\docs\guide\README.md')" Text="The user guide is missing, so Help would be empty." />
+  </Target>
+
   <!-- Packages embed docs/releases/<version>.md, the one growing set of notes for the
        version being built, which GitHub's nightlies and releases publish too. Local
        builds embed none. -->
