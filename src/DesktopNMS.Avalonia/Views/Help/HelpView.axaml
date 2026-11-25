@@ -129,12 +129,12 @@
                          Text="{Binding SearchText}" PlaceholderText="Search help"
                          AutomationProperties.Name="Search help" />
                 <TextBlock DockPanel.Dock="Bottom" Text="{Binding ReleaseText}" Classes="subtle" TextWrapping="Wrap" Margin="16,8,12,12" />
-                <TextBlock DockPanel.Dock="Top" Text="{Binding ResultsText}" Classes="subtle" Margin="16,0,12,6"
+                <TextBlock DockPanel.Dock="Top" Text="{Binding ResultsText}" Classes="subtle" FontSize="11" Margin="16,0,12,0"
                            AutomationProperties.LiveSetting="Polite" />
 
                 <Panel>
                     <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding !IsSearching}">
-                        <ItemsControl ItemsSource="{Binding Groups}" Margin="10,0,10,10" AutomationProperties.Name="Contents">
+                        <ItemsControl ItemsSource="{Binding Groups}" Margin="10,-6,10,10" AutomationProperties.Name="Contents">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:HelpGroupViewModel">
                                     <StackPanel>

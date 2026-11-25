@@ -21,6 +21,9 @@ public sealed class HelpPageView : Decorator
 {
     public static readonly StyledProperty<HelpPage?> PageProperty = AvaloniaProperty.Register<HelpPageView, HelpPage?>(nameof(Page));
 
+    /// <summary>How far the body font's letters rise above the baseline, for a size of 1. It's bundled, so it's the same everywhere.</summary>
+    private const double Ascent = 1.025;
+
     private readonly Dictionary<string, Control> _headings = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Bitmap> _images = [];
 
@@ -174,6 +177,13 @@ public sealed class HelpPageView : Decorator
         return text;
     }
 
+    /// <summary>The sizes HelpView's styles give text that can hold a link.</summary>
+    private static double SizeOf(SelectableTextBlock text)
+        => text.Classes.Contains("helpCellText") || text.Classes.Contains("helpCellHeading") ? 13
+            : text.Classes.Contains("helpHeading") ? 17
+            : text.Classes.Contains("helpSubheading") ? 14.5
+            : 14;
+
     private Control List(HelpListBlock list, Queue<HelpHeading> anchors)
     {
         var grid = new Grid { Classes = { "helpList" }, ColumnDefinitions = new ColumnDefinitions("Auto,*") };
@@ -269,7 +279,7 @@ public sealed class HelpPageView : Decorator
             var goes = span.Link is null ? null : ResolveLink?.Invoke(span.Link);
             if (goes is HelpPageLink or HelpExternalLink { Address.Scheme: "http" or "https" })
             {
-                text.Inlines!.Add(LinkTo(span, span.Link!, goes));
+                text.Inlines!.Add(LinkTo(span, span.Link!, goes, text));
                 continue;
             }
 
@@ -293,9 +303,10 @@ public sealed class HelpPageView : Decorator
         }
     }
 
-    private InlineUIContainer LinkTo(HelpSpan span, string target, HelpLink goes)
+    private InlineUIContainer LinkTo(HelpSpan span, string target, HelpLink goes, SelectableTextBlock within)
     {
-        var label = new TextBlock { Classes = { "helpLink" }, Text = span.Text, TextWrapping = TextWrapping.Wrap };
+        // Its own natural line, not the paragraph's taller one, so its baseline is where the font puts it.
+        var label = new TextBlock { Classes = { "helpLink" }, Text = span.Text, TextWrapping = TextWrapping.Wrap, LineHeight = double.NaN };
         if (span.IsBold)
         {
             label.FontWeight = FontWeight.SemiBold;
@@ -311,6 +322,10 @@ public sealed class HelpPageView : Decorator
 
         AutomationProperties.SetName(button, name);
         button.Click += (_, _) => LinkActivated?.Invoke(this, target);
-        return new InlineUIContainer(button) { BaselineAlignment = BaselineAlignment.TextBottom };
+
+        // A control stands on the line's baseline unless told where its own is;
+        // standing there, it would sit high and push the text around it down.
+        TextBlock.SetBaselineOffset(button, SizeOf(within) * Ascent);
+        return new InlineUIContainer(button) { BaselineAlignment = BaselineAlignment.Baseline };
     }
 }
