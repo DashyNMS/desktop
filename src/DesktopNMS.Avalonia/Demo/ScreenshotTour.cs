@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using DesktopNMS.Core.Demo;
 using DesktopNMS.Services;
 using DesktopNMS.ViewModels;
 using DesktopNMS.Views;
@@ -17,7 +18,7 @@ namespace DesktopNMS.Demo;
 /// release screenshots never show anyone's real devices (#243, #250, from the
 /// WPF app's ScreenshotTour).
 /// </summary>
-internal sealed class ScreenshotTour(string folder, MainViewModel main, IWindowService windows, DemoFleet fleet, ILogger logger)
+internal sealed class ScreenshotTour(string folder, MainViewModel main, IWindowService windows, DemoResponder fleet, ILogger logger)
 {
     /// <summary>Every screenshot's size, in device-independent pixels: a full 1080p screen.</summary>
     private const double Width = 1920;

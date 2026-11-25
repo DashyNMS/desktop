@@ -52,7 +52,7 @@ public partial class App : Application
     private bool _trayUpdatePending;
     private DemoMode _demo = new(isActive: false);
     private DemoServer? _demoServer;
-    private DemoFleet? _demoFleet;
+    private DesktopNMS.Core.Demo.DemoResponder? _demoFleet;
     private UpdateProgressWindow? _updateProgressWindow;
     private bool _startDemoOnExit;
     private bool _leaveDemoOnExit;
@@ -174,7 +174,7 @@ public partial class App : Application
 
         if (_demo.IsActive)
         {
-            _demoFleet = new DemoFleet();
+            _demoFleet = new DesktopNMS.Core.Demo.DemoResponder();
             _demoServer = new DemoServer(_demoFleet, _logger);
             _demoServer.Start();
             DemoMode.Seed(settings, _services.GetRequiredService<ITokenProtector>(), _demoServer.Address, _demoFleet, _demo.IsRenderingScreenshots);

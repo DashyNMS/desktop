@@ -1,5 +1,6 @@
 using System.IO;
 using DesktopNMS.Core.Configuration;
+using DesktopNMS.Core.Demo;
 using DesktopNMS.Core.Security;
 
 namespace DesktopNMS.Demo;
@@ -42,7 +43,7 @@ public sealed class DemoMode
     public void RequestStart() => StartRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Points a fresh demo folder's settings at the demo server, with a dashboard worth looking at.</summary>
-    internal static void Seed(ISettingsStore store, ITokenProtector tokens, Uri server, DemoFleet fleet, bool forScreenshots)
+    internal static void Seed(ISettingsStore store, ITokenProtector tokens, Uri server, DemoResponder fleet, bool forScreenshots)
     {
         var settings = store.Current;
         settings.ServerUrl = server.ToString();
@@ -64,7 +65,7 @@ public sealed class DemoMode
 
         // Laid out for a full 1080p screen: 45 cells across, 23 down.
         var sensors = new DashboardWidget { WidgetType = DashboardWidgetTypes.Sensors, Title = "Pinned sensors", Column = 0, Row = 8, ColumnSpan = 13, RowSpan = 8 };
-        sensors.Sensors.AddRange(fleet.PinnedSensors.Select(s => new PinnedSensor { SensorId = s.SensorId, DeviceId = s.DeviceId, SensorClass = s.Class, DeviceName = s.Device, Description = s.Description }));
+        sensors.Sensors.AddRange(fleet.PinnedSensors.Select(s => new PinnedSensor { SensorId = s.SensorId, DeviceId = s.DeviceId, SensorClass = s.SensorClass, DeviceName = s.DeviceName, Description = s.Description }));
 
         settings.DashboardWidgets = new List<DashboardWidget>
         {
@@ -80,7 +81,7 @@ public sealed class DemoMode
         };
 
         store.Save();
-        tokens.Save("demo-token-not-a-real-one");
+        tokens.Save(DemoResponder.Token);
     }
 
     /// <summary>Empties the demo folder, so every demo starts from the same place.</summary>
