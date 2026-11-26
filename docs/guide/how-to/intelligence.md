@@ -11,7 +11,7 @@ An answer comes from one of these providers, each with your own account:
 | GitHub Copilot | On this computer, through the Copilot CLI | The Copilot CLI's own sign-in, on any Copilot plan, Free included |
 | Gemini | On this computer, through Antigravity CLI | Antigravity's own sign-in with your Google account: free, AI Pro or Ultra |
 
-ChatGPT, Claude Code and Gemini can also search the web for current public information, such as firmware releases, while **Allow web search** is on in **Settings › Intelligence**. GitHub Copilot answers without web search.
+ChatGPT, Codex, Claude Code and Gemini can search the web for current public information, such as firmware releases, while **Allow web search** is on in **Settings › Intelligence**. Web search is unavailable through GitHub Copilot in DashyNMS. The model picker shows that limitation.
 
 ## Set up a provider
 
@@ -52,6 +52,8 @@ The account needs a Copilot plan; Copilot Free works, with its Auto model. Dashy
 
 Gemini's models, including others Google offers through Antigravity, come from your account and are listed as Antigravity names them.
 
+Reading shortened network results requires Antigravity CLI 1.5.17 or later. If your global Antigravity settings grant file access to the generated output path, DashyNMS blocks that grant for the chat. This includes wildcard `read_file(*)` and `write_file(*)` grants, which can leave the result shortened.
+
 DashyNMS looks for each agent on your PATH and in its installer's usual folders. If yours is somewhere else, choose **Browse…** under **Executable** and pick it.
 
 ## Choose who answers
@@ -85,7 +87,7 @@ Two kinds of question can need more than one lookup on a large network, and the 
 
 DashyNMS starts Codex, Claude Code, Copilot and Gemini in a locked-down session of its own:
 
-- Their own tools are kept out: no shell commands, file edits, web browsing, plugins or sub-agents. Codex, Claude Code and Copilot have them switched off. Antigravity's can't be switched off, so DashyNMS refuses them with rules for that session only and stops the answer if one gets through.
+- DashyNMS blocks shell commands, file edits, web browsing, plugins and sub-agents. Gemini can read a generated tool output file from the current conversation when Antigravity shortens a DashyNMS result.
 - Web search is on only while **Allow web search** is. Claude Code can search but not open pages itself, so nothing from your network can be passed to a website in an address. Antigravity's search can't be switched off, so with web search off DashyNMS stops a Gemini answer as soon as it starts searching.
 - Your MCP servers, hooks and skills are left out of these chats, and DashyNMS doesn't change your agents' configuration. Codex still reads the rest of its own configuration, such as a custom model provider, and Gemini reads your global Antigravity rules files, if you have any.
 - They can reach only DashyNMS's read-only network tools, through a private connection on this computer. Your LibreNMS, Graylog and Unimus credentials stay in DashyNMS.
