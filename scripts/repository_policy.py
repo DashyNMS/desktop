@@ -84,14 +84,18 @@ def check_title(title, author=""):
     return errors
 
 
+def is_privileged_workflow(data):
+    trigger = data.get("on", data.get(True, {}))
+    events = [trigger] if isinstance(trigger, str) else trigger
+    return isinstance(events, (dict, list)) and "pull_request_target" in events
+
+
 def workflow_errors(data, path, retained_credentials=()):
     errors = []
     permissions = data.get("permissions", {})
     if not isinstance(permissions, dict) or any(value == "write" for value in permissions.values()):
         errors.append(f"{path}: keep workflow permissions read-only; grant writes per job")
-    trigger = data.get("on", data.get(True, {}))
-    events = [trigger] if isinstance(trigger, str) else trigger
-    privileged_event = isinstance(events, (dict, list)) and "pull_request_target" in events
+    privileged_event = is_privileged_workflow(data)
     for job_id, job in data.get("jobs", {}).items():
         for step in job.get("steps", []):
             uses = step.get("uses", "")
@@ -178,6 +182,48 @@ def check_repository(root, canonical=False):
             continue
         workflows[name] = workflow
         errors += workflow_errors(workflow, name, config.get("retained_credentials", []))
+    rank = {"none": 0, "read": 1, "write": 2}
+
+    def required_permissions(workflow_name, seen=()):
+        if workflow_name in seen:
+            return {}
+        seen = (*seen, workflow_name)
+        called = workflows[workflow_name]
+        required = {}
+        sources = [called.get("permissions", {})]
+        for called_job in called.get("jobs", {}).values():
+            if not isinstance(called_job, dict):
+                continue
+            sources.append(called_job.get("permissions", {}))
+            nested = called_job.get("uses", "")
+            if nested.startswith("./.github/workflows/") and nested[2:] in workflows:
+                sources.append(required_permissions(nested[2:], seen))
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            for permission, level in source.items():
+                if rank.get(level, 0) > rank.get(required.get(permission, "none"), 0):
+                    required[permission] = level
+        return required
+
+    privileged_callees = set()
+    stack = [name for name, wf in workflows.items() if is_privileged_workflow(wf)]
+    visited = set(stack)
+    while stack:
+        current = stack.pop()
+        for job in workflows[current].get("jobs", {}).values():
+            if not isinstance(job, dict):
+                continue
+            target = job.get("uses", "")
+            if target.startswith("./.github/workflows/") and target[2:] in workflows and target[2:] not in visited:
+                visited.add(target[2:])
+                privileged_callees.add(target[2:])
+                stack.append(target[2:])
+    for callee in sorted(privileged_callees):
+        for job_id, job in workflows[callee].get("jobs", {}).items():
+            if isinstance(job, dict) and any(step.get("uses", "").startswith("actions/checkout@") for step in job.get("steps", [])):
+                errors.append(f"{callee}/{job_id}: metadata-only pull_request_target workflows must not check out PR code")
+
     for name, workflow in workflows.items():
         for job_id, job in workflow.get("jobs", {}).items():
             target = job.get("uses", "")
@@ -189,9 +235,8 @@ def check_repository(root, canonical=False):
                     errors.append(f"{name}/{job_id}: reusable workflow not found: {target}")
                 continue
             granted = job.get("permissions", workflow.get("permissions", {}))
-            required = called.get("permissions", {})
-            if isinstance(granted, dict) and isinstance(required, dict):
-                rank = {"none": 0, "read": 1, "write": 2}
+            required = required_permissions(target[2:])
+            if isinstance(granted, dict):
                 for permission, level in required.items():
                     if rank.get(granted.get(permission, "none"), 0) < rank.get(level, 0):
                         errors.append(f"{name}/{job_id}: reusable workflow requires {permission}: {level}")

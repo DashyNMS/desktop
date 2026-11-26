@@ -19,6 +19,7 @@ link fails the run before anything is written.
 
 import argparse
 import pathlib
+import posixpath
 import re
 import sys
 
@@ -86,13 +87,21 @@ def convert(guide, repository, branch):
     root = guide.resolve()
     while not (root / ".git").exists() and root.parent != root:
         root = root.parent
+    guide_rel = guide.resolve().relative_to(root).as_posix()
 
     def resolve(page, path):
         return (root / path.lstrip("/") if path.startswith("/") else page.path.parent / path).resolve()
 
     def guide_name(page, path):
+        if path.startswith("/"):
+            target = posixpath.normpath(path.lstrip("/"))
+        else:
+            page_dir = posixpath.join(guide_rel, page.path.parent.relative_to(guide).as_posix())
+            target = posixpath.normpath(posixpath.join(page_dir, path))
+        if target == ".." or target.startswith("../"):
+            return None
         try:
-            return resolve(page, path).relative_to(guide.resolve()).as_posix()
+            return pathlib.PurePosixPath(target).relative_to(guide_rel).as_posix()
         except ValueError:
             return None
 

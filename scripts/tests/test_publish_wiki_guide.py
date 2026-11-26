@@ -118,6 +118,21 @@ class NestedGuideTests(unittest.TestCase):
         _, errors = self.convert()
         self.assertTrue(any("isn't a file" in error for error in errors))
 
+    def test_symlinked_guide_page_keeps_its_lexical_key(self):
+        shared = self.root / "docs/shared.md"
+        shared.write_text("# Shared notes\n\n## Details\n", encoding="utf-8")
+        link = self.guide / "how-to/shared.md"
+        try:
+            link.symlink_to(shared)
+        except OSError:
+            self.skipTest("symlinks are not supported in this environment")
+        self.write("README.md", "# Guide\n\n## Tasks\n\n- [Find](how-to/find.md)\n- [Shared](how-to/shared.md)\n\n## Help\n\n- [Help](reference/help.md)\n")
+        self.write("how-to/find.md", "# Find a device\n\n[Shared](/docs/guide/how-to/shared.md#details)\n")
+        output, errors = self.convert()
+        self.assertEqual([], errors)
+        self.assertIn("[Shared](Shared-notes#details)", output["Find-a-device.md"])
+        self.assertIn("- [Shared notes](Shared-notes)", output["_Sidebar.md"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -100,6 +100,45 @@ class WorkflowPolicyTests(unittest.TestCase):
                 self.assertTrue(any("requires issues: read" in e for e in policy.check_repository(root, True)))
                 caller.write_text("permissions: {contents: read, issues: read}\njobs: {security: {uses: './.github/workflows/security.yml'}}\n")
                 self.assertFalse(any("reusable workflow requires" in e for e in policy.check_repository(root, True)))
+                (workflows / "security.yml").write_text(
+                    "permissions: {contents: read}\n"
+                    "jobs:\n  label:\n    permissions: {contents: read, issues: write}\n    steps: []\n"
+                )
+                self.assertTrue(any("requires issues: write" in e for e in policy.check_repository(root, True)))
+                caller.write_text(
+                    "permissions: {contents: read}\n"
+                    "jobs:\n  security:\n    permissions: {contents: read, issues: write}\n"
+                    "    uses: './.github/workflows/security.yml'\n"
+                )
+                self.assertFalse(any("reusable workflow requires" in e for e in policy.check_repository(root, True)))
+
+    def test_privileged_callers_cannot_check_out_via_local_reusable_workflows(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            workflows = root / ".github/workflows"
+            workflows.mkdir(parents=True)
+            (root / ".github/repository-config.json").write_text("{}")
+            (root / ".github/dependabot.yml").write_text("updates: []")
+            (workflows / "leaf.yml").write_text(
+                "on: workflow_call\npermissions: {contents: read}\njobs:\n  build:\n    steps:\n"
+                f"      - uses: actions/checkout@{'a' * 40}\n        with: {{persist-credentials: false}}\n"
+            )
+            (workflows / "middle.yml").write_text(
+                "on: workflow_call\npermissions: {contents: read}\n"
+                "jobs: {leaf: {uses: './.github/workflows/leaf.yml'}}\n"
+            )
+            caller = workflows / "caller.yml"
+            with patch.object(policy, "check_links", return_value=[]):
+                caller.write_text(
+                    "on: pull_request\npermissions: {contents: read}\n"
+                    "jobs: {middle: {uses: './.github/workflows/middle.yml'}}\n"
+                )
+                self.assertFalse(any("pull_request_target" in e for e in policy.check_repository(root, True)))
+                caller.write_text(
+                    "on: pull_request_target\npermissions: {contents: read}\n"
+                    "jobs: {middle: {uses: './.github/workflows/middle.yml'}}\n"
+                )
+                self.assertTrue(any("leaf.yml/build: metadata-only pull_request_target" in e for e in policy.check_repository(root, True)))
 
     def test_duplicate_checkout_keys_fail_before_workflow_policy_runs(self):
         with tempfile.TemporaryDirectory() as folder:

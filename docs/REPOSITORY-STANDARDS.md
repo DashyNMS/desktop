@@ -109,8 +109,9 @@ Local contribution/accessibility/security files explain each product. Conduct
 reports go to the existing project contact, `dashynms@pckp.net`; vulnerabilities
 use the affected repository's private reporting page. The maintainer handles both.
 
-`policy/labels.json` defines common names, colours and descriptions. Preview a
-label sync with `python scripts/sync_labels.py core desktop mobile mcp sensor-definitions website`;
+`policy/labels.json` defines common names, colours and descriptions. From the
+shared checkout, preview a label sync with
+`python scripts/sync_labels.py core desktop mobile mcp sensor-definitions website`;
 add `--apply` to write the changes. It preserves extra labels and updates existing
 ecosystem descriptions. Case changes keep existing assignments. Merging different
 labels or deleting stale labels requires a separate usage review, so the command

@@ -61,13 +61,15 @@ class ReleaseAssetsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'SHA256SUMS'):
             assets.plan_uploads([path], published, lambda _: self.manifest)
 
-    def test_leading_period_is_rejected_even_when_manifest_matches(self):
-        archive = self.folder / '.archive.zip'
-        archive.write_bytes(b'original archive')
-        manifest = self.folder / 'SHA256SUMS'
-        manifest.write_bytes(self.manifest.replace(b'archive.zip', b'.archive.zip'))
-        with self.assertRaisesRegex(ValueError, 'GitHub would rename it'):
-            assets.plan_uploads([archive, manifest], [], lambda _: self.fail('unexpected download'))
+    def test_leading_or_trailing_period_is_rejected_even_when_manifest_matches(self):
+        for name in ('.archive.zip', 'archive.zip.'):
+            with self.subTest(name=name):
+                archive = self.folder / name
+                archive.write_bytes(b'original archive')
+                manifest = self.folder / 'SHA256SUMS'
+                manifest.write_bytes(self.manifest.replace(b'archive.zip', name.encode()))
+                with self.assertRaisesRegex(ValueError, 'GitHub would rename it'):
+                    assets.plan_uploads([archive, manifest], [], lambda _: self.fail('unexpected download'))
 
     def test_new_manifest_must_match_already_published_archive(self):
         with self.assertRaisesRegex(ValueError, 'published archive.zip'):

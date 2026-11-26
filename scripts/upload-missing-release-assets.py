@@ -57,8 +57,8 @@ def plan_uploads(folder, assets, download):
     for path in selected:
         if not path.is_file():
             raise ValueError(f'Expected a release file: {path}')
-        if path.name.startswith('.'):
-            raise ValueError(f'{path.name} starts with a period and GitHub would rename it on upload')
+        if path.name.startswith('.') or path.name.endswith('.'):
+            raise ValueError(f'{path.name} starts or ends with a period and GitHub would rename it on upload')
         asset = existing.get(path.name)
         if asset is None:
             missing.append(path)
