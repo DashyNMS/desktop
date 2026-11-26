@@ -1,0 +1,64 @@
+name: Security
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "29 4 * * 1"
+
+permissions:
+  contents: read
+  packages: read
+  issues: read
+
+jobs:
+  checks:
+    name: Security checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install security tools
+        run: python -m pip install -r requirements-security.txt
+      - name: Test the repository policy
+        run: python -B -m unittest discover -s scripts/tests -v
+      - name: Check repository conventions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPENDENCY_MAINTENANCE_ISSUE: ${{ vars.DEPENDENCY_MAINTENANCE_ISSUE }}
+        run: python scripts/repository_policy.py
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - name: Audit restored NuGet dependencies
+        env:
+          DASHYNMS_PACKAGES_TOKEN: ${{ github.token }}
+        run: python scripts/security_check.py --nuget-only
+      - name: Audit Python dependencies and secret candidates
+        if: ${{ !cancelled() }}
+        run: python scripts/security_check.py
+      - name: Retain security evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: security-evidence-${{ github.run_id }}
+          path: artifacts/security
+          retention-days: 14
+
+  result:
+    name: Security result
+    if: always()
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful security checks
+        env:
+          RESULT: ${{ needs.checks.result }}
+        run: test "$RESULT" = success

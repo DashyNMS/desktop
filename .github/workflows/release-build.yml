@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  issues: read
   packages: read
 
 # One at a time, in order, so an older release is never marked the latest again.

@@ -41,6 +41,21 @@ class NestedGuideTests(unittest.TestCase):
         self.assertLess(output["_Sidebar.md"].index("**Tasks**"), output["_Sidebar.md"].index("[Find a device]"))
         self.assertLess(output["_Sidebar.md"].index("**Help**"), output["_Sidebar.md"].index("- [Help]"))
 
+    def test_reserved_names_are_rejected(self):
+        for title in ("_Sidebar", "_Footer"):
+            self.write("how-to/find.md", f"# {title}\n")
+            with self.assertRaisesRegex(SystemExit, "reserved"):
+                self.convert()
+
+    def test_root_links_resolve_for_pages_assets_and_sidebar(self):
+        self.write("README.md", "# Guide\n\n[Find](/docs/guide/how-to/find.md) [Help](/docs/guide/reference/help.md)\n")
+        self.write("how-to/find.md", "# Find a device\n\n[Help](/docs/guide/reference/help.md#connection) ![Screen](/docs/screen.png)\n")
+        output, errors = self.convert()
+        self.assertEqual([], errors)
+        self.assertIn("[Help](Help#connection)", output["Find-a-device.md"])
+        self.assertIn("- [Find a device](Find-a-device)", output["_Sidebar.md"])
+        self.assertIn("/main/docs/screen.png", output["Find-a-device.md"])
+
     def test_a_links_title_is_kept_and_its_target_still_checked(self):
         self.write("how-to/find.md", '# Find a device\n\n[Help](../reference/help.md#connection "Connection help") [Gone](gone.md "Gone")\n')
         output, errors = self.convert()
@@ -102,6 +117,21 @@ class NestedGuideTests(unittest.TestCase):
         self.write("how-to/find.md", "# Find a device\n\n[Missing](../reference/missing.md)\n")
         _, errors = self.convert()
         self.assertTrue(any("isn't a file" in error for error in errors))
+
+    def test_symlinked_guide_page_keeps_its_lexical_key(self):
+        shared = self.root / "docs/shared.md"
+        shared.write_text("# Shared notes\n\n## Details\n", encoding="utf-8")
+        link = self.guide / "how-to/shared.md"
+        try:
+            link.symlink_to(shared)
+        except OSError:
+            self.skipTest("symlinks are not supported in this environment")
+        self.write("README.md", "# Guide\n\n## Tasks\n\n- [Find](how-to/find.md)\n- [Shared](how-to/shared.md)\n\n## Help\n\n- [Help](reference/help.md)\n")
+        self.write("how-to/find.md", "# Find a device\n\n[Shared](/docs/guide/how-to/shared.md#details)\n")
+        output, errors = self.convert()
+        self.assertEqual([], errors)
+        self.assertIn("[Shared](Shared-notes#details)", output["Find-a-device.md"])
+        self.assertIn("- [Shared notes](Shared-notes)", output["_Sidebar.md"])
 
 
 if __name__ == "__main__":

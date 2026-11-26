@@ -3,10 +3,11 @@
 Technical reference for building, running and understanding the codebase.
 Looking for what the app *does*? See the [README](../README.md) instead.
 
-The source is published for reference and security review; pull requests
-aren't accepted. See the [LICENSE](../LICENSE), and [SECURITY.md](../SECURITY.md)
-for reporting a security problem. Bugs and ideas are welcome as
-[issues](https://github.com/DashyNMS/desktop/issues).
+Project-owned code and assets use the [MIT licence](../LICENSE); third-party
+materials retain their terms in [NOTICES.md](../NOTICES.md). External pull
+requests are welcome after their scope is agreed in an issue. Bugs and ideas are welcome as
+[issues](https://github.com/DashyNMS/desktop/issues); report security problems
+privately under [SECURITY.md](../SECURITY.md).
 
 ## Requirements
 
@@ -963,6 +964,9 @@ buttons still work when the app is sitting in the tray.
 
 ## User guide and wiki
 
+Use inline Markdown links and fenced code blocks in `docs/guide`. The shared
+wiki converter does not support reference-style links or indented code blocks.
+
 The user guide is in [`docs/guide`](guide/README.md): getting started,
 installation, task-based how-to pages, troubleshooting and reference. Keep
 installation pages in `installation/`, user tasks in `how-to/` and reference
@@ -1007,6 +1011,8 @@ python3 scripts/Publish-WikiGuide.py docs/guide /tmp/wiki --repository DashyNMS/
 ```
 
 ## Commits, pull requests and issues
+
+Dependabot uses `build(deps): ...` for every ecosystem. Its generated dependency names and grouped summaries may exceed the usual title length.
 
 Every change goes through a branch and a pull request into `main`, one issue
 per PR, and is squash-merged. The PR title becomes the commit on `main`, so
@@ -1087,7 +1093,7 @@ repeat them.
 Commits, PRs and release notes carry no AI attribution or `Co-Authored-By`
 lines.
 
-The PR description starts with `Closes #NN`, then says briefly what changed
+The PR description starts with `Closes #NN` for completed work or `Refs #NN` for partial work, then says briefly what changed
 and how it was checked. A fix for a Sentry issue adds
 `Fixes DASHYNMS-DESKTOP-<id>` under that line (see
 [Error and usage sharing](#error-and-usage-sharing)). Release notes and What's New are written separately,
@@ -1195,3 +1201,8 @@ settings/sign-ins, native MCP version, tray/login preferences, one restart and
 interrupted download, invalid signature/version/architecture, failed launch,
 shutdown timeout and an unwritable destination. Native atomic replacement and
 injected restart/recovery failures run in CI on both architectures.
+
+## Repository standards
+
+See [Repository standards](REPOSITORY-STANDARDS.md) for security gates, shared
+policy ownership, contribution files and the procedure for updating copied helpers.

@@ -1,0 +1,10 @@
+{
+  "repository": "desktop",
+  "nuget_projects": [
+    "DashyNMS.Desktop.slnx",
+    "tools/GraphSweep/GraphSweep.csproj",
+    "tools/WebSignInSmoke/WebSignInSmoke.csproj"
+  ],
+  "retained_credentials": [],
+  "issue_policy_since": "2026-11-26T18:21:17Z"
+}

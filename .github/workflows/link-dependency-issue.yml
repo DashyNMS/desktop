@@ -1,0 +1,47 @@
+name: Link dependency issue
+
+# Metadata only: never check out or execute the pull request's code here.
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  link:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
+    steps:
+      - name: Reference the earlier dependency-maintenance issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPENDENCY_ISSUE: ${{ vars.DEPENDENCY_MAINTENANCE_ISSUE }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, urllib.request
+          from pathlib import Path
+          event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
+          repo = event['repository']['full_name']
+          pr = event['pull_request']
+          number = os.environ['DEPENDENCY_ISSUE']
+          if not re.fullmatch(r'[1-9][0-9]*', number):
+              raise SystemExit('Configure DEPENDENCY_MAINTENANCE_ISSUE before enabling this workflow.')
+          headers = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'}
+          url = f'https://api.github.com/repos/{repo}/issues/{number}'
+          with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
+              issue = json.load(response)
+          if 'pull_request' in issue or issue['created_at'] > pr['created_at']:
+              raise SystemExit('The dependency maintenance issue must exist before the PR.')
+          reference = f'Refs #{number}'
+          body = pr.get('body') or ''
+          if reference not in body.splitlines():
+              request = urllib.request.Request(f'https://api.github.com/repos/{repo}/pulls/{pr["number"]}',
+                  headers=headers, method='PATCH', data=json.dumps({'body': reference + '\n\n' + body}).encode())
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  json.load(response)
+          PY

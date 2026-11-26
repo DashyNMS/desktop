@@ -35,6 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Test wiki publishing
         run: python3 -B -m unittest discover -s scripts/tests -v
       - name: Convert to wiki pages
@@ -49,6 +51,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # The wiki has a Git repository only once it's turned on in the
       # repository settings and has a first page, so until then this stops

@@ -67,7 +67,7 @@ def release_notes(base):
     unknown = [heading for heading in headings if heading not in HEADINGS]
     if unknown:
         raise SystemExit(f"{path} has the heading {unknown[0]!r}. Use {', '.join(HEADINGS)}.")
-    if not headings or not re.search(r"^- \S", text, re.M):
+    if not headings or not re.search(r"^## (?:Breaking|New|Changed|Fixed)\n(?:(?!^## ).*\n)*?^- \S", text, re.M):
         raise SystemExit(f"{path} needs at least one change, as a list item under a ## heading.")
     return text
 
@@ -111,9 +111,9 @@ def main():
     else:
         version = f"{base}-{args.channel}.{run_number()}"
     if args.channel == "nightly":
-        last = newest_tag("v*-nightly.*")
+        already_built = bool(git("tag", "--list", "v*-nightly.*", "--points-at", "HEAD"))
         # By hand is asking for one, so only the schedule is skipped.
-        changed = os.environ.get("GITHUB_EVENT_NAME") != "schedule" or last is None or git("rev-parse", f"{last}^{{commit}}") != commit
+        changed = os.environ.get("GITHUB_EVENT_NAME") != "schedule" or not already_built
     if args.notes:
         repository = os.environ.get("GITHUB_REPOSITORY", "")
         body = {"edge": lambda: edge_notes(base, f"v{version}", commit, repository),
