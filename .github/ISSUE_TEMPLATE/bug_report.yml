@@ -1,0 +1,49 @@
+name: Bug report
+description: Report something that does not work as intended
+title: "fix: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "For a vulnerability, use Security → Report a vulnerability. Use synthetic names and documentation addresses; remove credentials and customer details from logs and screenshots."
+  - type: input
+    id: version
+    attributes:
+      label: Version and channel
+      description: App/package/catalogue version, or commit, and the release channel
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform and environment
+      description: Operating system and version, or consuming app/host; include LibreNMS version when relevant
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Give a minimal example using synthetic data
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Include sanitised errors or screenshots where useful
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked for an existing report and removed credentials and identifiable network details.
+          required: true

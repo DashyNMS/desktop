@@ -15,6 +15,9 @@ registries:
 
 updates:
   - package-ecosystem: github-actions
+    commit-message:
+      prefix: build
+      include: scope
     directory: /
     schedule:
       interval: weekly
@@ -24,9 +27,13 @@ updates:
         update-types: [minor, patch]
 
   - package-ecosystem: nuget
+    commit-message:
+      prefix: build
+      include: scope
     directories:
       - /src/*
       - /tests/*
+      - /tools/*
     registries:
       - dashynms
     ignore:

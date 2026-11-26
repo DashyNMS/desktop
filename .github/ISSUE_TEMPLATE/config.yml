@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/DashyNMS/.github/blob/main/SECURITY.md
+    about: Choose the affected repository's private vulnerability-reporting link
+  - name: Contact the maintainer
+    url: https://dashynms.pckp.net/desktop/support/
+    about: Get help or report conduct concerns privately

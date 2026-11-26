@@ -5,10 +5,12 @@ name: CI
 # check; CodeQL is separate, so a slow scan never holds up a merge.
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
   workflow_call:
 
 permissions:
   contents: read
+  issues: read
   packages: read
 
 concurrency:
@@ -93,6 +95,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: global.json
@@ -116,6 +120,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Compile the shipping updater
         run: swiftc -swift-version 5 -parse-as-library -target "$(uname -m)-apple-macos13" scripts/macos/Update.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker scripts/macos/UpdateInfo.plist -o "$RUNNER_TEMP/dashynms-update"
       - name: Test native replacement and recovery
@@ -123,10 +129,14 @@ jobs:
           swiftc -swift-version 5 -D UPDATE_TESTS -parse-as-library scripts/macos/Update.swift scripts/macos/UpdateTests.swift -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker scripts/macos/UpdateInfo.plist -o "$RUNNER_TEMP/update-tests"
           "$RUNNER_TEMP/update-tests"
 
+  security:
+    name: Security
+    uses: ./.github/workflows/security.yml
+
   result:
     name: CI result
     if: always()
-    needs: [test, scripts, web-sign-in-browser, macos-update]
+    needs: [test, scripts, web-sign-in-browser, macos-update, security]
     runs-on: ubuntu-latest
     steps:
       # Only success counts: a job no runner ever took is neither a failure nor

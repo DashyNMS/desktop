@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "source": "DashyNMS/.github",
+  "revision": "f87c6d2b8b8adfdc6d07c2df7e57fe1152fe4ee1",
+  "files": {
+    ".github/workflows/link-dependency-issue.yml": "aa445540e0fbccad3ae13395c11a61b9a56881bfcddcaadeccb2b5e9c673c183",
+    "scripts/security_filters.py": "6de234c9218f8e5f21cf9f4b0c32bb9cf07b3da606c1f88b2f601ebf62012cbf",
+    "scripts/tests/test_security_filters.py": "c782ea002970f2272e5d144549209f8881049ca97bfb692ee926a49bcf8af2c7",
+    "scripts/repository_policy.py": "bf973219de0956ba6aaea88eabf5a1e60b1806b69d835a519c406a783dc6d443",
+    "scripts/security_check.py": "b5ef71d6c92ef23fdb6615ada634e101884d0e6bb72271682f8b4563b1a2d0c4",
+    "scripts/tests/test_repository_policy.py": "1a6c5626aa743ed6a39e3eb2b704db2921003d4989093e86ddf78069c3a4bf3e",
+    "scripts/tests/test_security_check.py": "8104cecc4933a53726323c7225f1cfd7c78717629b6897dc5cb057864d42b6b6",
+    "requirements-security.txt": "c0eb3bbb4547697674db1bc188d5f64d3a3b115a1e388c2901160855cd5b990b",
+    "CODE_OF_CONDUCT.md": "ddb20e005938e5f81c187c1d26ff56a9f92cffff71d2845e12285ac7872c39fd",
+    ".github/pull_request_template.md": "1e0e3a1db7b6e2bdacc16b49bd8ae1724d026c0575a5f4125cadb6e3c62eff2d",
+    ".github/ISSUE_TEMPLATE/bug_report.yml": "7fb78d16a9743d656b66b305861a186a9c4b32ed74ad5007a2baa1c82ff5c247",
+    ".github/ISSUE_TEMPLATE/feature_request.yml": "2db97d1d45f20467661991156eac425e9f2df83cc325bbacf2412b447d2900af",
+    ".github/ISSUE_TEMPLATE/config.yml": "93cdc69e7100a6e88fe42800146a6e3882519b9d82332260a7b07bd07704d3f9",
+    ".github/CODEOWNERS": "58ce2b585838dd21da6b0400e86d791ed42b453b68d69c331758938f93dd1a1d",
+    "docs/REPOSITORY-STANDARDS.md": "76a5bced71c43dccc45cfbcf30bc879e104ea92b7bd16dc391c65f87edc908a5"
+  },
+  "helpers": {
+    "scripts/build_version.py": "2a25b12faf6e75053bf682a1c58aa4d095c86c78513832ffab63acd71ce8b104",
+    "scripts/Publish-WikiGuide.py": "4a4a1da174979a4d5a1d457162a347ad362f6022da4dd2d319e607c12a13c0f5",
+    "scripts/upload-missing-release-assets.py": "f240694653640a1ee41ab3b5d04f8e0eb3eeed4bf761c6967e6ec34995407894"
+  },
+  "claude_sha256": "039d8f59f5e4733b5562d6768ef921cd4ab6fff3857332f5e8310bf51cb5cdf2"
+}
