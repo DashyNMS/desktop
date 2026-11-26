@@ -71,7 +71,14 @@ internal sealed class DemoServer : IDisposable
             var response = _responder.Respond(method, target, body);
             if (response.Unhandled)
             {
-                _logger.LogDebug("Demo: no example data for {Method} {Target}", method, target);
+                if (response.Status == 200)
+                {
+                    _logger.LogDebug("Demo: no example data for {Method} {Target}", method, target);
+                }
+                else
+                {
+                    _logger.LogDebug("Demo: refused {Method} {Target} ({Status})", method, target, response.Status);
+                }
             }
 
             var payload = Encoding.UTF8.GetBytes(response.Body);

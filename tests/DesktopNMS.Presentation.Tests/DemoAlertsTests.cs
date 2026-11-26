@@ -1,3 +1,4 @@
+using DesktopNMS.Core.Demo;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Demo;
@@ -11,7 +12,7 @@ public sealed class DemoAlertsTests
     [Fact]
     public async Task Demo_detects_legacy_alerts_and_loads_all_ten_before_devices()
     {
-        using var server = new DemoServer(new DesktopNMS.Core.Demo.DemoResponder(), NullLogger.Instance);
+        using var server = new DemoServer(new DemoResponder(), NullLogger.Instance);
         server.Start();
         using var transport = new LibreNmsTransport(NullLogger<LibreNmsTransport>.Instance);
         using var client = new LibreNmsClient(transport, NullLogger<LibreNmsClient>.Instance);

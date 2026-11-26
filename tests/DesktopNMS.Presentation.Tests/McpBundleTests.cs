@@ -1,3 +1,4 @@
+using DesktopNMS.Core.Demo;
 using System.Text.Json;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Demo;
@@ -144,7 +145,7 @@ public sealed class McpBundleTests
     [McpBundleFact]
     public async Task The_app_s_own_start_path_runs_the_bundle_with_its_saved_settings()
     {
-        using var server = new DemoServer(new DesktopNMS.Core.Demo.DemoResponder(), NullLogger.Instance);
+        using var server = new DemoServer(new DemoResponder(), NullLogger.Instance);
         server.Start();
         var settings = new DesktopNMS.Core.Configuration.AppSettings { OverrideSensorLimitsWithAppThresholds = true };
         settings.TemperatureThresholds.HighWarning = 20;
@@ -184,7 +185,7 @@ public sealed class McpBundleTests
     [McpBundleFact]
     public async Task A_refused_start_gives_a_fixed_reason_and_none_of_the_server_s_output()
     {
-        using var server = new DemoServer(new DesktopNMS.Core.Demo.DemoResponder(), NullLogger.Instance);
+        using var server = new DemoServer(new DemoResponder(), NullLogger.Instance);
         server.Start();
         var values = McpToolHost.ToolSettings(new DesktopNMS.Core.Api.LibreNmsConnection(server.Address, "secret-example-token"), new(), () => null, () => null)
             .Where(p => p.Key != "MCP_TEMPERATURE_HIGH_WARNING")
@@ -221,7 +222,7 @@ public sealed class McpBundleTests
         public static async Task<BundledServer> StartAsync(IReadOnlyDictionary<string, string>? settings = null)
         {
             Assert.True(File.Exists(Executable), "The native network-tools executable is missing.");
-            var server = new DemoServer(new DesktopNMS.Core.Demo.DemoResponder(), NullLogger.Instance);
+            var server = new DemoServer(new DemoResponder(), NullLogger.Instance);
             server.Start();
             var environment = StdioClientTransportOptions.GetDefaultEnvironmentVariables();
             environment["LIBRENMS_URL"] = server.Address.ToString();

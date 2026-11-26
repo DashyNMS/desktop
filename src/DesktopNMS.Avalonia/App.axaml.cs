@@ -14,6 +14,7 @@ using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Sensors;
 using DesktopNMS.Core.Services;
 using DesktopNMS.Core.Topology;
+using DesktopNMS.Core.Demo;
 using DesktopNMS.Demo;
 using DesktopNMS.Diagnostics;
 using DesktopNMS.Infrastructure;
@@ -52,7 +53,7 @@ public partial class App : Application
     private bool _trayUpdatePending;
     private DemoMode _demo = new(isActive: false);
     private DemoServer? _demoServer;
-    private DesktopNMS.Core.Demo.DemoResponder? _demoFleet;
+    private DemoResponder? _demoResponder;
     private UpdateProgressWindow? _updateProgressWindow;
     private bool _startDemoOnExit;
     private bool _leaveDemoOnExit;
@@ -174,10 +175,10 @@ public partial class App : Application
 
         if (_demo.IsActive)
         {
-            _demoFleet = new DesktopNMS.Core.Demo.DemoResponder();
-            _demoServer = new DemoServer(_demoFleet, _logger);
+            _demoResponder = new DemoResponder();
+            _demoServer = new DemoServer(_demoResponder, _logger);
             _demoServer.Start();
-            DemoMode.Seed(settings, _services.GetRequiredService<ITokenProtector>(), _demoServer.Address, _demoFleet, _demo.IsRenderingScreenshots);
+            DemoMode.Seed(settings, _services.GetRequiredService<ITokenProtector>(), _demoServer.Address, _demoResponder, _demo.IsRenderingScreenshots);
         }
 
         // "Try the demo" on the sign-in window: this copy closes and a demo one starts.
@@ -422,11 +423,11 @@ public partial class App : Application
         UpdateTrayStatus();
 
         // Rendering the README screenshots: the tour, then close.
-        if (_demo.ScreenshotFolder is { } folder && _demoFleet is not null && _logger is not null)
+        if (_demo.ScreenshotFolder is { } folder && _demoResponder is not null && _logger is not null)
         {
             try
             {
-                await new ScreenshotTour(folder, _mainViewModel, windows, _demoFleet, _logger).RunAsync(_mainWindow).ConfigureAwait(true);
+                await new ScreenshotTour(folder, _mainViewModel, windows, _demoResponder, _logger).RunAsync(_mainWindow).ConfigureAwait(true);
             }
             catch (Exception ex)
             {

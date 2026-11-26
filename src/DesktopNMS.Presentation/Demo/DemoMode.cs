@@ -43,7 +43,7 @@ public sealed class DemoMode
     public void RequestStart() => StartRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Points a fresh demo folder's settings at the demo server, with a dashboard worth looking at.</summary>
-    internal static void Seed(ISettingsStore store, ITokenProtector tokens, Uri server, DemoResponder fleet, bool forScreenshots)
+    internal static void Seed(ISettingsStore store, ITokenProtector tokens, Uri server, DemoResponder responder, bool forScreenshots)
     {
         var settings = store.Current;
         settings.ServerUrl = server.ToString();
@@ -56,16 +56,16 @@ public sealed class DemoMode
         settings.Notifications.SuppressOnFirstPoll = true;
         settings.Notifications.Enabled = !forScreenshots;
         settings.Window = null;
-        settings.PinnedDevices = fleet.PinnedDevices
+        settings.PinnedDevices = responder.PinnedDevices
             .Select((d, i) => new PinnedDevice { DeviceId = d.Id, DisplayName = d.Name, PinnedAt = DateTimeOffset.Now.AddDays(-10 + i) })
             .ToList();
-        settings.RecentlyViewedDevices = fleet.RecentlyViewed
+        settings.RecentlyViewedDevices = responder.RecentlyViewed
             .Select((d, i) => new RecentlyViewedDevice { DeviceId = d.Id, DisplayName = d.Name, ViewedAt = DateTimeOffset.Now.AddMinutes(-3 - i * 7) })
             .ToList();
 
         // Laid out for a full 1080p screen: 45 cells across, 23 down.
         var sensors = new DashboardWidget { WidgetType = DashboardWidgetTypes.Sensors, Title = "Pinned sensors", Column = 0, Row = 8, ColumnSpan = 13, RowSpan = 8 };
-        sensors.Sensors.AddRange(fleet.PinnedSensors.Select(s => new PinnedSensor { SensorId = s.SensorId, DeviceId = s.DeviceId, SensorClass = s.SensorClass, DeviceName = s.DeviceName, Description = s.Description }));
+        sensors.Sensors.AddRange(responder.PinnedSensors.Select(s => new PinnedSensor { SensorId = s.SensorId, DeviceId = s.DeviceId, SensorClass = s.SensorClass, DeviceName = s.DeviceName, Description = s.Description }));
 
         settings.DashboardWidgets = new List<DashboardWidget>
         {
@@ -73,7 +73,7 @@ public sealed class DemoMode
             new() { WidgetType = DashboardWidgetTypes.AlertsGauge, Title = "Alerts", Column = 20, Row = 0, ColumnSpan = 12, RowSpan = 8 },
             new() { WidgetType = DashboardWidgetTypes.DeviceStatus, Title = "Devices", Column = 32, Row = 0, ColumnSpan = 13, RowSpan = 8 },
             sensors,
-            new() { WidgetType = DashboardWidgetTypes.Graph, Title = "core-sw-01 traffic", Column = 13, Row = 8, ColumnSpan = 19, RowSpan = 8, GraphDeviceId = fleet.FeaturedDeviceId, GraphName = "device_bits" },
+            new() { WidgetType = DashboardWidgetTypes.Graph, Title = "core-sw-01 traffic", Column = 13, Row = 8, ColumnSpan = 19, RowSpan = 8, GraphDeviceId = responder.FeaturedDeviceId, GraphName = "device_bits" },
             new() { WidgetType = DashboardWidgetTypes.PinnedDevices, Title = "Pinned devices", Column = 32, Row = 8, ColumnSpan = 13, RowSpan = 8 },
             new() { WidgetType = DashboardWidgetTypes.TopInterfaces, Title = "Top interfaces", Column = 0, Row = 16, ColumnSpan = 20, RowSpan = 7, TopCount = 4 },
             new() { WidgetType = DashboardWidgetTypes.RecentlyViewed, Title = "Recently viewed", Column = 20, Row = 16, ColumnSpan = 12, RowSpan = 7 },
