@@ -5,8 +5,8 @@
     <ApplicationManifest>../../src/DesktopNMS.Avalonia/app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
-    <PackageReference Include="Avalonia.Controls.WebView" Version="12.1.1" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.2.0" />
+    <PackageReference Include="Avalonia.Controls.WebView" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.2.0" />
   </ItemGroup>
 </Project>
