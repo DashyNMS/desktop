@@ -1,3 +1,4 @@
+using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Intelligence;
 using DesktopNMS.Core.Models;
 
@@ -27,10 +28,14 @@ public sealed partial class IntelligenceContextViewModel
                     .SingleOrDefault(p => p.PortId == target.Id && p.DeviceId == target.DeviceId));
             case "alert":
             case "fault":
-                var alert = await _client.Alerts.GetAsync(target.Id, cancellationToken);
-                if (alert is null || alert.DeviceId != target.DeviceId || (target.RuleId is { } rule && alert.RuleId != rule)
-                    || (alert.Source == AlertSource.Fault) != (target.Kind == "fault")) return null;
-                return IntelligenceObjectTargets.From(alert);
+                // The single-alert route can default to active alerts only, so every
+                // state is asked for: an acknowledged or recovered object stays valid.
+                // Only the exact row counts - never a name match or its parent device.
+                var alerts = await _client.Alerts.ListAsync(new AlertQuery { Id = target.Id, States = AlertQuery.All.States, OrderBy = null }, cancellationToken);
+                var alert = alerts.SingleOrDefault(a => a.Id == target.Id && a.DeviceId == target.DeviceId
+                    && (target.RuleId is not { } rule || a.RuleId == rule)
+                    && (a.Source == AlertSource.Fault) == (target.Kind == "fault"));
+                return alert is null ? null : IntelligenceObjectTargets.From(alert);
             default: return null;
         }
     }

@@ -36,6 +36,8 @@ Open **Settings → Health thresholds** to review the bands for each sensor type
 
 Enable **Always use these app thresholds, ignoring each sensor's own configured limits** only if you want the app's bands to decide every reading's colour. Apply your changes and check a known sensor to confirm the result.
 
+Intelligence judges sensors with the same thresholds and the same choice. A saved change applies from the next question. Anything still being looked up with the old thresholds is discarded rather than mixed into the answer. If a band can't be used because its values are out of order, Intelligence names the section to correct rather than guessing.
+
 These colours help you scan Health. Changing them does not edit LibreNMS alert rules. Use limits suited to the equipment; a fan's normal speed or an optical receiver's acceptable power depends on the hardware.
 
 To keep a reading visible, [add it to your dashboard](dashboard.md#keep-a-sensor-in-view).

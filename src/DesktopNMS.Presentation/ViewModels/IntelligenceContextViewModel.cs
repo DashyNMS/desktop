@@ -12,6 +12,7 @@ using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Intelligence;
+using DesktopNMS.Core.Services;
 using DesktopNMS.Core.Spotlights;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
@@ -26,18 +27,21 @@ namespace DesktopNMS.ViewModels;
 /// was looked up. Everything here comes from DashyNMS's own live data, not
 /// from the model.
 /// </summary>
-public sealed partial class IntelligenceContextViewModel : ObservableObject
+public sealed partial class IntelligenceContextViewModel : ObservableObject, IDisposable
 {
     /// <summary>The most devices the Mentioned list keeps - the newest first.</summary>
     private const int MaxMentioned = 12;
 
     private readonly IDeviceCache _devices;
+    private readonly DeviceMonitor? _deviceMonitor;
     private readonly ILibreNmsClient _client;
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
     private readonly ILogger _logger;
     private readonly IUiDispatcher _dispatcher;
 
+    private IReadOnlySet<int> _maintenanceIds = new HashSet<int>();
+    private LibreNmsConnection? _maintenanceConnection;
     private IReadOnlyList<Alert> _alerts = Array.Empty<Alert>();
     private bool _isScopeLocked;
     private DateTimeOffset? _lastAlertRefresh;
@@ -50,9 +54,11 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
         ISettingsStore settings,
         IWindowService windows,
         AlertMonitor alerts,
-        ILogger logger)
+        ILogger logger,
+        DeviceMonitor? deviceMonitor = null)
     {
         _devices = devices;
+        _deviceMonitor = deviceMonitor;
         _client = client;
         _settings = settings;
         _windows = windows;
@@ -73,6 +79,8 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
             }
             else _dispatcher.InvokeAsync(() => { _alertRefreshFailed = true; OnPropertyChanged(nameof(AlertFreshness)); });
         };
+
+        if (_deviceMonitor is not null) _deviceMonitor.Polled += OnDevicesPolled;
 
         OpenDeviceCommand = new RelayCommand(p =>
         {
@@ -110,6 +118,24 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
         Picker = new SpotlightPickerViewModel(devices, client, settings, logger, option => AddSpotlight(option), () => CanEditSpotlight);
     }
 
+    private void OnDevicesPolled(object? sender, DevicePollResult result)
+    {
+        if (!result.Succeeded) return;
+        var connection = _client.Connection;
+        _dispatcher.InvokeAsync(() =>
+        {
+            if (!ReferenceEquals(connection, _client.Connection)) return;
+            _maintenanceConnection = connection;
+            _maintenanceIds = result.DeviceIdsUnderMaintenance;
+            if (HasMentioned) RefreshMentioned();
+        });
+    }
+
+    public void Dispose()
+    {
+        if (_deviceMonitor is not null) _deviceMonitor.Polled -= OnDevicesPolled;
+    }
+
     public ObservableCollection<MentionedDeviceViewModel> Mentioned { get; } = new();
 
     public ObservableCollection<ContextAlertViewModel> Alerts { get; } = new();
@@ -133,6 +159,33 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
     public bool HasMentioned => Mentioned.Count > 0;
 
     public bool HasAlerts => Alerts.Count > 0;
+
+    /// <summary>
+    /// An alert - or one fault of an alert - as the last alert poll saw it,
+    /// for naming a marker no lookup named: its rule, without the severity the
+    /// badge already shows, and its severity.
+    /// </summary>
+    internal IntelligenceInlineReference? CachedAlert(int id)
+    {
+        if ((_alerts.FirstOrDefault(a => a.Id == id && a.Source == AlertSource.Fault) ?? _alerts.FirstOrDefault(a => a.Id == id)) is not { } alert) return null;
+        var (label, tone) = alert.Severity switch
+        {
+            AlertSeverity.Critical => ("Critical", "critical"),
+            AlertSeverity.Warning => ("Warning", "warning"),
+            AlertSeverity.Ok => ("OK", "up"),
+            _ => ("Unknown", "unknown"),
+        };
+        var rule = alert.RuleName is { Length: > 0 } name ? name.Trim() : "Alert";
+        foreach (var separator in new[] { " - ", " – ", " — " })
+        {
+            if (rule.StartsWith(label + separator, StringComparison.OrdinalIgnoreCase)) rule = rule[(label.Length + separator.Length)..].Trim();
+        }
+
+        return new IntelligenceInlineReference("alert:" + id, rule, label, tone, _lastAlertRefresh ?? DateTimeOffset.UtcNow, "Alert from DashyNMS's alert list")
+        {
+            Object = new(alert.Source == AlertSource.Fault ? "fault" : "alert", id, alert.DeviceId),
+        };
+    }
 
     public bool HasOpenNetworkAlerts => _alerts.Any(alert => alert.State != AlertState.Recovered);
 
@@ -161,19 +214,13 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
 
     public string SpotlightSummary => Spotlight.Count == 0 ? "Whole network" : string.Join(", ", Spotlight.Select(s => s.Name));
 
-    /// <summary>The scope as the agent is told it - null for the whole network.</summary>
-    public string? SpotlightForAgent
-    {
-        get
-        {
-            if (Spotlight.Count == 0)
-            {
-                return null;
-            }
-
-            return string.Join("; ", Spotlight.Select(s => s.AgentDescription));
-        }
-    }
+    /// <summary>
+    /// The scope as the agent is told it - checked identities only, or null for
+    /// the whole network. Names stay in the app: Core states only kinds and IDs
+    /// in the model's instructions, since anyone who can name a device writes them.
+    /// </summary>
+    public IReadOnlyList<IntelligenceObjectReference>? SpotlightForAgent
+        => Spotlight.Count == 0 ? null : Spotlight.Select(s => s.Identity).ToList();
 
     /// <summary>The model ran a tool: note the devices its arguments name, and what it looked at.</summary>
     public void OnToolStarted(string arguments)
@@ -262,6 +309,8 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
             return;
         }
 
+        // Share the Devices list's poll and maintenance scan, even if the list hasn't opened yet.
+        _deviceMonitor?.Start();
         Mentioned.Insert(0, MentionedDeviceViewModel.From(device, _settings.Current.DeviceNameStyle));
         while (Mentioned.Count > MaxMentioned)
         {
@@ -276,11 +325,13 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
     {
         var ids = Mentioned.Select(m => m.DeviceId).ToHashSet();
         var groups = AlertGrouping.ByDeviceAndRule(_alerts.Where(a => ids.Contains(a.DeviceId) && a.State != AlertState.Recovered));
+        var useMaintenance = ReferenceEquals(_maintenanceConnection, _client.Connection);
         foreach (var mentioned in Mentioned)
         {
             if (_devices.Get(mentioned.DeviceId) is { } device)
             {
-                mentioned.Update(device, groups.Count(g => g.DeviceId == device.DeviceId));
+                mentioned.Update(device, groups.Count(g => g.DeviceId == device.DeviceId),
+                    useMaintenance && _maintenanceIds.Contains(device.DeviceId));
             }
         }
 
@@ -379,9 +430,6 @@ public sealed record SpotlightOption(SpotlightKind Kind, int Id, string Name)
 {
     public IntelligenceObjectReference? Object { get; init; }
     public IntelligenceObjectReference Identity => Object ?? new(Kind.ToString().ToLowerInvariant(), Id);
-    public string AgentDescription => $"{KindText} \"{Name}\" ({Identity.Kind}_id={Id}"
-        + (Identity.DeviceId is { } device ? $", device_id={device}" : "")
-        + (Identity.RuleId is { } rule ? $", rule_id={rule}" : "") + ")";
     public string KindText => Kind switch
     {
         SpotlightKind.Group => "Group",
@@ -456,11 +504,16 @@ public sealed class MentionedDeviceViewModel : ObservableObject
 
     public bool HasOpenAlerts => _openAlerts > 0;
 
-    public void Update(Device device, int openAlerts)
+    public void Update(Device device, int openAlerts, bool isUnderMaintenance = false)
     {
-        var disabled = device.Disabled || device.Ignore;
-        Severity = disabled ? "other" : device.Status ? "ok" : "down";
-        StateText = disabled ? "Disabled" : device.Status ? "Up" : "Down";
+        var state = isUnderMaintenance ? DeviceState.Maintenance : device.ReportedState;
+        Severity = state switch
+        {
+            DeviceState.Up => "ok",
+            DeviceState.Down => "down",
+            _ => "other",
+        };
+        StateText = state.ToDisplayString();
         OpenAlerts = openAlerts;
     }
 }

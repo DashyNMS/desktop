@@ -7,3 +7,4 @@ artifacts/
 publish/
 dist/
 TestResults/
+__pycache__/

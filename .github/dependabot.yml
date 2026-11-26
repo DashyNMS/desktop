@@ -1,3 +1,6 @@
+# Everything is pinned (actions by commit, packages by version), so nothing
+# moves unless Dependabot proposes it. Minor and patch updates are grouped;
+# majors come one at a time.
 version: 2
 
 # DashyNMS.Core comes from GitHub Packages, which needs a login. The token is
@@ -11,20 +14,28 @@ registries:
     password: ${{secrets.DASHYNMS_PACKAGES_TOKEN}}
 
 updates:
-  # NuGet package updates and vulnerability alerts.
-  - package-ecosystem: "nuget"
-    directory: "/"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        update-types: [minor, patch]
+
+  - package-ecosystem: nuget
+    directories:
+      - /src/*
+      - /tests/*
     registries:
       - dashynms
-    schedule:
-      interval: "weekly"
     ignore:
-      # Pinned by hand to a development build of DashyNMS/core between
-      # releases (see docs/DEVELOPMENT.md), not bumped on every merge there.
-      - dependency-name: "DashyNMS.Core"
-
-  # Keep the GitHub Actions used by the workflows above up to date too.
-  - package-ecosystem: "github-actions"
-    directory: "/"
+      # Pinned by hand to an edge package of DashyNMS/core between releases
+      # (see docs/DEVELOPMENT.md), not bumped on every commit there.
+      - dependency-name: "DashyNMS.*"
     schedule:
-      interval: "weekly"
+      interval: weekly
+      day: monday
+    groups:
+      packages:
+        update-types: [minor, patch]

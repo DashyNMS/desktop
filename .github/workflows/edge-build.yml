@@ -1,0 +1,94 @@
+name: Edge build
+
+# Every commit to main: <version>-edge.<build>. By hand to make another of the
+# same commit, for example after a failed publish.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  version:
+    name: Version
+    if: github.repository == 'DashyNMS/desktop' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      commit: ${{ steps.version.outputs.commit }}
+      changed: ${{ steps.version.outputs.changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Work out the version
+        id: version
+        run: python3 scripts/build_version.py edge --notes artifacts/notes.md
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-notes
+          path: artifacts/notes.md
+          if-no-files-found: error
+          retention-days: 14
+
+  ci:
+    name: CI
+    needs: version
+    uses: ./.github/workflows/ci.yml
+
+  packages:
+    name: Packages
+    needs: [version, ci]
+    uses: ./.github/workflows/packages.yml
+    secrets:
+      MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+    with:
+      version: ${{ needs.version.outputs.version }}
+      commit: ${{ needs.version.outputs.commit }}
+      sign: true
+
+  publish:
+    name: Publish
+    needs: [version, packages]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: package-*
+          path: dist
+          merge-multiple: true
+      - name: Verify every package
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          COMMIT: ${{ needs.version.outputs.commit }}
+        run: ./scripts/Test-ReleaseArtifacts.ps1 -Directory dist -Version $env:VERSION -Commit $env:COMMIT
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-notes
+          path: notes
+      # Build records and checksums stay in the Actions artifacts.
+      - name: Publish the prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
+          COMMIT: ${{ needs.version.outputs.commit }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: gh release create "$TAG" dist/*.exe dist/*.dmg dist/*.AppImage --target "$COMMIT" --title "$VERSION" --notes-file notes/notes.md --prerelease --latest=false

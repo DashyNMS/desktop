@@ -6,10 +6,11 @@ DashyNMS saves:
 
 - Your settings: your server's address, notification choices, dashboards, map layouts and window positions.
 - Your saved passwords: your LibreNMS API token, and your Graylog and Unimus passwords if you use them. DashyNMS encrypts these, so only you, signed in to this computer, can read them.
-- Your Intelligence chats, encrypted in the same way.
+- Your Intelligence chats, encrypted in the same way. If Codex, Claude Code, GitHub Copilot or Gemini answers a saved chat, that agent also keeps its own record of it in its own folder (`.codex`, `.claude`, `.copilot` or `.gemini` in your home folder), as it does for any conversation. A custom personality for Dashy is saved with your settings. [Intelligence](../how-to/intelligence.md#whats-sent-and-whats-kept) has the details.
 - Logs of what DashyNMS did each day, kept for 14 days. They help when you report a problem.
 - Downloaded updates, until they're installed.
 - Map tiles, kept for a week so maps load faster.
+- A copy of the help pages for your version.
 
 The quickest way to find the folder is **Settings → Diagnostics → Open log folder**. Your settings are in the folder above the one that opens.
 
@@ -54,6 +55,7 @@ To remove everything, for example after uninstalling:
 
 1. Quit DashyNMS.
 2. Delete the folders listed for your system above.
+   If you used Codex, Claude Code, GitHub Copilot or Gemini with Intelligence, their own records of those chats are in their folders in your home folder (`.codex`, `.claude`, `.copilot` and `.gemini`), or wherever you've pointed them with `CODEX_HOME`, `CLAUDE_CONFIG_DIR` or `COPILOT_HOME`, alongside their records of everything else you've used them for. To remove only DashyNMS's, delete those chats from inside each agent, for example with its session or history commands. Deleting a whole folder also removes the agent's sign-in and settings.
 3. On macOS, open **Keychain Access**, search for **DashyNMS data key** and delete it. On Linux, run:
 
    ```bash
@@ -62,4 +64,4 @@ To remove everything, for example after uninstalling:
 
 On Windows, the uninstaller offers to remove your data for you.
 
-Development builds from GitHub Actions keep their data apart from the release, in an `avalonia` folder inside the Windows location, so trying one doesn't touch your normal settings.
+Edge, nightly and stable builds share this data, so switching between them keeps your settings.

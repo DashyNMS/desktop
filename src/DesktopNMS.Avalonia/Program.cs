@@ -2,8 +2,10 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Threading;
 using DesktopNMS.Diagnostics;
+using DesktopNMS.Services.Intelligence.Agents;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace DesktopNMS;
 
@@ -20,6 +22,14 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (args is [GeminiOutputGuard.HookArgument])
+        {
+            using var reader = new StreamReader(Console.OpenStandardInput(), Encoding.UTF8);
+            using var writer = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false));
+            writer.WriteLine(GeminiOutputGuard.HookDecision(reader.ReadToEnd(), GeminiOutputGuard.Home));
+            return;
+        }
+
         if (args.Any(a => a.Equals("--uninstall", StringComparison.OrdinalIgnoreCase)))
         {
 #if WINDOWS

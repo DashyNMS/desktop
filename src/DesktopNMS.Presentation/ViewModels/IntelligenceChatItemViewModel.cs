@@ -4,10 +4,13 @@ using DesktopNMS.Core.Intelligence;
 
 namespace DesktopNMS.ViewModels;
 
-/// <summary>One saved chat in the chat list.</summary>
-public sealed class IntelligenceChatItemViewModel(SavedIntelligenceChat data) : ObservableObject
+/// <summary>One saved chat in the chat list, and the provider account and network it's saved under.</summary>
+public sealed class IntelligenceChatItemViewModel(SavedIntelligenceChat data, string? scope = null) : ObservableObject
 {
     public SavedIntelligenceChat Data { get; } = data;
+
+    /// <summary>Where it's saved: its provider's account and the LibreNMS server (#316). Changes only when the chat moves provider.</summary>
+    internal string? Scope { get; set; } = scope;
     public string Title => Data.Title;
     public bool IsPinned => Data.IsPinned;
     public string PinLabel => IsPinned ? "Unpin chat" : "Pin chat";

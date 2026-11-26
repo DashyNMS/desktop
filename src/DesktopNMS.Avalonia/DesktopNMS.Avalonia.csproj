@@ -55,7 +55,7 @@
 
   <!--
     The DashyNMS MCP server, bundled for Intelligence:
-    published by tools/Publish-Mcp.ps1 into artifacts/mcp/<runtime> and copied
+    published by scripts/Publish-Mcp.ps1 into artifacts/mcp/<runtime> and copied
     beside the app in mcp/. Without it a developer build still works, and
     the Intelligence tab says the network tools aren't installed.
   -->

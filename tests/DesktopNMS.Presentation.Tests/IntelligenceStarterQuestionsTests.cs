@@ -30,7 +30,7 @@ public sealed class IntelligenceStarterQuestionsTests
         model.ConsentGiven = true;
         var host = (IIntelligenceChatHost)model;
         host.Restore(new());
-        model.Composer.SelectedModel = new ChatGptModel("example", "Example");
+        model.Composer.SelectedModel = IntelligenceModelOption.FromChatGpt(new ChatGptModel("example", "Example"));
         Assert.True(model.ShowSuggestions);
         var suggestion = model.Suggestions[0];
         Assert.True(model.AskSuggestionCommand.CanExecute(suggestion));
@@ -38,7 +38,7 @@ public sealed class IntelligenceStarterQuestionsTests
         model.AskSuggestionCommand.CanExecuteChanged += (_, _) => modelChanges++;
         model.Composer.SelectedModel = null;
         Assert.False(model.AskSuggestionCommand.CanExecute(suggestion));
-        model.Composer.SelectedModel = new ChatGptModel("example", "Example");
+        model.Composer.SelectedModel = IntelligenceModelOption.FromChatGpt(new ChatGptModel("example", "Example"));
         Assert.Equal(2, modelChanges);
         Assert.True(model.AskSuggestionCommand.CanExecute(suggestion));
 
@@ -56,6 +56,32 @@ public sealed class IntelligenceStarterQuestionsTests
         model.AskSuggestionCommand.Execute(suggestion);
         Assert.Equal("Previous question", Assert.Single(model.Messages).Text);
         Assert.Equal(string.Empty, model.Composer.Question);
+    }
+
+    /// <summary>The network-wide tool that answers each starter in one lookup. Uptime, for one, is only per device.</summary>
+    private static readonly Dictionary<string, string> AnsweredBy = new()
+    {
+        ["How is the network doing?"] = "network_overview",
+        ["What changed in the last 24 hours?"] = "network_events",
+        ["Which devices need attention first?"] = "top_devices",
+        ["What's alerting right now?"] = "active_alerts",
+        ["Which ports are counting the most errors?"] = "top_errors",
+        ["Which interfaces are busiest?"] = "top_interfaces",
+        ["Which devices carry the most traffic?"] = "top_devices",
+        ["Which alerts affect the most devices?"] = "active_alerts",
+        ["Are any links close to capacity?"] = "top_interfaces",
+        ["Are there any temperature or fan problems?"] = "health_overview",
+        ["Which devices are currently unreachable?"] = "find_device",
+        ["Summarise the highest-priority open alerts."] = "active_alerts",
+    };
+
+    [Fact]
+    public void Every_starter_is_answered_by_an_offered_network_wide_tool()
+    {
+        Assert.Equal(AnsweredBy.Keys.Order(), IntelligenceStarterQuestions.All.Order());
+        Assert.All(AnsweredBy.Values, tool => Assert.Contains(tool, IntelligenceToolAllowlist.Names));
+        Assert.DoesNotContain(IntelligenceStarterQuestions.All, question => question.Contains("up the longest", StringComparison.OrdinalIgnoreCase)
+            || question.Contains("uptime", StringComparison.OrdinalIgnoreCase));
     }
 
     [Theory]

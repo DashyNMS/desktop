@@ -57,6 +57,12 @@ public sealed record PortsLayoutOption(string Value, string Label)
     public override string ToString() => Label;
 }
 
+/// <summary>A choice in Settings → Updates → Update channel (#620), with what choosing it means.</summary>
+public sealed record UpdateChannelOption(UpdateChannel Value, string Label, string Description)
+{
+    public override string ToString() => Label;
+}
+
 /// <summary>A choice in Settings → Window and start-up → Default map.</summary>
 public sealed record DefaultMapOption(string Value, string Label)
 {
@@ -190,6 +196,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         SelectIntegrationsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Integrations);
         SelectGraylogSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Graylog);
         SelectIntelligenceSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Intelligence);
+        SelectIntelligenceProvidersSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.IntelligenceProviders);
         SelectMapsSectionCommand = new RelayCommand(() => SelectedSection = SettingsSection.Maps);
         ResetMapTileUrlCommand = new RelayCommand(() => MapTileUrl = null);
         SelectAboutSectionCommand = new RelayCommand(() =>
@@ -204,6 +211,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => CanInstallUpdate && !IsCheckingForUpdates && !_isInstallingUpdate);
         _updates.ReadyUpdateChanged += OnReadyUpdateChanged;
         Intelligence.Models.CollectionChanged += OnIntelligenceModelsChanged;
+        IntelligenceProviders = new IntelligenceProvidersViewModel(Intelligence, _draft, _windows);
         ViewLatestReleaseCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri(_latestRelease!.HtmlUrl!)),
             () => _latestRelease?.HtmlUrl is not null);
@@ -211,6 +219,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         ShowLicencesCommand = new RelayCommand(() => _windows.ShowLicences());
         ViewReleasesPageCommand = new RelayCommand(
             () => _windows.OpenUrl(new Uri("https://github.com/DashyNMS/desktop/releases")));
+        HelpCommand = new RelayCommand(() => _windows.ShowHelp(Services.Help.HelpTopics.For(SelectedSection)));
         ReportBugCommand = new RelayCommand(() => _windows.OpenUrl(ComponentBugReportLink()));
         InitialiseComponentVersions(versionTools);
 
@@ -302,6 +311,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public RelayCommand SelectIntelligenceSectionCommand { get; }
 
+    public RelayCommand SelectIntelligenceProvidersSectionCommand { get; }
+
     public RelayCommand SelectMapsSectionCommand { get; }
 
     public RelayCommand SelectAboutSectionCommand { get; }
@@ -327,6 +338,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsIntegrationsSectionSelected));
                 OnPropertyChanged(nameof(IsGraylogSectionSelected));
                 OnPropertyChanged(nameof(IsIntelligenceSectionSelected));
+                OnPropertyChanged(nameof(IsIntelligenceProvidersSectionSelected));
                 OnPropertyChanged(nameof(IsMapsSectionSelected));
                 OnPropertyChanged(nameof(IsAboutSectionSelected));
                 OnPropertyChanged(nameof(IsServerInformationSectionSelected));
@@ -368,6 +380,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     public bool IsGraylogSectionSelected => SelectedSection == SettingsSection.Graylog;
 
     public bool IsIntelligenceSectionSelected => SelectedSection == SettingsSection.Intelligence;
+
+    public bool IsIntelligenceProvidersSectionSelected => SelectedSection == SettingsSection.IntelligenceProviders;
 
     public bool IsMapsSectionSelected => SelectedSection == SettingsSection.Maps;
 
@@ -1375,6 +1389,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Opens a new GitHub issue with the app, Windows and LibreNMS versions filled in (#149) - see <see cref="BugReportLink"/>.</summary>
     public RelayCommand ReportBugCommand { get; }
 
+    /// <summary>The guide's page about the section that's showing (#604).</summary>
+    public RelayCommand HelpCommand { get; }
+
     /// <summary>Opens the log folder in File Explorer (#273).</summary>
     public RelayCommand OpenLogFolderCommand { get; }
 
@@ -1395,27 +1412,36 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public string CurrentVersionText => $"Version {_updates.CurrentVersion}";
 
-    /// <summary>
-    /// Also treat GitHub pre-release ("preview") tags as an available update.
-    /// Re-checks immediately on toggle - like the accent colour swatch above,
-    /// this does not wait for Save so flipping it and seeing the effect is
-    /// one action, not two.
-    /// </summary>
-    public bool IncludePreviewBuilds
+    public IReadOnlyList<UpdateChannelOption> UpdateChannelOptions { get; } = new[]
     {
-        get => _draft.IncludePreviewBuilds;
+        new UpdateChannelOption(UpdateChannel.Stable, "Stable", "Finished releases. Best for most people."),
+        new UpdateChannelOption(UpdateChannel.Nightly, "Nightly", "A build each night there are changes, as well as releases. Newer features, and sometimes new problems."),
+        new UpdateChannelOption(UpdateChannel.Edge, "Edge", "A build of every change, as well as releases. For testing: it may not work."),
+    };
+
+    /// <summary>
+    /// Which builds count as an available update. Re-checks immediately on
+    /// change - like the accent colour swatch above, this does not wait for
+    /// Save so choosing one and seeing the effect is one action, not two.
+    /// </summary>
+    public UpdateChannelOption SelectedUpdateChannel
+    {
+        get => UpdateChannelOptions.FirstOrDefault(o => o.Value == _draft.UpdateChannel) ?? UpdateChannelOptions[0];
         set
         {
-            if (_draft.IncludePreviewBuilds == value)
+            if (value is null || _draft.UpdateChannel == value.Value)
             {
                 return;
             }
 
-            _draft.IncludePreviewBuilds = value;
+            _draft.UpdateChannel = value.Value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(UpdateChannelDescription));
             _ = CheckForUpdatesAsync(notifyIfNewer: false);
         }
     }
+
+    public string UpdateChannelDescription => SelectedUpdateChannel.Description;
 
     public bool DownloadUpdatesAutomatically
     {
@@ -1477,13 +1503,22 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>About's trademark line - Core's, so both apps say the same.</summary>
     public string Trademarks => DesktopNMS.Core.Licences.OpenSourceNotices.Trademarks;
 
+    private int _updateCheck;
+
     private async Task CheckForUpdatesAsync(bool notifyIfNewer)
     {
+        // Choosing another channel starts a check without waiting for the last
+        // one, whose answer is then about a channel that's no longer chosen.
+        var check = ++_updateCheck;
         IsCheckingForUpdates = true;
         InstallUpdateCommand.RaiseCanExecuteChanged();
         UpdateStatusText = "Checking for updates...";
 
-        var result = await _updates.CheckAsync(notifyIfNewer, IncludePreviewBuilds).ConfigureAwait(true);
+        var result = await _updates.CheckAsync(notifyIfNewer, SelectedUpdateChannel.Value).ConfigureAwait(true);
+        if (check != _updateCheck)
+        {
+            return;
+        }
 
         _latestRelease = result.LatestRelease;
         IsNewerVersionAvailable = result.IsNewerVersionAvailable;
@@ -1507,7 +1542,12 @@ public sealed partial class SettingsViewModel : ObservableObject
             return null;
         }
 
-        var what = release.Prerelease ? $"Preview {release.TagName}" : $"Version {release.TagName}";
+        var what = ReleaseVersion.ChannelOf(release.TagName) switch
+        {
+            UpdateChannel.Edge => $"Edge build {release.TagName}",
+            UpdateChannel.Nightly => $"Nightly build {release.TagName}",
+            _ => $"Version {release.TagName}",
+        };
         return IsUpdateReady
             ? $"{what} is downloaded and ready to install."
             : _updates.InstallationError is { Length: > 0 } reason ? reason
@@ -1572,6 +1612,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         MobileSignIn.Detach();
         _updates.ReadyUpdateChanged -= OnReadyUpdateChanged;
         Intelligence.Models.CollectionChanged -= OnIntelligenceModelsChanged;
+        IntelligenceProviders.Detach(_store.Current);
     }
 
     /// <summary>
@@ -2026,6 +2067,25 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>Settings, Devices, MAC addresses (#57): how Network Search writes MAC addresses.</summary>
+    public IReadOnlyList<MacFormatOption> MacFormatOptions => MacFormatOption.All;
+
+    /// <summary>Colons unless the draft names another known format, as Core loads it.</summary>
+    public MacFormatOption SelectedMacFormat
+    {
+        get => MacFormatOptions.First(o => o.Format == _draft.NetworkSearchMacFormatValue);
+        set
+        {
+            if (value is null || _draft.NetworkSearchMacFormatValue == value.Format)
+            {
+                return;
+            }
+
+            _draft.NetworkSearchMacFormat = value.Format.ToString();
+            OnPropertyChanged();
+        }
+    }
+
     public IReadOnlyList<KeyValuePair<string, string>> IntelligenceDetailOptions => ViewModels.IntelligenceDetailOptions.All;
 
     /// <summary>The detail level new chats start with (#329).</summary>
@@ -2055,6 +2115,37 @@ public sealed partial class SettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
+
+    /// <summary>Use the custom personality below (#608); off keeps the text.</summary>
+    public bool IntelligencePersonalityEnabled
+    {
+        get => _draft.IntelligencePersonalityEnabled;
+        set
+        {
+            if (_draft.IntelligencePersonalityEnabled == value) return;
+            _draft.IntelligencePersonalityEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>How Dashy should sound, as typed - cleaned only when it's sent.</summary>
+    public string IntelligencePersonality
+    {
+        get => _draft.IntelligencePersonality;
+        set
+        {
+            value ??= string.Empty;
+            if (value.Length > Core.Intelligence.IntelligencePersonality.MaxLength) value = value[..Core.Intelligence.IntelligencePersonality.MaxLength];
+            if (_draft.IntelligencePersonality == value) return;
+            _draft.IntelligencePersonality = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IntelligencePersonalityCount));
+        }
+    }
+
+    public int IntelligencePersonalityLimit => Core.Intelligence.IntelligencePersonality.MaxLength;
+
+    public string IntelligencePersonalityCount => $"{IntelligencePersonality.Length} / {IntelligencePersonalityLimit}";
 
     public bool IntelligenceColourStatusIndicators
     {
@@ -2143,6 +2234,9 @@ public sealed partial class SettingsViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>Settings › Providers (#316): the provider list and the chosen provider's details.</summary>
+    public IntelligenceProvidersViewModel IntelligenceProviders { get; }
 
     /// <summary>The Intelligence page's account controls - the live ChatGPT connection, not part of the draft.</summary>
     public IntelligenceViewModel Intelligence { get; }

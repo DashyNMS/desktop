@@ -36,7 +36,7 @@ public sealed partial class IntelligenceViewModel
             ErrorText = null;
             QuestionFocusRequested?.Invoke(this, EventArgs.Empty);
         }
-        catch (Exception ex) when (ex is LibreNmsApiException or HttpRequestException or OperationCanceledException or InvalidOperationException)
+        catch (Exception ex) when (ex is LibreNmsApiException or HttpRequestException or OperationCanceledException or InvalidOperationException or System.Text.Json.JsonException)
         {
             ErrorText = "Couldn't check access to this object. Your current chat has been kept; try again when the network is available.";
         }
@@ -69,7 +69,7 @@ public sealed partial class IntelligenceViewModel
             ErrorText = null;
             QuestionFocusRequested?.Invoke(this, EventArgs.Empty);
         }
-        catch (Exception ex) when (ex is LibreNmsApiException or HttpRequestException or OperationCanceledException or InvalidOperationException)
+        catch (Exception ex) when (ex is LibreNmsApiException or HttpRequestException or OperationCanceledException or InvalidOperationException or System.Text.Json.JsonException)
         {
             ErrorText = "Couldn't check access to this object. Your Spotlight has been kept; try again when the network is available.";
         }

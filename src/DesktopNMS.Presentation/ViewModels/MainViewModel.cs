@@ -15,6 +15,7 @@ using DesktopNMS.Core.Models;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Demo;
 using DesktopNMS.Services;
+using DesktopNMS.Services.Help;
 using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.ViewModels;
@@ -112,7 +113,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IUpdateCheckService updates,
         DemoMode demo,
         NotificationRuleService notificationRules,
-        ILogger<MainViewModel> logger, IAppMetrics? metrics = null)
+        ILogger<MainViewModel> logger, IAppMetrics? metrics = null, NetworkSearchViewModel? networkSearch = null, HelpViewModel? help = null)
     {
         _featureMetrics = new FeatureMetrics(metrics);
         _screenLoad = new ScreenLoadTiming(metrics, MetricArea.Alerts);
@@ -128,6 +129,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _deviceList = deviceList;
         _health = health;
         Intelligence = intelligence;
+        NetworkSearch = networkSearch;
+        Help = help;
         _dashboard = dashboard;
         _groups = groups;
         _locations = locations;
@@ -189,6 +192,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectDevicesTabCommand = new RelayCommand(() => SelectedTab = MainTab.Devices);
         SelectHealthTabCommand = new RelayCommand(() => SelectedTab = MainTab.Health);
         SelectIntelligenceTabCommand = new RelayCommand(() => SelectedTab = MainTab.Intelligence);
+        SelectNetworkSearchTabCommand = new RelayCommand(OpenNetworkSearch, () => NetworkSearch is not null);
+        SelectHelpTabCommand = new RelayCommand(() => OpenHelp(null), () => Help is not null);
+        HelpForTabCommand = new RelayCommand(() =>
+        {
+            // Already there: nobody's place in it is lost.
+            if (SelectedTab != MainTab.Help)
+            {
+                _windows.ShowHelp(HelpTopics.For(SelectedTab));
+            }
+        }, () => Help is not null);
         SelectAlertsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Alerts);
         SelectGroupsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Groups);
         SelectLocationsTabCommand = new RelayCommand(() => SelectedTab = MainTab.Locations);
@@ -293,6 +306,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand SelectHealthTabCommand { get; }
 
     public RelayCommand SelectIntelligenceTabCommand { get; }
+
+    /// <summary>The sidebar's compass and Ctrl/Cmd+Shift+F: Network Search, with the cursor in its box.</summary>
+    public RelayCommand SelectNetworkSearchTabCommand { get; }
+
+    public RelayCommand SelectHelpTabCommand { get; }
+
+    /// <summary>F1: the guide's page about the tab that's showing (#604).</summary>
+    public RelayCommand HelpForTabCommand { get; }
 
     public RelayCommand SelectAlertsTabCommand { get; }
 
@@ -509,6 +530,45 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>The Intelligence tab: questions about the network, answered with the user's ChatGPT plan.</summary>
     public IntelligenceViewModel Intelligence { get; }
 
+    /// <summary>Network Search (#57). Null only in tests that build the window without it.</summary>
+    public NetworkSearchViewModel? NetworkSearch { get; }
+
+    public bool ShowNetworkSearchTab => NetworkSearch is not null;
+
+    /// <summary>Shows Network Search from anywhere and puts the cursor in its box, ready to type.</summary>
+    public void OpenNetworkSearch()
+    {
+        if (NetworkSearch is null)
+        {
+            return;
+        }
+
+        SelectedTab = MainTab.NetworkSearch;
+        NetworkSearch.RequestFocus();
+    }
+
+    /// <summary>The user guide (#604). Null only in tests that build the window without it.</summary>
+    public HelpViewModel? Help { get; }
+
+    public bool ShowHelpTab => Help is not null;
+
+    /// <summary>Shows Help at a page, or where it was left when null.</summary>
+    public void OpenHelp(HelpTopic? topic)
+    {
+        if (Help is null)
+        {
+            return;
+        }
+
+        SelectedTab = MainTab.Help;
+        if (topic is not null)
+        {
+            Help.Open(topic);
+        }
+
+        Help.OnShown();
+    }
+
     /// <summary>The dashboard widgets, for the Dashboard tab's content to bind to.</summary>
     public DashboardViewModel Dashboard => _dashboard;
 
@@ -585,6 +645,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsDevicesFamilyTabSelected));
                 OnPropertyChanged(nameof(IsHealthTabSelected));
                 OnPropertyChanged(nameof(IsIntelligenceTabSelected));
+                OnPropertyChanged(nameof(IsNetworkSearchTabSelected));
+                OnPropertyChanged(nameof(IsHelpTabSelected));
                 OnPropertyChanged(nameof(IsAlertsTabSelected));
                 OnPropertyChanged(nameof(IsAlertsFamilyTabSelected));
                 OnPropertyChanged(nameof(IsGroupsTabSelected));
@@ -726,6 +788,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public bool IsHealthTabSelected => SelectedTab == MainTab.Health;
 
     public bool IsIntelligenceTabSelected => SelectedTab == MainTab.Intelligence;
+
+    public bool IsNetworkSearchTabSelected => SelectedTab == MainTab.NetworkSearch;
+
+    public bool IsHelpTabSelected => SelectedTab == MainTab.Help;
 
     public bool IsAlertsTabSelected => SelectedTab == MainTab.Alerts;
 
@@ -2226,6 +2292,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
                 break;
 
+            case MainTab.NetworkSearch:
+                NetworkSearch?.Refresh();
+                break;
+
             default:
                 break;
         }
@@ -2279,6 +2349,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             case MainTab.LogsEvents:
             case MainTab.LogsAlerts:
                 _logs.ClearFiltersCommand.Execute(null);
+                break;
+
+            case MainTab.NetworkSearch:
+                NetworkSearch?.ClearFiltersCommand.Execute(null);
+                break;
+
+            case MainTab.Help:
+                Help?.ClearSearchCommand.Execute(null);
                 break;
 
             case MainTab.Dashboard:

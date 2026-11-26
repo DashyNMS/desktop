@@ -4,12 +4,18 @@
         xmlns:services="using:DesktopNMS.Services"
         xmlns:infra="using:DesktopNMS.Infrastructure"
         xmlns:views="using:DesktopNMS.Views"
+        xmlns:intel="using:DesktopNMS.Views.Intelligence"
+        xmlns:fi="using:FluentIcons.Avalonia"
         x:Class="DesktopNMS.Views.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
         Title="DashyNMS settings"
-        Width="760" Height="640" MinWidth="640" MinHeight="440"
+        Width="860" Height="640" MinWidth="640" MinHeight="440"
         Icon="/Assets/app.ico"
         WindowStartupLocation="CenterOwner">
+
+    <Window.KeyBindings>
+        <KeyBinding Gesture="F1" Command="{Binding HelpCommand}" />
+    </Window.KeyBindings>
 
     <Window.Styles>
         <Style Selector="Button.copyFeedback">
@@ -21,6 +27,40 @@
         </Style>
         <Style Selector="Button.copyFeedback.confirmed">
             <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+        </Style>
+        <!-- Settings › Providers (#316): the list's rows, the detail's sections and compact switches. -->
+        <Style Selector="Border.providerRow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.providerRow:focus-visible">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Border.providerRow:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+        </Style>
+        <Style Selector="Border.providerRow.selected">
+            <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+        </Style>
+        <Style Selector="StackPanel.providerSection">
+            <Setter Property="Margin" Value="0,0,0,14" />
+        </Style>
+        <!-- Add provider's action tags: accent for Add and Install, plain once added. -->
+        <Style Selector="Border.actionTag TextBlock.actionText">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Border.actionTag.added">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.actionTag.added TextBlock.actionText">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <Style Selector="ToggleSwitch.compact">
+            <Setter Property="OnContent" Value="" />
+            <Setter Property="OffContent" Value="" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="0" />
         </Style>
     </Window.Styles>
 
@@ -51,6 +91,7 @@
                         <Button Content="Graylog" Classes="settingsNav" Classes.selected="{Binding IsGraylogSectionSelected}" Command="{Binding SelectGraylogSectionCommand}" />
                         <Button Content="Unimus" Classes="settingsNav" Classes.selected="{Binding IsIntegrationsSectionSelected}" Command="{Binding SelectIntegrationsSectionCommand}" />
                         <Button Content="Intelligence" Classes="settingsNav" Classes.selected="{Binding IsIntelligenceSectionSelected}" Command="{Binding SelectIntelligenceSectionCommand}" />
+                        <Button Content="Providers" Classes="settingsNav" Classes.selected="{Binding IsIntelligenceProvidersSectionSelected}" Command="{Binding SelectIntelligenceProvidersSectionCommand}" />
                         <Button Content="Sensor definitions" Classes="settingsNav" Classes.selected="{Binding IsSensorDefinitionsSectionSelected}" Command="{Binding SelectSensorDefinitionsSectionCommand}" IsVisible="{Binding HasSensorDefinitions}" />
 
                         <TextBlock Text="APPLICATION" Classes="section" Margin="14,16,0,6" />
@@ -391,6 +432,22 @@
                                           DisplayMemberBinding="{ReflectionBinding Label}" MinWidth="140" AutomationProperties.Name="Ports layout" />
                                 <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
                                            Text="How the Ports tab in device details shows a device's ports. Table shows every detail in columns you can sort. Cards show each port's status, speed, traffic, errors and VLANs at a glance, several to a row. Search, Group by, export and port graphs work the same in both." />
+                            </StackPanel>
+                        </Border>
+                        <!-- #57: how Network Search writes MAC addresses, shown as LibreNMS shows the choice - an example address. -->
+                        <Border Classes="card" Margin="0,12,0,0">
+                            <StackPanel>
+                                <TextBlock Text="MAC addresses" Classes="section" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding MacFormatOptions}" SelectedItem="{Binding SelectedMacFormat}" MinWidth="180"
+                                          AutomationProperties.Name="Show MAC addresses as">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:MacFormatOption">
+                                            <TextBlock Text="{Binding Example}" FontFamily="{DynamicResource MonoFont}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="How Network Search shows MAC addresses, and writes them when you copy or export results. Search accepts any of these formats, whichever you choose." />
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -738,33 +795,7 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Text="AGENTS" Classes="section" Margin="0,8,0,6" />
-                        <Border Classes="card" Margin="0,0,0,12">
-                            <StackPanel>
-                                <DockPanel>
-                                    <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Classes="subtle" Text="Not connected" IsVisible="{Binding Intelligence.IsSignedOut}" />
-                                    <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Classes="ok" Text="Connected" IsVisible="{Binding Intelligence.IsSignedIn}" />
-                                    <TextBlock Text="ChatGPT" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                </DockPanel>
-                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,6,0,0"
-                                           Text="Uses your own ChatGPT Plus or Pro plan. Sign in through your browser - DashyNMS never sees your ChatGPT password." />
-                                <TextBlock Classes="subtle" Margin="0,10,0,0" Text="{Binding Intelligence.SignedInAsText}" IsVisible="{Binding Intelligence.IsSignedIn}" />
-                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0" Spacing="8">
-                                    <Button Content="Continue with ChatGPT" Classes="primary" Command="{Binding Intelligence.ConnectCommand}" IsVisible="{Binding Intelligence.IsSignedOut}" />
-                                    <Button Content="Manage usage" Command="{Binding Intelligence.ManageUsageCommand}" IsVisible="{Binding Intelligence.IsSignedIn}" />
-                                    <Button Content="Disconnect" Command="{Binding Intelligence.DisconnectCommand}" IsVisible="{Binding Intelligence.IsSignedIn}" />
-                                </StackPanel>
-                                <TextBlock Classes="error" TextWrapping="Wrap" Margin="0,12,0,0" Text="{Binding Intelligence.ErrorText}" IsVisible="{Binding Intelligence.HasError}" />
-                                <StackPanel Margin="0,16,0,0" IsVisible="{Binding Intelligence.IsSignedIn}">
-                                    <TextBlock Text="Default model" Classes="section" Margin="0,0,0,6" />
-                                    <ComboBox ItemsSource="{Binding Intelligence.Models}" SelectedValue="{Binding IntelligenceModel}"
-                                              SelectedValueBinding="{ReflectionBinding Slug}" DisplayMemberBinding="{ReflectionBinding DisplayName}"
-                                              Width="260" AutomationProperties.Name="Default model" />
-                                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
-                                               Text="What new conversations start with. The picker by the question box changes it for one conversation." />
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
+                        <Button Classes="link" HorizontalAlignment="Left" Margin="0,0,0,14" Content="Choose who answers in Providers ›" Command="{Binding SelectIntelligenceProvidersSectionCommand}" />
 
                         <TextBlock Text="REPLIES" Classes="section" Margin="0,8,0,6" />
                         <Border Classes="card" Margin="0,0,0,12">
@@ -781,6 +812,23 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Dashy's voice (#608): tone only, below DashyNMS's own rules. -->
+                        <TextBlock Text="PERSONALITY" Classes="section" Margin="0,8,0,6" />
+                        <Border Classes="card" Margin="0,0,0,12">
+                            <StackPanel>
+                                <CheckBox Content="Use a custom personality" IsChecked="{Binding IntelligencePersonalityEnabled}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,4,0,0"
+                                           Text="Describe how Dashy should sound: blunt and brief, patient for a junior engineer, or anything else. It changes tone and wording only. Dashy still checks its facts, uses only the read-only tools, says what it couldn't confirm and keeps to the detail level." />
+                                <TextBox Text="{Binding IntelligencePersonality}" Margin="0,10,0,0" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" MaxHeight="160"
+                                         MaxLength="{Binding IntelligencePersonalityLimit}"
+                                         PlaceholderText="For example: Be direct and brief. Lead with what's broken, skip pleasantries."
+                                         AutomationProperties.Name="Custom personality" />
+                                <TextBlock Classes="subtle" FontSize="11" HorizontalAlignment="Right" Margin="0,4,0,0" Text="{Binding IntelligencePersonalityCount}" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="It's sent with each question to the provider answering it, and saved with your settings on this computer, not in chats." />
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Text="WHAT'S SENT" Classes="section" Margin="0,8,0,6" />
                         <Border Classes="card">
                             <StackPanel>
@@ -788,7 +836,7 @@
                                            Text="Your questions, and what's looked up to answer them - device names, addresses, alerts, ports and log lines - go to the agent's provider to be processed. Passwords, tokens and SNMP communities are never sent." />
                                 <CheckBox Content="Allow web search" IsChecked="{Binding IntelligenceWebSearchEnabled}" Margin="0,14,0,0" />
                                 <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="28,4,0,0"
-                                           Text="Look up current firmware releases, vendor documentation and other public information, with source links. Search terms may be sent to search providers. Available where your selected model and ChatGPT account permit it." />
+                                           Text="Look up current firmware releases, vendor documentation and other public information, with source links. Search terms may be sent to search providers. Applies to ChatGPT, Codex, Claude Code and Gemini, where the model and account permit it. Web search is unavailable through GitHub Copilot in DashyNMS." />
                                 <TextBlock Text="Config backups" Classes="section" Margin="0,14,0,6" />
                                 <ComboBox ItemsSource="{Binding IntelligenceConfigTextOptions}" SelectedValue="{Binding IntelligenceConfigText}"
                                           SelectedValueBinding="{ReflectionBinding Key}" DisplayMemberBinding="{ReflectionBinding Value}"
@@ -798,6 +846,186 @@
                             </StackPanel>
                         </Border>
                     </StackPanel>
+
+                    <!-- ==================== Providers ==================== -->
+                    <!-- Who answers Intelligence questions (#316): a list on the left, the chosen provider's details on the right. -->
+                    <Grid IsVisible="{Binding IsIntelligenceProvidersSectionSelected}" RowDefinitions="Auto,Auto,Auto,*">
+                        <TextBlock Text="Providers" Classes="heading" Margin="0,0,0,8" />
+                        <TextBlock Grid.Row="1" Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,14"
+                                   Text="Who answers your Intelligence questions, each with your own plan. Removing one takes it out of the model picker and keeps its chats." />
+
+                        <DockPanel Grid.Row="2" Margin="0,0,0,12">
+                            <ComboBox DockPanel.Dock="Right" ItemsSource="{Binding IntelligenceProviders.Listed}" SelectedValue="{Binding IntelligenceProviders.DefaultProvider}"
+                                      SelectedValueBinding="{ReflectionBinding Id}" DisplayMemberBinding="{ReflectionBinding Name}"
+                                      Width="200" AutomationProperties.Name="Default provider" />
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Default provider" FontWeight="SemiBold" />
+                                <TextBlock Classes="subtle" TextWrapping="Wrap" Text="New chats start here when it's ready. Each chat keeps its own provider." />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <Border Grid.Row="3" Classes="card" Padding="0" ClipToBounds="True">
+                            <Grid ColumnDefinitions="210,*">
+                                <!-- The list: each provider with its picker switch, then Add provider. -->
+                                <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0" Padding="6">
+                                    <StackPanel>
+                                        <ItemsControl ItemsSource="{Binding IntelligenceProviders.Listed}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:IntelligenceProviderEntryViewModel">
+                                                    <Border Classes="providerRow" Classes.selected="{Binding IsSelected}" CornerRadius="6" Padding="8,8,6,8" Margin="0,0,0,2"
+                                                            Cursor="Hand" PointerPressed="OnProviderRowPressed" KeyDown="OnProviderRowKeyDown" Focusable="True"
+                                                            AutomationProperties.Name="{Binding Name}" AutomationProperties.HelpText="{Binding StatusLine}">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                                            <intel:ProviderIcon Provider="{Binding IconId}" Size="16" VerticalAlignment="Top" Margin="0,2,8,0" />
+                                                            <StackPanel Grid.Column="1">
+                                                                <TextBlock TextTrimming="CharacterEllipsis">
+                                                                    <Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                                                                </TextBlock>
+                                                                <TextBlock Text="{Binding VersionText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                           IsVisible="{Binding VersionText, Converter={x:Static ObjectConverters.IsNotNull}}" TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Text="{Binding StatusLine}" FontSize="12" TextWrapping="Wrap" Classes="subtle" Classes.ok="{Binding IsReady}" />
+                                                            </StackPanel>
+                                                            <Button Grid.Column="2" Classes="icon" Width="26" Height="26" VerticalAlignment="Top" Command="{Binding RemoveCommand}"
+                                                                    ToolTip.Tip="{Binding RemoveTip}" AutomationProperties.Name="{Binding Name, StringFormat='Remove {0}'}">
+                                                                <fi:SymbolIcon Symbol="Delete" FontSize="13" />
+                                                            </Button>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Margin="0,4,0,0">
+    <Button Classes="bare" Margin="8,8,0,4" Command="{Binding IntelligenceProviders.AddCommand}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <fi:SymbolIcon Symbol="Add" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <TextBlock Text="Add provider" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            </StackPanel>
+                                        </Button>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- The chosen provider's details: one panel per provider, so its lists keep their own selections. -->
+                                <ItemsControl Grid.Column="1" ItemsSource="{Binding IntelligenceProviders.Listed}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><Panel /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:IntelligenceProviderEntryViewModel">
+                                <StackPanel Margin="16,12,16,14" IsVisible="{Binding IsSelected}">
+                                    <DockPanel Margin="0,0,0,10">
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding VersionText}" FontFamily="Cascadia Mono, Consolas, Menlo, monospace" FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                        <intel:ProviderIcon DockPanel.Dock="Left" Provider="{Binding IconId}" Size="18" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </DockPanel>
+
+                                    <!-- ChatGPT: one connection at a time. -->
+                                    <StackPanel IsVisible="{Binding IsChatGpt}" Classes="providerSection">
+                                        <TextBlock Text="Connect with" FontWeight="SemiBold" />
+                                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,2,0,8"
+                                                   Text="Both use your ChatGPT plan. Signing in talks to OpenAI directly; Codex runs on this computer with its own sign-in. Chats made the other way stay saved for when you switch back." />
+                                        <Border Classes="navTabTrack" HorizontalAlignment="Left">
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton Classes="navTab" GroupName="ChatGptConnection" Content="Sign in" IsChecked="{Binding UsesSignIn, Mode=OneWay}" Command="{Binding UseSignInCommand}" />
+                                                <RadioButton Classes="navTab" GroupName="ChatGptConnection" Content="Codex" IsChecked="{Binding UsesCodex, Mode=OneWay}" Command="{Binding UseCodexCommand}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <!-- ChatGPT through DashyNMS's own sign-in. -->
+                                    <StackPanel IsVisible="{Binding UsesSignIn}" Classes="providerSection">
+                                        <TextBlock Text="Account" FontWeight="SemiBold" />
+                                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,2,0,8" Text="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.SignedInAsText}"
+                                                   IsVisible="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.IsSignedIn}" />
+                                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,2,0,8" Text="Sign in through your browser. DashyNMS never sees your ChatGPT password. Needs Plus or Pro."
+                                                   IsVisible="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.IsSignedOut}" />
+                                        <WrapPanel>
+                                            <Button Content="Continue with ChatGPT" Classes="primary" Margin="0,0,8,6" Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.ConnectCommand}"
+                                                    IsVisible="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.IsSignedOut}" />
+                                            <Button Content="Manage usage" Margin="0,0,8,6" Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.ManageUsageCommand}"
+                                                    IsVisible="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.IsSignedIn}" />
+                                            <Button Content="Disconnect" Margin="0,0,8,6" Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.DisconnectCommand}"
+                                                    IsVisible="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.IsSignedIn}" />
+                                        </WrapPanel>
+                                        <TextBlock Classes="error" TextWrapping="Wrap" Text="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.ErrorText}"
+                                                   IsVisible="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.HasError}" />
+                                    </StackPanel>
+
+                                    <!-- An agent on this computer: Codex for ChatGPT, Claude Code, or another. -->
+                                    <StackPanel IsVisible="{Binding IsAgentRoute}" Classes="providerSection">
+                                        <TextBlock Text="Account" FontWeight="SemiBold" />
+                                        <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,2,0,0" Text="{Binding Agent.Provider.AccountText, FallbackValue=''}"
+                                                   IsVisible="{Binding Agent.Provider.AccountText, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}" />
+                                        <TextBlock TextWrapping="Wrap" Margin="0,4,0,0" Text="{Binding Agent.Provider.DetailText, FallbackValue=''}" IsVisible="{Binding Agent.Provider.HasDetail, FallbackValue=False}" />
+                                        <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="6" Padding="10,4,4,4" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                                IsVisible="{Binding Agent.Provider.HasSetupCommand, FallbackValue=False}">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <SelectableTextBlock Text="{Binding Agent.Provider.SetupCommandText, FallbackValue=''}" FontFamily="Cascadia Mono, Consolas, Menlo, monospace" VerticalAlignment="Center" />
+                                                <Button Classes="icon" ToolTip.Tip="Copy command" AutomationProperties.Name="Copy command" Command="{Binding Agent.CopySetupCommand, FallbackValue={x:Null}}">
+                                                    <fi:SymbolIcon Symbol="Copy" />
+                                                </Button>
+                                            </StackPanel>
+                                        </Border>
+                                        <Button Content="Check again" Margin="0,8,0,0" HorizontalAlignment="Left" Command="{Binding Agent.CheckCommand, FallbackValue={x:Null}}" />
+
+                                        <TextBlock Text="Executable" FontWeight="SemiBold" Margin="0,14,0,4" />
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Content="Browse…" Margin="8,0,0,0" Command="{Binding Agent.BrowseCommand, FallbackValue={x:Null}}" />
+                                            <TextBox Text="{Binding Agent.ExecutablePath, FallbackValue=''}" Watermark="Found automatically" AutomationProperties.Name="Executable" />
+                                        </DockPanel>
+                                    </StackPanel>
+
+                                    <!-- Usage, as the provider reported it. -->
+                                    <StackPanel IsVisible="{Binding Route.HasUsage, FallbackValue=False}" Classes="providerSection">
+                                        <TextBlock Text="Usage" FontWeight="SemiBold" />
+                                        <TextBlock Classes="subtle" Margin="0,2,0,0" Text="{Binding Route.UsageText, FallbackValue=''}" />
+                                    </StackPanel>
+
+                                    <!-- What new chats start with. -->
+                                    <StackPanel IsVisible="{Binding HasModels}" Classes="providerSection">
+                                        <TextBlock Text="Default setup" FontWeight="SemiBold" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0" IsVisible="{Binding IsAgentRoute}">
+                                            <ComboBox ItemsSource="{Binding Agent.Provider.Models, FallbackValue={x:Null}}" SelectedValue="{Binding Agent.DefaultModel, FallbackValue={x:Null}}"
+                                                      SelectedValueBinding="{ReflectionBinding Id}" DisplayMemberBinding="{ReflectionBinding Name}" Width="190" AutomationProperties.Name="Default model" ToolTip.Tip="What new chats start with" />
+                                            <ComboBox ItemsSource="{Binding Agent.DefaultEfforts, FallbackValue={x:Null}}" SelectedIndex="{Binding Agent.DefaultEffortIndex, FallbackValue=-1}"
+                                                      DisplayMemberBinding="{ReflectionBinding Value}" Width="160"
+                                                      IsVisible="{Binding Agent.HasDefaultEfforts, FallbackValue=False}" AutomationProperties.Name="Default reasoning" ToolTip.Tip="How much new chats reason" />
+                                        </StackPanel>
+                                        <ComboBox Margin="0,8,0,0" IsVisible="{Binding UsesSignIn}" ItemsSource="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).Intelligence.Models}"
+                                                  SelectedValue="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).IntelligenceModel}" SelectedValueBinding="{ReflectionBinding Slug}"
+                                                  DisplayMemberBinding="{ReflectionBinding DisplayName}" Width="190" AutomationProperties.Name="Default model" ToolTip.Tip="What new chats start with" />
+                                    </StackPanel>
+
+                                    <!-- Which models the picker shows. -->
+                                    <StackPanel IsVisible="{Binding HasModels}" Classes="providerSection">
+                                        <DockPanel Margin="0,0,0,6">
+                                            <TextBlock DockPanel.Dock="Right" Classes="subtle" FontSize="12" Text="{Binding ModelsSummary}" VerticalAlignment="Center" />
+                                            <TextBlock Text="Available models" FontWeight="SemiBold" />
+                                        </DockPanel>
+                                        <ItemsControl ItemsSource="{Binding Models}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:IntelligenceProviderEntryViewModel+ModelSwitch">
+                                                    <DockPanel Margin="0,2">
+                                                        <ToggleSwitch DockPanel.Dock="Right" Classes="compact" IsChecked="{Binding IsShown}"
+                                                                      AutomationProperties.Name="{Binding Name, StringFormat='Show {0} in the model picker'}" />
+                                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                                    </DockPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+
+                                </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+
+                    </Grid>
 
                     <!-- ==================== About ==================== -->
                     <StackPanel IsVisible="{Binding IsAboutSectionSelected}">
@@ -879,7 +1107,10 @@
                                 <CheckBox Content="Download updates automatically" IsChecked="{Binding DownloadUpdatesAutomatically}"
                                           IsVisible="{Binding CanDownloadUpdates}" />
                                 <TextBlock Text="{Binding DownloadUpdatesDescription}" Classes="subtle" TextWrapping="Wrap" />
-                                <CheckBox Content="Include preview builds" IsChecked="{Binding IncludePreviewBuilds}" />
+                                <TextBlock Text="Update channel" />
+                                <ComboBox ItemsSource="{Binding UpdateChannelOptions}" SelectedItem="{Binding SelectedUpdateChannel}"
+                                          DisplayMemberBinding="{ReflectionBinding Label}" MinWidth="140" AutomationProperties.Name="Update channel" />
+                                <TextBlock Text="{Binding UpdateChannelDescription}" Classes="subtle" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -935,11 +1166,63 @@
         </Grid>
 
         <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="24,14">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <DockPanel LastChildFill="False">
+                <Button DockPanel.Dock="Left" Classes="link" VerticalAlignment="Center" Command="{Binding HelpCommand}" AutomationProperties.Name="Help with this section"
+                        ToolTip.Tip="Help with this section (F1)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <fi:SymbolIcon Symbol="QuestionCircle" FontSize="16" Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="Help" />
+                    </StackPanel>
+                </Button>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
                 <Button Content="Cancel" IsCancel="True" Click="OnCancel" />
                 <Button Content="Apply" Command="{Binding SaveCommand}" CommandParameter="apply" />
                 <Button Content="Apply &amp; Save" Command="{Binding SaveCommand}" Classes="primary" IsDefault="True" />
             </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Add provider (#316): over the whole window, every provider DashyNMS supports with what each needs. -->
+        <Border Grid.Row="0" Grid.RowSpan="2" Background="#99000000" IsVisible="{Binding IntelligenceProviders.IsAdding}" ZIndex="20">
+            <Border Classes="card" MaxWidth="600" Margin="24" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="18">
+                <StackPanel>
+                    <TextBlock Text="Add provider" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,2,0,12" Text="Answers come from your own plan with the provider." />
+                    <ItemsControl ItemsSource="{Binding IntelligenceProviders.All}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:IntelligenceProviderEntryViewModel">
+                                <Button Margin="0,0,8,8" Padding="12,10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                        VerticalContentAlignment="Center" Command="{Binding ChooseCommand}" ToolTip.Tip="{Binding AddNote}"
+                                        AutomationProperties.Name="{Binding ActionName}">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <intel:ProviderIcon Provider="{Binding IconId}" Size="16" VerticalAlignment="Top" Margin="0,2,10,0" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="{Binding AddNote}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" IsVisible="{Binding CanAdd}" />
+                                        </StackPanel>
+                                        <!-- What choosing the card does: add it, open its install page, or nothing once it's added. -->
+                                        <Border Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0" CornerRadius="10" Padding="8,2"
+                                                Background="{DynamicResource AccentSubtleBrush}" Classes.added="{Binding IsListed}" Classes="actionTag">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <fi:SymbolIcon Symbol="Add" FontSize="11" IsVisible="{Binding ShowAdd}" Foreground="{DynamicResource AccentBrush}" />
+                                                <fi:SymbolIcon Symbol="Open" FontSize="11" IsVisible="{Binding ShowInstall}" Foreground="{DynamicResource AccentBrush}" />
+                                                <fi:SymbolIcon Symbol="Checkmark" FontSize="11" IsVisible="{Binding IsListed}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <TextBlock Text="{Binding ActionText}" FontSize="11" FontWeight="SemiBold" Classes="actionText" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,8" IsVisible="{Binding !IntelligenceProviders.HasAddable}"
+                               Text="Every provider DashyNMS supports is already in your list." />
+                    <Button Content="Cancel" HorizontalAlignment="Right" Margin="0,6,0,0" Command="{Binding IntelligenceProviders.CancelAddCommand}" />
+                </StackPanel>
+            </Border>
         </Border>
 
         <views:SmileAndWaveOverlay Name="SmileAndWave" Grid.Row="0" />

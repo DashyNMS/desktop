@@ -84,7 +84,7 @@ DashyNMS talks to your own LibreNMS server, and to Graylog and Unimus only if yo
 
 The current release, 1.1, is for Windows. Download the installer from the [latest release](https://github.com/DashyNMS/desktop/releases/latest) and run it. It installs just for your Windows account, so you don't need admin rights.
 
-Version 2.0 runs on Windows, macOS and Linux, and you can try it now from the [preview releases](https://github.com/DashyNMS/desktop/releases). The [user guide](docs/guide/README.md) explains how to install, update and remove it on each system.
+Version 2.0 runs on Windows, macOS and Linux, and you can try it now from the [nightly builds](https://github.com/DashyNMS/desktop/releases). The [user guide](docs/guide/README.md) explains how to install, update and remove it on each system.
 
 ## What you need
 
