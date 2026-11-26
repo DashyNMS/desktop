@@ -12,6 +12,9 @@ internal static class GeminiOutputGuard
 {
     internal const string HookArgument = "--check-gemini-output-read";
 
+    internal static bool IsSupportedVersion(string version)
+        => Version.TryParse(version, out var cliVersion) && cliVersion >= new Version(1, 5, 17);
+
     internal static string Home => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gemini");
 
     /// <summary>
@@ -55,7 +58,7 @@ internal static class GeminiOutputGuard
         try
         {
             if (JsonNode.Parse(input) is not JsonObject request || request["toolCall"] is not JsonObject tool ||
-                tool["name"]?.ToString() is not ("read_file" or "view_file")) return deny;
+                tool["name"]?.ToString() != "read_file") return deny;
 
             var conversation = request["conversationId"]?.ToString();
             return AllowsRead(geminiHome, conversation, tool["args"] as JsonObject) ? """{"decision":"allow"}""" : deny;

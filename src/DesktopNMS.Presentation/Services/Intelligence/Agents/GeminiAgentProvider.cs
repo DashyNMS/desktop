@@ -107,7 +107,7 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
         }
 
         var version = Version().Match(versionLine) is { Success: true } m ? m.Value : versionLine;
-        _supportsOutputReadHook = System.Version.TryParse(version, out var cliVersion) && cliVersion >= new System.Version(1, 5, 17);
+        _supportsOutputReadHook = GeminiOutputGuard.IsSupportedVersion(version);
         _executable = executable;
 
         // agy has no sign-in status command, but listing models needs a sign-in and says so without one.

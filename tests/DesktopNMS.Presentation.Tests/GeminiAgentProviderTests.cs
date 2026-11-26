@@ -152,6 +152,36 @@ public sealed class GeminiAgentProviderTests : IDisposable
         Assert.Equal(IntelligenceFailure.Tools, GeminiAgentProvider.Read(Step(4, "DONE", "read_url_content"), stream, listener)!.Failure);
     }
 
+    [Theory]
+    [InlineData("1.5.16", false)]
+    [InlineData("1.5.17", true)]
+    [InlineData("1.6", true)]
+    [InlineData("unknown", false)]
+    public void The_hook_requires_a_supported_cli(string version, bool supported)
+        => Assert.Equal(supported, GeminiOutputGuard.IsSupportedVersion(version));
+
+    [Fact]
+    public void The_hook_launches_only_a_qualified_app_host()
+    {
+        Assert.Null(GeminiOutputGuard.CreateHook(null));
+        Assert.Null(GeminiOutputGuard.CreateHook("DashyNMS"));
+        Assert.Null(GeminiOutputGuard.CreateHook(Path.Combine(_geminiHome, "dotnet")));
+
+        var executable = Path.Combine(_geminiHome, "O'Brien's DashyNMS", OperatingSystem.IsWindows() ? "DashyNMS.exe" : "DashyNMS");
+        var hook = GeminiOutputGuard.CreateHook(executable)!;
+        var command = hook["dashynms-output-read"]!["PreToolUse"]![0]!["hooks"]![0]!["command"]!.GetValue<string>();
+        Assert.EndsWith(" " + GeminiOutputGuard.HookArgument, command, StringComparison.Ordinal);
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.StartsWith($"\"{executable}\"", command, StringComparison.Ordinal);
+            Assert.Null(GeminiOutputGuard.CreateHook(Path.Combine(_geminiHome, "%unsafe%", "DashyNMS.exe")));
+        }
+        else
+        {
+            Assert.Contains("O'\"'\"'Brien", command, StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public void The_pre_tool_hook_denies_other_reads_before_execution()
     {
@@ -171,6 +201,8 @@ public sealed class GeminiAgentProviderTests : IDisposable
         Assert.Equal("deny", Decision());
         request["toolCall"]!["args"]!["Path"] = output;
         request["toolCall"]!["name"] = "grep_search";
+        Assert.Equal("deny", Decision());
+        request["toolCall"]!["name"] = "view_file";
         Assert.Equal("deny", Decision());
         Assert.Contains("deny", GeminiOutputGuard.HookDecision("{", _geminiHome), StringComparison.Ordinal);
 

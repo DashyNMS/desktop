@@ -5,6 +5,7 @@ using DesktopNMS.Diagnostics;
 using DesktopNMS.Services.Intelligence.Agents;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace DesktopNMS;
 
@@ -23,7 +24,9 @@ internal static class Program
     {
         if (args is [GeminiOutputGuard.HookArgument])
         {
-            Console.Out.WriteLine(GeminiOutputGuard.HookDecision(Console.In.ReadToEnd(), GeminiOutputGuard.Home));
+            using var reader = new StreamReader(Console.OpenStandardInput(), Encoding.UTF8);
+            using var writer = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false));
+            writer.WriteLine(GeminiOutputGuard.HookDecision(reader.ReadToEnd(), GeminiOutputGuard.Home));
             return;
         }
 
