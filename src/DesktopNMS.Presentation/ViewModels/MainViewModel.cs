@@ -307,7 +307,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand SelectIntelligenceTabCommand { get; }
 
-    /// <summary>The sidebar's search icon and Ctrl/Cmd+Shift+F: Network Search, with the cursor in its box.</summary>
+    /// <summary>The sidebar's compass and Ctrl/Cmd+Shift+F: Network Search, with the cursor in its box.</summary>
     public RelayCommand SelectNetworkSearchTabCommand { get; }
 
     public RelayCommand SelectHelpTabCommand { get; }
