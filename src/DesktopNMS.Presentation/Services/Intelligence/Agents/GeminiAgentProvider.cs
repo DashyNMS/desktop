@@ -107,8 +107,11 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
         }
 
         var version = Version().Match(versionLine) is { Success: true } m ? m.Value : versionLine;
-        _supportsOutputReadHook = GeminiOutputGuard.IsSupportedVersion(version);
-        _executable = executable;
+        lock (_sync)
+        {
+            _executable = executable;
+            _supportsOutputReadHook = GeminiOutputGuard.IsSupportedVersion(version);
+        }
 
         // agy has no sign-in status command, but listing models needs a sign-in and says so without one.
         var output = await OutputAsync(executable, ["models"], cancellationToken).ConfigureAwait(false);
@@ -169,14 +172,22 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
     public async Task<AgentTurnResult> AskAsync(AgentTurn turn, AgentToolSession tools, IIntelligenceListener listener, CancellationToken cancellationToken)
     {
         int generation;
-        lock (_sync) generation = _generation;
-        var executable = _executable ?? throw new AgentProviderException("Gemini isn't set up yet. Check it in Settings › Providers.",
+        string? executable;
+        bool supportsOutputReadHook;
+        lock (_sync)
+        {
+            generation = _generation;
+            executable = _executable;
+            supportsOutputReadHook = _supportsOutputReadHook;
+        }
+
+        if (executable is null) throw new AgentProviderException("Gemini isn't set up yet. Check it in Settings › Providers.",
             IntelligenceFailure.Tools, AgentProviderState.NotInstalled);
         var workspace = Path.Combine(_workingDirectory, Guid.NewGuid().ToString("N"));
         var settings = Path.Combine(Path.GetTempPath(), "dashynms-gemini-" + Guid.NewGuid().ToString("N") + ".json");
         var stream = new StreamState(turn.Session) { WebSearch = turn.WebSearch };
         // Earlier CLIs have not been verified to enforce PreToolUse in headless mode.
-        var readHook = _supportsOutputReadHook ? GeminiOutputGuard.CreateHook(Environment.ProcessPath) : null;
+        var readHook = supportsOutputReadHook ? GeminiOutputGuard.CreateHook(Environment.ProcessPath) : null;
         var fileReadDenials = readHook is null ? ["read_file(*)"] : UserFileReadDenials();
         try
         {
