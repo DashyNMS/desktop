@@ -69,6 +69,9 @@ def workflow_errors(data, path, retained_credentials=()):
     for job_id, job in data.get("jobs", {}).items():
         for step in job.get("steps", []):
             uses = step.get("uses", "")
+            if (step.get("run", "").strip() == "python scripts/security_check.py"
+                    and step.get("if") not in ("!cancelled()", "${{ !cancelled() }}")):
+                errors.append(f"{path}/{job_id}: Python and secret scans must run independently of earlier audit failures")
             if uses and not uses.startswith("./") and not SHA.fullmatch(uses.rsplit("@", 1)[-1]):
                 errors.append(f"{path}/{job_id}: external actions must use full commit SHAs")
             if privileged_event and uses.startswith("actions/checkout@"):

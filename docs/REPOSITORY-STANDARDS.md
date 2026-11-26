@@ -43,7 +43,11 @@ depends on security, including retries that only promote a previously built
 catalogue. Its feed activation still uses a normal fast-forward push.
 
 NuGet audits include transitive dependencies and fail on high/critical advisories
-or unavailable audit metadata. pip-audit checks every tracked requirements file
+or unavailable audit metadata. Every attempted NuGet restore records its result
+in `artifacts/security/nuget-audit.json`, including failed restores. Python and
+secret checks still run after a NuGet failure, while the security gate stays
+failed; cancellation stops further work. pip-audit checks every tracked
+requirements file
 and fails on unresolved advisories or resolution errors. Bandit checks Python
 helpers at medium/high severity. CodeQL uses `security-extended` on every
 configured language. GitHub secret scanning and push protection stay enabled.

@@ -23,6 +23,21 @@ def new_secrets(report, baseline):
             for row in rows if (path, row["type"], row["hashed_secret"]) not in known]
 
 
+def run_commands(commands, output):
+    failed = False
+    audits = []
+    for command in commands:
+        result = subprocess.run(command, cwd=ROOT, check=False)
+        failed |= result.returncode != 0
+        if command[:2] == ["dotnet", "restore"]:
+            audits.append({"project": command[2], "returncode": result.returncode})
+    if audits:
+        (output / "nuget-audit.json").write_text(json.dumps({
+            "mode": "all", "minimum_severity": "high", "projects": audits,
+        }, indent=2) + "\n")
+    return failed
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--nuget", action="store_true", help="also restore and audit the configured .NET projects")
@@ -46,10 +61,7 @@ def main():
             commands.append(["dotnet", "restore", project, "-p:NuGetAudit=true", "-p:NuGetAuditMode=all", "-p:NuGetAuditLevel=high"])
     if args.nuget_only:
         commands = [command for command in commands if command[0] == "dotnet"]
-    failed = False
-    for command in commands:
-        result = subprocess.run(command, cwd=ROOT, check=False)
-        failed |= result.returncode != 0
+    failed = run_commands(commands, output)
     if args.nuget_only:
         return int(failed)
     command = [sys.executable, "-m", "detect_secrets", "scan", "--no-verify", "--filter", "scripts/security_filters.py::is_integrity_digest", "--exclude-files", r"(^|/)\.secrets\.baseline$"]

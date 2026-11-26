@@ -41,6 +41,7 @@ jobs:
           DASHYNMS_PACKAGES_TOKEN: ${{ github.token }}
         run: python scripts/security_check.py --nuget-only
       - name: Audit Python dependencies and secret candidates
+        if: ${{ !cancelled() }}
         run: python scripts/security_check.py
       - name: Retain security evidence
         if: always()

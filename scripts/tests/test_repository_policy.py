@@ -43,6 +43,14 @@ class WorkflowPolicyTests(unittest.TestCase):
         data["permissions"] = "write-all"
         self.assertTrue(policy.workflow_errors(data, "ci.yml"))
 
+    def test_python_and_secret_scans_survive_an_earlier_failure(self):
+        data = self.workflow()
+        scan = {"run": "python scripts/security_check.py"}
+        data["jobs"]["build"]["steps"].append(scan)
+        self.assertTrue(policy.workflow_errors(data, "security.yml"))
+        scan["if"] = "${{ !cancelled() }}"
+        self.assertEqual([], policy.workflow_errors(data, "security.yml"))
+
     def test_privileged_metadata_workflows_cannot_check_out_code(self):
         data = self.workflow()
         data["on"] = {"pull_request_target": {"types": ["opened"]}}

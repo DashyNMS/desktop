@@ -1,11 +1,28 @@
 import importlib.util
+import json
 from pathlib import Path
+import subprocess
+import tempfile
 import unittest
+from unittest.mock import patch
 
 PATH = Path(__file__).resolve().parents[1] / "security_check.py"
 spec = importlib.util.spec_from_file_location("security_check", PATH)
 security = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(security)
+
+
+class AuditFailureTests(unittest.TestCase):
+    def test_a_failed_restore_does_not_hide_later_results_or_evidence(self):
+        commands = [["dotnet", "restore", "first.csproj"], ["dotnet", "restore", "second.csproj"]]
+        results = [subprocess.CompletedProcess(commands[0], 1), subprocess.CompletedProcess(commands[1], 0)]
+        with tempfile.TemporaryDirectory() as folder, patch.object(security.subprocess, "run", side_effect=results) as run:
+            output = Path(folder)
+            self.assertTrue(security.run_commands(commands, output))
+            self.assertEqual(2, run.call_count)
+            evidence = json.loads((output / "nuget-audit.json").read_text())
+            self.assertEqual([{"project": "first.csproj", "returncode": 1},
+                              {"project": "second.csproj", "returncode": 0}], evidence["projects"])
 
 
 class SecretBaselineTests(unittest.TestCase):
