@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -29,8 +30,9 @@ namespace DesktopNMS.Services.Intelligence.Agents;
 /// and the browser, and anything else that would need approval is refused
 /// because a headless run can't ask; DashyNMS's tools are loaded up front
 /// from a workspace configuration in a fresh folder of DashyNMS's own, so the
-/// user's global configuration is never changed; and any step outside what's
-/// allowed stops the answer - the refused tools only when one gets through.
+/// user's global configuration is never changed; and the stream guard stops
+/// the answer on an unexpected tool or file read. Antigravity can only use
+/// its own generated MCP output files for the current conversation.
 /// </para>
 /// <para>
 /// Antigravity reads no header from the environment, so the bridge's token is
@@ -253,14 +255,17 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
     /// <summary>
     /// This run's permissions, never saved: DashyNMS's tools allowed; commands,
     /// writes, web pages, the browser, the user's own MCP servers and the
-    /// folder holding the token refused.
+    /// workspace holding the token refused. The CLI's wildcard deny takes
+    /// precedence over a narrower allow and would block generated output as
+    /// well. Use headless review for other external files and validate the
+    /// CLI's implicit access to its generated output in the stream guard.
     /// </summary>
     internal static JsonObject SessionSettings(string workspace, IEnumerable<string> userServers)
     {
         var deny = new List<string>
         {
             "command(*)", "write_file(*)", "read_url(*)", "execute_url(*)", "download_url(*)",
-            "read_file(" + Path.Combine(workspace, ".agents").Replace('\\', '/') + "/)",
+            "read_file(" + workspace.Replace('\\', '/') + "/)",
         };
         deny.AddRange(userServers.Where(s => s != BridgeServerName).Select(s => "mcp(" + s + "/*)"));
         return new JsonObject
@@ -270,6 +275,9 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
                 ["allow"] = new JsonArray("mcp(" + BridgeServerName + "/*)"),
                 ["deny"] = new JsonArray(deny.Select(d => (JsonNode?)JsonValue.Create(d)).ToArray()),
             },
+            // Newer versions default to Auto, which may read outside the workspace without asking.
+            ["agentMode"] = "",
+            ["allowNonWorkspaceAccess"] = false,
             ["toolPermission"] = "request-review",
             ["disableSlashCommands"] = true,
         };
@@ -383,8 +391,12 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
                     return null;
                 }
 
-                // A refused tool fails on its own and the answer goes on; only one that got through stops it.
-                if (Refused.Contains(tool) && state != "DONE") return null;
+                if (tool == "read_file")
+                {
+                    if (state is not ("ACTIVE" or "DONE") || IsGeneratedOutputRead(step, stream)) return null;
+                }
+                // Other refused tools fail on their own; only one that got through stops the answer.
+                else if (Refused.Contains(tool) && state != "DONE") return null;
                 stream.RefusedTool = tool;
                 return new AgentProviderException(
                     "Gemini tried to use one of Antigravity's own tools, which DashyNMS doesn't allow in Intelligence chats, so the answer was stopped. Try asking again.",
@@ -392,6 +404,43 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
         }
 
         return null;
+    }
+
+    /// <summary>Only numbered tool-output files from the active conversation are eligible for a read.</summary>
+    private static bool IsGeneratedOutputRead(JsonObject step, StreamState stream)
+    {
+        if (!Guid.TryParseExact(stream.Session, "D", out _) || step["conversation_id"]?.ToString() != stream.Session ||
+            step["tool_info"]?["parameters"]?["Path"] is not JsonValue value ||
+            !value.TryGetValue<string>(out var path) || !Path.IsPathFullyQualified(path)) return false;
+
+        var root = stream.GeminiHome;
+        var directories = new[] { "antigravity-cli", "brain", stream.Session!, ".system_generated", "steps" };
+        var steps = Path.Combine(root, Path.Combine(directories));
+        var prefix = steps + Path.DirectorySeparatorChar;
+        path = path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        if (!path.StartsWith(prefix, StringComparison.Ordinal)) return false;
+
+        var parts = path[prefix.Length..].Split(Path.DirectorySeparatorChar);
+        if (parts.Length != 2 || parts[1] != "output.txt" ||
+            !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out _)) return false;
+
+        try
+        {
+            // Reject links and junctions at each level before inspecting anything inside them.
+            const FileAttributes directory = FileAttributes.Directory | FileAttributes.ReparsePoint;
+            if ((File.GetAttributes(root) & directory) != FileAttributes.Directory) return false;
+            foreach (var segment in directories.Append(parts[0]))
+            {
+                root = Path.Combine(root, segment);
+                if ((File.GetAttributes(root) & directory) != FileAttributes.Directory) return false;
+            }
+
+            return (File.GetAttributes(path) & directory) == 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return false;
+        }
     }
 
     /// <summary>One of DashyNMS's tools, called directly or through Antigravity's general MCP tool.</summary>
@@ -566,8 +615,10 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
     private static partial Regex PlainName();
 
     /// <summary>What one question's stream has said so far.</summary>
-    internal sealed class StreamState(string? session)
+    internal sealed class StreamState(string? session, string? geminiHome = null)
     {
+        public string GeminiHome { get; } = geminiHome ?? Home();
+
         public string? Session { get; set; } = session;
 
         public string? Answer { get; set; }
