@@ -64,10 +64,9 @@ def main():
         (output / "secrets.json").write_text(json.dumps(report, indent=2) + "\n")
         baseline = json.loads((ROOT / ".secrets.baseline").read_text())
         findings = new_secrets(report, baseline)
-        for path, line, kind in findings:
-            print(f"Unreviewed secret candidate: {path}:{line} ({kind})")
         failed |= bool(findings)
-        print(f"Secret scan: {len(findings)} unreviewed candidates. Reports: artifacts/security")
+        # Keep scan-derived metadata in the report rather than copying it to CI logs.
+        print("Secret scan needs review; see artifacts/security." if findings else "Secret scan passed.")
     return int(failed)
 
 

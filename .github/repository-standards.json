@@ -1,13 +1,13 @@
 {
   "version": 1,
   "source": "DashyNMS/.github",
-  "revision": "f87c6d2b8b8adfdc6d07c2df7e57fe1152fe4ee1",
+  "revision": "89e53bb8a9c7dc82de5a9bab9f3f55785ececef3",
   "files": {
     ".github/workflows/link-dependency-issue.yml": "aa445540e0fbccad3ae13395c11a61b9a56881bfcddcaadeccb2b5e9c673c183",
     "scripts/security_filters.py": "6de234c9218f8e5f21cf9f4b0c32bb9cf07b3da606c1f88b2f601ebf62012cbf",
     "scripts/tests/test_security_filters.py": "c782ea002970f2272e5d144549209f8881049ca97bfb692ee926a49bcf8af2c7",
     "scripts/repository_policy.py": "bf973219de0956ba6aaea88eabf5a1e60b1806b69d835a519c406a783dc6d443",
-    "scripts/security_check.py": "b5ef71d6c92ef23fdb6615ada634e101884d0e6bb72271682f8b4563b1a2d0c4",
+    "scripts/security_check.py": "067489c934bee1b8b98fd5d67e196097540dac997e5460b5bfeea014aa14fe46",
     "scripts/tests/test_repository_policy.py": "1a6c5626aa743ed6a39e3eb2b704db2921003d4989093e86ddf78069c3a4bf3e",
     "scripts/tests/test_security_check.py": "8104cecc4933a53726323c7225f1cfd7c78717629b6897dc5cb057864d42b6b6",
     "requirements-security.txt": "c0eb3bbb4547697674db1bc188d5f64d3a3b115a1e388c2901160855cd5b990b",
