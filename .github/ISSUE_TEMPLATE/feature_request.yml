@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest a capability or improvement
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Explain the task and what currently gets in the way
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Proposed result
+      description: Describe what someone should be able to do or see
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and affected platforms
+      description: Mention workarounds, upstream requirements and affected apps or readers
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked existing requests and used synthetic examples without credentials or customer details.
+          required: true

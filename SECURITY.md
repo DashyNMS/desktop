@@ -11,7 +11,7 @@ Report it privately instead: on this repository, go to **Security → Report a v
 It helps to include:
 
 - what the problem is and what someone could do with it
-- the steps to reproduce it, and the app version (shown in Settings → About) and your version of Windows
+- the steps to reproduce it, and the app version (shown in Settings → About) and your operating system and version
 - anything you've found about how to fix it
 
 ## What happens next
@@ -39,6 +39,12 @@ Security fixes go into the **latest release** on the [Releases page](https://git
 - problems in LibreNMS itself. Please report those to the [LibreNMS project](https://github.com/librenms/librenms/security).
 - problems in Graylog or Unimus themselves
 - how a particular server is set up or secured
-- problems that need a Windows account or computer that's already been compromised
+- problems that need an operating-system account or computer that's already been compromised
 
 Known, open security issues are tracked publicly once it's safe to do so.
+
+## Repository checks
+
+[Repository standards](docs/REPOSITORY-STANDARDS.md) describes dependency audits,
+secret scanning, CodeQL analysis and publication gates. Passing a scan does not
+guarantee that no vulnerability exists. Report suspected vulnerabilities privately.
