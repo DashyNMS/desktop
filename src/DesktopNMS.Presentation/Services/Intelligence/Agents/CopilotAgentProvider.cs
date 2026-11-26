@@ -347,15 +347,17 @@ public sealed partial class CopilotAgentProvider : IAgentProvider
     };
 
     /// <summary>
-    /// The first question of a chat carries DashyNMS's instructions, since the
-    /// CLI takes no system prompt; a resumed session already has them.
+    /// The CLI takes no system prompt. Start a chat with DashyNMS's instructions
+    /// and restate the web search limitation on resumed turns, which can include
+    /// older instructions that incorrectly blamed a setting.
     /// </summary>
     internal static string Prompt(AgentTurn turn)
     {
         var question = (turn.Preamble ?? string.Empty) + turn.Question;
-        return turn.Session is null || turn.Temporary
-            ? "<instructions>\n" + turn.Instructions + "\n</instructions>\n\n" + question
-            : question;
+        var instructions = turn.Session is null || turn.Temporary
+            ? turn.Instructions
+            : "Web search is unavailable through GitHub Copilot in DashyNMS. For current external information, say you can't check it here rather than answering from memory. This applies regardless of the user's web search setting.";
+        return "<instructions>\n" + instructions + "\n</instructions>\n\n" + question;
     }
 
     private async Task<AgentTurnResult> RunAsync(AgentProcess process, AgentTurn turn, StreamState stream, IIntelligenceListener listener, CancellationToken cancellationToken)

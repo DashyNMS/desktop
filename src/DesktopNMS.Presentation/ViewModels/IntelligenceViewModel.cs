@@ -897,7 +897,8 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         var provider = Providers.First(p => p.Id == model.Provider);
         var agent = provider.Agent!;
         var webSearch = provider.Capabilities.WebSearch && IntelligenceConsent.AllowsWebSearch(_settings.Current);
-        var instructions = IntelligenceInstructions.Build(detail, spotlight, webSearch, IntelligencePersonality.Effective(_settings.Current));
+        var instructions = IntelligenceInstructions.Build(detail, spotlight, webSearch,
+            IntelligencePersonality.Effective(_settings.Current), webSearchSupported: provider.Capabilities.WebSearch);
         var tools = await AgentToolsAsync(provider.Id, cancellationToken).ConfigureAwait(true);
         var chat = Chats.SelectedChat;
         var temporary = IsSingleChatMode;
