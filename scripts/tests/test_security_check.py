@@ -13,6 +13,12 @@ spec.loader.exec_module(security)
 
 
 class AuditFailureTests(unittest.TestCase):
+    def test_nuget_audit_promotes_required_codes_without_overwriting_project_warnings(self):
+        command = security.nuget_restore("sample.csproj")
+        self.assertIn("-warnaserror:NU1900;NU1903;NU1904;NU1905", command)
+        self.assertIn("-p:NuGetAuditLevel=high", command)
+        self.assertFalse(any(arg.startswith("-p:WarningsAsErrors") for arg in command))
+
     def test_a_failed_restore_does_not_hide_later_results_or_evidence(self):
         commands = [["dotnet", "restore", "first.csproj"], ["dotnet", "restore", "second.csproj"]]
         results = [subprocess.CompletedProcess(commands[0], 1), subprocess.CompletedProcess(commands[1], 0)]

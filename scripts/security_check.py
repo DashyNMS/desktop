@@ -6,6 +6,13 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+NUGET_AUDIT_ERRORS = ("NU1900", "NU1903", "NU1904", "NU1905")
+
+
+def nuget_restore(project):
+    # An MSBuild logging switch preserves the project's WarningsAsErrors property.
+    return ["dotnet", "restore", project, "-p:NuGetAudit=true", "-p:NuGetAuditMode=all",
+            "-p:NuGetAuditLevel=high", "-warnaserror:" + ";".join(NUGET_AUDIT_ERRORS)]
 
 
 def tracked_files(root):
@@ -58,7 +65,7 @@ def main():
         commands.append([sys.executable, "-m", "bandit", "-r", *folders, "-x", "scripts/tests,tools/tests", "-ll", "-f", "json", "-o", str(output / "bandit.json")])
     if args.nuget or args.nuget_only:
         for project in config.get("nuget_projects", []):
-            commands.append(["dotnet", "restore", project, "-p:NuGetAudit=true", "-p:NuGetAuditMode=all", "-p:NuGetAuditLevel=high"])
+            commands.append(nuget_restore(project))
     if args.nuget_only:
         commands = [command for command in commands if command[0] == "dotnet"]
     failed = run_commands(commands, output)

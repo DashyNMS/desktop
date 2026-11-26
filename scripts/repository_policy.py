@@ -15,6 +15,25 @@ SUBJECT = re.compile(r"(?:feat|fix|perf|refactor|docs|test|build|ci|chore|revert
 SHA = re.compile(r"[0-9a-f]{40}")
 
 
+class WorkflowLoader(yaml.SafeLoader):
+    """Reject duplicate mapping keys before PyYAML can discard a value."""
+
+    def construct_mapping(self, node, deep=False):
+        if not isinstance(node, yaml.MappingNode):
+            return super().construct_mapping(node, deep=deep)
+        keys = set()
+        for key, _ in node.value:
+            if not isinstance(key, yaml.ScalarNode):
+                continue
+            name = key.value.casefold()
+            if name in keys:
+                raise yaml.constructor.ConstructorError(
+                    None, None, f"duplicate workflow key {key.value!r}", key.start_mark
+                )
+            keys.add(name)
+        return super().construct_mapping(node, deep=deep)
+
+
 def issue_references(body, repository):
     """Accept closing or partial-work references without treating arbitrary URLs as issues."""
     references = []
@@ -135,26 +154,47 @@ def check_links(root):
 def check_repository(root, canonical=False):
     config = json.loads((root / ".github/repository-config.json").read_text(encoding="utf-8"))
     errors = ([] if canonical else check_shared(root)) + check_links(root)
+    workflows = {}
+    invalid_workflows = set()
     for path in sorted((root / ".github/workflows").iterdir()):
         if path.suffix not in (".yml", ".yaml"):
             continue
-        errors += workflow_errors(yaml.safe_load(path.read_text(encoding="utf-8")), path.relative_to(root).as_posix(), config.get("retained_credentials", []))
-    for path in sorted((root / ".github/workflows").iterdir()):
-        if path.suffix not in (".yml", ".yaml"):
+        name = path.relative_to(root).as_posix()
+        try:
+            loader = WorkflowLoader(path.read_text(encoding="utf-8"))
+            try:
+                workflow = loader.get_single_data()
+            finally:
+                loader.dispose()
+        except yaml.YAMLError as error:
+            mark = getattr(error, "problem_mark", None)
+            location = f":{mark.line + 1}:{mark.column + 1}" if mark else ""
+            errors.append(f"{name}{location}: {getattr(error, 'problem', None) or 'invalid workflow YAML'}")
+            invalid_workflows.add(name)
             continue
-        workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if not isinstance(workflow, dict):
+            errors.append(f"{name}: expected a workflow mapping")
+            invalid_workflows.add(name)
+            continue
+        workflows[name] = workflow
+        errors += workflow_errors(workflow, name, config.get("retained_credentials", []))
+    for name, workflow in workflows.items():
         for job_id, job in workflow.get("jobs", {}).items():
             target = job.get("uses", "")
             if not target.startswith("./.github/workflows/"):
                 continue
-            called = yaml.safe_load((root / target).read_text(encoding="utf-8"))
+            called = workflows.get(target[2:])
+            if called is None:
+                if target[2:] not in invalid_workflows:
+                    errors.append(f"{name}/{job_id}: reusable workflow not found: {target}")
+                continue
             granted = job.get("permissions", workflow.get("permissions", {}))
             required = called.get("permissions", {})
             if isinstance(granted, dict) and isinstance(required, dict):
                 rank = {"none": 0, "read": 1, "write": 2}
                 for permission, level in required.items():
                     if rank.get(granted.get(permission, "none"), 0) < rank.get(level, 0):
-                        errors.append(f"{path.name}/{job_id}: reusable workflow requires {permission}: {level}")
+                        errors.append(f"{name}/{job_id}: reusable workflow requires {permission}: {level}")
     for entry in yaml.safe_load((root / ".github/dependabot.yml").read_text(encoding="utf-8"))["updates"]:
         if entry.get("commit-message") != {"prefix": "build", "include": "scope"}:
             errors.append("dependabot.yml: every ecosystem must use the shared commit naming")

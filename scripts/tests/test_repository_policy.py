@@ -101,6 +101,30 @@ class WorkflowPolicyTests(unittest.TestCase):
                 caller.write_text("permissions: {contents: read, issues: read}\njobs: {security: {uses: './.github/workflows/security.yml'}}\n")
                 self.assertFalse(any("reusable workflow requires" in e for e in policy.check_repository(root, True)))
 
+    def test_duplicate_checkout_keys_fail_before_workflow_policy_runs(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            workflows = root / ".github/workflows"
+            workflows.mkdir(parents=True)
+            (root / ".github/repository-config.json").write_text("{}")
+            (root / ".github/dependabot.yml").write_text("updates: []")
+            (workflows / "ci.yml").write_text(
+                "jobs: {security: {uses: './.github/workflows/security.yaml'}}\n"
+            )
+            with patch.object(policy, "check_links", return_value=[]):
+                for duplicate in ("with", "WITH"):
+                    with self.subTest(duplicate=duplicate):
+                        (workflows / "security.yaml").write_text(
+                            "on: workflow_call\njobs:\n  audit:\n    steps:\n"
+                            f"      - uses: actions/checkout@{'a' * 40}\n"
+                            "        with: {persist-credentials: true}\n"
+                            f"        {duplicate}: {{persist-credentials: false}}\n"
+                        )
+                        errors = policy.check_repository(root, True)
+                        self.assertEqual(1, sum("duplicate workflow key" in error for error in errors))
+                        self.assertTrue(any(".github/workflows/security.yaml:7:9:" in error for error in errors))
+                        self.assertFalse(any("reusable workflow not found" in error for error in errors))
+
     def test_credentials_require_an_explicit_per_job_exception(self):
         data = self.workflow(True)
         self.assertTrue(policy.workflow_errors(data, "publish.yml"))

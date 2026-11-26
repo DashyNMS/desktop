@@ -19,7 +19,7 @@ Avalonia/.NET 9 desktop client for LibreNMS on Windows, macOS and Linux. `src/De
 - Dependabot uses `build(deps): ...` for every ecosystem. Its generated dependency names and grouped summaries may exceed the usual title length.
 - Use British spelling in user-facing text. Keep real device names, hostnames, addresses, credentials and other identifiable network data out of issues, PRs, commits, logs, screenshots and fixtures. Use `example.net` and documentation address ranges.
 - Commits, PRs and release notes carry no AI attribution or `Co-Authored-By` lines.
-- Project-owned code, documentation and assets use the MIT licence in `LICENSE`. Preserve third-party licences, copyright notices and provenance; MIT does not replace upstream terms.
+- Read `LICENSE` before changing or redistributing repository material. Preserve third-party licences, copyright notices and provenance.
 
 ## Validation and releases
 
