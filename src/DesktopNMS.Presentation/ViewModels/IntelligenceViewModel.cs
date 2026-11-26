@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Intelligence;
+using DesktopNMS.Core.Services;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
 using DesktopNMS.Services.Intelligence;
@@ -87,14 +88,15 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
         IIntelligenceChatStore chats,
         ILogger<IntelligenceViewModel> logger, IAppMetrics? metrics = null,
         IntelligenceChatExporter? exporter = null,
-        IEnumerable<IAgentProvider>? agents = null)
+        IEnumerable<IAgentProvider>? agents = null,
+        DeviceMonitor? deviceMonitor = null)
     {
         _metrics = metrics;
         _exporter = exporter;
         _store = store;
         _devices = devices;
         _tools = tools;
-        Context = new IntelligenceContextViewModel(devices, client, settings, windows, alerts, logger);
+        Context = new IntelligenceContextViewModel(devices, client, settings, windows, alerts, logger, deviceMonitor);
         _settings = settings;
         _consentGiven = IntelligenceConsent.IsCurrent(settings.Current);
         _session = session;
@@ -865,6 +867,7 @@ public sealed partial class IntelligenceViewModel : ObservableObject, IDisposabl
     /// <summary>Writes any chat saves still waiting and stops the agents - the app is closing.</summary>
     public void Dispose()
     {
+        Context.Dispose();
         Chats.Dispose();
         RetireAgentsAsync().Wait(TimeSpan.FromSeconds(5));
         if (_bridge is { } bridge) bridge.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
