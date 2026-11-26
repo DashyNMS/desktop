@@ -34,7 +34,9 @@ but the creation-order rule starts at the adoption time recorded in
 ongoing dependency-maintenance issue. A narrowly scoped `pull_request_target`
 workflow links that issue to new Dependabot PRs using
 `DEPENDENCY_MAINTENANCE_ISSUE`; it only edits metadata and never checks out PR code.
-The first CI run may be superseded by the body-edit run that adds the reference.
+The policy check validates the configured earlier maintenance issue directly for
+Dependabot, so it does not depend on the body edit or another workflow run.
+Edits made with GITHUB_TOKEN do not trigger a replacement run.
 
 Every PR's required `CI result` depends on repository policy and security checks.
 The security workflow also runs on main and weekly. Edge, nightly and production

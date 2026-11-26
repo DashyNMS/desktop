@@ -16,11 +16,11 @@ def tracked_files(root):
 
 def new_secrets(report, baseline):
     # Baselines retain hashed identities, so moving a reviewed fixture is harmless.
-    known = {(path, row["type"], row["hashed_secret"])
+    known = {(path.replace("\\", "/"), row["type"], row["hashed_secret"])
              for path, rows in baseline.get("results", {}).items() for row in rows
              if row.get("reviewed_reason") and row.get("is_secret") is not True}
     return [(path, row["line_number"], row["type"]) for path, rows in report["results"].items()
-            for row in rows if (path, row["type"], row["hashed_secret"]) not in known]
+            for row in rows if (path.replace("\\", "/"), row["type"], row["hashed_secret"]) not in known]
 
 
 def run_commands(commands, output):

@@ -51,6 +51,15 @@ class BuildVersionTests(unittest.TestCase):
         self.commit("ci: something")
         self.assertEqual("true", self.run_script("nightly", event="schedule")["changed"])
 
+    def test_schedule_ignores_tag_timestamp_order(self):
+        os.environ["GIT_COMMITTER_DATE"] = "2090-01-01T00:00:00Z"
+        self.git("tag", "-a", "v2.0.0-nightly.1", "-m", "ancestor")
+        os.environ.pop("GIT_COMMITTER_DATE")
+        self.commit("ci: later commit")
+        self.git("tag", "v2.0.0-nightly.2")
+        self.assertEqual("false", self.run_script("nightly", event="schedule")["changed"])
+        self.assertEqual("true", self.run_script("nightly", event="workflow_dispatch")["changed"])
+
     def test_a_nightly_is_a_copy_of_the_notes_with_a_link_to_what_changed(self):
         self.git("tag", "v2.0.0-preview.20")
         self.commit("fix: later")
@@ -102,7 +111,7 @@ class BuildVersionTests(unittest.TestCase):
 
     def test_nothing_is_built_without_notes_for_its_version(self):
         self.assertEqual({}, self.run_script("check"))
-        for text in ("", "Just words.\n", "## New\n", "## Improvements\n\n- Wrong heading.\n"):
+        for text in ("", "Just words.\n", "## New\n", "- Placeholder.\n\n## New\n", "## Improvements\n\n- Wrong heading.\n"):
             self.notes(text)
             for channel in ("check", "edge", "nightly"):
                 self.assertIsNone(self.run_script(channel), text)

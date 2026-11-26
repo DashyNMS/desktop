@@ -964,6 +964,9 @@ buttons still work when the app is sitting in the tray.
 
 ## User guide and wiki
 
+Use inline Markdown links and fenced code blocks in `docs/guide`. The shared
+wiki converter does not support reference-style links or indented code blocks.
+
 The user guide is in [`docs/guide`](guide/README.md): getting started,
 installation, task-based how-to pages, troubleshooting and reference. Keep
 installation pages in `installation/`, user tasks in `how-to/` and reference
@@ -1090,7 +1093,7 @@ repeat them.
 Commits, PRs and release notes carry no AI attribution or `Co-Authored-By`
 lines.
 
-The PR description starts with `Closes #NN`, then says briefly what changed
+The PR description starts with `Closes #NN` for completed work or `Refs #NN` for partial work, then says briefly what changed
 and how it was checked. A fix for a Sentry issue adds
 `Fixes DASHYNMS-DESKTOP-<id>` under that line (see
 [Error and usage sharing](#error-and-usage-sharing)). Release notes and What's New are written separately,

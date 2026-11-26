@@ -35,6 +35,13 @@ class SecretBaselineTests(unittest.TestCase):
         self.assertTrue(security.new_secrets(self.report(digest="new"), baseline))
         self.assertTrue(security.new_secrets(self.report(path="src/config.cs"), baseline))
 
+    def test_baseline_paths_are_portable_without_ignoring_new_values(self):
+        windows = r"tests\fixture.cs"
+        self.assertEqual([], security.new_secrets(self.report(path=windows), self.report()))
+        self.assertEqual([], security.new_secrets(self.report(), self.report(path=windows)))
+        self.assertTrue(security.new_secrets(self.report(path=windows, digest="new"), self.report()))
+        self.assertTrue(security.new_secrets(self.report(path="Tests/fixture.cs"), self.report()))
+
     def test_reports_location_and_type_without_secret_or_digest(self):
         self.assertEqual([("tests/fixture.cs", 3, "Secret Keyword")], security.new_secrets(self.report(), {"results": {}}))
 

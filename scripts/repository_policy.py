@@ -31,8 +31,14 @@ def issue_precedes_pr(issue, created_at, policy_since=None):
     return "pull_request" not in issue and (earlier or legacy)
 
 
-def check_issue(pr, repository, token, policy_since=None):
+def check_issue(pr, repository, token, policy_since=None, maintenance_issue=None):
     references = issue_references(pr.get("body"), repository)
+    # Dependabot's metadata edit uses GITHUB_TOKEN and cannot trigger another run.
+    # Validate the configured maintenance issue directly, even on the opened payload.
+    user = pr.get("user", {})
+    if (user.get("login") == "dependabot[bot]" and user.get("type") == "Bot"
+            and re.fullmatch(r"[1-9]\d*", maintenance_issue or "")):
+        references.append((repository, int(maintenance_issue)))
     if not references:
         return ["Every PR needs an earlier issue describing the bug or intended change; add Closes #NN or Refs #NN."]
     for repo, number in references:
@@ -65,7 +71,8 @@ def workflow_errors(data, path, retained_credentials=()):
     if not isinstance(permissions, dict) or any(value == "write" for value in permissions.values()):
         errors.append(f"{path}: keep workflow permissions read-only; grant writes per job")
     trigger = data.get("on", data.get(True, {}))
-    privileged_event = isinstance(trigger, dict) and "pull_request_target" in trigger
+    events = [trigger] if isinstance(trigger, str) else trigger
+    privileged_event = isinstance(events, (dict, list)) and "pull_request_target" in events
     for job_id, job in data.get("jobs", {}).items():
         for step in job.get("steps", []):
             uses = step.get("uses", "")
@@ -89,7 +96,7 @@ def workflow_errors(data, path, retained_credentials=()):
 
 
 def check_shared(root):
-    lock = json.loads((root / ".github/repository-standards.json").read_text())
+    lock = json.loads((root / ".github/repository-standards.json").read_text(encoding="utf-8"))
     errors = []
     if lock["source"] != "DashyNMS/.github" or not SHA.fullmatch(lock["revision"]):
         errors.append("The standards lock must identify the canonical repository and an immutable revision")
@@ -97,7 +104,7 @@ def check_shared(root):
         path = root / filename
         if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
             errors.append(f"{filename}: differs from the pinned shared standards; update the canonical source first")
-    block = (root / "CLAUDE.md").read_text().split("## Repository conventions\n", 1)[-1].split("\n## Validation and releases", 1)[0]
+    block = (root / "CLAUDE.md").read_text(encoding="utf-8").split("## Repository conventions\n", 1)[-1].split("\n## Validation and releases", 1)[0]
     if hashlib.sha256(block.encode()).hexdigest() != lock["claude_sha256"]:
         errors.append("CLAUDE.md: common repository conventions differ from the canonical section")
     for filename, digest in lock.get("helpers", {}).items():
@@ -109,7 +116,7 @@ def check_shared(root):
 def check_links(root):
     errors = []
     for name in ("CLAUDE.md", "CONTRIBUTING.md", "ACCESSIBILITY.md", "SECURITY.md", "README.md"):
-        text = (root / name).read_text()
+        text = (root / name).read_text(encoding="utf-8")
         for target in re.findall(r"\]\(([^\s)]+)\)", text):
             if re.match(r"(?:[a-z]+:|#)", target):
                 continue
@@ -119,18 +126,36 @@ def check_links(root):
                 errors.append(f"{name}: missing local link {filename}")
             elif anchor and path.suffix == ".md":
                 headings = {re.sub(r"[^\w -]", "", line.lstrip("#").strip().lower()).replace(" ", "-")
-                            for line in path.read_text().splitlines() if line.startswith("#")}
+                            for line in path.read_text(encoding="utf-8").splitlines() if line.startswith("#")}
                 if anchor not in headings:
                     errors.append(f"{name}: missing heading {target}")
     return errors
 
 
 def check_repository(root, canonical=False):
-    config = json.loads((root / ".github/repository-config.json").read_text())
+    config = json.loads((root / ".github/repository-config.json").read_text(encoding="utf-8"))
     errors = ([] if canonical else check_shared(root)) + check_links(root)
-    for path in sorted((root / ".github/workflows").glob("*.yml")):
-        errors += workflow_errors(yaml.safe_load(path.read_text()), path.relative_to(root).as_posix(), config.get("retained_credentials", []))
-    for entry in yaml.safe_load((root / ".github/dependabot.yml").read_text())["updates"]:
+    for path in sorted((root / ".github/workflows").iterdir()):
+        if path.suffix not in (".yml", ".yaml"):
+            continue
+        errors += workflow_errors(yaml.safe_load(path.read_text(encoding="utf-8")), path.relative_to(root).as_posix(), config.get("retained_credentials", []))
+    for path in sorted((root / ".github/workflows").iterdir()):
+        if path.suffix not in (".yml", ".yaml"):
+            continue
+        workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+        for job_id, job in workflow.get("jobs", {}).items():
+            target = job.get("uses", "")
+            if not target.startswith("./.github/workflows/"):
+                continue
+            called = yaml.safe_load((root / target).read_text(encoding="utf-8"))
+            granted = job.get("permissions", workflow.get("permissions", {}))
+            required = called.get("permissions", {})
+            if isinstance(granted, dict) and isinstance(required, dict):
+                rank = {"none": 0, "read": 1, "write": 2}
+                for permission, level in required.items():
+                    if rank.get(granted.get(permission, "none"), 0) < rank.get(level, 0):
+                        errors.append(f"{path.name}/{job_id}: reusable workflow requires {permission}: {level}")
+    for entry in yaml.safe_load((root / ".github/dependabot.yml").read_text(encoding="utf-8"))["updates"]:
         if entry.get("commit-message") != {"prefix": "build", "include": "scope"}:
             errors.append("dependabot.yml: every ecosystem must use the shared commit naming")
     for name in ("CODE_OF_CONDUCT.md", "CONTRIBUTING.md", "ACCESSIBILITY.md", "SECURITY.md", "LICENSE", ".github/CODEOWNERS", ".github/pull_request_template.md"):
@@ -147,12 +172,12 @@ def main():
     errors = check_repository(args.root, args.canonical)
     event = os.environ.get("GITHUB_EVENT_PATH")
     if event:
-        data = json.loads(Path(event).read_text())
+        data = json.loads(Path(event).read_text(encoding="utf-8"))
         pr = data.get("pull_request")
         if pr:
             errors += check_title(pr["title"], pr.get("user", {}).get("login", ""))
-            config = json.loads((args.root / ".github/repository-config.json").read_text())
-            errors += check_issue(pr, data["repository"]["full_name"], os.environ.get("GH_TOKEN", ""), config.get("issue_policy_since"))
+            config = json.loads((args.root / ".github/repository-config.json").read_text(encoding="utf-8"))
+            errors += check_issue(pr, data["repository"]["full_name"], os.environ.get("GH_TOKEN", ""), config.get("issue_policy_since"), os.environ.get("DEPENDENCY_MAINTENANCE_ISSUE"))
     if errors:
         for error in errors:
             print(error)

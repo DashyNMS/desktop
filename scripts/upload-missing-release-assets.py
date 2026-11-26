@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 
@@ -23,21 +24,61 @@ def files_in(paths):
 
 def plan_uploads(folder, assets, download):
     existing = {asset['name']: asset for asset in assets}
+    selected = files_in([folder] if isinstance(folder, Path) else folder)
+    if len({path.name for path in selected}) != len(selected):
+        raise ValueError('Release filenames must be unique')
+    for asset in assets:
+        if asset.get('state') == 'starter':
+            raise ValueError(f"{asset['name']} is an incomplete starter asset; delete only this "
+                             "failed-upload placeholder in GitHub Releases, then retry with the original artifacts")
+    cached = {}
+
+    def data(asset):
+        if asset['name'] not in cached:
+            cached[asset['name']] = download(asset)
+        return cached[asset['name']]
+
+    def published_digest(asset):
+        return asset.get('digest') or 'sha256:' + hashlib.sha256(data(asset)).hexdigest()
+
+    def manifest(content):
+        entries = {}
+        for line in content.decode('utf-8').splitlines():
+            match = re.fullmatch(r'([0-9a-fA-F]{64}) [ *](.+)', line)
+            if not match or match[2] in entries:
+                raise ValueError('SHA256SUMS contains an invalid or duplicate entry')
+            entries[match[2]] = match[1].lower()
+        if not entries:
+            raise ValueError('SHA256SUMS is empty')
+        return entries
+
     missing = []
     # Validate the whole set before uploading anything.
-    for path in files_in([folder] if isinstance(folder, Path) else folder):
+    for path in selected:
         if not path.is_file():
             raise ValueError(f'Expected a release file: {path}')
         asset = existing.get(path.name)
         if asset is None:
             missing.append(path)
             continue
-        digest = asset.get('digest')
-        if not digest:
-            digest = 'sha256:' + hashlib.sha256(download(asset)).hexdigest()
+        digest = published_digest(asset)
         if digest != 'sha256:' + sha256(path):
             raise ValueError(f'{path.name} is already published with different bytes; '
                              'use the original build artifacts to finish this release')
+    # A manifest can be present even when the caller retries only one archive.
+    manifests = []
+    if 'SHA256SUMS' in existing:
+        manifests.append(manifest(data(existing['SHA256SUMS'])))
+    manifests.extend(manifest(path.read_bytes()) for path in selected if path.name == 'SHA256SUMS')
+    for checksums in manifests:
+        for path in selected:
+            if path.name == 'SHA256SUMS':
+                continue
+            if checksums.get(path.name) != sha256(path):
+                raise ValueError(f'{path.name} does not match SHA256SUMS; use the original build artifacts')
+        for name, digest in checksums.items():
+            if name in existing and published_digest(existing[name]) != 'sha256:' + digest:
+                raise ValueError(f'SHA256SUMS does not match published {name}')
     return missing
 
 
@@ -47,20 +88,24 @@ def main():
     parser.add_argument('paths', nargs='+', help='a directory, or files')
     args = parser.parse_args()
     tag, paths = args.tag, args.paths
+    repository = os.environ.get('GH_REPO') or subprocess.check_output(
+        ['gh', 'repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'], text=True).strip()
+    if not re.fullmatch(r'[\w.-]+/[\w.-]+', repository):
+        raise ValueError('Expected a GitHub repository in owner/name form')
     # By id: a draft can't be read by its tag, and it's how the first edge release starts.
     identity = subprocess.check_output(
-        ['gh', 'release', 'view', tag, '--json', 'databaseId', '--jq', '.databaseId'], text=True).strip()
+        ['gh', 'release', 'view', tag, '--repo', repository, '--json', 'databaseId', '--jq', '.databaseId'], text=True).strip()
     release = json.loads(subprocess.check_output(
-        ['gh', 'api', f"repos/{os.environ['GH_REPO']}/releases/{identity}"]))
+        ['gh', 'api', f"repos/{repository}/releases/{identity}"]))
 
     def download(asset):
         return subprocess.check_output(['gh', 'api',
-            f"repos/{os.environ['GH_REPO']}/releases/assets/{asset['id']}",
+            f"repos/{repository}/releases/assets/{asset['id']}",
             '-H', 'Accept: application/octet-stream'])
 
     missing = plan_uploads([Path(path) for path in paths], release['assets'], download)
     if missing:
-        subprocess.run(['gh', 'release', 'upload', tag, *map(str, missing)], check=True)
+        subprocess.run(['gh', 'release', 'upload', tag, '--repo', repository, *map(str, missing)], check=True)
 
 
 if __name__ == '__main__':

@@ -41,6 +41,21 @@ class NestedGuideTests(unittest.TestCase):
         self.assertLess(output["_Sidebar.md"].index("**Tasks**"), output["_Sidebar.md"].index("[Find a device]"))
         self.assertLess(output["_Sidebar.md"].index("**Help**"), output["_Sidebar.md"].index("- [Help]"))
 
+    def test_reserved_names_are_rejected(self):
+        for title in ("_Sidebar", "_Footer"):
+            self.write("how-to/find.md", f"# {title}\n")
+            with self.assertRaisesRegex(SystemExit, "reserved"):
+                self.convert()
+
+    def test_root_links_resolve_for_pages_assets_and_sidebar(self):
+        self.write("README.md", "# Guide\n\n[Find](/docs/guide/how-to/find.md) [Help](/docs/guide/reference/help.md)\n")
+        self.write("how-to/find.md", "# Find a device\n\n[Help](/docs/guide/reference/help.md#connection) ![Screen](/docs/screen.png)\n")
+        output, errors = self.convert()
+        self.assertEqual([], errors)
+        self.assertIn("[Help](Help#connection)", output["Find-a-device.md"])
+        self.assertIn("- [Find a device](Find-a-device)", output["_Sidebar.md"])
+        self.assertIn("/main/docs/screen.png", output["Find-a-device.md"])
+
     def test_a_links_title_is_kept_and_its_target_still_checked(self):
         self.write("how-to/find.md", '# Find a device\n\n[Help](../reference/help.md#connection "Connection help") [Gone](gone.md "Gone")\n')
         output, errors = self.convert()

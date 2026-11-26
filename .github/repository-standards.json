@@ -1,15 +1,15 @@
 {
   "version": 1,
   "source": "DashyNMS/.github",
-  "revision": "7138ba294755299493da2757444b345ee30e8cbe",
+  "revision": "7a1dc423d1c59c98bca3ce545e875e3cbc4b767d",
   "files": {
     ".github/workflows/link-dependency-issue.yml": "aa445540e0fbccad3ae13395c11a61b9a56881bfcddcaadeccb2b5e9c673c183",
     "scripts/security_filters.py": "6de234c9218f8e5f21cf9f4b0c32bb9cf07b3da606c1f88b2f601ebf62012cbf",
     "scripts/tests/test_security_filters.py": "c782ea002970f2272e5d144549209f8881049ca97bfb692ee926a49bcf8af2c7",
-    "scripts/repository_policy.py": "82e32c8ec055cf5f92562e32d4a70e852201514371c95398ea5aa559553e8c5e",
-    "scripts/security_check.py": "51f149e09cd6a930e4208247cff3a83fb0db855c6fdf5e8aaa0d14e9b9e7c390",
-    "scripts/tests/test_repository_policy.py": "66acbb80e8d3933c64d78ac498919cbc9c2ed24e11acf57918dd01dec49264e2",
-    "scripts/tests/test_security_check.py": "bd70db7a4ef687ef20f21648cd65d2b0744295756548921e3e74d37378f5d5d9",
+    "scripts/repository_policy.py": "a174a714c97ef0e952926d13b5a42b92a7e375e767d8e0da39f80717c191c227",
+    "scripts/security_check.py": "264f933145ee4ad3d04007ea816c21e5bca2a5cff7a9d16fc2201e2446a21c6b",
+    "scripts/tests/test_repository_policy.py": "bf45930df97d9c573d7abfdc43b40147abd65669996c33c2dcef4f8e58cb9777",
+    "scripts/tests/test_security_check.py": "148258867b5e6d3d3059c555a2d99f7f4749729edb6cfac334b4a6d6c0929ac3",
     "requirements-security.txt": "c0eb3bbb4547697674db1bc188d5f64d3a3b115a1e388c2901160855cd5b990b",
     "CODE_OF_CONDUCT.md": "ddb20e005938e5f81c187c1d26ff56a9f92cffff71d2845e12285ac7872c39fd",
     ".github/pull_request_template.md": "1e0e3a1db7b6e2bdacc16b49bd8ae1724d026c0575a5f4125cadb6e3c62eff2d",
@@ -17,12 +17,12 @@
     ".github/ISSUE_TEMPLATE/feature_request.yml": "2db97d1d45f20467661991156eac425e9f2df83cc325bbacf2412b447d2900af",
     ".github/ISSUE_TEMPLATE/config.yml": "93cdc69e7100a6e88fe42800146a6e3882519b9d82332260a7b07bd07704d3f9",
     ".github/CODEOWNERS": "58ce2b585838dd21da6b0400e86d791ed42b453b68d69c331758938f93dd1a1d",
-    "docs/REPOSITORY-STANDARDS.md": "a81cb296920a868687981dc3576d01ed14bb219116ed53e2f0b80cf0e03bfa36"
+    "docs/REPOSITORY-STANDARDS.md": "caf47b360b3538aa313ec4cf193f5eccc28ba73629340679610154b09476d516"
   },
   "helpers": {
-    "scripts/build_version.py": "2a25b12faf6e75053bf682a1c58aa4d095c86c78513832ffab63acd71ce8b104",
-    "scripts/Publish-WikiGuide.py": "4a4a1da174979a4d5a1d457162a347ad362f6022da4dd2d319e607c12a13c0f5",
-    "scripts/upload-missing-release-assets.py": "f240694653640a1ee41ab3b5d04f8e0eb3eeed4bf761c6967e6ec34995407894"
+    "scripts/build_version.py": "b42e2aefdfdbfdabb6ebe60d21448152ff5c03c1f8121c5754c180233347619a",
+    "scripts/Publish-WikiGuide.py": "eafa736d28ff1c667e1a4cdb12c75703ad538f96aa6259c2c7e9aec988a5367c",
+    "scripts/upload-missing-release-assets.py": "3cb4fd628982674d989723aa89c86ac293d7eb0ba0a54f6902eb0d19d142b477"
   },
   "claude_sha256": "039d8f59f5e4733b5562d6768ef921cd4ab6fff3857332f5e8310bf51cb5cdf2"
 }

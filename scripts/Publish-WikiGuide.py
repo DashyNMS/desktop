@@ -11,13 +11,14 @@ GitHub links, and a sidebar lists the pages in the order README.md links them.
 
 The output folder's Markdown pages are replaced, so pass a wiki clone or an
 empty folder. Nested guide folders are supported; Home headings group the sidebar.
-Every link to another guide page, heading or repository file is
-checked; any that doesn't resolve fails the run before anything is written.
+Use inline links and fenced code blocks in the guide. Reference-style links
+and indented code blocks are not supported by this converter. Every inline
+link to another guide page, heading or repository file is checked. An unresolved
+link fails the run before anything is written.
 """
 
 import argparse
 import pathlib
-import posixpath
 import re
 import sys
 
@@ -77,12 +78,24 @@ def convert(guide, repository, branch):
     if "README.md" not in pages:
         raise SystemExit(f"{guide}: README.md is the guide's front page and becomes the wiki's Home.")
     names = [page.name for page in pages.values()]
+    if any(name.casefold() in ("_sidebar", "_footer") for name in names):
+        raise SystemExit("Guide titles must not use the reserved wiki names _Sidebar or _Footer.")
     if len(set(names)) != len(names):
         raise SystemExit("Two guide pages have the same title, so they'd have the same wiki page name.")
 
     root = guide.resolve()
     while not (root / ".git").exists() and root.parent != root:
         root = root.parent
+
+    def resolve(page, path):
+        return (root / path.lstrip("/") if path.startswith("/") else page.path.parent / path).resolve()
+
+    def guide_name(page, path):
+        try:
+            return resolve(page, path).relative_to(guide.resolve()).as_posix()
+        except ValueError:
+            return None
+
     errors = []
     output = {}
 
@@ -99,13 +112,13 @@ def convert(guide, repository, branch):
                 if fragment and fragment not in page.anchors:
                     errors.append(f"{page.path.name}: no heading for #{fragment}")
                 return match.group(0)
-            guide_target = posixpath.normpath(posixpath.join(page.path.parent.relative_to(guide).as_posix(), path))
+            guide_target = guide_name(page, path)
             if path.endswith(".md") and guide_target in pages:
                 linked = pages[guide_target]
                 if fragment and fragment not in linked.anchors:
                     errors.append(f"{page.path.name}: {path} has no heading for #{fragment}")
                 return f"{image}[{text}]({linked.name}{'#' + fragment if fragment else ''}{title})"
-            resolved = (page.path.parent / path).resolve()
+            resolved = resolve(page, path)
             if not resolved.exists() or root not in resolved.parents:
                 errors.append(f"{page.path.name}: {path} isn't a file in the repository")
                 return match.group(0)
@@ -141,7 +154,7 @@ def convert(guide, repository, branch):
         for match in LINK.finditer(line):
             if match.group(1):
                 continue
-            name = posixpath.normpath(match.group(3).partition("#")[0])
+            name = guide_name(home, match.group(3).partition("#")[0])
             if name in pages and name != "README.md" and name not in order:
                 order.append(name)
                 sidebar.append(f"- [{pages[name].title}]({pages[name].name})")
