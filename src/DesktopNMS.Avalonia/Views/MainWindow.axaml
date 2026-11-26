@@ -131,14 +131,15 @@
                                 <TextBlock Text="Intelligence" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
                             </StackPanel>
                         </Button>
-                        <!-- Network Search (#57): under Intelligence, as both are ways to ask about the network rather than pages of it. -->
+                        <!-- Network Search (#57): under Intelligence, as both are ways to ask about the network rather than pages of it.
+                             A compass, as on Mobile, so it does not look like a page's own search (#630). -->
                         <Button Classes="rail" Classes.selected="{Binding IsNetworkSearchTabSelected}"
                                 Command="{Binding SelectNetworkSearchTabCommand}"
                                 IsVisible="{Binding ShowNetworkSearchTab}"
                                 ToolTip.Tip="Network search (Ctrl+Shift+F)" AutomationProperties.Name="Network search"
                                 AutomationProperties.AcceleratorKey="Ctrl+Shift+F">
                             <StackPanel Orientation="Horizontal">
-                                <fi:SymbolIcon Symbol="Search" />
+                                <fi:SymbolIcon Symbol="CompassNorthwest" />
                                 <TextBlock Text="Search" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
                             </StackPanel>
                         </Button>
