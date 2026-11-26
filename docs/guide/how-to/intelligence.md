@@ -52,6 +52,8 @@ The account needs a Copilot plan; Copilot Free works, with its Auto model. Dashy
 
 Gemini's models, including others Google offers through Antigravity, come from your account and are listed as Antigravity names them.
 
+Reading shortened network results requires Antigravity CLI 1.5.17 or later. If your global Antigravity settings grant file access to the generated output path, DashyNMS blocks that grant for the chat. This includes wildcard `read_file(*)` and `write_file(*)` grants, which can leave the result shortened.
+
 DashyNMS looks for each agent on your PATH and in its installer's usual folders. If yours is somewhere else, choose **Browse…** under **Executable** and pick it.
 
 ## Choose who answers
