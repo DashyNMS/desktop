@@ -19,9 +19,9 @@
     <DashyNMSSentryDsn Condition="'$(DashyNMSSentryDsn)' == ''">$(DASHYNMS_SENTRY_DSN)</DashyNMSSentryDsn>
     <!-- DashyNMS/core, from GitHub Packages (see nuget.config): an exact
          nightly or edge package between Core releases. -->
-    <DashyNMSCoreVersion>2.0.0-nightly.3</DashyNMSCoreVersion>
-    <!-- The DashyNMS/mcp commit whose server the installers bundle: 2.0.0-nightly.4. -->
-    <DashyNMSMcpRevision>833e72de99c7cdc9e4b5a0f71ce2bd6fddeef1e6</DashyNMSMcpRevision>
+    <DashyNMSCoreVersion>2.0.0-nightly.7</DashyNMSCoreVersion>
+    <!-- The DashyNMS/mcp commit whose server the installers bundle: 2.0.0-nightly.6. -->
+    <DashyNMSMcpRevision>65580bb0b4fa0dc6d465b466b2f2e070183e8e8e</DashyNMSMcpRevision>
   </PropertyGroup>
 
 </Project>

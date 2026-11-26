@@ -29,8 +29,9 @@ namespace DesktopNMS.Services.Intelligence.Agents;
 /// and the browser, and anything else that would need approval is refused
 /// because a headless run can't ask; DashyNMS's tools are loaded up front
 /// from a workspace configuration in a fresh folder of DashyNMS's own, so the
-/// user's global configuration is never changed; and any step outside what's
-/// allowed stops the answer - the refused tools only when one gets through.
+/// user's global configuration is never changed; and the stream guard stops
+/// the answer on an unexpected tool or file read. Antigravity can only use
+/// its own generated MCP output files for the current conversation.
 /// </para>
 /// <para>
 /// Antigravity reads no header from the environment, so the bridge's token is
@@ -64,7 +65,7 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
     private static readonly HashSet<string> Refused = new(StringComparer.Ordinal)
     {
         "run_command", "send_command_input", "command_status", "write_to_file", "replace_file_content", "multi_replace_file_content",
-        "sed_file", "view_file", "read_file", "list_dir", "find_by_name", "grep_search", "read_url_content", "open_browser_url",
+        "read_url_content", "open_browser_url",
         "read_browser_page", "run_workflow", "notebook_edit", "notebook_execution",
     };
 
@@ -76,6 +77,7 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
     /// <summary>Counts retirements: a question that started before one never launches its process after it.</summary>
     private int _generation;
     private string? _executable;
+    private bool _supportsOutputReadHook;
     private IReadOnlyList<AgentModel> _models = Array.Empty<AgentModel>();
 
     /// <param name="workingDirectory">A folder of DashyNMS's own; each question runs in a fresh, empty folder inside it, so Antigravity never sees a project.</param>
@@ -105,7 +107,11 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
         }
 
         var version = Version().Match(versionLine) is { Success: true } m ? m.Value : versionLine;
-        _executable = executable;
+        lock (_sync)
+        {
+            _executable = executable;
+            _supportsOutputReadHook = GeminiOutputGuard.IsSupportedVersion(version);
+        }
 
         // agy has no sign-in status command, but listing models needs a sign-in and says so without one.
         var output = await OutputAsync(executable, ["models"], cancellationToken).ConfigureAwait(false);
@@ -166,18 +172,33 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
     public async Task<AgentTurnResult> AskAsync(AgentTurn turn, AgentToolSession tools, IIntelligenceListener listener, CancellationToken cancellationToken)
     {
         int generation;
-        lock (_sync) generation = _generation;
-        var executable = _executable ?? throw new AgentProviderException("Gemini isn't set up yet. Check it in Settings › Providers.",
+        string? executable;
+        bool supportsOutputReadHook;
+        lock (_sync)
+        {
+            generation = _generation;
+            executable = _executable;
+            supportsOutputReadHook = _supportsOutputReadHook;
+        }
+
+        if (executable is null) throw new AgentProviderException("Gemini isn't set up yet. Check it in Settings › Providers.",
             IntelligenceFailure.Tools, AgentProviderState.NotInstalled);
         var workspace = Path.Combine(_workingDirectory, Guid.NewGuid().ToString("N"));
         var settings = Path.Combine(Path.GetTempPath(), "dashynms-gemini-" + Guid.NewGuid().ToString("N") + ".json");
         var stream = new StreamState(turn.Session) { WebSearch = turn.WebSearch };
+        // Earlier CLIs have not been verified to enforce PreToolUse in headless mode.
+        var readHook = supportsOutputReadHook ? GeminiOutputGuard.CreateHook(Environment.ProcessPath) : null;
+        var fileReadDenials = readHook is null ? ["read_file(*)"] : UserFileReadDenials();
         try
         {
             PrivateFiles.CreateFolder(workspace);
             PrivateFiles.CreateFolder(Path.Combine(workspace, ".agents"));
             await PrivateFiles.WriteAsync(Path.Combine(workspace, ".agents", "mcp_config.json"), McpConfiguration(tools.Endpoint, tools.Token).ToJsonString(), cancellationToken).ConfigureAwait(false);
-            await PrivateFiles.WriteAsync(settings, SessionSettings(workspace, UserServers()).ToJsonString(), cancellationToken).ConfigureAwait(false);
+            if (readHook is not null)
+            {
+                await PrivateFiles.WriteAsync(Path.Combine(workspace, ".agents", "hooks.json"), readHook.ToJsonString(), cancellationToken).ConfigureAwait(false);
+            }
+            await PrivateFiles.WriteAsync(settings, SessionSettings(workspace, UserServers(), fileReadDenials).ToJsonString(), cancellationToken).ConfigureAwait(false);
             var process = AgentProcess.Start(executable, Arguments(turn, settings), workspace);
             bool retired;
             lock (_sync)
@@ -253,16 +274,23 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
     /// <summary>
     /// This run's permissions, never saved: DashyNMS's tools allowed; commands,
     /// writes, web pages, the browser, the user's own MCP servers and the
-    /// folder holding the token refused.
+    /// workspace holding the token refused. The CLI's wildcard deny takes
+    /// precedence over a narrower allow and would block generated output as
+    /// well. A PreToolUse hook restricts Antigravity's implicit access, and
+    /// headless review blocks external file access. The stream guard checks
+    /// again that the tool and path match the active conversation.
     /// </summary>
-    internal static JsonObject SessionSettings(string workspace, IEnumerable<string> userServers)
+    internal static JsonObject SessionSettings(string workspace, IEnumerable<string> userServers, IEnumerable<string> userFileReadDenials)
     {
         var deny = new List<string>
         {
             "command(*)", "write_file(*)", "read_url(*)", "execute_url(*)", "download_url(*)",
-            "read_file(" + Path.Combine(workspace, ".agents").Replace('\\', '/') + "/)",
+            // A relative rule follows agy's workspace root, including when an ancestor is a symlink.
+            "read_file(./)",
+            "read_file(" + workspace.Replace('\\', '/') + "/)",
         };
         deny.AddRange(userServers.Where(s => s != BridgeServerName).Select(s => "mcp(" + s + "/*)"));
+        deny.AddRange(userFileReadDenials);
         return new JsonObject
         {
             ["permissions"] = new JsonObject
@@ -270,6 +298,9 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
                 ["allow"] = new JsonArray("mcp(" + BridgeServerName + "/*)"),
                 ["deny"] = new JsonArray(deny.Select(d => (JsonNode?)JsonValue.Create(d)).ToArray()),
             },
+            // Newer versions default to Auto, which may read outside the workspace without asking.
+            ["agentMode"] = "",
+            ["allowNonWorkspaceAccess"] = false,
             ["toolPermission"] = "request-review",
             ["disableSlashCommands"] = true,
         };
@@ -373,8 +404,10 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
                 return null;
 
             case "tool" or "subagent":
-                var tool = step["tool_name"]?.ToString() ?? step["tool_info"]?["name"]?.ToString() ?? "an unnamed tool";
-                if (IsBridgeTool(tool, step["tool_info"]?["parameters"])) return null;
+                var toolInfo = step["tool_info"] as JsonObject;
+                var tool = step["tool_name"]?.ToString() ?? toolInfo?["name"]?.ToString() ?? "an unnamed tool";
+                var parameters = toolInfo?["parameters"] as JsonObject;
+                if (IsBridgeTool(tool, parameters)) return null;
                 if (stream.WebSearch && tool == WebSearchTool)
                 {
                     // Shown as activity, as ChatGPT's searches are.
@@ -383,8 +416,14 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
                     return null;
                 }
 
-                // A refused tool fails on its own and the answer goes on; only one that got through stops it.
-                if (Refused.Contains(tool) && state != "DONE") return null;
+                if (tool == "read_file")
+                {
+                    if (state is not ("ACTIVE" or "DONE")) return null;
+                    if (step["conversation_id"]?.ToString() == stream.Session &&
+                        GeminiOutputGuard.AllowsRead(stream.GeminiHome, stream.Session, parameters)) return null;
+                }
+                // Other refused tools fail on their own; only one that got through stops the answer.
+                else if (Refused.Contains(tool) && state != "DONE") return null;
                 stream.RefusedTool = tool;
                 return new AgentProviderException(
                     "Gemini tried to use one of Antigravity's own tools, which DashyNMS doesn't allow in Intelligence chats, so the answer was stopped. Try asking again.",
@@ -459,7 +498,7 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
     }
 
     /// <summary>Antigravity's own folder.</summary>
-    private static string Home() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gemini");
+    private static string Home() => GeminiOutputGuard.Home;
 
     /// <summary>The Google Cloud project Antigravity picked for the signed-in account, which tells accounts apart.</summary>
     private static string? AccountHint()
@@ -472,6 +511,50 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return null;
+        }
+    }
+
+    /// <summary>Reads only the CLI settings that could implicitly authorise an external file read.</summary>
+    private static IEnumerable<string> UserFileReadDenials()
+    {
+        try
+        {
+            var path = Path.Combine(Home(), "antigravity-cli", "settings.json");
+            return InheritedFileReadDenials(File.ReadAllText(path));
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return [];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return ["read_file(*)"];
+        }
+    }
+
+    /// <summary>Explicit session denies take precedence even if the CLI carries a global allow into the session.</summary>
+    internal static IReadOnlyList<string> InheritedFileReadDenials(string settings)
+    {
+        try
+        {
+            var options = new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
+            var allow = JsonNode.Parse(settings, documentOptions: options)?["permissions"]?["allow"]?.AsArray();
+            if (allow is null) return [];
+
+            var deny = new List<string>();
+            foreach (var value in allow)
+            {
+                var rule = value?.GetValue<string>()?.Trim() ?? "";
+                if (rule.StartsWith("read_file(", StringComparison.Ordinal)) deny.Add(rule);
+                // Antigravity grants read access implicitly for any path that permits writes.
+                else if (rule.StartsWith("write_file(", StringComparison.Ordinal)) deny.Add("read_file(" + rule["write_file(".Length..]);
+            }
+            return deny;
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            // A malformed configuration cannot establish that the CLI has no broader file grants.
+            return ["read_file(*)"];
         }
     }
 
@@ -566,8 +649,10 @@ public sealed partial class GeminiAgentProvider : IAgentProvider
     private static partial Regex PlainName();
 
     /// <summary>What one question's stream has said so far.</summary>
-    internal sealed class StreamState(string? session)
+    internal sealed class StreamState(string? session, string? geminiHome = null)
     {
+        public string GeminiHome { get; } = geminiHome ?? Home();
+
         public string? Session { get; set; } = session;
 
         public string? Answer { get; set; }

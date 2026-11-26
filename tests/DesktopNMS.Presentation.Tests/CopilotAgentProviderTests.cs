@@ -119,10 +119,21 @@ public sealed class CopilotAgentProviderTests
         => Assert.DoesNotContain(CopilotAgentProvider.Arguments(new AgentTurn("q", "auto", null, "i", "session-1", Temporary: true), "m", []), a => a.StartsWith("--resume", StringComparison.Ordinal));
 
     [Fact]
-    public void The_first_question_carries_the_instructions_and_a_resumed_one_does_not()
+    public void New_and_resumed_questions_explain_the_web_search_limitation()
     {
-        Assert.StartsWith("<instructions>\nBe brief.\n</instructions>", CopilotAgentProvider.Prompt(new AgentTurn("q", "auto", null, "Be brief.", null, false)));
-        Assert.Equal("q", CopilotAgentProvider.Prompt(new AgentTurn("q", "auto", null, "Be brief.", "session-1", false)));
+        var provider = new CopilotAgentProvider(Path.GetTempPath(), Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        Assert.False(provider.Capabilities.WebSearch);
+        var instructions = IntelligenceInstructions.Build(null, null, webSearchEnabled: true, personality: null, webSearchSupported: false);
+        var turn = new AgentTurn("Latest firmware?", "auto", null, instructions, null, false);
+        var first = CopilotAgentProvider.Prompt(turn);
+        var resumed = CopilotAgentProvider.Prompt(turn with { Session = "session-1" });
+
+        Assert.Contains("Web search isn't available through this provider", first, StringComparison.Ordinal);
+        Assert.Contains("Web search is unavailable through GitHub Copilot", resumed, StringComparison.Ordinal);
+        Assert.DoesNotContain("disabled in Settings", first, StringComparison.Ordinal);
+        Assert.DoesNotContain("disabled in Settings", resumed, StringComparison.Ordinal);
+        Assert.EndsWith(turn.Question, resumed, StringComparison.Ordinal);
+        Assert.DoesNotContain(instructions, resumed, StringComparison.Ordinal);
     }
 
     [Fact]

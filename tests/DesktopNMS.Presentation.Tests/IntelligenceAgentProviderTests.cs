@@ -266,6 +266,22 @@ public sealed class IntelligenceAgentProviderTests
     }
 
     [Fact]
+    public async Task An_unsupported_provider_explains_the_limitation_even_when_web_search_is_on()
+    {
+        var (model, agent, _, _) = await CreateAsync(webSearch: true, supportsWebSearch: false);
+        using var _ = model;
+        Assert.Equal("Web search is unavailable through Agent.", model.Composer.PickerNote);
+
+        model.Composer.Question = "Latest firmware?";
+        await AskAsync(model);
+
+        var turn = Assert.Single(agent.Turns);
+        Assert.False(turn.WebSearch);
+        Assert.Contains("Web search isn't available through this provider", turn.Instructions, StringComparison.Ordinal);
+        Assert.DoesNotContain("disabled in Settings", turn.Instructions, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Web_search_stays_off_when_Settings_turns_it_off()
     {
         var (model, agent, _, _) = await CreateAsync(webSearch: false);
@@ -423,7 +439,7 @@ public sealed class IntelligenceAgentProviderTests
         await Task.Delay(20);
     }
 
-    private static async Task<(IntelligenceViewModel Model, FakeAgent Agent, Store Store, Windows Windows)> CreateAsync(bool ready = true, bool second = false, bool secondHasEfforts = true, bool webSearch = false, string id = "agent", ChatGptCredentials? credentials = null, bool check = true)
+    private static async Task<(IntelligenceViewModel Model, FakeAgent Agent, Store Store, Windows Windows)> CreateAsync(bool ready = true, bool second = false, bool secondHasEfforts = true, bool webSearch = false, string id = "agent", ChatGptCredentials? credentials = null, bool check = true, bool supportsWebSearch = true)
     {
         var settings = new TestSettings();
         Settings = settings;
@@ -436,7 +452,7 @@ public sealed class IntelligenceAgentProviderTests
         var client = Proxy<ILibreNmsClient>();
         var store = new Store();
         var windows = new Windows();
-        var agent = new FakeAgent(id) { Ready = ready };
+        var agent = new FakeAgent(id) { Ready = ready, SupportsWebSearch = supportsWebSearch };
         var agents = new List<IAgentProvider> { agent };
         if (second) agents.Add(new FakeAgent("second") { HasEfforts = secondHasEfforts });
         var model = new IntelligenceViewModel(Proxy<IChatGptCredentialStore>((method, _) => method.Name == "Load" ? credentials : null), null!,
@@ -452,13 +468,14 @@ public sealed class IntelligenceAgentProviderTests
     {
         public bool Ready { get; set; } = true;
         public bool HasEfforts { get; init; } = true;
+        public bool SupportsWebSearch { get; init; } = true;
         public List<AgentTurn> Turns { get; } = new();
         public AgentProviderException? Failure { get; set; }
         public int Retirements;
         public string Id => id;
         public string Name => id == "agent" ? "Agent" : "Second agent";
         public string Company => "Example Ltd";
-        public AgentCapabilities Capabilities => new(WebSearch: true, Images: true, Usage: true);
+        public AgentCapabilities Capabilities => new(WebSearch: SupportsWebSearch, Images: true, Usage: true);
 
         /// <summary>When set, a check waits for it - to see the provider while it's being checked.</summary>
         public TaskCompletionSource? CheckGate { get; set; }

@@ -12,6 +12,7 @@ using DesktopNMS.Core.Api;
 using DesktopNMS.Core.Configuration;
 using DesktopNMS.Core.Models;
 using DesktopNMS.Core.Intelligence;
+using DesktopNMS.Core.Services;
 using DesktopNMS.Core.Spotlights;
 using DesktopNMS.Infrastructure;
 using DesktopNMS.Services;
@@ -26,18 +27,21 @@ namespace DesktopNMS.ViewModels;
 /// was looked up. Everything here comes from DashyNMS's own live data, not
 /// from the model.
 /// </summary>
-public sealed partial class IntelligenceContextViewModel : ObservableObject
+public sealed partial class IntelligenceContextViewModel : ObservableObject, IDisposable
 {
     /// <summary>The most devices the Mentioned list keeps - the newest first.</summary>
     private const int MaxMentioned = 12;
 
     private readonly IDeviceCache _devices;
+    private readonly DeviceMonitor? _deviceMonitor;
     private readonly ILibreNmsClient _client;
     private readonly ISettingsStore _settings;
     private readonly IWindowService _windows;
     private readonly ILogger _logger;
     private readonly IUiDispatcher _dispatcher;
 
+    private IReadOnlySet<int> _maintenanceIds = new HashSet<int>();
+    private LibreNmsConnection? _maintenanceConnection;
     private IReadOnlyList<Alert> _alerts = Array.Empty<Alert>();
     private bool _isScopeLocked;
     private DateTimeOffset? _lastAlertRefresh;
@@ -50,9 +54,11 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
         ISettingsStore settings,
         IWindowService windows,
         AlertMonitor alerts,
-        ILogger logger)
+        ILogger logger,
+        DeviceMonitor? deviceMonitor = null)
     {
         _devices = devices;
+        _deviceMonitor = deviceMonitor;
         _client = client;
         _settings = settings;
         _windows = windows;
@@ -73,6 +79,8 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
             }
             else _dispatcher.InvokeAsync(() => { _alertRefreshFailed = true; OnPropertyChanged(nameof(AlertFreshness)); });
         };
+
+        if (_deviceMonitor is not null) _deviceMonitor.Polled += OnDevicesPolled;
 
         OpenDeviceCommand = new RelayCommand(p =>
         {
@@ -108,6 +116,24 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
             RaiseSpotlight();
         }, () => CanEditSpotlight && Spotlight.Count > 0);
         Picker = new SpotlightPickerViewModel(devices, client, settings, logger, option => AddSpotlight(option), () => CanEditSpotlight);
+    }
+
+    private void OnDevicesPolled(object? sender, DevicePollResult result)
+    {
+        if (!result.Succeeded) return;
+        var connection = _client.Connection;
+        _dispatcher.InvokeAsync(() =>
+        {
+            if (!ReferenceEquals(connection, _client.Connection)) return;
+            _maintenanceConnection = connection;
+            _maintenanceIds = result.DeviceIdsUnderMaintenance;
+            if (HasMentioned) RefreshMentioned();
+        });
+    }
+
+    public void Dispose()
+    {
+        if (_deviceMonitor is not null) _deviceMonitor.Polled -= OnDevicesPolled;
     }
 
     public ObservableCollection<MentionedDeviceViewModel> Mentioned { get; } = new();
@@ -283,6 +309,8 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
             return;
         }
 
+        // Share the Devices list's poll and maintenance scan, even if the list hasn't opened yet.
+        _deviceMonitor?.Start();
         Mentioned.Insert(0, MentionedDeviceViewModel.From(device, _settings.Current.DeviceNameStyle));
         while (Mentioned.Count > MaxMentioned)
         {
@@ -297,11 +325,13 @@ public sealed partial class IntelligenceContextViewModel : ObservableObject
     {
         var ids = Mentioned.Select(m => m.DeviceId).ToHashSet();
         var groups = AlertGrouping.ByDeviceAndRule(_alerts.Where(a => ids.Contains(a.DeviceId) && a.State != AlertState.Recovered));
+        var useMaintenance = ReferenceEquals(_maintenanceConnection, _client.Connection);
         foreach (var mentioned in Mentioned)
         {
             if (_devices.Get(mentioned.DeviceId) is { } device)
             {
-                mentioned.Update(device, groups.Count(g => g.DeviceId == device.DeviceId));
+                mentioned.Update(device, groups.Count(g => g.DeviceId == device.DeviceId),
+                    useMaintenance && _maintenanceIds.Contains(device.DeviceId));
             }
         }
 
@@ -474,11 +504,16 @@ public sealed class MentionedDeviceViewModel : ObservableObject
 
     public bool HasOpenAlerts => _openAlerts > 0;
 
-    public void Update(Device device, int openAlerts)
+    public void Update(Device device, int openAlerts, bool isUnderMaintenance = false)
     {
-        var disabled = device.Disabled || device.Ignore;
-        Severity = disabled ? "other" : device.Status ? "ok" : "down";
-        StateText = disabled ? "Disabled" : device.Status ? "Up" : "Down";
+        var state = isUnderMaintenance ? DeviceState.Maintenance : device.ReportedState;
+        Severity = state switch
+        {
+            DeviceState.Up => "ok",
+            DeviceState.Down => "down",
+            _ => "other",
+        };
+        StateText = state.ToDisplayString();
         OpenAlerts = openAlerts;
     }
 }

@@ -74,12 +74,6 @@
                         </Button.Flyout>
                     </Button>
                     <Button Classes="icon" Width="32" Height="30" WindowDecorationProperties.ElementRole="User"
-                            Command="{Binding HelpForTabCommand}" IsVisible="{Binding ShowHelpTab}"
-                            ToolTip.Tip="Help with this page (F1)"
-                            AutomationProperties.Name="Help with this page" AutomationProperties.AcceleratorKey="F1">
-                        <fi:SymbolIcon Symbol="QuestionCircle" />
-                    </Button>
-                    <Button Classes="icon" Width="32" Height="30" WindowDecorationProperties.ElementRole="User"
                             Command="{Binding RefreshCurrentTabCommand}"
                             ToolTip.Tip="Refresh now (F5)"
                             AutomationProperties.Name="Refresh now">
@@ -137,21 +131,23 @@
                                 <TextBlock Text="Intelligence" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
                             </StackPanel>
                         </Button>
-                        <!-- Network Search (#57): under Intelligence, as both are ways to ask about the network rather than pages of it. -->
+                        <!-- Network Search (#57): under Intelligence, as both are ways to ask about the network rather than pages of it.
+                             A compass, as on Mobile, so it does not look like a page's own search (#630). -->
                         <Button Classes="rail" Classes.selected="{Binding IsNetworkSearchTabSelected}"
                                 Command="{Binding SelectNetworkSearchTabCommand}"
                                 IsVisible="{Binding ShowNetworkSearchTab}"
                                 ToolTip.Tip="Network search (Ctrl+Shift+F)" AutomationProperties.Name="Network search"
                                 AutomationProperties.AcceleratorKey="Ctrl+Shift+F">
                             <StackPanel Orientation="Horizontal">
-                                <fi:SymbolIcon Symbol="Search" />
+                                <fi:SymbolIcon Symbol="CompassNorthwest" />
                                 <TextBlock Text="Search" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />
                             </StackPanel>
                         </Button>
                         <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="12,4,12,6" />
                         <Button Classes="rail" Classes.selected="{Binding IsHelpTabSelected}"
                                 Command="{Binding SelectHelpTabCommand}" IsVisible="{Binding ShowHelpTab}"
-                                ToolTip.Tip="Help" AutomationProperties.Name="Help">
+                                ToolTip.Tip="Help (F1 for help with this page)" AutomationProperties.Name="Help"
+                                AutomationProperties.HelpText="Press F1 for help with the page you are on">
                             <StackPanel Orientation="Horizontal">
                                 <fi:SymbolIcon Symbol="QuestionCircle" />
                                 <TextBlock Text="Help" VerticalAlignment="Center" Margin="4,0,0,0" IsVisible="{Binding IsNavExpanded}" />

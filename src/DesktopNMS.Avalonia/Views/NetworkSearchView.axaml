@@ -161,7 +161,7 @@
                 </StackPanel>
 
                 <!-- ======================== Nothing searched yet ======================== -->
-                <views:EmptyState IsVisible="{Binding IsIdle}" Icon="Search" Margin="0,40,0,0"
+                <views:EmptyState IsVisible="{Binding IsIdle}" Icon="CompassNorthwest" Margin="0,40,0,0"
                                   Title="Find anything on the network"
                                   Hint="Search an IP address, a network (192.0.2.0/24), a MAC address in any format, or a device name to see where it's connected: the switch port, its VLAN, the uplinks it passes through and the router that knows it. Press Enter with the box empty for a list of known endpoints. Ctrl+Shift+F (⌘⇧F on macOS) opens this from anywhere." />
 

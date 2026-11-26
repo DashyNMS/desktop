@@ -261,7 +261,10 @@ public sealed class IntelligenceComposerViewModel : ObservableObject
         {
             if (PickerProvider is not { } provider) return null;
             if (provider.VisibleModels.Count == 0) return $"{provider.DisplayName} has no models to show. Choose which in Settings › Providers.";
-            return provider.UsageText;
+            if (provider.Capabilities.WebSearch) return provider.UsageText;
+
+            var limitation = $"Web search is unavailable through {provider.DisplayName}.";
+            return provider.UsageText is { Length: > 0 } usage ? limitation + " " + usage : limitation;
         }
     }
 
