@@ -24,10 +24,10 @@ Without the sign-in packages, you can still sign in by pasting an API token. Wit
    - Intel or AMD: `DashyNMS-<version>-linux-x64.AppImage`
    - ARM: `DashyNMS-<version>-linux-arm64.AppImage`
 2. Move it somewhere it can stay, for example a folder called `Applications` in your home folder.
-3. Allow it to run as a program. In most file managers, open the file's **Properties**, and turn on **Allow executing file as program** (or **Is executable**). Or, in a terminal:
+3. Allow it to run as a program. In most file managers, open the file's **Properties**, and turn on **Allow executing file as program** (or **Is executable**). Or, in a terminal, with the folder you chose:
 
    ```bash
-   chmod +x DashyNMS-*-linux-x64.AppImage
+   chmod +x ~/Applications/DashyNMS-*-linux-*.AppImage
    ```
 
 4. Double-click it to open DashyNMS.

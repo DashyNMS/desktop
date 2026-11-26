@@ -41,6 +41,18 @@ internal sealed class IntelligenceChatWriter : IDisposable
         => Enqueue(new Operation(scope, snapshot.Id, IsSave: true, store => store.Save(scope, snapshot, makeActive),
             "Couldn't save this chat. Check that your DashyNMS data folder is writable."));
 
+    /// <summary>
+    /// Moves a chat to another scope as one step: written under the new scope,
+    /// and only then deleted from the old one, so a failed write leaves it
+    /// where it was. A later save of the chat queues behind it, never ahead.
+    /// </summary>
+    public void Move(string from, string to, SavedIntelligenceChat snapshot)
+        => Enqueue(new Operation(to, snapshot.Id, IsSave: false, store =>
+        {
+            store.Save(to, snapshot, makeActive: true);
+            store.Delete(from, snapshot.Id);
+        }, "Couldn't move this chat to its new provider. It's still saved under the old one."));
+
     public void Delete(string scope, Guid id)
         => Enqueue(new Operation(scope, id, IsSave: false, store => store.Delete(scope, id), "Couldn't delete the saved chat."));
 

@@ -2,27 +2,28 @@ using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using DesktopNMS.Core.Demo;
 using Microsoft.Extensions.Logging;
 
 namespace DesktopNMS.Demo;
 
 /// <summary>
 /// A stand-in LibreNMS for demo mode on the loopback address, answering from
-/// <see cref="DemoFleet"/>'s example network - so the demo runs the
-/// real app, transport and all, without touching a real server. Plain HTTP/1.1
+/// Core's <see cref="DemoResponder"/> - so the demo runs the real app,
+/// transport and all, without touching a real server. Plain HTTP/1.1
 /// on a <see cref="TcpListener"/>: HttpListener wants a URL reservation or
 /// admin rights, and one connection per request is all this needs.
 /// </summary>
 internal sealed class DemoServer : IDisposable
 {
     private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
-    private readonly DemoFleet _fleet;
+    private readonly DemoResponder _responder;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _stop = new();
 
-    public DemoServer(DemoFleet fleet, ILogger logger)
+    public DemoServer(DemoResponder responder, ILogger logger)
     {
-        _fleet = fleet;
+        _responder = responder;
         _logger = logger;
     }
 
@@ -67,10 +68,17 @@ internal sealed class DemoServer : IDisposable
                 return;
             }
 
-            var response = _fleet.Handle(method, target, body);
+            var response = _responder.Respond(method, target, body);
             if (response.Unhandled)
             {
-                _logger.LogDebug("Demo: no example data for {Method} {Target}", method, target);
+                if (response.Status == 200)
+                {
+                    _logger.LogDebug("Demo: no example data for {Method} {Target}", method, target);
+                }
+                else
+                {
+                    _logger.LogDebug("Demo: refused {Method} {Target} ({Status})", method, target, response.Status);
+                }
             }
 
             var payload = Encoding.UTF8.GetBytes(response.Body);

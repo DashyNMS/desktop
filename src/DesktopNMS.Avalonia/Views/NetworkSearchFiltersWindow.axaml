@@ -1,0 +1,39 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopNMS.ViewModels"
+        xmlns:views="using:DesktopNMS.Views"
+        x:Class="DesktopNMS.Views.NetworkSearchFiltersWindow"
+        x:DataType="vm:NetworkSearchViewModel"
+        Title="Filter results"
+        Width="380" Height="520"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Network Search's filters (#57), as LibreNMS 26.11 offers them: where
+         an endpoint was found (its Source filter), which router knows it, and
+         whether LibreNMS monitors it. Ticked values show (any of them), an
+         unticked one is hidden; Select all and Select none cover Any and None.
+         Every tick filters the list as it's clicked, like the Devices tab. -->
+    <Grid RowDefinitions="*,Auto">
+        <TabControl Grid.Row="0" Margin="10,6,10,0">
+            <TabItem Header="Source">
+                <views:FilterFacetSection DataContext="{Binding SourceFilter}" />
+            </TabItem>
+            <TabItem Header="Seen by">
+                <views:FilterFacetSection DataContext="{Binding SeenByFilter}" />
+            </TabItem>
+            <TabItem Header="Monitored">
+                <views:FilterFacetSection DataContext="{Binding MonitoredFilter}" />
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="24,14">
+            <Grid ColumnDefinitions="*,Auto">
+                <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" Padding="14,7" HorizontalAlignment="Left" />
+                <Button Grid.Column="1" Content="Close" IsCancel="True" IsDefault="True" Classes="primary" Padding="20,7" Click="OnClose" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

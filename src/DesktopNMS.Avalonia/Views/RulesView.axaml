@@ -122,7 +122,7 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="vm:RuleItemViewModel">
                                 <DockPanel VerticalAlignment="Center" Margin="10,0">
-                                    <!-- A rule testing a column LibreNMS 26.10 removed (#350). -->
+                                    <!-- A rule testing a column LibreNMS has removed (#350, #587). -->
                                     <Border DockPanel.Dock="Right" Background="#33D29922" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" CornerRadius="4"
                                             Padding="6,1" Margin="6,0,0,0" ToolTip.Tip="{Binding ReviewToolTip}" IsVisible="{Binding NeedsReview}">
                                         <TextBlock Text="Review" FontSize="11" />

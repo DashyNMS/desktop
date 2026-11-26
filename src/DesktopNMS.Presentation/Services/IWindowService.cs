@@ -122,6 +122,9 @@ public interface IWindowService
     /// </summary>
     void ShowDeviceFiltersDialog();
 
+    /// <summary>Network Search's filters (#57) - live, like the Devices tab's, so nothing to report back.</summary>
+    void ShowNetworkSearchFiltersDialog();
+
     /// <summary>The Alerts tab's equivalent of <see cref="ShowDeviceFiltersDialog"/> - its device group filter (issue #162), live like the Devices one.</summary>
     void ShowAlertFiltersDialog();
 
@@ -173,6 +176,12 @@ public interface IWindowService
 
     /// <summary>Shows the "Edit alert template" dialog for an existing template. Returns true if it was saved.</summary>
     bool ShowEditAlertTemplateDialog(AlertTemplate template);
+
+    /// <summary>
+    /// Opens a page of the user guide (#604): in the main window when it can be
+    /// used, otherwise - signing in, or over a dialog - in a window of its own.
+    /// </summary>
+    void ShowHelp(Help.HelpTopic topic);
 
     /// <summary>Opens a URL in the default browser.</summary>
     void OpenUrl(Uri url);

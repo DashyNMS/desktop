@@ -9,10 +9,19 @@
     <InvariantGlobalization>false</InvariantGlobalization>
     <Product>DashyNMS</Product>
     <Company>DashyNMS</Company>
+    <Authors>Thomas Pickup</Authors>
+    <Copyright>Copyright (c) 2026 Thomas Pickup. All rights reserved.</Copyright>
+    <!-- The version being built towards: edge and nightly builds are
+         2.0.0-edge.N and 2.0.0-nightly.N, and a release is 2.0.0. -->
     <Version>2.0.0</Version>
     <NeutralLanguage>en-GB</NeutralLanguage>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <DashyNMSSentryDsn Condition="'$(DashyNMSSentryDsn)' == ''">$(DASHYNMS_SENTRY_DSN)</DashyNMSSentryDsn>
+    <!-- DashyNMS/core, from GitHub Packages (see nuget.config): an exact
+         nightly or edge package between Core releases. -->
+    <DashyNMSCoreVersion>2.0.0-nightly.7</DashyNMSCoreVersion>
+    <!-- The DashyNMS/mcp commit whose server the installers bundle: 2.0.0-nightly.6. -->
+    <DashyNMSMcpRevision>65580bb0b4fa0dc6d465b466b2f2e070183e8e8e</DashyNMSMcpRevision>
   </PropertyGroup>
 
 </Project>

@@ -20,4 +20,7 @@ public enum SettingsSection
     ServerInformation,
     Updates,
     Diagnostics,
+
+    /// <summary>Intelligence's providers (#316): who answers, and how each connects.</summary>
+    IntelligenceProviders,
 }

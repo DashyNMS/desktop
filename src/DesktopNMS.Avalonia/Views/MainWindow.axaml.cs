@@ -31,6 +31,23 @@ public partial class MainWindow : Window
 
         TitleBarFit.Attach(this, TitleBarContent, left: 19);
 
+        // The menu bar's Help menu on macOS. Windows and Linux have no menu
+        // bar here: Help is in the sidebar and the tray's menu.
+        if (OperatingSystem.IsMacOS())
+        {
+            NativeMenu.SetMenu(this, new NativeMenu
+            {
+                new NativeMenuItem("Help")
+                {
+                    Menu = new NativeMenu
+                    {
+                        new NativeMenuItem("DashyNMS Help") { Command = viewModel.SelectHelpTabCommand },
+                        new NativeMenuItem("Help with This Page") { Command = viewModel.HelpForTabCommand },
+                    },
+                },
+            });
+        }
+
         // Ctrl+F (Cmd+F on a Mac) to the showing tab's search box - tunnelling,
         // so it's seen before a focused text box treats it as typing.
         AddHandler(KeyDownEvent, OnFindKeyDown, RoutingStrategies.Tunnel);
@@ -73,6 +90,18 @@ public partial class MainWindow : Window
 
     private void OnFindKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
     {
+        // Ctrl+Shift+F (Cmd+Shift+F on macOS): Network Search from anywhere (#57).
+        // Ctrl/Cmd+F alone still filters the page you're on.
+        if (e.Key == Avalonia.Input.Key.F
+            && (e.KeyModifiers == (Avalonia.Input.KeyModifiers.Control | Avalonia.Input.KeyModifiers.Shift)
+                || e.KeyModifiers == (Avalonia.Input.KeyModifiers.Meta | Avalonia.Input.KeyModifiers.Shift))
+            && _viewModel is { ShowNetworkSearchTab: true } searchHost)
+        {
+            searchHost.OpenNetworkSearch();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key != Avalonia.Input.Key.F
             || (e.KeyModifiers != Avalonia.Input.KeyModifiers.Control && e.KeyModifiers != Avalonia.Input.KeyModifiers.Meta)
             || _viewModel is not { } viewModel)
@@ -91,6 +120,8 @@ public partial class MainWindow : Window
             { IsNetworkMapTabSelected: true } => NetworkMapViewControl.FocusSearch,
             { IsGeoMapTabSelected: true } => GeoMapViewControl.FocusSearch,
             { IsGraylogLogsTabSelected: true } => LogsViewControl.FocusSearch,
+            { IsNetworkSearchTabSelected: true } => NetworkSearchViewControl.FocusPageFilter,
+            { IsHelpTabSelected: true } => HelpViewControl.FocusSearch,
 
             // The Dashboard has no search box yet.
             _ => null,

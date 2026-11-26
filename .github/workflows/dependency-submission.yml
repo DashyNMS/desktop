@@ -6,11 +6,11 @@ name: Dependency submission
 # log in to GitHub Packages - turn that off in Settings > Advanced Security.
 on:
   push:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   packages: read
 
 env:
@@ -20,20 +20,20 @@ jobs:
   submit:
     name: Submit dependencies
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # the dependency submission API
+      packages: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          dotnet-version: "9.0.x"
-
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
       # project.assets.json is what component detection reads.
       - name: Restore
-        run: dotnet restore DesktopNMS.sln
-
+        run: dotnet restore DashyNMS.Desktop.slnx
       - name: Submit to the dependency graph
-        uses: advanced-security/component-detection-dependency-submission-action@v0.2.0
+        uses: advanced-security/component-detection-dependency-submission-action@9887d3a4295305f4e7b03a1cfdb2099d44cadf52 # v0.2.1
         with:
           detectorsCategories: NuGet

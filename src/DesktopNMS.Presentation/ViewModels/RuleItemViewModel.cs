@@ -71,11 +71,18 @@ public sealed class RuleItemViewModel : ObservableObject
 
     public string ConditionToolTip => _rule.Extra?.OverrideQuery == true ? "Override SQL - runs exactly as written" : ConditionText;
 
-    /// <summary>Columns this rule tests that LibreNMS 26.10 removed (#350) - it needs reviewing in the editor.</summary>
-    public bool NeedsReview => AlertRuleCompatibility.FindRemovedColumns(_rule).Count > 0;
+    /// <summary>
+    /// The connected server's LibreNMS version, when known, so a rule is only
+    /// flagged for columns that server has actually removed. Unknown flags any
+    /// removal Core knows of (#350, #587).
+    /// </summary>
+    public Version? ServerVersion { get; init; }
+
+    /// <summary>Columns this rule tests that the server's LibreNMS has removed - it needs reviewing in the editor.</summary>
+    public bool NeedsReview => AlertRuleCompatibility.FindRemovedColumns(_rule, ServerVersion).Count > 0;
 
     public string? ReviewToolTip => NeedsReview
-        ? "Uses columns LibreNMS 26.10 removed: " + string.Join(", ", AlertRuleCompatibility.FindRemovedColumns(_rule).Select(c => c.Field)) + ". Open the rule to review it."
+        ? "Uses columns LibreNMS has removed: " + string.Join(", ", AlertRuleCompatibility.FindRemovedColumns(_rule, ServerVersion).Select(c => c.Field)) + ". Open the rule to review it."
         : null;
 
     public bool IsDisabled => _rule.Disabled;

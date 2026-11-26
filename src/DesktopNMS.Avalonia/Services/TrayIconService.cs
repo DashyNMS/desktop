@@ -105,6 +105,7 @@ public sealed class TrayIconService : IDisposable
             _refreshItem,
             _updateItem,
             Item("Settings…", _viewModel.SettingsCommand),
+            Item("Help", _viewModel.HelpCommand),
             _signInOrOutItem,
             new NativeMenuItemSeparator(),
             Item(OperatingSystem.IsMacOS() ? "Quit DashyNMS" : "Exit", _viewModel.ExitCommand),

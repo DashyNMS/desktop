@@ -2,6 +2,12 @@
 
 Start with the section closest to what you see. Keep the error message and the time it happened; both help distinguish an app problem from a server or network problem.
 
+## Find help in the app
+
+Choose **Help** in the sidebar, or press **F1** on a page or in Settings. Use **Search help** (**Ctrl+F**, or **Cmd+F** on macOS) to find a word. **Alt+Left** and **Alt+Right** go back and forward (**Cmd+[** and **Cmd+]** on macOS). **Help** on the sign-in window opens it before you've signed in.
+
+The foot of the contents list says which version the help describes. Help comes with the app, so it works without an internet connection.
+
 ## Cannot connect to LibreNMS
 
 1. Open the same server address in your browser on this computer. If it fails there too, check your network, VPN and server availability.
@@ -42,11 +48,11 @@ Run **Test connection** in the integration's Settings page. DashyNMS connects fr
 
 ## The app forgets my token on Linux
 
-Check that `secret-tool` is installed and your desktop's Secret Service keyring is running and unlocked. Without a usable keyring, DashyNMS can connect but cannot save the token for the next launch. See [platform differences](platform-differences.md#saved-passwords).
+Check that `secret-tool` is installed and your desktop's keyring is running and unlocked. Without a usable keyring, DashyNMS can connect but cannot save the token for the next launch. See [platform differences](platform-differences.md#saved-passwords).
 
 ## Report a problem
 
-1. Note the DashyNMS version, operating system and whether this is a preview build.
+1. Note the DashyNMS version, operating system and whether this is a nightly or edge build.
 2. Write the steps that reproduce the problem, what you expected and what happened.
 3. Open **Settings → Diagnostics → Open log folder** and inspect the log for the time of the problem.
 4. Remove credentials and private network details from any excerpt or screenshot you share.

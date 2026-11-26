@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using DesktopNMS.Core.Demo;
 using DesktopNMS.Services;
 using DesktopNMS.ViewModels;
 using DesktopNMS.Views;
@@ -12,12 +13,12 @@ namespace DesktopNMS.Demo;
 
 /// <summary>
 /// Walks the demo through the main screens and saves each window as a PNG
-/// (<c>--demo --screenshots &lt;folder&gt;</c>, via tools/Render-Screenshots.ps1)
+/// (<c>--demo --screenshots &lt;folder&gt;</c>, via scripts/Render-Screenshots.ps1)
 /// - the real views, rendered from the example network, so the README and
 /// release screenshots never show anyone's real devices (#243, #250, from the
 /// WPF app's ScreenshotTour).
 /// </summary>
-internal sealed class ScreenshotTour(string folder, MainViewModel main, IWindowService windows, DemoFleet fleet, ILogger logger)
+internal sealed class ScreenshotTour(string folder, MainViewModel main, IWindowService windows, DemoResponder responder, ILogger logger)
 {
     /// <summary>Every screenshot's size, in device-independent pixels: a full 1080p screen.</summary>
     private const double Width = 1920;
@@ -41,7 +42,20 @@ internal sealed class ScreenshotTour(string folder, MainViewModel main, IWindowS
         await TabAsync(mainWindow, MainTab.LogsEvents, "logs", 4).ConfigureAwait(true);
         await TabAsync(mainWindow, MainTab.MapsNetwork, "network-map", 8).ConfigureAwait(true);
 
-        windows.ShowDeviceDetail(fleet.FeaturedDeviceId);
+        // Network Search (#57): one endpoint in full, a conflict, and a network's list.
+        if (main.NetworkSearch is { } search)
+        {
+            await SectionAsync(mainWindow, () => { main.SelectedTab = MainTab.NetworkSearch; _ = search.SearchForAsync("192.0.2.117"); }, "network-search").ConfigureAwait(true);
+            await SectionAsync(mainWindow, () => _ = search.SearchForAsync("00-00-5E-00-53-69"), "network-search-shared").ConfigureAwait(true);
+            await SectionAsync(mainWindow, () => _ = search.SearchForAsync("192.0.2.200"), "network-search-conflict").ConfigureAwait(true);
+            await SectionAsync(mainWindow, () => _ = search.SearchForAsync("dist-sw-01"), "network-search-device").ConfigureAwait(true);
+            await SectionAsync(mainWindow, () => _ = search.SearchForAsync("192.0.2.0/24"), "network-search-list").ConfigureAwait(true);
+        }
+
+        // Help (#604), on a page with steps, a table and a picture.
+        await SectionAsync(mainWindow, () => main.OpenHelp(new DesktopNMS.Services.Help.HelpTopic("Use-maps-and-health-readings")), "help").ConfigureAwait(true);
+
+        windows.ShowDeviceDetail(responder.FeaturedDeviceId);
         await SettleAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(true);
         var deviceWindow = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Windows.OfType<DeviceView>().FirstOrDefault();
         if (deviceWindow is { DataContext: DeviceDetailViewModel device })

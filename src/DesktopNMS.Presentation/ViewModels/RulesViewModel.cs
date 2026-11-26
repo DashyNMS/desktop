@@ -331,6 +331,7 @@ public sealed class RulesViewModel : ObservableObject
                     {
                         ActiveAlertCount = _alertCounts.GetValueOrDefault(rule.Id),
                         TemplateName = templateByRule.GetValueOrDefault(rule.Id, DefaultTemplateName),
+                        ServerVersion = _client.Permissions.ServerVersion,
                     };
                     Rules.Add(item);
                 }

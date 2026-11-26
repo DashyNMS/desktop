@@ -14,6 +14,7 @@ using DesktopNMS.Core.Security;
 using DesktopNMS.Core.Sensors;
 using DesktopNMS.Core.Services;
 using DesktopNMS.Core.Topology;
+using DesktopNMS.Core.Demo;
 using DesktopNMS.Demo;
 using DesktopNMS.Diagnostics;
 using DesktopNMS.Infrastructure;
@@ -52,7 +53,7 @@ public partial class App : Application
     private bool _trayUpdatePending;
     private DemoMode _demo = new(isActive: false);
     private DemoServer? _demoServer;
-    private DemoFleet? _demoFleet;
+    private DemoResponder? _demoResponder;
     private UpdateProgressWindow? _updateProgressWindow;
     private bool _startDemoOnExit;
     private bool _leaveDemoOnExit;
@@ -81,7 +82,7 @@ public partial class App : Application
         var args = desktop.Args ?? [];
         if (!MacUpdateInstallation.CanStartDuringUpdate())
         {
-            desktop.Shutdown(); return;
+            ExitBeforeStarting(desktop); return;
         }
 
         // Demo mode (DemoMode): the whole app on an example network, in its own
@@ -109,7 +110,7 @@ public partial class App : Application
             if (!_instance.TryClaim(() => Dispatcher.UIThread.Post(ShowMainOrSignIn)))
             {
                 _instance.SignalExisting(); _instance.Dispose(); _instance = null;
-                desktop.Shutdown(); return;
+                ExitBeforeStarting(desktop); return;
             }
         }
 
@@ -174,10 +175,10 @@ public partial class App : Application
 
         if (_demo.IsActive)
         {
-            _demoFleet = new DemoFleet();
-            _demoServer = new DemoServer(_demoFleet, _logger);
+            _demoResponder = new DemoResponder();
+            _demoServer = new DemoServer(_demoResponder, _logger);
             _demoServer.Start();
-            DemoMode.Seed(settings, _services.GetRequiredService<ITokenProtector>(), _demoServer.Address, _demoFleet, _demo.IsRenderingScreenshots);
+            DemoMode.Seed(settings, _services.GetRequiredService<ITokenProtector>(), _demoServer.Address, _demoResponder, _demo.IsRenderingScreenshots);
         }
 
         // "Try the demo" on the sign-in window: this copy closes and a demo one starts.
@@ -422,11 +423,11 @@ public partial class App : Application
         UpdateTrayStatus();
 
         // Rendering the README screenshots: the tour, then close.
-        if (_demo.ScreenshotFolder is { } folder && _demoFleet is not null && _logger is not null)
+        if (_demo.ScreenshotFolder is { } folder && _demoResponder is not null && _logger is not null)
         {
             try
             {
-                await new ScreenshotTour(folder, _mainViewModel, windows, _demoFleet, _logger).RunAsync(_mainWindow).ConfigureAwait(true);
+                await new ScreenshotTour(folder, _mainViewModel, windows, _demoResponder, _logger).RunAsync(_mainWindow).ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -516,6 +517,15 @@ public partial class App : Application
 
             windows.ShowMain();
             _mainViewModel.SettingsCommand.Execute(null);
+        };
+        tray.HelpRequested += (_, _) =>
+        {
+            if (_mainViewModel?.IsConnected == true)
+            {
+                windows.ShowMain();
+            }
+
+            windows.ShowHelp(DesktopNMS.Services.Help.HelpTopics.Home);
         };
         tray.SignInOrOutRequested += (_, _) =>
         {
@@ -784,6 +794,16 @@ public partial class App : Application
         }
     }
 
+    /// <summary>
+    /// Leaves before the main loop has run: a second copy, or a launch during an update.
+    /// Shutting down here, inside OnFrameworkInitializationCompleted, would stop the
+    /// dispatcher before Avalonia starts its main loop, which then throws
+    /// "the Dispatcher shut down" and aborts the process. Queued instead, the shutdown
+    /// runs as the loop's first job and the process exits normally.
+    /// </summary>
+    private static void ExitBeforeStarting(IClassicDesktopStyleApplicationLifetime desktop)
+        => Dispatcher.UIThread.Post(() => desktop.Shutdown(), DispatcherPriority.Send);
+
     private static void WaitForExit(int processId)
     {
         try
@@ -919,6 +939,20 @@ public partial class App : Application
         services.AddSingleton<INeighbourDirectory, NeighbourDirectory>();
         services.AddSingleton<McpToolHost>();
 
+        // Agent providers (#316): each runs in an empty folder of DashyNMS's own, so it never sees a project.
+        services.AddSingleton<DesktopNMS.Services.Intelligence.Agents.IAgentProvider>(sp => new DesktopNMS.Services.Intelligence.Agents.CodexAgentProvider(
+            System.IO.Path.Combine(AppPaths.DataDirectory, "intelligence", "agents", "codex"),
+            sp.GetRequiredService<ILogger<DesktopNMS.Services.Intelligence.Agents.CodexAgentProvider>>()));
+        services.AddSingleton<DesktopNMS.Services.Intelligence.Agents.IAgentProvider>(sp => new DesktopNMS.Services.Intelligence.Agents.ClaudeCodeAgentProvider(
+            System.IO.Path.Combine(AppPaths.DataDirectory, "intelligence", "agents", "claude-code"),
+            sp.GetRequiredService<ILogger<DesktopNMS.Services.Intelligence.Agents.ClaudeCodeAgentProvider>>()));
+        services.AddSingleton<DesktopNMS.Services.Intelligence.Agents.IAgentProvider>(sp => new DesktopNMS.Services.Intelligence.Agents.CopilotAgentProvider(
+            System.IO.Path.Combine(AppPaths.DataDirectory, "intelligence", "agents", "copilot"),
+            sp.GetRequiredService<ILogger<DesktopNMS.Services.Intelligence.Agents.CopilotAgentProvider>>()));
+        services.AddSingleton<DesktopNMS.Services.Intelligence.Agents.IAgentProvider>(sp => new DesktopNMS.Services.Intelligence.Agents.GeminiAgentProvider(
+            System.IO.Path.Combine(AppPaths.DataDirectory, "intelligence", "agents", "gemini"),
+            sp.GetRequiredService<ILogger<DesktopNMS.Services.Intelligence.Agents.GeminiAgentProvider>>()));
+
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<TrayViewModel>();
         services.AddSingleton<TrayIconService>();
@@ -928,6 +962,11 @@ public partial class App : Application
         services.AddSingleton<IIntelligenceChatPdfWriter, IntelligenceChatPdfWriter>();
         services.AddSingleton(provider => new IntelligenceChatExporter(provider.GetRequiredService<IIntelligenceChatPdfWriter>()));
         services.AddSingleton<IntelligenceViewModel>();
+        services.AddSingleton<NetworkSearchViewModel>();
+        // The user guide for this version (#604). The demo contacts nothing, so its pages are the bundled ones.
+        services.AddSingleton(_ => DesktopNMS.Services.Help.BundledHelp.CreateService(DesktopUpdateService.RunningVersion()));
+        services.AddSingleton(provider => new HelpViewModel(provider.GetRequiredService<DesktopNMS.Core.Help.HelpGuideService>(),
+            provider.GetRequiredService<IWindowService>(), mayRefresh: !demo.IsActive));
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<GroupsViewModel>();
         services.AddSingleton<LocationsViewModel>();

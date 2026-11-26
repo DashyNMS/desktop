@@ -15,7 +15,7 @@ To sign in with LibreNMS, DashyNMS uses Microsoft Edge WebView2, which Windows 1
 
 ## Update
 
-DashyNMS checks for new versions by itself. When one is ready, choose **Restart to update**. Your settings and sign-in stay as they are.
+DashyNMS checks for new versions by itself. When one is ready, choose **Restart to update**. Your settings and sign-in stay as they are. To get newer builds, see [Choose an update channel](../how-to/settings.md#choose-an-update-channel).
 
 You can also download a newer installer and run it over the top of the version you have.
 

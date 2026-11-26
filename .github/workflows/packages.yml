@@ -1,0 +1,212 @@
+name: Packages
+
+# Builds and checks the five installers: Windows x64 Setup, macOS Intel and
+# Apple silicon disk images, Linux x64 and ARM64 AppImages. Called by the edge,
+# nightly and release builds, which sign the macOS ones. Pull requests that
+# change packaging build them unsigned. Publishes nothing: the caller does.
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      commit:
+        type: string
+        required: true
+      sign:
+        description: Sign and notarise the macOS packages
+        type: boolean
+        default: false
+    secrets:
+      MACOS_CERTIFICATE_BASE64:
+        required: false
+      MACOS_CERTIFICATE_PASSWORD:
+        required: false
+      MACOS_SIGNING_IDENTITY:
+        required: false
+      APPLE_API_KEY:
+        required: false
+      APPLE_API_KEY_ID:
+        required: false
+      APPLE_API_ISSUER_ID:
+        required: false
+  pull_request:
+    paths:
+      - .github/workflows/packages.yml
+      - .github/workflows/*-build.yml
+      - Directory.Build.props
+      - docs/releases/**
+      - installer/**
+      - scripts/*MacOS*.ps1
+      - scripts/Mcp-VersionMetadata.ps1
+      - scripts/Publish-Mcp.ps1
+      - scripts/Publish-Package.ps1
+      - scripts/Test-Package.ps1
+      - scripts/Test-WindowsUpgrade.ps1
+      - scripts/macos/**
+      - src/DesktopNMS.Avalonia/DesktopNMS.Avalonia.csproj
+      - src/DesktopNMS.Presentation/Services/ComponentVersions.cs
+      - src/DesktopNMS.Presentation/Services/Intelligence/McpToolHost*.cs
+      - tests/DesktopNMS.Presentation.Tests/McpBundleTests.cs
+      - tests/DesktopNMS.Presentation.Tests/WindowsInstallerUpgradeTests.cs
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: packages-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  DASHYNMS_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  DASHYNMS_SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+  MACOS_UPDATE_TEAM_ID: ${{ vars.MACOS_UPDATE_TEAM_ID }}
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.version.outputs.value }}
+      commit: ${{ steps.version.outputs.commit }}
+      mcp: ${{ steps.version.outputs.mcp }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit || github.sha }}
+          persist-credentials: false
+      # A pull request's packages are never published; edge builds start at 1.
+      - name: Read the version and pins
+        id: version
+        shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          SOURCE_COMMIT: ${{ inputs.commit || github.sha }}
+          SIGN: ${{ inputs.sign || false }}
+        run: |
+          ./scripts/Test-MacOSWorkflowPolicy.ps1 -Distribution:($env:SIGN -eq 'true') -SourceCommit $env:SOURCE_COMMIT
+          [xml]$props = Get-Content Directory.Build.props
+          $version = if ($env:REQUESTED_VERSION) { $env:REQUESTED_VERSION } else { "$($props.Project.PropertyGroup.Version)-edge.0" }
+          if ($version -notmatch '^\d+\.\d+\.\d+(-(edge|nightly)\.\d+)?$') { throw 'Invalid package version.' }
+          $mcp = [string]$props.Project.PropertyGroup.DashyNMSMcpRevision
+          if ($mcp -notmatch '^[0-9a-f]{40}$') { throw 'DashyNMSMcpRevision must be a full commit.' }
+          @("value=$version", "commit=$env:SOURCE_COMMIT", "mcp=$mcp") >> $env:GITHUB_OUTPUT
+
+  package:
+    name: Package (${{ matrix.runtime }})
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            runtime: win-x64
+          - os: macos-15-intel
+            runtime: osx-x64
+          - os: macos-latest
+            runtime: osx-arm64
+          - os: ubuntu-24.04
+            runtime: linux-x64
+          - os: ubuntu-24.04-arm
+            runtime: linux-arm64
+    runs-on: ${{ matrix.os }}
+    # The signing secrets, for signed macOS packages and nothing else.
+    environment: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') && 'DashyNMS_MacOS' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.commit }}
+          persist-credentials: false
+      - name: Validate the source before using credentials
+        shell: pwsh
+        env:
+          SOURCE_COMMIT: ${{ needs.version.outputs.commit }}
+          SIGN: ${{ inputs.sign || false }}
+        run: ./scripts/Test-MacOSWorkflowPolicy.ps1 -Distribution:($env:SIGN -eq 'true') -SourceCommit $env:SOURCE_COMMIT
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 9.0.x
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: DashyNMS/mcp
+          ref: ${{ needs.version.outputs.mcp }}
+          path: artifacts/mcp-source
+          persist-credentials: false
+      - name: Install Linux package dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y squashfs-tools desktop-file-utils libsecret-tools libnotify-bin
+      - name: Install pinned Inno Setup compiler
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer=Join-Path $env:RUNNER_TEMP 'innosetup-6.7.3.exe'
+          Invoke-WebRequest https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe -OutFile $installer
+          if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne '9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732') { throw 'Inno Setup checksum mismatch.' }
+          $compiler=Join-Path $env:RUNNER_TEMP 'innosetup'
+          $process=Start-Process $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CURRENTUSER','/NOICONS',"/DIR=`"$compiler`"" -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Installing the package compiler failed.' }
+          "INNO_COMPILER=$compiler/ISCC.exe" >> $env:GITHUB_ENV
+      - name: Build the native network tools
+        shell: pwsh
+        run: ./scripts/Publish-Mcp.ps1 -Source artifacts/mcp-source -Runtime '${{ matrix.runtime }}'
+      # GitHub's workaround for Apple's ticket requests from Intel runners
+      # (actions/runner-images#14924).
+      - name: Route Intel notarisation tickets over HTTPS
+        if: inputs.sign && matrix.runtime == 'osx-x64'
+        shell: bash
+        run: |
+          printf '%s\n' 'block return out quick proto udp from any to any port 443' | sudo pfctl -f -
+          sudo pfctl -E
+      - name: Build the package
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ needs.version.outputs.value }}
+          SIGN: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') }}
+          MACOS_CERTIFICATE_BASE64: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') && secrets.MACOS_CERTIFICATE_BASE64 || '' }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') && secrets.MACOS_CERTIFICATE_PASSWORD || '' }}
+          MACOS_SIGNING_IDENTITY: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') && secrets.MACOS_SIGNING_IDENTITY || '' }}
+          APPLE_API_KEY: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') && secrets.APPLE_API_KEY || '' }}
+          APPLE_API_KEY_ID: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') && secrets.APPLE_API_KEY_ID || '' }}
+          APPLE_API_ISSUER_ID: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') && secrets.APPLE_API_ISSUER_ID || '' }}
+        run: ./scripts/Publish-Package.ps1 -Runtime '${{ matrix.runtime }}' -Version $env:PACKAGE_VERSION -InnoCompiler $env:INNO_COMPILER -MacOSDistribution:($env:SIGN -eq 'true')
+      - name: Verify the finished package
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ needs.version.outputs.value }}
+          SIGN: ${{ inputs.sign && startsWith(matrix.runtime, 'osx-') }}
+        run: ./scripts/Test-Package.ps1 -Runtime '${{ matrix.runtime }}' -Version $env:PACKAGE_VERSION -MacOSDistribution:($env:SIGN -eq 'true')
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package-${{ matrix.runtime }}
+          path: artifacts/packages/${{ needs.version.outputs.value }}/${{ matrix.runtime }}/*
+          if-no-files-found: error
+          retention-days: 14
+
+  upgrade:
+    name: Windows upgrade (${{ matrix.from }})
+    needs: [version, package]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        from: ['1.0.0', '1.1.0']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.commit }}
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 9.0.x
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package-win-x64
+          path: artifacts/upgrade-candidate
+      - name: Upgrade the shipped app on a fresh CI account
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_VERSION: ${{ needs.version.outputs.value }}
+        run: ./scripts/Test-WindowsUpgrade.ps1 -FromVersion '${{ matrix.from }}' -Version $env:PACKAGE_VERSION -PackageDirectory artifacts/upgrade-candidate
