@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using DesktopNMS.Core.Demo;
 using DesktopNMS.Services;
 using DesktopNMS.ViewModels;
 using DesktopNMS.Views;
@@ -17,7 +18,7 @@ namespace DesktopNMS.Demo;
 /// release screenshots never show anyone's real devices (#243, #250, from the
 /// WPF app's ScreenshotTour).
 /// </summary>
-internal sealed class ScreenshotTour(string folder, MainViewModel main, IWindowService windows, DemoFleet fleet, ILogger logger)
+internal sealed class ScreenshotTour(string folder, MainViewModel main, IWindowService windows, DemoResponder responder, ILogger logger)
 {
     /// <summary>Every screenshot's size, in device-independent pixels: a full 1080p screen.</summary>
     private const double Width = 1920;
@@ -54,7 +55,7 @@ internal sealed class ScreenshotTour(string folder, MainViewModel main, IWindowS
         // Help (#604), on a page with steps, a table and a picture.
         await SectionAsync(mainWindow, () => main.OpenHelp(new DesktopNMS.Services.Help.HelpTopic("Use-maps-and-health-readings")), "help").ConfigureAwait(true);
 
-        windows.ShowDeviceDetail(fleet.FeaturedDeviceId);
+        windows.ShowDeviceDetail(responder.FeaturedDeviceId);
         await SettleAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(true);
         var deviceWindow = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Windows.OfType<DeviceView>().FirstOrDefault();
         if (deviceWindow is { DataContext: DeviceDetailViewModel device })

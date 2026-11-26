@@ -629,9 +629,10 @@ $env:DASHYNMS_PACKAGES_TOKEN = gh auth token
 ```
 
 The version is pinned in `Directory.Build.props` (`DashyNMSCoreVersion`). Between
-Core releases it's an edge package of core's `main`: every commit there
-publishes `x.y.z-edge.N` (`x.y.z-ci.N` before those). Pin the one this app
-needs, and move to a release before shipping.
+Core releases it's an exact nightly or edge package of core's `main`: every
+commit there publishes `x.y.z-edge.N`, and a changed `main` gets an
+`x.y.z-nightly.N` each night (`x.y.z-ci.N` before those). Pin the one this app
+needs, preferring a nightly, and move to a release before shipping.
 
 To change Core and the app together, build against a local checkout of
 DashyNMS/core instead of the package:
