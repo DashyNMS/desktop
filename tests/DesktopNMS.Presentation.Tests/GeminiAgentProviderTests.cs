@@ -63,7 +63,7 @@ public sealed class GeminiAgentProviderTests : IDisposable
     public void The_session_refuses_commands_writes_the_web_the_users_servers_and_workspace_reads()
     {
         var workspace = Path.Combine(Path.GetTempPath(), "workspace");
-        var settings = GeminiAgentProvider.SessionSettings(workspace, ["mine", "dashynms_desktop"]);
+        var settings = GeminiAgentProvider.SessionSettings(workspace, ["mine", "dashynms_desktop"], []);
         var deny = settings["permissions"]!["deny"]!.AsArray().Select(d => d!.ToString()).ToList();
 
         Assert.Contains("command(*)", deny);
@@ -73,12 +73,31 @@ public sealed class GeminiAgentProviderTests : IDisposable
         Assert.Contains("mcp(mine/*)", deny);
         Assert.DoesNotContain("mcp(dashynms_desktop/*)", deny);
         Assert.Contains($"read_file({workspace.Replace('\\', '/')}/)", deny);
+        Assert.Contains("read_file(./)", deny);
         Assert.DoesNotContain("read_file(*)", deny);
         Assert.Equal("", settings["agentMode"]!.GetValue<string>());
         Assert.False(settings["allowNonWorkspaceAccess"]!.GetValue<bool>());
         Assert.Equal("request-review", settings["toolPermission"]!.GetValue<string>());
         Assert.Equal("mcp(dashynms_desktop/*)", Assert.Single(settings["permissions"]!["allow"]!.AsArray())!.ToString());
     }
+
+    [Fact]
+    public void Session_denies_override_inherited_file_grants()
+    {
+        var denials = GeminiAgentProvider.InheritedFileReadDenials(
+            """{"permissions":{"allow":["read_file(*)","write_file(/example/)","mcp(other/*)"]}}""");
+        Assert.Equal(["read_file(*)", "read_file(/example/)"], denials);
+
+        var settings = GeminiAgentProvider.SessionSettings(Path.GetTempPath(), [], denials);
+        var deny = settings["permissions"]!["deny"]!.AsArray().Select(d => d!.ToString());
+        Assert.All(denials, rule => Assert.Contains(rule, deny));
+    }
+
+    [Theory]
+    [InlineData("{")]
+    [InlineData("""{"permissions":{"allow":true}}""")]
+    public void Unreadable_file_grants_fail_closed(string settings)
+        => Assert.Equal(["read_file(*)"], GeminiAgentProvider.InheritedFileReadDenials(settings));
 
     [Fact]
     public void The_MCP_configuration_loads_only_the_allowed_tools_up_front()
@@ -130,7 +149,32 @@ public sealed class GeminiAgentProviderTests : IDisposable
 
         Assert.Null(GeminiAgentProvider.Read(Step(3, "ACTIVE", "run_command"), stream, listener));
         Assert.Null(GeminiAgentProvider.Read(Step(3, "ERROR", "run_command"), stream, listener));
-        Assert.Equal(IntelligenceFailure.Tools, GeminiAgentProvider.Read(Step(4, "DONE", "list_dir"), stream, listener)!.Failure);
+        Assert.Equal(IntelligenceFailure.Tools, GeminiAgentProvider.Read(Step(4, "DONE", "read_url_content"), stream, listener)!.Failure);
+    }
+
+    [Fact]
+    public void The_pre_tool_hook_denies_other_reads_before_execution()
+    {
+        var output = CreateOutput(Conversation);
+        var request = new JsonObject
+        {
+            ["conversationId"] = Conversation,
+            ["toolCall"] = new JsonObject
+            {
+                ["name"] = "read_file",
+                ["args"] = new JsonObject { ["Path"] = output },
+            },
+        };
+
+        Assert.Equal("allow", Decision());
+        request["toolCall"]!["args"]!["Path"] = CreateOutput(OtherConversation);
+        Assert.Equal("deny", Decision());
+        request["toolCall"]!["args"]!["Path"] = output;
+        request["toolCall"]!["name"] = "grep_search";
+        Assert.Equal("deny", Decision());
+        Assert.Contains("deny", GeminiOutputGuard.HookDecision("{", _geminiHome), StringComparison.Ordinal);
+
+        string Decision() => JsonNode.Parse(GeminiOutputGuard.HookDecision(request.ToJsonString(), _geminiHome))!["decision"]!.ToString();
     }
 
     [Fact]
@@ -141,6 +185,29 @@ public sealed class GeminiAgentProviderTests : IDisposable
 
         Assert.Null(GeminiAgentProvider.Read(ReadFile("ACTIVE", Conversation, file), stream, new Listener()));
         Assert.Null(GeminiAgentProvider.Read(ReadFile("DONE", Conversation, file), stream, new Listener()));
+    }
+
+    [Fact]
+    public void Gemini_accepts_either_case_of_a_Windows_drive_letter()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var file = CreateOutput(Conversation);
+        if (file[1] != ':') return;
+        var fromAgent = char.ToLowerInvariant(file[0]) + file[1..];
+        var stream = new GeminiAgentProvider.StreamState(Conversation, _geminiHome);
+
+        Assert.Null(GeminiAgentProvider.Read(ReadFile("DONE", Conversation, fromAgent), stream, new Listener()));
+    }
+
+    [Fact]
+    public void Gemini_stops_reads_with_missing_paths_or_invalid_sessions()
+    {
+        var file = CreateOutput(Conversation);
+        var stream = new GeminiAgentProvider.StreamState(Conversation, _geminiHome);
+        Assert.Equal(IntelligenceFailure.Tools, GeminiAgentProvider.Read(ReadFile("DONE", Conversation, null), stream, new Listener())!.Failure);
+
+        var invalid = new GeminiAgentProvider.StreamState("invalid", _geminiHome);
+        Assert.Equal(IntelligenceFailure.Tools, GeminiAgentProvider.Read(ReadFile("DONE", "invalid", file), invalid, new Listener())!.Failure);
     }
 
     [Fact]
@@ -166,20 +233,36 @@ public sealed class GeminiAgentProviderTests : IDisposable
         }
     }
 
-    [Fact]
-    public void Gemini_refuses_tool_output_reached_through_a_symbolic_link()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Gemini_refuses_tool_output_reached_through_a_symbolic_link(bool linkDirectory)
     {
         if (OperatingSystem.IsWindows()) return; // Creating a link needs developer mode or administrator access there.
         var file = CreateOutput(Conversation);
         var target = CreateOutput(OtherConversation);
-        File.Delete(file);
-        File.CreateSymbolicLink(file, target);
+        if (linkDirectory)
+        {
+            var directory = Path.GetDirectoryName(file)!;
+            Directory.Delete(directory, recursive: true);
+            Directory.CreateSymbolicLink(directory, Path.GetDirectoryName(target)!);
+        }
+        else
+        {
+            File.Delete(file);
+            File.CreateSymbolicLink(file, target);
+        }
         var stream = new GeminiAgentProvider.StreamState(Conversation, _geminiHome);
 
         Assert.Equal(IntelligenceFailure.Tools, GeminiAgentProvider.Read(ReadFile("DONE", Conversation, file), stream, new Listener())!.Failure);
     }
 
     [Theory]
+    [InlineData("view_file", "tool")]
+    [InlineData("grep_search", "tool")]
+    [InlineData("list_dir", "tool")]
+    [InlineData("find_by_name", "tool")]
+    [InlineData("sed_file", "tool")]
     [InlineData("invoke_subagent", "subagent")]
     [InlineData("schedule", "tool")]
     [InlineData("mcp_other_server_tool", "tool")]
@@ -244,7 +327,7 @@ public sealed class GeminiAgentProviderTests : IDisposable
         if (Directory.Exists(_geminiHome)) Directory.Delete(_geminiHome, recursive: true);
     }
 
-    private static JsonObject ReadFile(string state, string conversation, string path)
+    private static JsonObject ReadFile(string state, string conversation, string? path)
     {
         var update = Step(3, state, "read_file");
         var step = update["step_update"]!.AsObject();
