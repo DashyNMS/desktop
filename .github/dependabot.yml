@@ -16,8 +16,7 @@ registries:
 updates:
   - package-ecosystem: github-actions
     commit-message:
-      prefix: build
-      include: scope
+      prefix: build(deps)
     directory: /
     schedule:
       interval: weekly
@@ -28,8 +27,7 @@ updates:
 
   - package-ecosystem: nuget
     commit-message:
-      prefix: build
-      include: scope
+      prefix: build(deps)
     directories:
       - /src/*
       - /tests/*

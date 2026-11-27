@@ -1,8 +1,19 @@
 name: Bug report
 description: Report something that does not work as intended
 title: "fix: "
+type: Bug
 labels: [bug]
 body:
+  - type: markdown
+    attributes:
+      value: "If you can edit issue metadata, check the type and labels and choose a milestone. Otherwise propose a milestone below for a maintainer to assign."
+  - type: input
+    id: milestone
+    attributes:
+      label: Proposed milestone
+      description: Choose a planned release, Maintenance for ongoing work, or Unscheduled if no release is agreed.
+    validations:
+      required: true
   - type: markdown
     attributes:
       value: "For a vulnerability, use Security → Report a vulnerability. Use synthetic names and documentation addresses; remove credentials and customer details from logs and screenshots."

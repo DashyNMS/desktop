@@ -74,6 +74,14 @@ retain credentials explicitly for their Git tag/feed pushes. The wiki workflow
 authenticates its own separate clone. Tokens passed through environment variables
 or action inputs still need their own least-privilege permissions.
 
+Configure `commit-message.prefix: build(deps)` in every Dependabot ecosystem.
+The explicit prefix keeps the scope consistent across single and grouped updates.
+The title check recognises generated bump and update summaries from GitHub's
+Dependabot account, including capitalised summaries and the security marker.
+It also recognises the earlier `build:` and `build(deps-dev):` forms for
+existing Dependabot PRs. Check the next new Dependabot PR after adoption and
+record its original title and Security result in the adoption issue.
+
 Dependabot updates the shared scanner requirements in `DashyNMS/.github`.
 Consumer copies are owned by that shared source and move through the same
 reviewed distribution step as the scripts; their vulnerability audits still run
@@ -123,3 +131,33 @@ its upstream attribution and licence. Application repositories use MIT for
 project-owned material. The website reserves all rights to its original
 material. Preserve third-party and data licences in every repository. Mobile's curated What's New and the
 coordinated production-package pin policy are intentional exceptions.
+
+## Issue categorisation
+
+Every new issue needs an organisation issue type (usually Bug, Feature or Task),
+at least one relevant category or topic label, and a deliberately assigned
+milestone. Choose a release milestone when the work is committed to that release.
+Use **Maintenance** for recurring work and **Unscheduled** for work awaiting a
+release decision. Set up those milestones in the repository before using them.
+Review label relevance during triage. Workflow status labels alone are insufficient.
+
+Bug and feature forms supply a type and starter label and ask for a proposed
+milestone. Maintainers apply the actual metadata when contributors lack sidebar
+access. A proposal in the body cannot fill a sidebar field.
+
+People, agents and automation use the same rules. For API creation, send the
+type name, existing label names and repository-local milestone number with the
+create request. Read the returned issue and verify all three fields. GitHub can
+drop fields the caller lacks permission to set. Treat missing fields as a failed
+filing and correct the same issue before proceeding. For example, after choosing
+the metadata and creating the issue, verify it with:
+
+```sh
+gh api "repos/$REPOSITORY/issues/$ISSUE_NUMBER" | python3 scripts/issue_metadata.py
+```
+
+The read-only **Issue metadata** workflow checks newly opened or reclassified
+issues and lists missing fields as errors in the Actions run. Update the sidebar
+to resolve them. Run the workflow manually with the issue number to recheck
+metadata. Workflows creating issues with `GITHUB_TOKEN` must run the verifier
+themselves because GitHub suppresses most webhook-triggered runs for that token.

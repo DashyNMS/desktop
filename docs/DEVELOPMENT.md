@@ -1012,7 +1012,7 @@ python3 scripts/Publish-WikiGuide.py docs/guide /tmp/wiki --repository DashyNMS/
 
 ## Commits, pull requests and issues
 
-Dependabot uses `build(deps): ...` for every ecosystem. Its generated dependency names and grouped summaries may exceed the usual title length.
+Dependabot uses `build(deps): ...` for every ecosystem. Authenticated Dependabot may use generated capitalisation and exceed 72 characters.
 
 Every change goes through a branch and a pull request into `main`, one issue
 per PR, and is squash-merged. The PR title becomes the commit on `main`, so

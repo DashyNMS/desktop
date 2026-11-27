@@ -1,28 +1,31 @@
 {
   "version": 1,
   "source": "DashyNMS/.github",
-  "revision": "ccd55c8cb410b96de63014b6e6a109bdac825542",
+  "revision": "eb08d2b5c8f6eeed06c1434ff3a09e40090dced7",
   "files": {
+    ".github/workflows/issue-metadata.yml": "702121de1c8acc3e52fe4af94c403dc32c899b57f581f57d657d44e5344b5cc8",
+    "scripts/issue_metadata.py": "eacb169461e9d7849e7de5cc9bc4c8656548f2dec3c189aabc62548959606a63",
+    "scripts/tests/test_issue_metadata.py": "4bac7ebe9f19b0211ce4f0bf69830189837686d4dde81ef2338fe8ed509980d5",
     ".github/workflows/link-dependency-issue.yml": "aa445540e0fbccad3ae13395c11a61b9a56881bfcddcaadeccb2b5e9c673c183",
     "scripts/security_filters.py": "6de234c9218f8e5f21cf9f4b0c32bb9cf07b3da606c1f88b2f601ebf62012cbf",
     "scripts/tests/test_security_filters.py": "c782ea002970f2272e5d144549209f8881049ca97bfb692ee926a49bcf8af2c7",
-    "scripts/repository_policy.py": "36c617587ea9995cfc5306747531b50f19169d35382e45f96649d7d4f61ffe6e",
+    "scripts/repository_policy.py": "4be007c4b4af9ddc98d7e76afe1f568b38b9427fd0fd26bb1a17d4ed426ed7ad",
     "scripts/security_check.py": "2f39fb758588b909933df3fb5ca4bd72bfb4b7ca564db9fe6cf4dd703440d46c",
-    "scripts/tests/test_repository_policy.py": "3d46529a3f9d9969824828b13ed0cdb2894a26efc2601e3825e114fb2c728d4e",
+    "scripts/tests/test_repository_policy.py": "e7f17ed07abaf4133aa2c3b49533816fc68894e5557280818563b22cc62e47b2",
     "scripts/tests/test_security_check.py": "5c5bfa891d05b15c27548fd3b29e7e173a36cab217cc0ef3baf673ebfb1d4655",
     "requirements-security.txt": "c0eb3bbb4547697674db1bc188d5f64d3a3b115a1e388c2901160855cd5b990b",
     "CODE_OF_CONDUCT.md": "ddb20e005938e5f81c187c1d26ff56a9f92cffff71d2845e12285ac7872c39fd",
     ".github/pull_request_template.md": "1e0e3a1db7b6e2bdacc16b49bd8ae1724d026c0575a5f4125cadb6e3c62eff2d",
-    ".github/ISSUE_TEMPLATE/bug_report.yml": "7fb78d16a9743d656b66b305861a186a9c4b32ed74ad5007a2baa1c82ff5c247",
-    ".github/ISSUE_TEMPLATE/feature_request.yml": "2db97d1d45f20467661991156eac425e9f2df83cc325bbacf2412b447d2900af",
+    ".github/ISSUE_TEMPLATE/bug_report.yml": "70ea457951adcd70a8649c88a1b3b70ce61a905c440c5a44bb7e679e2736a389",
+    ".github/ISSUE_TEMPLATE/feature_request.yml": "bb07c7fd2066ed4e8042b2fbf617331a011c7408ff441b553140e599d4a4b4ec",
     ".github/ISSUE_TEMPLATE/config.yml": "93cdc69e7100a6e88fe42800146a6e3882519b9d82332260a7b07bd07704d3f9",
     ".github/CODEOWNERS": "58ce2b585838dd21da6b0400e86d791ed42b453b68d69c331758938f93dd1a1d",
-    "docs/REPOSITORY-STANDARDS.md": "29e13c0352011bdbaf1c57c4446a0feedbd6e3503ffec1fd5da5573b900798b5"
+    "docs/REPOSITORY-STANDARDS.md": "b90856ddcae80189043ffd44fb07ee72cedc11f2f675ae628aa79c0c51892c3e"
   },
   "helpers": {
     "scripts/build_version.py": "b42e2aefdfdbfdabb6ebe60d21448152ff5c03c1f8121c5754c180233347619a",
     "scripts/Publish-WikiGuide.py": "d576c1b45d8afdaa5462507629edf54e96e0b38b7497708480436fd8256e19f7",
     "scripts/upload-missing-release-assets.py": "020de6372b7a3599a7077d375f28dd41760b633b225e3946f594d1707df3d43f"
   },
-  "claude_sha256": "6a25c43122cb6edc56c559489feeb5cd9a8e47aa5ed390cae187f7cc27a35c9b"
+  "claude_sha256": "5ecfb916e962347926600d904c94af430cdf8d2a6731982cdb4aa56eae4e25b0"
 }
