@@ -27,6 +27,11 @@ Add release notes when users or consumers would notice the change. Published
 versions stay immutable. Project-owned material uses the MIT licence in
 [LICENSE](LICENSE); retain upstream terms, notices and provenance.
 
+Set an organisation issue type, relevant category or topic labels, and a
+milestone for each new issue. Follow the shared
+[issue categorisation guidance](docs/REPOSITORY-STANDARDS.md#issue-categorisation)
+when choosing a milestone or filing through the API.
+
 Every PR must reference an existing issue describing the bug or intended change.
 Create or find that issue before opening the PR, including for documentation,
 dependency and CI changes. Use a non-closing reference for partial work.

@@ -12,6 +12,7 @@ import urllib.request
 import yaml
 
 SUBJECT = re.compile(r"(?:feat|fix|perf|refactor|docs|test|build|ci|chore|revert)(?:\([a-z0-9]+(?:-[a-z0-9]+)*(?:,[a-z0-9]+(?:-[a-z0-9]+)*)*\))?!?: [a-z].+")
+DEPENDABOT_SUBJECT = re.compile(r"build(?:\(deps(?:-dev)?\))?: (?:\[[Ss]ecurity\] )?(?:[Bb]ump|[Uu]pdate) \S.*")
 SHA = re.compile(r"[0-9a-f]{40}")
 
 
@@ -74,12 +75,19 @@ def check_issue(pr, repository, token, policy_since=None, maintenance_issue=None
     return ["The linked issue must exist, be an issue rather than a PR, and have been created before this PR."]
 
 
-def check_title(title, author=""):
+def check_title(title, author=None):
+    author = author or {}
+    generated = (
+        author.get("login") == "dependabot[bot]"
+        and author.get("type") == "Bot"
+        and author.get("id") == 49699333
+        and DEPENDABOT_SUBJECT.fullmatch(title)
+    )
     errors = []
-    if not SUBJECT.fullmatch(title) or title.endswith(".") or re.search(r"(?:^|\s)#\d+", title):
+    if (not (generated or SUBJECT.fullmatch(title)) or title.endswith(".")
+            or re.search(r"(?:^|\s)#\d+", title)):
         errors.append("Use type(scope): lower-case result, without a final full stop or issue number.")
-    bot = author == "dependabot[bot]" and title.startswith("build(deps): ")
-    if len(title) > 72 and not bot:
+    if len(title) > 72 and not generated:
         errors.append("Keep the complete PR title within 72 characters.")
     return errors
 
@@ -241,7 +249,7 @@ def check_repository(root, canonical=False):
                     if rank.get(granted.get(permission, "none"), 0) < rank.get(level, 0):
                         errors.append(f"{name}/{job_id}: reusable workflow requires {permission}: {level}")
     for entry in yaml.safe_load((root / ".github/dependabot.yml").read_text(encoding="utf-8"))["updates"]:
-        if entry.get("commit-message") != {"prefix": "build", "include": "scope"}:
+        if entry.get("commit-message") != {"prefix": "build(deps)"}:
             errors.append("dependabot.yml: every ecosystem must use the shared commit naming")
     for name in ("CODE_OF_CONDUCT.md", "CONTRIBUTING.md", "ACCESSIBILITY.md", "SECURITY.md", "LICENSE", ".github/CODEOWNERS", ".github/pull_request_template.md"):
         if not (root / name).is_file():
@@ -260,7 +268,7 @@ def main():
         data = json.loads(Path(event).read_text(encoding="utf-8"))
         pr = data.get("pull_request")
         if pr:
-            errors += check_title(pr["title"], pr.get("user", {}).get("login", ""))
+            errors += check_title(pr["title"], pr.get("user"))
             config = json.loads((args.root / ".github/repository-config.json").read_text(encoding="utf-8"))
             errors += check_issue(pr, data["repository"]["full_name"], os.environ.get("GH_TOKEN", ""), config.get("issue_policy_since"), os.environ.get("DEPENDENCY_MAINTENANCE_ISSUE"))
     if errors:

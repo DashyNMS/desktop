@@ -1,8 +1,19 @@
 name: Feature request
 description: Suggest a capability or improvement
 title: "feat: "
+type: Feature
 labels: [enhancement]
 body:
+  - type: markdown
+    attributes:
+      value: "If you can edit issue metadata, check the type and labels and choose a milestone. Otherwise propose a milestone below for a maintainer to assign."
+  - type: input
+    id: milestone
+    attributes:
+      label: Proposed milestone
+      description: Choose a planned release, Maintenance for ongoing work, or Unscheduled if no release is agreed.
+    validations:
+      required: true
   - type: textarea
     id: problem
     attributes:

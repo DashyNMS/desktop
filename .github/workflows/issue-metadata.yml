@@ -1,0 +1,37 @@
+name: Issue metadata
+
+on:
+  issues:
+    types: [opened, reopened, transferred, labeled, unlabeled, milestoned, demilestoned, typed, untyped]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number to validate
+        type: number
+        required: true
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  validate:
+    name: Verify issue classification
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check current issue metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number || inputs.issue }}
+        run: |
+          if [[ ! "$ISSUE" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Use a positive issue number."
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE" | python3 scripts/issue_metadata.py

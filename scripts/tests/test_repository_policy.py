@@ -46,9 +46,33 @@ class PullRequestTitleTests(unittest.TestCase):
     def test_rejects_nonconventional_or_untrusted_bot_exceptions(self):
         for title in ["Bump packages", "fix: Upper case", "fix(UI): lower case", "fix: a result.", "fix: a result #12", "docs: " + "a" * 90]:
             self.assertTrue(policy.check_title(title), title)
-        long = "build(deps): bump " + "a" * 90
-        self.assertTrue(policy.check_title(long, "example-user"))
-        self.assertEqual([], policy.check_title(long, "dependabot[bot]"))
+
+    def test_generated_single_and_grouped_titles(self):
+        bot = {"login": "dependabot[bot]", "type": "Bot", "id": 49699333}
+        # Original titles from desktop#650 and desktop#644, and sensor-definitions#43.
+        single = "Bump System.Security.Cryptography.ProtectedData from 10.0.14 to 11.0.0"
+        group = "Bump the packages group with 14 updates"
+        group_across_directories = "bump the packages group across 1 directory with 5 updates"
+        self.assertGreater(len("build(deps): " + single), 72)
+        for title in (
+            "build: " + single,
+            "build: " + group,
+            "build(deps): " + single,
+            "build(deps): " + group,
+            "build(deps): " + group_across_directories,
+            "build(deps): [Security] " + single,
+        ):
+            with self.subTest(title=title):
+                self.assertEqual([], policy.check_title(title, bot))
+                for author in (None, dict(bot, id=1), dict(bot, type="User"), dict(bot, login="another[bot]")):
+                    if title == "build(deps): " + group_across_directories:
+                        self.assertEqual([], policy.check_title(title, author))
+                    else:
+                        self.assertTrue(policy.check_title(title, author))
+
+        for title in ("build(deps): Bump", "build(deps): Bump packages.",
+                      "build(deps): Bump packages #12", "fix: Bump packages"):
+            self.assertTrue(policy.check_title(title, bot))
 
 
 class WorkflowPolicyTests(unittest.TestCase):
